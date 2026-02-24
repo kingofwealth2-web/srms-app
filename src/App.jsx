@@ -402,7 +402,7 @@ function Sidebar({profile,active,onNav,collapsed,onToggle,onLogout}) {
             onMouseEnter={e=>{e.currentTarget.style.color='var(--mist)';e.currentTarget.style.background='var(--ink4)'}}
             onMouseLeave={e=>{e.currentTarget.style.color='var(--mist3)';e.currentTarget.style.background='none'}}>‹</button>
         </>}
-        {collapsed && <div style={{width:32,height:32,borderRadius:8,background:'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 12px rgba(232,184,75,0.3)'}}><span className='d' style={{fontSize:15,fontWeight:700,color:'var(--ink)'}}>S</span></div>}
+        {collapsed && <div onClick={onToggle} style={{width:32,height:32,borderRadius:8,background:'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 12px rgba(232,184,75,0.3)',cursor:'pointer'}} title='Expand sidebar'><span className='d' style={{fontSize:15,fontWeight:700,color:'var(--ink)'}}>S</span></div>}
       </div>
       <nav style={{flex:1,padding:'10px 8px',overflowY:'auto'}}>
         {!collapsed && <div style={{fontSize:9,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.12em',padding:'8px 8px 6px',fontFamily:"'Clash Display',sans-serif"}}>Navigation</div>}
@@ -532,10 +532,11 @@ function Students({profile,data,setData,toast,settings}) {
     const q=search.toLowerCase()
     return (`${s.first_name} ${s.last_name} ${s.student_id}`).toLowerCase().includes(q) && (!fc||s.class_id===fc)
   })
-  const openAdd = ()=>{setEdit(null);setForm({first_name:'',last_name:'',class_id:'',dob:'',gender:'',phone:'',email:'',address:'',medical_info:''});setModal(true)}
+  const openAdd = ()=>{setEdit(null);setForm({first_name:'',last_name:'',class_id:'',dob:'',gender:'',phone:'',email:'',address:'',medical_info:'',guardian_name:'',guardian_relation:'',guardian_phone:'',guardian_email:''});setModal(true)}
   const openEdit = s=>{setEdit(s);setForm({...s});setModal(true)}
   const save = async ()=>{
     if(!form.first_name||!form.last_name||!form.class_id)return
+    if(!form.guardian_name||!form.guardian_phone){toast('Please add at least one parent or guardian with a name and phone number','error');return}
     setSaving(true)
     if(edit){
       const {error} = await supabase.from('students').update({...form,updated_at:new Date()}).eq('id',edit.id)
@@ -604,6 +605,18 @@ function Students({profile,data,setData,toast,settings}) {
             <Field label='Address' value={form.address} onChange={f('address')}/>
           </div>
           <Field label='Medical Information' value={form.medical_info} onChange={f('medical_info')} placeholder='Known conditions, allergies…'/>
+          <div style={{margin:'16px 0 10px',paddingTop:16,borderTop:'1px solid var(--line)'}}>
+            <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12,display:'flex',alignItems:'center',gap:8}}>
+              <span>Parent / Guardian</span>
+              <span style={{fontSize:10,color:'var(--rose)',background:'rgba(240,107,122,0.1)',border:'1px solid rgba(240,107,122,0.2)',padding:'2px 8px',borderRadius:10}}>Required</span>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 20px'}}>
+              <Field label='Guardian Name' value={form.guardian_name} onChange={f('guardian_name')} required placeholder='Full name'/>
+              <Field label='Relationship' value={form.guardian_relation} onChange={f('guardian_relation')} options={['','Mother','Father','Grandmother','Grandfather','Uncle','Aunt','Sibling','Legal Guardian','Other']}/>
+              <Field label='Guardian Phone' value={form.guardian_phone} onChange={f('guardian_phone')} required placeholder='Primary contact number'/>
+              <Field label='Guardian Email' value={form.guardian_email} onChange={f('guardian_email')} type='email' placeholder='Optional'/>
+            </div>
+          </div>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
             <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving…</>:'Save Student'}</Btn>
@@ -789,13 +802,6 @@ function Attendance({profile,data,setData,toast}) {
   const alreadyMarkedToday = date===today && savedRecs.length>0 && Object.keys(pendingMarks).length===0
   const unmarkedCount = classStudents.filter(s=>!getStatus(s.id)).length
 
-  // Warn if user tries to close/refresh the browser tab with unsaved marks
-  useEffect(()=>{
-    const handler = e => { if(hasUnsaved){ e.preventDefault(); e.returnValue='' } }
-    window.addEventListener('beforeunload',handler)
-    return ()=>window.removeEventListener('beforeunload',handler)
-  },[hasUnsaved])
-
   const changeContext = (newCid, newDate) => {
     if(hasUnsaved) {
       if(!window.confirm('You have unsaved attendance marks. Changing will discard them. Continue?')) return
@@ -945,7 +951,7 @@ function Attendance({profile,data,setData,toast}) {
                   }
                 </div>
                 <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{minWidth:160,justifyContent:'center',boxShadow:hasUnsaved?'0 4px 20px rgba(232,184,75,0.25)':'none'}}>
-                  {saving?<><Spinner/> Saving…</>:(unmarkedCount>0?`Save Attendance (${unmarkedCount} unmarked)`:'Save Attendance')}
+                  {saving?<><Spinner/> Saving…</>:`Save Attendance${unmarkedCount>0?\` (${unmarkedCount} unmarked)\`:''}`}
                 </Btn>
               </div>
             </>
