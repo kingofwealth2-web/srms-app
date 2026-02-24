@@ -951,7 +951,7 @@ function Attendance({profile,data,setData,toast}) {
                   }
                 </div>
                 <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{minWidth:160,justifyContent:'center',boxShadow:hasUnsaved?'0 4px 20px rgba(232,184,75,0.25)':'none'}}>
-                  {saving?<><Spinner/> Saving…</>:`Save Attendance${unmarkedCount>0?\` (${unmarkedCount} unmarked)\`:''}`}
+                {saving ? <><Spinner /> Saving…</> : `Save Attendance${unmarkedCount > 0 ? ` (${unmarkedCount} unmarked)` : ""}`}
                 </Btn>
               </div>
             </>
