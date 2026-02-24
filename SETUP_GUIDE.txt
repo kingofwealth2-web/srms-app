@@ -1,0 +1,116 @@
+# SRMS — Complete Setup Guide
+Follow these steps in order. Should take 15 minutes total.
+
+═══════════════════════════════════════════════════════════
+STEP 1 — Run the database schema in Supabase
+═══════════════════════════════════════════════════════════
+
+1. Go to https://supabase.com and log in
+2. Open your "srms" project
+3. Click "SQL Editor" in the left sidebar
+4. Click "New query"
+5. Open the file: SUPABASE_SCHEMA.sql
+6. Copy the ENTIRE contents and paste into the SQL editor
+7. Click the green "Run" button
+8. You should see "Success. No rows returned"
+
+═══════════════════════════════════════════════════════════
+STEP 2 — Create your Super Admin account
+═══════════════════════════════════════════════════════════
+
+1. In Supabase, go to Authentication → Users
+2. Click "Add user" → "Create new user"
+3. Enter your email and a password
+4. Click "Create user"
+5. Copy the UUID shown next to the user (looks like: abc123...)
+6. Go to SQL Editor → New query
+7. Paste and run this (replace YOUR_UUID and YOUR_NAME):
+
+   update public.profiles 
+   set role = 'superadmin', full_name = 'YOUR_NAME'
+   where id = 'YOUR_UUID';
+
+═══════════════════════════════════════════════════════════
+STEP 3 — Set up the project on your computer
+═══════════════════════════════════════════════════════════
+
+1. Create a folder on your Desktop called "srms-app"
+2. Move all the project files into that folder
+3. Open that folder in VS Code:
+   - Open VS Code
+   - File → Open Folder → select "srms-app"
+
+4. Open the Terminal in VS Code:
+   - View → Terminal (or press Ctrl + `)
+
+5. Run these commands one by one:
+
+   npm install
+
+   (wait for it to finish — about 1 minute)
+
+   npm run dev
+
+6. Open your browser and go to: http://localhost:5173
+7. You should see the SRMS login screen!
+
+═══════════════════════════════════════════════════════════
+STEP 4 — Log in and start using SRMS
+═══════════════════════════════════════════════════════════
+
+- Use the email and password you created in Step 2
+- You are now logged in as Super Admin
+- You have full access to all modules
+
+═══════════════════════════════════════════════════════════
+STEP 5 — Deploy live (optional, free)
+═══════════════════════════════════════════════════════════
+
+To get a real URL anyone can visit:
+
+1. Go to https://vercel.com and sign up with GitHub
+2. Push your project to GitHub (ask Claude to help with this)
+3. In Vercel, click "New Project" → import your GitHub repo
+4. Click Deploy
+5. You get a live URL like: https://srms-yourname.vercel.app
+
+═══════════════════════════════════════════════════════════
+ADDING MORE USERS (Admins, Teachers)
+═══════════════════════════════════════════════════════════
+
+Method 1 — Through the app (Super Admin only):
+- Log in → Users → + Add User
+- Fill in their details and role
+
+Method 2 — Through Supabase:
+- Authentication → Users → Add user
+- Then update their role in SQL Editor:
+
+  update public.profiles 
+  set role = 'admin', full_name = 'Jordan Blake'
+  where email = 'jordan@school.com';
+
+  -- Roles: superadmin, admin, classteacher, teacher
+
+═══════════════════════════════════════════════════════════
+TROUBLESHOOTING
+═══════════════════════════════════════════════════════════
+
+"npm is not recognised" 
+→ Node.js is not installed. Go to nodejs.org and install it.
+
+"Cannot find module"
+→ Run: npm install
+
+Login says "Invalid login credentials"
+→ Make sure you created the user in Supabase Authentication tab
+
+App loads but shows no data
+→ Make sure you ran the SUPABASE_SCHEMA.sql file in Step 1
+
+White screen / nothing loads
+→ Open browser console (F12) and send the error message to Claude
+
+═══════════════════════════════════════════════════════════
+Need help? Just tell Claude exactly what you see on screen.
+═══════════════════════════════════════════════════════════
