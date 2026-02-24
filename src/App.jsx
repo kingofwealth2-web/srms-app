@@ -40,11 +40,61 @@ input,select,textarea{font-family:inherit;outline:none}
 `
 
 // ── HELPERS ────────────────────────────────────────────────────
-const calcTotal = g => (+g.classwork||0)+(+g.homework||0)+(+g.midsemester||0)+(+g.final_exam||0)+(+g.project||0)
+const ALL_COMPONENTS = ['classwork','homework','midsemester','final_exam','project']
+const DEFAULT_GRADE_COMPONENTS = [
+  {key:'classwork',  label:'Classwork',   max_score:10, weight:10, enabled:true},
+  {key:'homework',   label:'Homework',    max_score:10, weight:10, enabled:true},
+  {key:'midsemester',label:'Midsemester', max_score:20, weight:20, enabled:true},
+  {key:'final_exam', label:'Final Exam',  max_score:50, weight:50, enabled:true},
+  {key:'project',    label:'Project',     max_score:10, weight:10, enabled:true},
+]
+const getGradeComponents = settings => settings?.grade_components || DEFAULT_GRADE_COMPONENTS
+const calcTotal = (g, gradeComponents) => {
+  const comps = gradeComponents || DEFAULT_GRADE_COMPONENTS
+  const active = comps.filter(c=>c.enabled)
+  if(!active.length) return 0
+  return Math.round(active.reduce((sum,c) => {
+    const raw = +g[c.key]||0
+    const maxRaw = c.max_score||1
+    return sum + (raw/maxRaw)*c.weight
+  }, 0))
+}
 const getLetter = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.letter; return 'F' }
 const getGPA    = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.gpa;    return 0   }
 const fmtDate   = d => d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'
-const fmtMoney  = n => '$'+Number(n||0).toLocaleString()
+const CURRENCIES = [
+  {code:'GHS',symbol:'₵', name:'Ghanaian Cedi',    position:'before', decimals:2},
+  {code:'USD',symbol:'$', name:'US Dollar',         position:'before', decimals:2},
+  {code:'GBP',symbol:'£', name:'British Pound',     position:'before', decimals:2},
+  {code:'EUR',symbol:'€', name:'Euro',              position:'before', decimals:2},
+  {code:'NGN',symbol:'₦', name:'Nigerian Naira',    position:'before', decimals:2},
+  {code:'KES',symbol:'KSh',name:'Kenyan Shilling',  position:'before', decimals:2},
+  {code:'ZAR',symbol:'R', name:'South African Rand',position:'before', decimals:2},
+  {code:'TZS',symbol:'TSh',name:'Tanzanian Shilling',position:'before',decimals:0},
+  {code:'UGX',symbol:'USh',name:'Ugandan Shilling', position:'before', decimals:0},
+  {code:'XOF',symbol:'Fr', name:'West African CFA', position:'after',  decimals:0},
+  {code:'ETB',symbol:'Br', name:'Ethiopian Birr',   position:'before', decimals:2},
+  {code:'CAD',symbol:'CA$',name:'Canadian Dollar',  position:'before', decimals:2},
+  {code:'AUD',symbol:'A$', name:'Australian Dollar',position:'before', decimals:2},
+  {code:'INR',symbol:'₹', name:'Indian Rupee',      position:'before', decimals:2},
+  {code:'JPY',symbol:'¥', name:'Japanese Yen',      position:'before', decimals:0},
+  {code:'CNY',symbol:'¥', name:'Chinese Yuan',      position:'before', decimals:2},
+  {code:'AED',symbol:'AED',name:'UAE Dirham',       position:'before', decimals:2},
+]
+const getCurrency = settings => {
+  const base = CURRENCIES.find(c=>c.code===(settings?.currency_code||'GHS')) || CURRENCIES[0]
+  return {
+    ...base,
+    position: settings?.currency_position || base.position,
+    decimals: settings?.currency_decimals ?? base.decimals,
+  }
+}
+const fmtMoney = (n, currency) => {
+  const c = currency || CURRENCIES[0]
+  const decimals = c.decimals ?? 2
+  const formatted = Number(n||0).toLocaleString('en-US',{minimumFractionDigits:decimals,maximumFractionDigits:decimals})
+  return c.position==='after' ? `${formatted} ${c.symbol}` : `${c.symbol}${formatted}`
+}
 const genSID    = arr => { const max=arr.reduce((m,s)=>Math.max(m,parseInt(s.student_id?.split('-')[1]||0)),0); return `STU-${String(max+1).padStart(4,'0')}` }
 const genRCP    = arr => { const max=arr.filter(f=>f.receipt_no).reduce((m,f)=>Math.max(m,parseInt(f.receipt_no?.split('-')[1]||0)),0); return `RCP-${String(max+1).padStart(4,'0')}` }
 
@@ -397,11 +447,13 @@ function Dashboard({profile,data,settings,onNav}) {
   const {students=[],classes=[],fees=[],attendance=[],grades=[],announcements=[],subjects=[]} = data
   const today = new Date().toISOString().split('T')[0]
   const scale = settings?.grading_scale || []
+  const gradeComps = getGradeComponents(settings)
+  const currency = getCurrency(settings)
   const myClass = profile?.role==='classteacher' ? classes.find(c=>c.id===profile.class_id) : null
   const todayMarked = myClass ? attendance.some(a=>a.class_id===myClass.id&&a.date===today) : true
   const totalFees = fees.reduce((s,f)=>s+Number(f.amount||0),0)
   const totalPaid = fees.reduce((s,f)=>s+Number(f.paid||0),0)
-  const allTotals = grades.map(g=>calcTotal(g))
+  const allTotals = grades.map(g=>calcTotal(g,gradeComps))
   const avgScore  = allTotals.length ? Math.round(allTotals.reduce((a,b)=>a+b,0)/allTotals.length) : 0
   const passRate  = allTotals.length ? Math.round(allTotals.filter(s=>s>=50).length/allTotals.length*100) : 0
   const myClassStudents = myClass ? students.filter(s=>s.class_id===myClass.id) : []
@@ -424,7 +476,7 @@ function Dashboard({profile,data,settings,onNav}) {
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16,marginBottom:28}}>
         {isAdmin && <>
           <KPI label='Total Students' value={students.length}       color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
-          <KPI label='Fee Collection'  value={`${totalFees?Math.round(totalPaid/totalFees*100):0}%`} color='var(--emerald)' sub={`${fmtMoney(totalPaid)} collected`} index={1}/>
+          <KPI label='Fee Collection'  value={`${totalFees?Math.round(totalPaid/totalFees*100):0}%`} color='var(--emerald)' sub={`${fmtMoney(totalPaid,currency)} collected`} index={1}/>
           <KPI label='Average Score'   value={avgScore}             color='var(--sky)'     sub={`Pass rate: ${passRate}%`} index={2}/>
           <KPI label='Active Classes'  value={classes.length}       color='var(--amber)'   sub={`${subjects.length} subjects`} index={3}/>
         </>}
@@ -566,6 +618,8 @@ function Students({profile,data,setData,toast,settings}) {
 function Grades({profile,data,setData,toast,settings}) {
   const {grades=[],students=[],subjects=[]} = data
   const scale = settings?.grading_scale || []
+  const allComps = getGradeComponents(settings)
+  const activeComps = allComps.filter(c=>c.enabled)
   const mySubjects = ['superadmin','admin'].includes(profile?.role) ? subjects : subjects.filter(s=>s.teacher_id===profile?.id)
   const myGrades   = ['superadmin','admin'].includes(profile?.role) ? grades   : grades.filter(g=>mySubjects.some(s=>s.id===g.subject_id))
   const [fs,setFs] = useState('')
@@ -579,10 +633,23 @@ function Grades({profile,data,setData,toast,settings}) {
     ? Array.from({length:settings.period_count||2},(_,i)=>`Term ${i+1}`)
     : Array.from({length:settings.period_count||2},(_,i)=>`Semester ${i+1}`)
   const filtered = myGrades.filter(g=>(!fs||g.subject_id===fs)&&(!fp||g.period===fp))
-  const openAdd  = ()=>{setEdit(null);setForm({student_id:'',subject_id:mySubjects[0]?.id||'',classwork:'',homework:'',midsemester:'',final_exam:'',project:'',period:periods[0],year:settings?.academic_year||''});setModal(true)}
-  const openEdit = g=>{setEdit(g);setForm({...g});setModal(true)}
-  const save = async ()=>{
-    const g={...form,classwork:+form.classwork||0,homework:+form.homework||0,midsemester:+form.midsemester||0,final_exam:+form.final_exam||0,project:+form.project||0}
+
+  const openAdd = () => {
+    const emptyScores = ALL_COMPONENTS.reduce((acc,k)=>({...acc,[k]:''}),{})
+    setEdit(null)
+    setForm({student_id:'',subject_id:mySubjects[0]?.id||'',...emptyScores,period:periods[0],year:settings?.academic_year||''})
+    setModal(true)
+  }
+  const openEdit = g => { setEdit(g); setForm({...g}); setModal(true) }
+
+  const save = async () => {
+    if(!form.student_id||!form.subject_id){toast('Please select a student and subject','error');return}
+    // Only save scores for active components; zero out disabled ones
+    const scores = ALL_COMPONENTS.reduce((acc,k)=>{
+      const comp = allComps.find(c=>c.key===k)
+      return {...acc,[k]:comp?.enabled ? (+form[k]||0) : 0}
+    },{})
+    const g = {...form,...scores}
     setSaving(true)
     if(edit){
       const {error}=await supabase.from('grades').update(g).eq('id',edit.id)
@@ -595,13 +662,23 @@ function Grades({profile,data,setData,toast,settings}) {
     }
     setSaving(false)
   }
-  const prev  = calcTotal({classwork:+form.classwork||0,homework:+form.homework||0,midsemester:+form.midsemester||0,final_exam:+form.final_exam||0,project:+form.project||0})
+
+  // Live preview total using only active components
+  const previewG = ALL_COMPONENTS.reduce((acc,k)=>({...acc,[k]:+form[k]||0}),{})
+  const prev  = calcTotal(previewG, allComps)
   const prevL = getLetter(prev,scale)
   const prevG = getGPA(prev,scale)
+
+  // For table: show all components that have any data OR are active
+  const tableComps = allComps.filter(c=>c.enabled || grades.some(g=>+g[c.key]>0))
+
   return (
     <div>
       <PageHeader title='Grades & Records' sub={`${filtered.length} grade records`}>
-        <Btn onClick={openAdd}>+ Record Grades</Btn>
+        {activeComps.length===0
+          ? <span style={{fontSize:12,color:'var(--rose)',padding:'8px 16px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)'}}>⚠ No grade components active. Configure in Settings.</span>
+          : <Btn onClick={openAdd}>+ Record Grades</Btn>
+        }
       </PageHeader>
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
@@ -620,12 +697,12 @@ function Grades({profile,data,setData,toast,settings}) {
           {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?(<div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${s.first_name} ${s.last_name}`} size={28}/><span style={{fontWeight:600}}>{s.first_name} {s.last_name}</span></div>):'—'}},
           {key:'subject_id',label:'Subject',render:v=>subjects.find(s=>s.id===v)?.name||'—'},
           {key:'period',label:'Period'},
-          {key:'classwork',  label:'CW /10', render:v=><span className='mono'>{v}</span>},
-          {key:'homework',   label:'HW /10', render:v=><span className='mono'>{v}</span>},
-          {key:'midsemester',label:'Mid /20', render:v=><span className='mono'>{v}</span>},
-          {key:'final_exam', label:'Final /50',render:v=><span className='mono'>{v}</span>},
-          {key:'project',    label:'Proj /10',render:v=><span className='mono'>{v}</span>},
-          {key:'id',label:'Total',render:(_,r)=>{const t=calcTotal(r);const l=getLetter(t,scale);return(
+          ...tableComps.map(c=>({
+            key:c.key,
+            label:`${c.label} /${c.max_score}`,
+            render:v=><span className='mono' style={{color:c.enabled?'var(--white)':'var(--mist3)'}}>{v||0}</span>
+          })),
+          {key:'id',label:'Total',render:(_,r)=>{const t=calcTotal(r,allComps);const l=getLetter(t,scale);return(
             <div style={{display:'flex',gap:8,alignItems:'center'}}>
               <span className='mono' style={{fontWeight:700,fontSize:14}}>{t}</span>
               <Badge color={LETTER_COLOR[l]||'var(--mist2)'}>{l}</Badge>
@@ -635,7 +712,7 @@ function Grades({profile,data,setData,toast,settings}) {
         ]}/>
       </Card>
       {modal && (
-        <Modal title={edit?'Edit Grade':'Record Grades'} onClose={()=>setModal(false)} width={580}>
+        <Modal title={edit?'Edit Grade':'Record Grades'} onClose={()=>setModal(false)} width={600}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 20px'}}>
             <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={students.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name}`}))}/>
             <Field label='Subject' value={form.subject_id} onChange={f('subject_id')} required options={mySubjects.map(s=>({value:s.id,label:s.name}))}/>
@@ -644,12 +721,29 @@ function Grades({profile,data,setData,toast,settings}) {
           </div>
           <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:18,marginBottom:16}}>
             <SectionTitle>Score Entry</SectionTitle>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'8px 12px'}}>
-              {[['classwork','CW /10'],['homework','HW /10'],['midsemester','Mid /20'],['final_exam','Final /50'],['project','Proj /10']].map(([k,l])=>(
-                <Field key={k} label={l} value={form[k]} onChange={f(k)} type='number' style={{marginBottom:0}}/>
-              ))}
-            </div>
-            <div style={{marginTop:16,display:'flex',alignItems:'center',gap:20,background:'var(--ink4)',borderRadius:'var(--r-sm)',padding:'14px 18px',border:`1px solid ${LETTER_COLOR[prevL]||'var(--line)'}20`}}>
+            {/* Active components — editable */}
+            {activeComps.length>0 && (
+              <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(activeComps.length,4)},1fr)`,gap:'8px 12px',marginBottom:12}}>
+                {activeComps.map(c=>(
+                  <Field key={c.key} label={`${c.label} /${c.max_score}`} value={form[c.key]||''} onChange={f(c.key)} type='number' style={{marginBottom:0}}/>
+                ))}
+              </div>
+            )}
+            {/* Disabled components with existing scores — read-only */}
+            {edit && allComps.filter(c=>!c.enabled&&+form[c.key]>0).length>0 && (
+              <div style={{marginTop:8,padding:'10px 14px',background:'var(--ink4)',borderRadius:'var(--r-sm)',border:'1px solid var(--line)'}}>
+                <div style={{fontSize:10,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Archived scores (component disabled)</div>
+                <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
+                  {allComps.filter(c=>!c.enabled&&+form[c.key]>0).map(c=>(
+                    <div key={c.key}>
+                      <div style={{fontSize:10,color:'var(--mist3)',marginBottom:2}}>{c.label}</div>
+                      <div className='mono' style={{fontSize:14,color:'var(--mist2)'}}>{form[c.key]||0}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{marginTop:14,display:'flex',alignItems:'center',gap:20,background:'var(--ink4)',borderRadius:'var(--r-sm)',padding:'14px 18px',border:`1px solid ${LETTER_COLOR[prevL]||'var(--line)'}20`}}>
               <div>
                 <div className='d' style={{fontSize:10,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Total Score</div>
                 <div className='d' style={{fontSize:28,fontWeight:700,color:LETTER_COLOR[prevL]||'var(--mist)',lineHeight:1}}>{prev}<span style={{fontSize:14,color:'var(--mist3)'}}>/100</span></div>
@@ -668,7 +762,7 @@ function Grades({profile,data,setData,toast,settings}) {
           </div>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
-            <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving…</>:'Save Grade'}</Btn>
+            <Btn onClick={save} disabled={saving||activeComps.length===0}>{saving?<><Spinner/> Saving…</>:'Save Grade'}</Btn>
           </div>
         </Modal>
       )}
@@ -680,29 +774,75 @@ function Grades({profile,data,setData,toast,settings}) {
 function Attendance({profile,data,setData,toast}) {
   const {attendance=[],students=[],classes=[]} = data
   const today = new Date().toISOString().split('T')[0]
-  const [date,setDate]   = useState(today)
-  const [cid,setCid]     = useState(profile?.role==='classteacher'?profile.class_id:'')
-  const [tab,setTab]     = useState('mark')
+  const [date,setDate]     = useState(today)
+  const [cid,setCid]       = useState(profile?.role==='classteacher'?profile.class_id:'')
+  const [tab,setTab]       = useState('mark')
   const [saving,setSaving] = useState(false)
+  const [pendingMarks,setPendingMarks] = useState({})
+  const [hasUnsaved,setHasUnsaved] = useState(false)
   const myClasses = profile?.role==='classteacher' ? classes.filter(c=>c.id===profile.class_id) : classes
   const cls = myClasses.find(c=>c.id===cid)
   const classStudents = cls ? students.filter(s=>s.class_id===cls.id) : []
-  const dayRecs = attendance.filter(a=>a.date===date&&a.class_id===cid)
-  const getStatus = sid => dayRecs.find(r=>r.student_id===sid)?.status||''
-  const setStatus = async (sid,status)=>{
-    const existing = attendance.find(a=>a.student_id===sid&&a.date===date&&a.class_id===cid)
-    if(existing){
-      await supabase.from('attendance').update({status}).eq('id',existing.id)
-      setData(p=>({...p,attendance:p.attendance.map(a=>a.id===existing.id?{...a,status}:a)}))
-    } else {
-      const {data:row} = await supabase.from('attendance').insert({student_id:sid,class_id:cid,date,status,marked_by:profile?.id}).select().single()
-      if(row) setData(p=>({...p,attendance:[...p.attendance,row]}))
+  const savedRecs = attendance.filter(a=>a.date===date&&a.class_id===cid)
+  const getSavedStatus = sid => savedRecs.find(r=>r.student_id===sid)?.status||''
+  const getStatus = sid => pendingMarks[sid] !== undefined ? pendingMarks[sid] : getSavedStatus(sid)
+  const alreadyMarkedToday = date===today && savedRecs.length>0 && Object.keys(pendingMarks).length===0
+  const unmarkedCount = classStudents.filter(s=>!getStatus(s.id)).length
+
+  // Warn if user tries to close/refresh the browser tab with unsaved marks
+  useEffect(()=>{
+    const handler = e => { if(hasUnsaved){ e.preventDefault(); e.returnValue='' } }
+    window.addEventListener('beforeunload',handler)
+    return ()=>window.removeEventListener('beforeunload',handler)
+  },[hasUnsaved])
+
+  const changeContext = (newCid, newDate) => {
+    if(hasUnsaved) {
+      if(!window.confirm('You have unsaved attendance marks. Changing will discard them. Continue?')) return
     }
+    setPendingMarks({})
+    setHasUnsaved(false)
+    if(newCid !== undefined) setCid(newCid)
+    if(newDate !== undefined) setDate(newDate)
   }
-  const markAll = s => classStudents.forEach(st=>setStatus(st.id,s))
+
+  const markStudent = (sid, status) => {
+    setPendingMarks(p=>({...p,[sid]:status}))
+    setHasUnsaved(true)
+  }
+
+  const markAll = status => {
+    const all = classStudents.reduce((acc,s)=>({...acc,[s.id]:status}),{})
+    setPendingMarks(all)
+    setHasUnsaved(true)
+  }
+
+  const saveAttendance = async () => {
+    if(!cls) return
+    setSaving(true)
+    try {
+      const allMarks = classStudents
+        .map(s=>({student_id:s.id,class_id:cid,date,status:getStatus(s.id)||null,marked_by:profile?.id}))
+        .filter(m=>m.status)
+      if(allMarks.length===0){toast('No students marked — nothing to save','error');setSaving(false);return}
+      const {error:delErr} = await supabase.from('attendance').delete().eq('class_id',cid).eq('date',date)
+      if(delErr) throw delErr
+      const {data:rows,error:insErr} = await supabase.from('attendance').insert(allMarks).select()
+      if(insErr) throw insErr
+      setData(p=>({...p,attendance:[...p.attendance.filter(a=>!(a.class_id===cid&&a.date===date)),...(rows||[])]}))
+      setPendingMarks({})
+      setHasUnsaved(false)
+      toast(`Attendance saved — ${allMarks.length} student${allMarks.length!==1?'s':''} recorded ✓`)
+    } catch(err) {
+      toast(`Save failed: ${err.message}. Please try again.`,'error')
+    }
+    setSaving(false)
+  }
+
   const statuses = ['Present','Absent','Late','Excused']
-  const counts   = statuses.reduce((acc,s)=>({...acc,[s]:classStudents.filter(st=>getStatus(st.id)===s).length}),{})
+  const counts = statuses.reduce((acc,s)=>({...acc,[s]:classStudents.filter(st=>getStatus(st.id)===s).length}),{})
   const histRecs = attendance.filter(a=>!cid||a.class_id===cid).sort((a,b)=>b.date.localeCompare(a.date))
+
   return (
     <div>
       <PageHeader title='Attendance' sub='Mark and review daily attendance records'>
@@ -712,66 +852,108 @@ function Attendance({profile,data,setData,toast}) {
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
           {['superadmin','admin'].includes(profile?.role) && (
-            <select value={cid} onChange={e=>setCid(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:180}}>
+            <select value={cid} onChange={e=>changeContext(e.target.value,undefined)}
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:180}}>
               <option value=''>Select a class</option>
               {myClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
-          <input type='date' value={date} onChange={e=>setDate(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--white)',fontSize:13}}/>
+          <input type='date' value={date} onChange={e=>changeContext(undefined,e.target.value)}
+            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--white)',fontSize:13}}/>
           {tab==='mark'&&cls&&(
-            <div style={{display:'flex',gap:6,marginLeft:'auto',flexWrap:'wrap'}}>
-              <span style={{fontSize:12,color:'var(--mist3)',alignSelf:'center',marginRight:4}}>Mark all:</span>
+            <div style={{display:'flex',gap:6,marginLeft:'auto',flexWrap:'wrap',alignItems:'center'}}>
+              <span style={{fontSize:12,color:'var(--mist3)',marginRight:4}}>Mark all:</span>
               {statuses.map(s=>(
-                <button key={s} onClick={()=>markAll(s)} style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',background:STATUS_META[s].bg,color:STATUS_META[s].color,border:`1px solid ${STATUS_META[s].color}30`,fontFamily:"'Cabinet Grotesk',sans-serif"}}>{s}</button>
+                <button key={s} onClick={()=>markAll(s)}
+                  style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',background:STATUS_META[s].bg,color:STATUS_META[s].color,border:`1px solid ${STATUS_META[s].color}30`,fontFamily:"'Cabinet Grotesk',sans-serif"}}>{s}</button>
               ))}
             </div>
           )}
         </div>
       </Card>
-      {tab==='mark'?(
-        <Card>
-          {!cls?(
-            <div style={{padding:60,textAlign:'center',color:'var(--mist3)',fontSize:13}}>Select a class to begin marking attendance.</div>
-          ):(
+      {tab==='mark' ? (
+        <div>
+          {!cls ? (
+            <Card><div style={{padding:60,textAlign:'center',color:'var(--mist3)',fontSize:13}}>Select a class to begin marking attendance.</div></Card>
+          ) : (
             <>
-              <div style={{display:'flex',gap:20,marginBottom:20,flexWrap:'wrap'}}>
-                {statuses.map(s=>(
-                  <div key={s} style={{display:'flex',alignItems:'center',gap:8}}>
-                    <div style={{width:8,height:8,borderRadius:'50%',background:STATUS_META[s].color}}/>
-                    <span style={{fontSize:13}}><strong style={{color:STATUS_META[s].color}}>{counts[s]}</strong> <span style={{color:'var(--mist3)'}}>{s}</span></span>
-                  </div>
-                ))}
+              {!hasUnsaved && alreadyMarkedToday && (
+                <div className='fi' style={{background:'rgba(45,212,160,0.06)',border:'1px solid rgba(45,212,160,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{fontSize:16}}>✓</span>
+                  <span style={{fontSize:13,color:'var(--emerald)'}}>Attendance already marked for today. You can still edit and save again.</span>
+                </div>
+              )}
+              {!hasUnsaved && !alreadyMarkedToday && savedRecs.length===0 && date===today && (
+                <div className='fi' style={{background:'rgba(251,159,58,0.06)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{fontSize:16}}>⚠</span>
+                  <span style={{fontSize:13,color:'var(--amber)'}}>Attendance has not been marked yet today for <strong>{cls.name}</strong>.</span>
+                </div>
+              )}
+              {hasUnsaved && unmarkedCount>0 && (
+                <div className='fi' style={{background:'rgba(240,107,122,0.06)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{fontSize:16,color:'var(--rose)'}}>●</span>
+                  <span style={{fontSize:13,color:'var(--rose)'}}><strong>{unmarkedCount} student{unmarkedCount!==1?'s':''}</strong> not yet marked — they won't be recorded.</span>
+                </div>
+              )}
+              <Card>
+                <div style={{display:'flex',gap:20,marginBottom:20,flexWrap:'wrap',alignItems:'center'}}>
+                  {statuses.map(s=>(
+                    <div key={s} style={{display:'flex',alignItems:'center',gap:8}}>
+                      <div style={{width:8,height:8,borderRadius:'50%',background:STATUS_META[s].color}}/>
+                      <span style={{fontSize:13}}><strong style={{color:STATUS_META[s].color}}>{counts[s]}</strong> <span style={{color:'var(--mist3)'}}>{s}</span></span>
+                    </div>
+                  ))}
+                  {unmarkedCount>0 && <div style={{display:'flex',alignItems:'center',gap:8}}><div style={{width:8,height:8,borderRadius:'50%',background:'var(--mist3)'}}/><span style={{fontSize:13}}><strong style={{color:'var(--mist3)'}}>{unmarkedCount}</strong> <span style={{color:'var(--mist3)'}}>Unmarked</span></span></div>}
+                </div>
+                <DataTable data={classStudents} columns={[
+                  {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
+                  {key:'first_name',label:'Student',render:(v,r)=>(
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                      <Avatar name={`${r.first_name} ${r.last_name}`} size={28}/>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <span style={{fontWeight:600}}>{r.first_name} {r.last_name}</span>
+                        {!getStatus(r.id)&&hasUnsaved&&<span style={{width:6,height:6,borderRadius:'50%',background:'var(--rose)',display:'inline-block'}}/>}
+                      </div>
+                    </div>
+                  )},
+                  {key:'id',label:'Mark Attendance',render:(_,r)=>(
+                    <div style={{display:'flex',gap:6}}>
+                      {statuses.map(s=>{
+                        const cur=getStatus(r.id)===s
+                        const isPending=pendingMarks[r.id]===s
+                        return (
+                          <button key={s} onClick={()=>markStudent(r.id,s)}
+                            style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',transition:'all 0.12s',fontFamily:"'Cabinet Grotesk',sans-serif",
+                              background:cur?STATUS_META[s].bg:'transparent',color:cur?STATUS_META[s].color:'var(--mist3)',
+                              border:`1px solid ${cur?STATUS_META[s].color:'var(--line)'}`,
+                              outline:isPending?`2px solid ${STATUS_META[s].color}`:'none',outlineOffset:1}}
+                            onMouseEnter={e=>{if(!cur){e.currentTarget.style.borderColor=STATUS_META[s].color;e.currentTarget.style.color=STATUS_META[s].color}}}
+                            onMouseLeave={e=>{if(!cur){e.currentTarget.style.borderColor='var(--line)';e.currentTarget.style.color='var(--mist3)'}}}>
+                            {s}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )},
+                ]}/>
+              </Card>
+              <div style={{position:'sticky',bottom:0,marginTop:16,background:'var(--ink2)',border:'1px solid var(--line)',borderTop:`2px solid ${hasUnsaved?'var(--gold)':'var(--line)'}`,borderRadius:'var(--r)',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,boxShadow:'0 -8px 32px rgba(0,0,0,0.4)'}}>
+                <div style={{fontSize:13}}>
+                  {hasUnsaved
+                    ? <><span style={{fontWeight:600,color:'var(--amber)'}}>⚠ Unsaved changes</span><span style={{color:'var(--mist2)'}}> — click Save to record attendance</span></>
+                    : <span style={{color:'var(--mist3)'}}>✓ All changes saved</span>
+                  }
+                </div>
+                <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{minWidth:160,justifyContent:'center',boxShadow:hasUnsaved?'0 4px 20px rgba(232,184,75,0.25)':'none'}}>
+                  {saving?<><Spinner/> Saving…</>:`Save Attendance${unmarkedCount>0?\` (${unmarkedCount} unmarked)\`:''}`}
+                </Btn>
               </div>
-              <DataTable data={classStudents} columns={[
-                {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
-                {key:'first_name',label:'Student',render:(v,r)=>(
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <Avatar name={`${r.first_name} ${r.last_name}`} size={28}/>
-                    <span style={{fontWeight:600}}>{r.first_name} {r.last_name}</span>
-                  </div>
-                )},
-                {key:'id',label:'Mark Attendance',render:(_,r)=>(
-                  <div style={{display:'flex',gap:6}}>
-                    {statuses.map(s=>{
-                      const cur=getStatus(r.id)===s
-                      return (
-                        <button key={s} onClick={()=>setStatus(r.id,s)}
-                          style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',transition:'all 0.12s',fontFamily:"'Cabinet Grotesk',sans-serif",background:cur?STATUS_META[s].bg:'transparent',color:cur?STATUS_META[s].color:'var(--mist3)',border:`1px solid ${cur?STATUS_META[s].color:'var(--line)'}`}}
-                          onMouseEnter={e=>{if(!cur){e.currentTarget.style.borderColor=STATUS_META[s].color;e.currentTarget.style.color=STATUS_META[s].color}}}
-                          onMouseLeave={e=>{if(!cur){e.currentTarget.style.borderColor='var(--line)';e.currentTarget.style.color='var(--mist3)'}}}>
-                          {s}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )},
-              ]}/>
             </>
           )}
-        </Card>
-      ):(
+        </div>
+      ) : (
         <Card>
-          <DataTable data={histRecs.slice(0,60)} columns={[
+          <DataTable data={histRecs.slice(0,100)} columns={[
             {key:'date',label:'Date',render:v=>fmtDate(v)},
             {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'—'},
             {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?`${s.first_name} ${s.last_name}`:'—'}},
@@ -784,8 +966,9 @@ function Attendance({profile,data,setData,toast}) {
 }
 
 // ── FEES ───────────────────────────────────────────────────────
-function Fees({profile,data,setData,toast}) {
+function Fees({profile,data,setData,toast,settings}) {
   const {fees=[],students=[]} = data
+  const currency = getCurrency(settings)
   const [search,setSearch]   = useState('')
   const [fstatus,setFstatus] = useState('')
   const [modal,setModal]     = useState(false)
@@ -829,9 +1012,9 @@ function Fees({profile,data,setData,toast}) {
         <Btn onClick={openAdd}>+ Add Fee Record</Btn>
       </PageHeader>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16,marginBottom:24}}>
-        <KPI label='Total Owed'      value={fmtMoney(totalOwed)} color='var(--mist)'    sub='All fees' index={0}/>
-        <KPI label='Collected'       value={fmtMoney(totalPaid)} color='var(--emerald)' sub='Payments received' index={1}/>
-        <KPI label='Outstanding'     value={fmtMoney(totalOwed-totalPaid)} color='var(--rose)' sub='Awaiting payment' index={2}/>
+        <KPI label='Total Owed'      value={fmtMoney(totalOwed,currency)} color='var(--mist)'    sub='All fees' index={0}/>
+        <KPI label='Collected'       value={fmtMoney(totalPaid,currency)} color='var(--emerald)' sub='Payments received' index={1}/>
+        <KPI label='Outstanding'     value={fmtMoney(totalOwed-totalPaid,currency)} color='var(--rose)' sub='Awaiting payment' index={2}/>
         <KPI label='Collection Rate' value={`${totalOwed?Math.round(totalPaid/totalOwed*100):0}%`} color='var(--gold)' sub='Of total owed' index={3}/>
       </div>
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
@@ -850,9 +1033,9 @@ function Fees({profile,data,setData,toast}) {
         <DataTable data={filtered} columns={[
           {key:'student_name',label:'Student',render:(v,r)=>{const s=students.find(x=>x.id===r.student_id);return(<div style={{display:'flex',alignItems:'center',gap:10}}>{s&&<Avatar name={v} size={28}/>}<span style={{fontWeight:600}}>{v}</span></div>)}},
           {key:'fee_type',label:'Fee Type'},
-          {key:'amount', label:'Amount',  render:v=><span className='mono'>{fmtMoney(v)}</span>},
-          {key:'paid',   label:'Paid',    render:v=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(v)}</span>},
-          {key:'balance',label:'Balance', render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v)}</span>},
+          {key:'amount', label:'Amount',  render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
+          {key:'paid',   label:'Paid',    render:v=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
+          {key:'balance',label:'Balance', render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
           {key:'status', label:'Status',  render:v=><Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>},
           {key:'receipt_no',label:'Receipt',render:v=>v?<span className='mono' style={{fontSize:12,color:'var(--mist2)'}}>{v}</span>:'—'},
           {key:'id',label:'',render:(_,r)=>r.balance>0?<Btn size='sm' onClick={()=>openPay(r)}>Record Payment</Btn>:<Badge color='var(--emerald)'>✓ Paid</Badge>},
@@ -873,7 +1056,7 @@ function Fees({profile,data,setData,toast}) {
       {payModal && editFee && (
         <Modal title='Record Payment' subtitle={`${editFee.student_name} · ${editFee.fee_type}`} onClose={()=>setPayModal(false)}>
           <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:18,marginBottom:20,display:'flex',gap:24,flexWrap:'wrap'}}>
-            {[['Total',fmtMoney(editFee.amount),'var(--mist)'],['Paid',fmtMoney(editFee.paid),'var(--emerald)'],['Balance',fmtMoney(editFee.balance),'var(--rose)']].map(([l,v,c])=>(
+            {[['Total',fmtMoney(editFee.amount,currency),'var(--mist)'],['Paid',fmtMoney(editFee.paid,currency),'var(--emerald)'],['Balance',fmtMoney(editFee.balance,currency),'var(--rose)']].map(([l,v,c])=>(
               <div key={l}><div className='d' style={{fontSize:10,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>{l}</div><div className='d' style={{fontSize:20,fontWeight:700,color:c}}>{v}</div></div>
             ))}
           </div>
@@ -999,6 +1182,8 @@ function Behaviour({profile,data,setData,toast}) {
 function Reports({data,settings}) {
   const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[]} = data
   const scale   = settings?.grading_scale||[]
+  const gradeComps = getGradeComponents(settings)
+  const currency = getCurrency(settings)
   const [rtype,setRtype] = useState('academic')
   const [fc,setFc]       = useState('')
   const [fp,setFp]       = useState('')
@@ -1007,7 +1192,7 @@ function Reports({data,settings}) {
     : Array.from({length:settings.period_count||2},(_,i)=>`Semester ${i+1}`)
   const academicData = students.filter(s=>!fc||s.class_id===fc).map(s=>{
     const sg=grades.filter(g=>g.student_id===s.id&&(!fp||g.period===fp))
-    const tots=sg.map(g=>calcTotal(g))
+    const tots=sg.map(g=>calcTotal(g,gradeComps))
     const avg=tots.length?Math.round(tots.reduce((a,b)=>a+b,0)/tots.length):null
     return{...s,avg,gpa:avg!==null?getGPA(avg,scale):null,count:sg.length,letter:avg!==null?getLetter(avg,scale):'—'}
   })
@@ -1033,7 +1218,7 @@ function Reports({data,settings}) {
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16,marginBottom:24}}>
         <KPI label='Pass Rate'       value={`${passRate}%`}  color='var(--emerald)' index={0}/>
         <KPI label='Avg Attendance'  value={`${Math.round(avgAtt)}%`} color='var(--sky)' index={1}/>
-        <KPI label='Fee Collection'  value={`${totalF?Math.round(totalP/totalF*100):0}%`} color='var(--gold)' sub={fmtMoney(totalP)} index={2}/>
+        <KPI label='Fee Collection'  value={`${totalF?Math.round(totalP/totalF*100):0}%`} color='var(--gold)' sub={fmtMoney(totalP,currency)} index={2}/>
         <KPI label='Total Students'  value={students.length} color='var(--amber)' index={3}/>
       </div>
       <div style={{display:'flex',gap:4,marginBottom:16,background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:4,width:'fit-content'}}>
@@ -1078,9 +1263,9 @@ function Reports({data,settings}) {
           {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
           {key:'first_name',label:'Student',render:(v,r)=><div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${r.first_name} ${r.last_name}`} size={28}/><span style={{fontWeight:600}}>{r.first_name} {r.last_name}</span></div>},
           {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'—'},
-          {key:'owed',label:'Owed',render:v=><span className='mono'>{fmtMoney(v)}</span>},
-          {key:'paid',label:'Paid',render:v=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(v)}</span>},
-          {key:'balance',label:'Balance',render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v)}</span>},
+          {key:'owed',label:'Owed',render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
+          {key:'paid',label:'Paid',render:v=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
+          {key:'balance',label:'Balance',render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
           {key:'status',label:'Status',render:v=>v!=='—'?<Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>:'—'},
         ]}/>}
       </Card>
@@ -1249,25 +1434,63 @@ function Users({profile,toast}) {
 function Settings({settings,setSettings,toast}) {
   const [form,setForm]   = useState(JSON.parse(JSON.stringify(settings||{})))
   const [saving,setSaving] = useState(false)
+  const [weightWarning,setWeightWarning] = useState(false)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
-  const save = async ()=>{
+
+  // Ensure grade_components is always initialised
+  const gradeComponents = form.grade_components || DEFAULT_GRADE_COMPONENTS
+  const activeComps = gradeComponents.filter(c=>c.enabled)
+  const totalWeight = activeComps.reduce((a,c)=>a+c.weight,0)
+
+  const save = async () => {
+    if(totalWeight!==100 && activeComps.length>0){
+      setWeightWarning(true)
+      setTimeout(()=>setWeightWarning(false),4000)
+      // still allow saving — just warn
+    }
     setSaving(true)
-    const {error} = await supabase.from('settings').update({...form}).eq('id',form.id)
-    if(error)toast(error.message,'error')
-    else{setSettings(form);toast('Settings saved')}
+    const payload = {...form, grade_components: gradeComponents}
+    const {error} = await supabase.from('settings').update(payload).eq('id',form.id)
+    if(error) toast(error.message,'error')
+    else { setSettings(payload); toast('Settings saved') }
     setSaving(false)
   }
-  const updGrade  = (i,k,v)=>{const g=[...form.grading_scale];g[i]={...g[i],[k]:k==='letter'?v:parseFloat(v)||0};setForm(p=>({...p,grading_scale:g}))}
-  const updWeight = (k,v)=>setForm(p=>({...p,score_weights:{...p.score_weights,[k]:parseFloat(v)||0}}))
-  const weightTotal = Object.values(form.score_weights||{}).reduce((a,b)=>a+b,0)
+
+  const updGrade = (i,k,v)=>{const g=[...form.grading_scale];g[i]={...g[i],[k]:k==='letter'?v:parseFloat(v)||0};setForm(p=>({...p,grading_scale:g}))}
+
+  const updComponent = (i,k,v) => {
+    const comps = [...gradeComponents]
+    comps[i] = {...comps[i],[k]: k==='label'?v : k==='enabled'?v : parseFloat(v)||0}
+    setForm(p=>({...p,grade_components:comps}))
+  }
+
+  const handleToggle = async (i) => {
+    const comps = [...gradeComponents]
+    const wasEnabled = comps[i].enabled
+    comps[i] = {...comps[i], enabled: !wasEnabled}
+    setForm(p=>({...p,grade_components:comps}))
+    // If disabling, zero out all scores for this component in the database immediately
+    if(wasEnabled) {
+      const key = comps[i].key
+      await supabase.from('grades').update({[key]:0}).neq('id','00000000-0000-0000-0000-000000000000')
+      toast(`${comps[i].label} disabled — all scores cleared`)
+    }
+  }
+
   if(!form.id) return <div style={{padding:48,textAlign:'center',color:'var(--mist3)'}}>Loading settings…</div>
   return (
     <div>
       <PageHeader title='System Settings' sub='School configuration, grading scale and academic structure'>
-        <div style={{display:'flex',gap:10,alignItems:'center'}}>
-          <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving…</>:'Save Changes'}</Btn>
-        </div>
+        <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving…</>:'Save Changes'}</Btn>
       </PageHeader>
+
+      {weightWarning && (
+        <div className='fi' style={{background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:20,display:'flex',alignItems:'center',gap:10}}>
+          <span style={{fontSize:18}}>⚠</span>
+          <span style={{fontSize:13,color:'var(--amber)'}}>Active component weights add up to <strong>{totalWeight}%</strong> — they should total 100% for accurate grade calculations. Settings saved anyway.</span>
+        </div>
+      )}
+
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,alignItems:'start'}}>
         <div>
           <Card style={{marginBottom:20}}>
@@ -1277,6 +1500,37 @@ function Settings({settings,setSettings,toast}) {
             <Field label='School Motto'  value={form.motto}         onChange={f('motto')}/>
             <Field label='Academic Year' value={form.academic_year} onChange={f('academic_year')} placeholder='e.g. 2024-2025'/>
           </Card>
+          <Card style={{marginBottom:20}}>
+            <SectionTitle>Currency</SectionTitle>
+            <Field label='Currency' value={form.currency_code||'GHS'} onChange={f('currency_code')}
+              options={CURRENCIES.map(c=>({value:c.code,label:`${c.symbol}  ${c.name} (${c.code})`}))}/>
+            {(()=>{const cur=getCurrency({...form,currency_code:form.currency_code||'GHS'});return(
+              <div style={{display:'flex',gap:12,alignItems:'center',marginTop:-8,marginBottom:16}}>
+                <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 16px',fontSize:13}}>
+                  <span style={{color:'var(--mist3)'}}>Preview: </span>
+                  <span className='mono' style={{color:'var(--gold)',fontWeight:700}}>{fmtMoney(1250,cur)}</span>
+                </div>
+                <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                  <span style={{fontSize:12,color:'var(--mist3)'}}>Symbol position:</span>
+                  {['before','after'].map(pos=>(
+                    <button key={pos} onClick={()=>{
+                      const comps=CURRENCIES.map(c=>c.code===cur.code?{...c,position:pos}:c)
+                      // update the local currency position by saving it in form
+                      setForm(p=>({...p,currency_position:pos}))
+                    }}
+                      style={{padding:'4px 12px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',
+                        background:(form.currency_position||cur.position)===pos?'var(--ink4)':'transparent',
+                        color:(form.currency_position||cur.position)===pos?'var(--white)':'var(--mist3)',
+                        border:`1px solid ${(form.currency_position||cur.position)===pos?'var(--line2)':'var(--line)'}`}}>
+                      {pos==='before'?'Before (₵100)':'After (100 ₵)'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )})()}
+            <Field label='Decimal Places' value={form.currency_decimals??2} onChange={v=>setForm(p=>({...p,currency_decimals:parseInt(v)||0}))}
+              options={[{value:0,label:'0 — No decimals (e.g. ₵100)'},{value:2,label:'2 — Standard (e.g. ₵100.00)'}]}/>
+          </Card>
           <Card>
             <SectionTitle>Academic Periods</SectionTitle>
             <Field label='Period Structure' value={form.period_type} onChange={f('period_type')} options={[{value:'semester',label:'Semester-based'},{value:'term',label:'Term-based'}]}/>
@@ -1285,18 +1539,45 @@ function Settings({settings,setSettings,toast}) {
         </div>
         <div>
           <Card style={{marginBottom:20}}>
-            <SectionTitle>Score Component Weights</SectionTitle>
-            <div style={{background:'var(--ink3)',borderRadius:'var(--r-sm)',padding:'12px 16px',marginBottom:16,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <span style={{fontSize:12,color:'var(--mist2)'}}>Total</span>
-              <span className='d' style={{fontSize:18,fontWeight:700,color:weightTotal===100?'var(--emerald)':'var(--rose)'}}>{weightTotal}%</span>
+            <SectionTitle>Grade Components</SectionTitle>
+            <p style={{fontSize:12,color:'var(--mist2)',marginBottom:14,lineHeight:1.6}}>
+              Toggle which components teachers enter grades for. Disabling a component <strong style={{color:'var(--rose)'}}>clears all existing scores</strong> for it immediately. Active weights must total <strong style={{color:'var(--white)'}}>100%</strong>.
+            </p>
+            <div style={{background:'var(--ink3)',borderRadius:'var(--r-sm)',padding:'10px 16px',marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <span style={{fontSize:12,color:'var(--mist2)'}}>Active weight total</span>
+              <span className='d' style={{fontSize:18,fontWeight:700,color:totalWeight===100?'var(--emerald)':totalWeight===0?'var(--mist3)':'var(--rose)'}}>{totalWeight}%</span>
             </div>
-            {Object.entries(form.score_weights||{}).map(([k,v])=>(
-              <div key={k} style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,gap:12}}>
-                <label style={{fontSize:13,flex:1,textTransform:'capitalize',color:'var(--mist)'}}>{k.replace('final_exam','Final Exam').replace('midsemester','Midsemester')}</label>
-                <div style={{display:'flex',alignItems:'center',gap:6}}>
-                  <input type='number' value={v} onChange={e=>updWeight(k,e.target.value)} style={{width:70,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'6px 10px',color:'var(--white)',fontSize:13,textAlign:'center'}}/>
-                  <span style={{fontSize:12,color:'var(--mist3)'}}>%</span>
+            {gradeComponents.map((c,i)=>(
+              <div key={c.key} style={{marginBottom:10,padding:'12px 14px',background:c.enabled?'var(--ink3)':'var(--ink)',border:`1px solid ${c.enabled?'var(--line2)':'var(--line)'}`,borderRadius:'var(--r-sm)',transition:'all 0.15s'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:c.enabled?10:0}}>
+                  {/* Toggle switch */}
+                  <button onClick={()=>handleToggle(i)}
+                    style={{width:38,height:22,borderRadius:11,background:c.enabled?'var(--emerald)':'var(--line2)',border:'none',cursor:'pointer',transition:'background 0.2s',position:'relative',flexShrink:0}}>
+                    <div style={{width:16,height:16,borderRadius:'50%',background:'white',position:'absolute',top:3,left:c.enabled?19:3,transition:'left 0.2s'}}/>
+                  </button>
+                  {/* Renameable label */}
+                  <input
+                    value={c.label}
+                    onChange={e=>updComponent(i,'label',e.target.value)}
+                    style={{flex:1,background:'transparent',border:'none',borderBottom:`1px solid ${c.enabled?'var(--line2)':'transparent'}`,color:c.enabled?'var(--white)':'var(--mist3)',fontSize:13,fontWeight:600,padding:'2px 4px',fontFamily:"'Cabinet Grotesk',sans-serif",cursor:'text'}}
+                  />
+                  {!c.enabled && <span style={{fontSize:11,color:'var(--mist3)'}}>Disabled</span>}
                 </div>
+                {c.enabled && (
+                  <div style={{display:'flex',gap:12,flexWrap:'wrap',paddingLeft:48}}>
+                    <div style={{display:'flex',alignItems:'center',gap:6}}>
+                      <span style={{fontSize:11,color:'var(--mist3)',whiteSpace:'nowrap'}}>Max score</span>
+                      <input type='number' value={c.max_score} onChange={e=>updComponent(i,'max_score',e.target.value)}
+                        style={{width:58,background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'4px 8px',color:'var(--white)',fontSize:12,textAlign:'center'}}/>
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:6}}>
+                      <span style={{fontSize:11,color:'var(--mist3)',whiteSpace:'nowrap'}}>Weight</span>
+                      <input type='number' value={c.weight} onChange={e=>updComponent(i,'weight',e.target.value)}
+                        style={{width:58,background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'4px 8px',color:'var(--white)',fontSize:12,textAlign:'center'}}/>
+                      <span style={{fontSize:11,color:'var(--mist3)'}}>%</span>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </Card>
