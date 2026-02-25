@@ -460,6 +460,14 @@ function Dashboard({profile,data,settings,onNav}) {
   const activeAnn = announcements.filter(a=>a.active).slice(0,4)
   const isAdmin   = ['superadmin','admin'].includes(profile?.role)
 
+  // Attendance rate calculations
+  const schoolAttTotal   = attendance.length
+  const schoolAttPresent = attendance.filter(a=>a.status==='Present').length
+  const schoolAttRate    = schoolAttTotal ? Math.round(schoolAttPresent/schoolAttTotal*100) : 0
+  const myClassAtt       = myClass ? attendance.filter(a=>a.class_id===myClass.id) : []
+  const myClassPresent   = myClassAtt.filter(a=>a.status==='Present').length
+  const myClassAttRate   = myClassAtt.length ? Math.round(myClassPresent/myClassAtt.length*100) : 0
+
   return (
     <div>
       {profile?.role==='classteacher' && !todayMarked && (
@@ -475,16 +483,16 @@ function Dashboard({profile,data,settings,onNav}) {
       <PageHeader title={`Good ${new Date().getHours()<12?'morning':'afternoon'}, ${profile?.full_name?.split(' ')[0]||'there'}.`} sub={`${settings?.school_name||'SRMS'} · ${settings?.academic_year||''}`}/>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16,marginBottom:28}}>
         {isAdmin && <>
-          <KPI label='Total Students' value={students.length}       color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
-          <KPI label='Fee Collection'  value={`${totalFees?Math.round(totalPaid/totalFees*100):0}%`} color='var(--emerald)' sub={`${fmtMoney(totalPaid,currency)} collected`} index={1}/>
-          <KPI label='Average Score'   value={avgScore}             color='var(--sky)'     sub={`Pass rate: ${passRate}%`} index={2}/>
-          <KPI label='Active Classes'  value={classes.length}       color='var(--amber)'   sub={`${subjects.length} subjects`} index={3}/>
+          <KPI label='Total Students'   value={students.length}      color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
+          <KPI label='Attendance Rate'  value={`${schoolAttRate}%`}  color='var(--emerald)' sub={`${schoolAttPresent} of ${schoolAttTotal} records`} index={1}/>
+          <KPI label='Average Score'    value={avgScore}             color='var(--sky)'     sub={`Pass rate: ${passRate}%`} index={2}/>
+          <KPI label='Fee Collection'   value={`${totalFees?Math.round(totalPaid/totalFees*100):0}%`} color='var(--amber)' sub={`${fmtMoney(totalPaid,currency)} collected`} index={3}/>
         </>}
         {profile?.role==='classteacher' && <>
-          <KPI label='My Class'        value={myClass?.name||'—'}   color='var(--gold)'    sub='Your assigned class' index={0}/>
-          <KPI label='Students'        value={myClassStudents.length} color='var(--sky)'   sub='In your class' index={1}/>
-          <KPI label='Attendance'      value={todayMarked?'Marked':'Pending'} color={todayMarked?'var(--emerald)':'var(--amber)'} sub='Today' index={2}/>
-          <KPI label='Pass Rate'       value={`${passRate}%`}       color='var(--emerald)' sub='This semester' index={3}/>
+          <KPI label='My Class'         value={myClass?.name||'—'}   color='var(--gold)'    sub='Your assigned class' index={0}/>
+          <KPI label='Students'         value={myClassStudents.length} color='var(--sky)'   sub='In your class' index={1}/>
+          <KPI label='Attendance Rate'  value={myClassAtt.length?`${myClassAttRate}%`:'—'} color='var(--emerald)' sub={todayMarked?'Today marked':'Not marked today'} index={2}/>
+          <KPI label='Pass Rate'        value={`${passRate}%`}       color='var(--amber)'   sub='This semester' index={3}/>
         </>}
         {profile?.role==='teacher' && <>
           <KPI label='Subjects'        value={subjects.filter(s=>s.teacher_id===profile.id).length} color='var(--gold)'  sub='Assigned to you' index={0}/>
@@ -1184,100 +1192,539 @@ function Behaviour({profile,data,setData,toast}) {
   )
 }
 
+// ── ORDINAL HELPER ─────────────────────────────────────────────
+const ordinal = n => {
+  const s=['th','st','nd','rd'], v=n%100
+  return n+(s[(v-20)%10]||s[v]||s[0])
+}
+
 // ── REPORTS ────────────────────────────────────────────────────
 function Reports({data,settings}) {
   const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[]} = data
-  const scale   = settings?.grading_scale||[]
+  const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
-  const currency = getCurrency(settings)
-  const [rtype,setRtype] = useState('academic')
-  const [fc,setFc]       = useState('')
-  const [fp,setFp]       = useState('')
-  const periods = settings?.period_type==='term'
-    ? Array.from({length:settings.period_count||2},(_,i)=>`Term ${i+1}`)
-    : Array.from({length:settings.period_count||2},(_,i)=>`Semester ${i+1}`)
-  const academicData = students.filter(s=>!fc||s.class_id===fc).map(s=>{
-    const sg=grades.filter(g=>g.student_id===s.id&&(!fp||g.period===fp))
-    const tots=sg.map(g=>calcTotal(g,gradeComps))
-    const avg=tots.length?Math.round(tots.reduce((a,b)=>a+b,0)/tots.length):null
-    return{...s,avg,gpa:avg!==null?getGPA(avg,scale):null,count:sg.length,letter:avg!==null?getLetter(avg,scale):'—'}
+  const currency   = getCurrency(settings)
+  const schoolLogo = settings?.school_logo||null
+  const schoolName = settings?.school_name||'SRMS'
+  const schoolMotto= settings?.motto||''
+
+  const [rtype,setRtype]         = useState('academic')
+  const [fc,setFc]               = useState('')
+  const [fp,setFp]               = useState('')
+  const [studentSearch,setStudentSearch] = useState('')
+  const [selectedStudent,setSelectedStudent] = useState(null)
+  const [showDropdown,setShowDropdown]   = useState(false)
+  // PDF generation options modal
+  const [pdfModal,setPdfModal]   = useState(false)
+  const [pdfYear,setPdfYear]     = useState(settings?.academic_year||'')
+  const [pdfPeriod,setPdfPeriod] = useState('')
+  const [exporting,setExporting] = useState(false)
+
+  const periodLabel = settings?.period_type==='term'?'Term':'Semester'
+  const periods = Array.from({length:settings?.period_count||2},(_,i)=>`${periodLabel} ${i+1}`)
+
+  // Student autofill — filter by class if class is selected, otherwise all
+  const searchPool = fc ? students.filter(s=>s.class_id===fc) : students
+  const matchedStudents = studentSearch.length>0
+    ? searchPool.filter(s=>`${s.first_name} ${s.last_name}`.toLowerCase().includes(studentSearch.toLowerCase())).slice(0,8)
+    : []
+
+  const selectStudent = s => {
+    setSelectedStudent(s)
+    setStudentSearch(`${s.first_name} ${s.last_name}`)
+    setShowDropdown(false)
+    setFc('') // student overrides class filter
+  }
+  const clearStudent = () => { setSelectedStudent(null); setStudentSearch(''); setShowDropdown(false) }
+
+  // Scope: if student selected → just that student, else filter by class
+  const scopedStudents = selectedStudent
+    ? students.filter(s=>s.id===selectedStudent.id)
+    : students.filter(s=>!fc||s.class_id===fc)
+
+  // ── Academic data ──
+  const academicData = scopedStudents.map(s=>{
+    const sg = grades.filter(g=>g.student_id===s.id&&(!fp||g.period===fp))
+    // Per-subject scores
+    const subjectScores = {}
+    sg.forEach(g=>{ subjectScores[g.subject_id] = calcTotal(g,gradeComps) })
+    const tots = Object.values(subjectScores)
+    const total = tots.length ? tots.reduce((a,b)=>a+b,0) : null
+    const avg   = tots.length ? Math.round(total/tots.length) : null
+    return {...s, subjectScores, total: total||0, avg, gpa: avg!==null?getGPA(avg,scale):null, count:sg.length, letter:avg!==null?getLetter(avg,scale):'—', pass:avg!==null?avg>=50:null}
   })
-  const attData = students.filter(s=>!fc||s.class_id===fc).map(s=>{
+  // Sort by total descending for ranking
+  const sortedAcademic = [...academicData].sort((a,b)=>(b.total||0)-(a.total||0))
+  // Assign positions (shared rank for ties)
+  let pos=1
+  const rankedAcademic = sortedAcademic.map((s,i)=>{
+    if(i>0 && s.total===sortedAcademic[i-1].total) return {...s,position:sortedAcademic[i-1].position}
+    const p=pos; pos=i+2; return {...s,position:p}
+  })
+  // If single student, show their rank in class
+  const studentRankInClass = selectedStudent
+    ? (() => {
+        const classStudents = students.filter(s=>s.class_id===selectedStudent.class_id)
+        const allAcad = classStudents.map(s=>{
+          const sg=grades.filter(g=>g.student_id===s.id&&(!fp||g.period===fp))
+          const tots=sg.map(g=>calcTotal(g,gradeComps))
+          const total=tots.length?tots.reduce((a,b)=>a+b,0):0
+          return {id:s.id,total}
+        }).sort((a,b)=>b.total-a.total)
+        let rpos=1
+        const ranked=allAcad.map((s,i)=>{
+          if(i>0&&s.total===allAcad[i-1].total) return {...s,pos:allAcad[i-1].pos}
+          const p=rpos; rpos=i+2; return {...s,pos:p}
+        })
+        return ranked.find(s=>s.id===selectedStudent.id)?.pos||null
+      })()
+    : null
+
+  // Class subjects for ranked table
+  const classSubjects = fc
+    ? subjects.filter(s=>s.class_id===fc)
+    : selectedStudent
+      ? subjects.filter(s=>s.class_id===selectedStudent.class_id)
+      : []
+
+  // ── Attendance data ──
+  const attData = scopedStudents.map(s=>{
     const sa=attendance.filter(a=>a.student_id===s.id)
     const pres=sa.filter(a=>a.status==='Present').length
-    return{...s,total:sa.length,present:pres,absent:sa.filter(a=>a.status==='Absent').length,late:sa.filter(a=>a.status==='Late').length,rate:sa.length?Math.round(pres/sa.length*100):null}
+    return{...s,total:sa.length,present:pres,absent:sa.filter(a=>a.status==='Absent').length,late:sa.filter(a=>a.status==='Late').length,excused:sa.filter(a=>a.status==='Excused').length,rate:sa.length?Math.round(pres/sa.length*100):null}
   })
-  const feeData = students.filter(s=>!fc||s.class_id===fc).map(s=>{
+
+  // ── Fee data ──
+  const feeData = scopedStudents.map(s=>{
     const sf=fees.filter(f=>f.student_id===s.id)
-    const owed=sf.reduce((a,f)=>a+Number(f.amount||0),0);const paid=sf.reduce((a,f)=>a+Number(f.paid||0),0)
-    return{...s,owed,paid,balance:owed-paid,status:owed===0?'—':paid>=owed?'Paid':paid>0?'Partial':'Outstanding'}
+    const owed=sf.reduce((a,f)=>a+Number(f.amount||0),0)
+    const paid=sf.reduce((a,f)=>a+Number(f.paid||0),0)
+    return{...s,owed,paid,balance:owed-paid,feeStatus:owed===0?'—':paid>=owed?'Paid':paid>0?'Partial':'Outstanding'}
   })
-  const passRate=academicData.filter(s=>s.avg!==null).length?Math.round(academicData.filter(s=>s.avg!==null&&s.avg>=50).length/academicData.filter(s=>s.avg!==null).length*100):0
-  const avgAtt=attData.filter(s=>s.rate!==null).reduce((a,s,_,arr)=>a+s.rate/arr.length,0)||0
-  const totalF=feeData.reduce((a,s)=>a+s.owed,0);const totalP=feeData.reduce((a,s)=>a+s.paid,0)
+
+  // ── Summary KPIs ──
+  const withAvg   = academicData.filter(s=>s.avg!==null)
+  const passRate  = withAvg.length?Math.round(withAvg.filter(s=>s.pass).length/withAvg.length*100):0
+  const withRate  = attData.filter(s=>s.rate!==null)
+  const avgAtt    = withRate.length?Math.round(withRate.reduce((a,s)=>a+s.rate,0)/withRate.length):0
+  const totalF    = feeData.reduce((a,s)=>a+s.owed,0)
+  const totalP    = feeData.reduce((a,s)=>a+s.paid,0)
+
+  // ── PDF Export ──
+  const exportPDF = () => {
+    setExporting(true)
+    try {
+      const isLandscape = (rtype==='academic' && classSubjects.length>3) || (rtype==='academic' && !selectedStudent)
+      const w = isLandscape?1122:794, h=isLandscape?794:1122
+      const margin=40, now=new Date()
+      const scope = selectedStudent?`${selectedStudent.first_name} ${selectedStudent.last_name}`:fc?classes.find(c=>c.id===fc)?.name:'All Students'
+      const periodStr = pdfPeriod||fp||'All Periods'
+      const yearStr   = pdfYear||settings?.academic_year||''
+
+      const canvas = document.createElement('canvas')
+      canvas.width=w*2; canvas.height=h*2
+      const ctx=canvas.getContext('2d')
+      ctx.scale(2,2)
+      ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,w,h)
+
+      // Header band
+      ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,w,80)
+
+      // Logo
+      let headerX=margin
+      if(schoolLogo){
+        const img=new Image(); img.src=schoolLogo
+        ctx.drawImage(img,margin,10,60,60)
+        headerX=margin+70
+      }
+
+      // School name & info
+      ctx.fillStyle='#e8b84b'; ctx.font='bold 20px Arial'; ctx.fillText(schoolName,headerX,34)
+      ctx.fillStyle='#8888a8'; ctx.font='13px Arial'
+      if(schoolMotto) ctx.fillText(schoolMotto,headerX,52)
+      ctx.fillText(`${rtype.charAt(0).toUpperCase()+rtype.slice(1)} Report · ${scope} · ${periodStr} · ${yearStr}`,headerX,schoolMotto?68:52)
+
+      // Timestamp top right
+      ctx.fillStyle='#55556a'; ctx.font='11px Arial'
+      ctx.textAlign='right'
+      ctx.fillText(`Generated: ${now.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})} ${now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}`,w-margin,52)
+      ctx.textAlign='left'
+
+      // Student rank badge (single student academic)
+      if(selectedStudent && rtype==='academic' && studentRankInClass) {
+        ctx.fillStyle='rgba(232,184,75,0.15)'; ctx.strokeStyle='#e8b84b'; ctx.lineWidth=1
+        const badge=`Class Position: ${ordinal(studentRankInClass)}`
+        ctx.font='bold 13px Arial'
+        const bw=ctx.measureText(badge).width+20
+        ctx.beginPath(); ctx.roundRect(w-margin-bw,16,bw,32,6); ctx.fill(); ctx.stroke()
+        ctx.fillStyle='#e8b84b'; ctx.fillText(badge,w-margin-bw+10,36)
+      }
+
+      let y=100
+
+      // Table helper
+      const drawTable=(headers,rows,colWidths)=>{
+        const tableW=colWidths.reduce((a,b)=>a+b,0)
+        const rowH=28, headH=32
+        // Header row
+        ctx.fillStyle='#f5f5f5'; ctx.fillRect(margin,y,tableW,headH)
+        ctx.strokeStyle='#e0e0e0'; ctx.lineWidth=0.5
+        ctx.strokeRect(margin,y,tableW,headH)
+        let cx=margin
+        headers.forEach((h,i)=>{
+          ctx.fillStyle='#333'; ctx.font='bold 11px Arial'
+          ctx.fillText(h.toUpperCase(),cx+8,y+20)
+          cx+=colWidths[i]
+          if(i<headers.length-1){ctx.beginPath();ctx.moveTo(cx,y);ctx.lineTo(cx,y+headH);ctx.stroke()}
+        })
+        y+=headH
+        rows.forEach((row,ri)=>{
+          if(y+rowH>h-margin){y=margin+10; /* would need multi-page */ }
+          ctx.fillStyle=ri%2===0?'#fafafa':'#ffffff'
+          ctx.fillRect(margin,y,tableW,rowH)
+          ctx.strokeStyle='#eeeeee'; ctx.lineWidth=0.5
+          ctx.strokeRect(margin,y,tableW,rowH)
+          let cx2=margin
+          row.forEach((cell,ci)=>{
+            ctx.fillStyle='#222'; ctx.font='12px Arial'
+            const txt=String(cell??'—')
+            ctx.fillText(txt.length>22?txt.slice(0,22)+'…':txt,cx2+8,y+18)
+            cx2+=colWidths[ci]
+            if(ci<row.length-1){ctx.beginPath();ctx.moveTo(cx2,y);ctx.lineTo(cx2,y+rowH);ctx.stroke()}
+          })
+          y+=rowH
+        })
+        y+=16
+      }
+
+      const usableW=w-margin*2
+
+      if(rtype==='academic'){
+        if(selectedStudent){
+          // Single student: subject-by-subject
+          const sg=grades.filter(g=>g.student_id===selectedStudent.id&&(!fp||g.period===fp))
+          const rows=sg.map(g=>{
+            const subj=subjects.find(s=>s.id===g.subject_id)
+            const tot=calcTotal(g,gradeComps)
+            const let_=getLetter(tot,scale)
+            return[subj?.name||'—',
+              ...gradeComps.filter(c=>c.enabled).map(c=>g[c.key]||0),
+              tot,let_,getGPA(tot,scale).toFixed(1),tot>=50?'Pass':'Fail']
+          })
+          const compHeaders=gradeComps.filter(c=>c.enabled).map(c=>c.label)
+          const headers=['Subject',...compHeaders,'Total','Grade','GPA','Status']
+          const colW=Math.floor(usableW/headers.length)
+          const colWidths=headers.map((_,i)=>i===0?colW*1.5:colW)
+          drawTable(headers,rows,colWidths)
+        } else {
+          // Class/school ranked table
+          const visSubjects=classSubjects.length>0?classSubjects:subjects
+          const headers=['Pos','ID','Student',...visSubjects.map(s=>s.name.slice(0,10)),'Total','Avg','Grade','Status']
+          const baseW=Math.floor((usableW-80-80-80)/(3+visSubjects.length+3))
+          const colWidths=[36,64,100,...visSubjects.map(()=>Math.max(baseW,50)),56,48,48,52]
+          const rows=rankedAcademic.map(s=>[
+            ordinal(s.position),s.student_id,`${s.first_name} ${s.last_name}`,
+            ...visSubjects.map(sub=>s.subjectScores[sub.id]??'—'),
+            s.total||'—',s.avg??'—',s.letter,s.pass===null?'—':s.pass?'Pass':'Fail'
+          ])
+          drawTable(headers,rows,colWidths)
+        }
+      }
+      if(rtype==='attendance'){
+        const headers=['ID','Student','Class','Total Days','Present','Absent','Late','Excused','Rate']
+        const cw=Math.floor(usableW/9)
+        const colWidths=[64,120,90,cw,cw,cw,cw,cw,60]
+        const rows=attData.map(s=>[s.student_id,`${s.first_name} ${s.last_name}`,classes.find(c=>c.id===s.class_id)?.name||'—',s.total,s.present,s.absent,s.late,s.excused,s.rate!==null?`${s.rate}%`:'—'])
+        drawTable(headers,rows,colWidths)
+      }
+      if(rtype==='fees'){
+        const headers=['ID','Student','Class','Total Owed','Paid','Balance','Status']
+        const cw=Math.floor(usableW/7)
+        const colWidths=[64,140,90,cw,cw,cw,80]
+        const rows=feeData.map(s=>[s.student_id,`${s.first_name} ${s.last_name}`,classes.find(c=>c.id===s.class_id)?.name||'—',fmtMoney(s.owed,currency),fmtMoney(s.paid,currency),fmtMoney(s.balance,currency),s.feeStatus])
+        drawTable(headers,rows,colWidths)
+      }
+
+      // Footer
+      ctx.fillStyle='#f0f0f0'; ctx.fillRect(0,h-30,w,30)
+      ctx.fillStyle='#888'; ctx.font='10px Arial'; ctx.textAlign='center'
+      ctx.fillText(`${schoolName} · SRMS Report · ${now.toLocaleDateString()}`,w/2,h-12)
+      ctx.textAlign='left'
+
+      const link=document.createElement('a')
+      link.download=`SRMS_${rtype}_report_${scope.replace(/\s+/g,'_')}_${pdfPeriod||'all'}.pdf`
+      // Convert canvas to image and wrap in minimal PDF
+      const imgData=canvas.toDataURL('image/jpeg',0.92)
+      const pdfW=isLandscape?'841.89':'595.28', pdfH=isLandscape?'595.28':'841.89'
+      const pdf=`%PDF-1.4
+1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
+2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj
+3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 ${pdfW} ${pdfH}]/Contents 4 0 R/Resources<</XObject<</Im1 5 0 R>>>>>>endobj
+4 0 obj<</Length 32>>stream\nq ${pdfW} 0 0 ${pdfH} 0 0 cm /Im1 Do Q\nendstream\nendobj`
+      // Use html canvas print approach instead
+      const printW=window.open('','_blank')
+      if(printW){
+        printW.document.write(`<!DOCTYPE html><html><head><title>${schoolName} Report</title><style>*{margin:0;padding:0}body{background:#fff}img{width:100%;height:auto;display:block}</style></head><body><img src="${imgData}" onload="window.print()"/></body></html>`)
+        printW.document.close()
+      }
+    } catch(e){ console.error(e) }
+    setExporting(false)
+    setPdfModal(false)
+  }
+
+  // ── Excel Export ──
+  const exportExcel = () => {
+    try {
+      let csv='', filename=''
+      const scope=selectedStudent?`${selectedStudent.first_name}_${selectedStudent.last_name}`:fc?classes.find(c=>c.id===fc)?.name?.replace(/\s+/g,'_'):'All'
+
+      if(rtype==='academic'){
+        if(selectedStudent){
+          csv='Subject,'+gradeComps.filter(c=>c.enabled).map(c=>c.label).join(',')+',Total,Grade,GPA,Status\n'
+          grades.filter(g=>g.student_id===selectedStudent.id&&(!fp||g.period===fp)).forEach(g=>{
+            const subj=subjects.find(s=>s.id===g.subject_id)
+            const tot=calcTotal(g,gradeComps), let_=getLetter(tot,scale)
+            csv+=`"${subj?.name||'—'}",${gradeComps.filter(c=>c.enabled).map(c=>g[c.key]||0).join(',')},${tot},${let_},${getGPA(tot,scale).toFixed(1)},${tot>=50?'Pass':'Fail'}\n`
+          })
+        } else {
+          const visSubjects=classSubjects.length>0?classSubjects:subjects
+          csv='Position,Student ID,Student,'+visSubjects.map(s=>`"${s.name}"`).join(',')+',Total,Average,Grade,GPA,Status\n'
+          rankedAcademic.forEach(s=>{
+            csv+=`${ordinal(s.position)},"${s.student_id}","${s.first_name} ${s.last_name}",${visSubjects.map(sub=>s.subjectScores[sub.id]??0).join(',')},${s.total||0},${s.avg??0},${s.letter},${s.gpa!==null?s.gpa.toFixed(1):''},${s.pass===null?'—':s.pass?'Pass':'Fail'}\n`
+          })
+        }
+        filename=`SRMS_Academic_${scope}_${fp||'AllPeriods'}.csv`
+      } else if(rtype==='attendance'){
+        csv='Student ID,Student,Class,Total Days,Present,Absent,Late,Excused,Rate\n'
+        attData.forEach(s=>{csv+=`"${s.student_id}","${s.first_name} ${s.last_name}","${classes.find(c=>c.id===s.class_id)?.name||'—'}",${s.total},${s.present},${s.absent},${s.late},${s.excused},${s.rate!==null?s.rate+'%':'—'}\n`})
+        filename=`SRMS_Attendance_${scope}.csv`
+      } else {
+        csv='Student ID,Student,Class,Total Owed,Paid,Balance,Status\n'
+        feeData.forEach(s=>{csv+=`"${s.student_id}","${s.first_name} ${s.last_name}","${classes.find(c=>c.id===s.class_id)?.name||'—'}","${fmtMoney(s.owed,currency)}","${fmtMoney(s.paid,currency)}","${fmtMoney(s.balance,currency)}",${s.feeStatus}\n`})
+        filename=`SRMS_Fees_${scope}.csv`
+      }
+      const blob=new Blob([csv],{type:'text/csv'})
+      const url=URL.createObjectURL(blob)
+      const a=document.createElement('a'); a.href=url; a.download=filename; a.click()
+      URL.revokeObjectURL(url)
+    } catch(e){ console.error(e) }
+  }
+
+  const scopeLabel = selectedStudent
+    ? `${selectedStudent.first_name} ${selectedStudent.last_name}`
+    : fc ? classes.find(c=>c.id===fc)?.name : 'All Students'
+
   return (
     <div>
-      <PageHeader title='Reports & Analytics' sub='Comprehensive school performance data'>
-        <Btn variant='ghost'>⬇ Export PDF</Btn>
-        <Btn variant='ghost'>⬇ Export Excel</Btn>
+      <PageHeader title='Reports & Analytics' sub={`Viewing: ${scopeLabel}`}>
+        <Btn variant='ghost' onClick={()=>setPdfModal(true)} disabled={exporting}>⬇ Export PDF</Btn>
+        <Btn variant='ghost' onClick={exportExcel}>⬇ Export Excel</Btn>
       </PageHeader>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16,marginBottom:24}}>
-        <KPI label='Pass Rate'       value={`${passRate}%`}  color='var(--emerald)' index={0}/>
-        <KPI label='Avg Attendance'  value={`${Math.round(avgAtt)}%`} color='var(--sky)' index={1}/>
-        <KPI label='Fee Collection'  value={`${totalF?Math.round(totalP/totalF*100):0}%`} color='var(--gold)' sub={fmtMoney(totalP,currency)} index={2}/>
-        <KPI label='Total Students'  value={students.length} color='var(--amber)' index={3}/>
+
+      {/* PDF Options Modal */}
+      {pdfModal && (
+        <Modal title='Export PDF Report' subtitle='Select the period for this report' onClose={()=>setPdfModal(false)} width={420}>
+          <Field label='Academic Year' value={pdfYear} onChange={setPdfYear} placeholder='e.g. 2024-2025'/>
+          <Field label={`${periodLabel} / Period`} value={pdfPeriod} onChange={setPdfPeriod}
+            options={[{value:'',label:'All Periods'},...periods.map(p=>({value:p,label:p}))]}/>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:8}}>
+            <Btn variant='ghost' onClick={()=>setPdfModal(false)}>Cancel</Btn>
+            <Btn onClick={exportPDF} disabled={exporting}>{exporting?<><Spinner/> Generating…</>:'Generate PDF'}</Btn>
+          </div>
+        </Modal>
+      )}
+
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:16,marginBottom:24}}>
+        <KPI label='Pass Rate'      value={`${passRate}%`}                              color='var(--emerald)' index={0}/>
+        <KPI label='Avg Attendance' value={`${avgAtt}%`}                                color='var(--sky)'     index={1}/>
+        <KPI label='Fee Collection' value={`${totalF?Math.round(totalP/totalF*100):0}%`} color='var(--gold)' sub={fmtMoney(totalP,currency)} index={2}/>
+        <KPI label='Students'       value={scopedStudents.length}                        color='var(--amber)'   index={3}/>
       </div>
+
+      {/* Tabs */}
       <div style={{display:'flex',gap:4,marginBottom:16,background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:4,width:'fit-content'}}>
         {['academic','attendance','fees'].map(t=>(
           <button key={t} onClick={()=>setRtype(t)} style={{padding:'8px 20px',borderRadius:10,fontSize:13,fontWeight:600,background:rtype===t?'var(--ink4)':'transparent',color:rtype===t?'var(--white)':'var(--mist2)',border:rtype===t?'1px solid var(--line)':'1px solid transparent',transition:'all 0.15s',cursor:'pointer',textTransform:'capitalize',fontFamily:"'Cabinet Grotesk',sans-serif"}}>{t}</button>
         ))}
       </div>
+
+      {/* Filters */}
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
-        <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-          <select value={fc} onChange={e=>setFc(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:180}}>
-            <option value=''>All Classes</option>
-            {classes.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          {rtype==='academic' && <select value={fp} onChange={e=>setFp(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
-            <option value=''>All Periods</option>
-            {periods.map(p=><option key={p}>{p}</option>)}
-          </select>}
+        <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
+          {/* Student search with autofill */}
+          <div style={{position:'relative',flex:'1 1 220px'}}>
+            <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:14,zIndex:1}}>⌕</span>
+            <input
+              value={studentSearch}
+              onChange={e=>{setStudentSearch(e.target.value);setShowDropdown(true);if(!e.target.value)clearStudent()}}
+              onFocus={()=>studentSearch&&setShowDropdown(true)}
+              onBlur={()=>setTimeout(()=>setShowDropdown(false),200)}
+              placeholder='Search student…'
+              style={{width:'100%',background:'var(--ink3)',border:`1px solid ${selectedStudent?'var(--gold)':'var(--line)'}`,borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
+            {selectedStudent && (
+              <button onClick={clearStudent} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',background:'none',color:'var(--mist3)',fontSize:16,cursor:'pointer'}}>×</button>
+            )}
+            {showDropdown && matchedStudents.length>0 && (
+              <div style={{position:'absolute',top:'100%',left:0,right:0,background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',zIndex:100,marginTop:4,boxShadow:'0 8px 24px rgba(0,0,0,0.4)',overflow:'hidden'}}>
+                {matchedStudents.map(s=>(
+                  <div key={s.id} onMouseDown={()=>selectStudent(s)}
+                    style={{padding:'10px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:10,transition:'background 0.1s'}}
+                    onMouseEnter={e=>e.currentTarget.style.background='var(--ink3)'}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    <Avatar name={`${s.first_name} ${s.last_name}`} size={26}/>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:600}}>{s.first_name} {s.last_name}</div>
+                      <div style={{fontSize:11,color:'var(--mist3)'}}>{classes.find(c=>c.id===s.class_id)?.name||'—'} · {s.student_id}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Class filter — disabled when student selected */}
+          {!selectedStudent && (
+            <select value={fc} onChange={e=>setFc(e.target.value)}
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:180}}>
+              <option value=''>All Classes</option>
+              {classes.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+
+          {rtype==='academic' && (
+            <select value={fp} onChange={e=>setFp(e.target.value)}
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
+              <option value=''>All Periods</option>
+              {periods.map(p=><option key={p}>{p}</option>)}
+            </select>
+          )}
         </div>
+
+        {/* Active scope indicators */}
+        {(selectedStudent||fc) && (
+          <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}>
+            {selectedStudent && <Badge color='var(--gold)' bg='rgba(232,184,75,0.1)'>Student: {selectedStudent.first_name} {selectedStudent.last_name}</Badge>}
+            {fc && !selectedStudent && <Badge color='var(--sky)' bg='rgba(91,168,245,0.1)'>Class: {classes.find(c=>c.id===fc)?.name}</Badge>}
+            {selectedStudent && rtype==='academic' && studentRankInClass && (
+              <Badge color='var(--emerald)' bg='rgba(45,212,160,0.1)'>Class Position: {ordinal(studentRankInClass)}</Badge>
+            )}
+          </div>
+        )}
       </Card>
+
+      {/* Prompt if nothing selected */}
+      {!selectedStudent && !fc && (
+        <div style={{background:'rgba(232,184,75,0.04)',border:'1px solid rgba(232,184,75,0.15)',borderRadius:'var(--r)',padding:'14px 20px',marginBottom:16,fontSize:13,color:'var(--mist2)',display:'flex',alignItems:'center',gap:10}}>
+          <span style={{fontSize:16}}>💡</span>
+          Select a class or search for a student to generate a focused report. Showing all students.
+        </div>
+      )}
+
+      {/* Tables */}
       <Card>
-        {rtype==='academic' && <DataTable data={academicData} columns={[
-          {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
-          {key:'first_name',label:'Student',render:(v,r)=><div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${r.first_name} ${r.last_name}`} size={28}/><span style={{fontWeight:600}}>{r.first_name} {r.last_name}</span></div>},
-          {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'—'},
-          {key:'count',label:'Subjects'},
-          {key:'avg',label:'Avg Score',render:v=>v!==null?<span className='mono' style={{fontWeight:700}}>{v}</span>:'—'},
-          {key:'letter',label:'Grade',render:v=>v!=='—'?<Badge color={LETTER_COLOR[v]||'var(--mist2)'}>{v}</Badge>:'—'},
-          {key:'gpa',label:'GPA',render:v=>v!==null?<span className='mono'>{v.toFixed(1)}</span>:'—'},
-          {key:'avg',label:'Status',render:v=>v===null?null:v>=50?<Badge color='var(--emerald)'>Pass</Badge>:<Badge color='var(--rose)'>Fail</Badge>},
-        ]}/>}
-        {rtype==='attendance' && <DataTable data={attData} columns={[
-          {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
-          {key:'first_name',label:'Student',render:(v,r)=><div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${r.first_name} ${r.last_name}`} size={28}/><span style={{fontWeight:600}}>{r.first_name} {r.last_name}</span></div>},
-          {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'—'},
-          {key:'total',label:'Days'},
-          {key:'present',label:'Present',render:v=><span style={{color:'var(--emerald)',fontWeight:600}}>{v}</span>},
-          {key:'absent',label:'Absent',render:v=><span style={{color:'var(--rose)',fontWeight:600}}>{v}</span>},
-          {key:'late',label:'Late',render:v=><span style={{color:'var(--amber)',fontWeight:600}}>{v}</span>},
-          {key:'rate',label:'Rate',render:v=>v!==null?<span className='mono' style={{fontWeight:700,color:v>=80?'var(--emerald)':v>=60?'var(--amber)':'var(--rose)'}}>{v}%</span>:'—'},
-        ]}/>}
-        {rtype==='fees' && <DataTable data={feeData} columns={[
-          {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
-          {key:'first_name',label:'Student',render:(v,r)=><div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${r.first_name} ${r.last_name}`} size={28}/><span style={{fontWeight:600}}>{r.first_name} {r.last_name}</span></div>},
-          {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'—'},
-          {key:'owed',label:'Owed',render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
-          {key:'paid',label:'Paid',render:v=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
-          {key:'balance',label:'Balance',render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
-          {key:'status',label:'Status',render:v=>v!=='—'?<Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>:'—'},
-        ]}/>}
+        {rtype==='academic' && (
+          <>
+            {!selectedStudent && (fc || academicData.length>0) && (
+              <div style={{marginBottom:12,display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:11,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em'}}>Ranked by total score</span>
+                {classSubjects.length>0 && <span style={{fontSize:11,color:'var(--mist3)'}}>· {classSubjects.length} subjects</span>}
+              </div>
+            )}
+            <div style={{overflowX:'auto'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',minWidth:selectedStudent?400:600}}>
+                <thead>
+                  <tr style={{borderBottom:'1px solid var(--line)'}}>
+                    {!selectedStudent && <th style={thStyle}>Position</th>}
+                    <th style={thStyle}>ID</th>
+                    <th style={thStyle}>Student</th>
+                    {!selectedStudent && <th style={thStyle}>Class</th>}
+                    {selectedStudent
+                      ? <><th style={thStyle}>Subject</th>{gradeComps.filter(c=>c.enabled).map(c=><th key={c.key} style={thStyle}>{c.label}</th>)}</>
+                      : classSubjects.map(s=><th key={s.id} style={{...thStyle,maxWidth:90}}>{s.name.length>12?s.name.slice(0,12)+'…':s.name}</th>)
+                    }
+                    <th style={thStyle}>Total</th>
+                    {!selectedStudent && <th style={thStyle}>Avg</th>}
+                    <th style={thStyle}>Grade</th>
+                    <th style={thStyle}>GPA</th>
+                    <th style={thStyle}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedStudent ? (
+                    grades.filter(g=>g.student_id===selectedStudent.id&&(!fp||g.period===fp)).length===0
+                      ? <tr><td colSpan={20} style={{padding:48,textAlign:'center',color:'var(--mist3)',fontSize:13}}>No grade records found for this student.</td></tr>
+                      : grades.filter(g=>g.student_id===selectedStudent.id&&(!fp||g.period===fp)).map((g,i)=>{
+                          const subj=subjects.find(s=>s.id===g.subject_id)
+                          const tot=calcTotal(g,gradeComps), let_=getLetter(tot,scale)
+                          return (
+                            <tr key={g.id} style={{borderBottom:'1px solid var(--line)',background:i%2===0?'transparent':'var(--ink3)'}}>
+                              <td style={tdStyle}><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{selectedStudent.student_id}</span></td>
+                              <td style={tdStyle}><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={`${selectedStudent.first_name} ${selectedStudent.last_name}`} size={24}/><span style={{fontWeight:600}}>{selectedStudent.first_name} {selectedStudent.last_name}</span></div></td>
+                              <td style={tdStyle}>{subj?.name||'—'}</td>
+                              {gradeComps.filter(c=>c.enabled).map(c=><td key={c.key} style={tdStyle}><span className='mono'>{g[c.key]||0}</span></td>)}
+                              <td style={tdStyle}><span className='mono' style={{fontWeight:700,fontSize:14}}>{tot}</span></td>
+                              <td style={tdStyle}><Badge color={LETTER_COLOR[let_]||'var(--mist2)'}>{let_}</Badge></td>
+                              <td style={tdStyle}><span className='mono'>{getGPA(tot,scale).toFixed(1)}</span></td>
+                              <td style={tdStyle}>{tot>=50?<Badge color='var(--emerald)'>Pass</Badge>:<Badge color='var(--rose)'>Fail</Badge>}</td>
+                            </tr>
+                          )
+                        })
+                  ) : (
+                    rankedAcademic.length===0
+                      ? <tr><td colSpan={20} style={{padding:48,textAlign:'center',color:'var(--mist3)',fontSize:13}}>No records found.</td></tr>
+                      : rankedAcademic.map((s,i)=>(
+                          <tr key={s.id} style={{borderBottom:'1px solid var(--line)',background:i%2===0?'transparent':'rgba(255,255,255,0.01)'}}>
+                            <td style={tdStyle}>
+                              <span style={{fontWeight:700,color:s.position<=3?'var(--gold)':'var(--mist2)',fontSize:13}}>{ordinal(s.position)}</span>
+                            </td>
+                            <td style={tdStyle}><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{s.student_id}</span></td>
+                            <td style={tdStyle}><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={`${s.first_name} ${s.last_name}`} size={26}/><span style={{fontWeight:600}}>{s.first_name} {s.last_name}</span></div></td>
+                            <td style={tdStyle}>{classes.find(c=>c.id===s.class_id)?.name||'—'}</td>
+                            {classSubjects.map(sub=><td key={sub.id} style={tdStyle}><span className='mono'>{s.subjectScores[sub.id]??'—'}</span></td>)}
+                            <td style={tdStyle}><span className='mono' style={{fontWeight:700}}>{s.total||'—'}</span></td>
+                            <td style={tdStyle}><span className='mono'>{s.avg??'—'}</span></td>
+                            <td style={tdStyle}>{s.letter!=='—'?<Badge color={LETTER_COLOR[s.letter]||'var(--mist2)'}>{s.letter}</Badge>:'—'}</td>
+                            <td style={tdStyle}>{s.gpa!==null?<span className='mono'>{s.gpa.toFixed(1)}</span>:'—'}</td>
+                            <td style={tdStyle}>{s.pass===null?'—':s.pass?<Badge color='var(--emerald)'>Pass</Badge>:<Badge color='var(--rose)'>Fail</Badge>}</td>
+                          </tr>
+                        ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+        {rtype==='attendance' && (
+          <DataTable data={attData} columns={[
+            {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
+            {key:'first_name',label:'Student',render:(v,r)=><div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${r.first_name} ${r.last_name}`} size={28}/><span style={{fontWeight:600}}>{r.first_name} {r.last_name}</span></div>},
+            {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'—'},
+            {key:'total',label:'Days'},
+            {key:'present',label:'Present',render:v=><span style={{color:'var(--emerald)',fontWeight:600}}>{v}</span>},
+            {key:'absent',label:'Absent',render:v=><span style={{color:'var(--rose)',fontWeight:600}}>{v}</span>},
+            {key:'late',label:'Late',render:v=><span style={{color:'var(--amber)',fontWeight:600}}>{v}</span>},
+            {key:'excused',label:'Excused',render:v=><span style={{color:'var(--sky)',fontWeight:600}}>{v}</span>},
+            {key:'rate',label:'Rate',render:v=>v!==null?<span className='mono' style={{fontWeight:700,color:v>=80?'var(--emerald)':v>=60?'var(--amber)':'var(--rose)'}}>{v}%</span>:'—'},
+          ]}/>
+        )}
+        {rtype==='fees' && (
+          <DataTable data={feeData} columns={[
+            {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
+            {key:'first_name',label:'Student',render:(v,r)=><div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${r.first_name} ${r.last_name}`} size={28}/><span style={{fontWeight:600}}>{r.first_name} {r.last_name}</span></div>},
+            {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'—'},
+            {key:'owed',label:'Owed',render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
+            {key:'paid',label:'Paid',render:v=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
+            {key:'balance',label:'Balance',render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
+            {key:'feeStatus',label:'Status',render:v=>v!=='—'?<Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>:'—'},
+          ]}/>
+        )}
       </Card>
     </div>
   )
 }
+// Table cell styles used in reports
+const thStyle={padding:'10px 12px',textAlign:'left',fontSize:10,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',whiteSpace:'nowrap',fontFamily:"'Clash Display',sans-serif",background:'var(--ink3)'}
+const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlign:'middle'}
 
 // ── ANNOUNCEMENTS ──────────────────────────────────────────────
 function Announcements({profile,data,setData,toast}) {
@@ -1455,13 +1902,14 @@ function Users({profile,toast}) {
 }
 
 // ── SETTINGS ───────────────────────────────────────────────────
-function Settings({settings,setSettings,toast}) {
+function Settings({profile,settings,setSettings,toast}) {
   const [form,setForm]   = useState(JSON.parse(JSON.stringify(settings||{})))
   const [saving,setSaving] = useState(false)
   const [weightWarning,setWeightWarning] = useState(false)
+  const [logoUploading,setLogoUploading] = useState(false)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
+  const canAdmin = ['superadmin','admin'].includes(profile?.role)
 
-  // Ensure grade_components is always initialised
   const gradeComponents = form.grade_components || DEFAULT_GRADE_COMPONENTS
   const activeComps = gradeComponents.filter(c=>c.enabled)
   const totalWeight = activeComps.reduce((a,c)=>a+c.weight,0)
@@ -1470,7 +1918,6 @@ function Settings({settings,setSettings,toast}) {
     if(totalWeight!==100 && activeComps.length>0){
       setWeightWarning(true)
       setTimeout(()=>setWeightWarning(false),4000)
-      // still allow saving — just warn
     }
     setSaving(true)
     const payload = {...form, grade_components: gradeComponents}
@@ -1478,6 +1925,24 @@ function Settings({settings,setSettings,toast}) {
     if(error) toast(error.message,'error')
     else { setSettings(payload); toast('Settings saved') }
     setSaving(false)
+  }
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if(!file) return
+    if(!file.type.startsWith('image/jpeg') && !file.type.startsWith('image/jpg') && !file.type.includes('png')) {
+      toast('Please upload a JPG or PNG image','error'); return
+    }
+    if(file.size > 2*1024*1024) { toast('Image must be under 2MB','error'); return }
+    setLogoUploading(true)
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result
+      setForm(p=>({...p, school_logo: base64}))
+      setLogoUploading(false)
+      toast('Logo uploaded — click Save Changes to apply')
+    }
+    reader.readAsDataURL(file)
   }
 
   const updGrade = (i,k,v)=>{const g=[...form.grading_scale];g[i]={...g[i],[k]:k==='letter'?v:parseFloat(v)||0};setForm(p=>({...p,grading_scale:g}))}
@@ -1493,7 +1958,6 @@ function Settings({settings,setSettings,toast}) {
     const wasEnabled = comps[i].enabled
     comps[i] = {...comps[i], enabled: !wasEnabled}
     setForm(p=>({...p,grade_components:comps}))
-    // If disabling, zero out all scores for this component in the database immediately
     if(wasEnabled) {
       const key = comps[i].key
       await supabase.from('grades').update({[key]:0}).neq('id','00000000-0000-0000-0000-000000000000')
@@ -1502,6 +1966,7 @@ function Settings({settings,setSettings,toast}) {
   }
 
   if(!form.id) return <div style={{padding:48,textAlign:'center',color:'var(--mist3)'}}>Loading settings…</div>
+  const curPreview = getCurrency({...form,currency_code:form.currency_code||'GHS'})
   return (
     <div>
       <PageHeader title='System Settings' sub='School configuration, grading scale and academic structure'>
@@ -1524,34 +1989,54 @@ function Settings({settings,setSettings,toast}) {
             <Field label='School Motto'  value={form.motto}         onChange={f('motto')}/>
             <Field label='Academic Year' value={form.academic_year} onChange={f('academic_year')} placeholder='e.g. 2024-2025'/>
           </Card>
+
+          {canAdmin && (
+            <Card style={{marginBottom:20}}>
+              <SectionTitle>School Logo</SectionTitle>
+              <p style={{fontSize:12,color:'var(--mist2)',marginBottom:14,lineHeight:1.6}}>Upload a logo to appear on generated reports. JPG only, max 2MB.</p>
+              <div style={{display:'flex',gap:16,alignItems:'flex-start',flexWrap:'wrap'}}>
+                {form.school_logo ? (
+                  <div style={{position:'relative'}}>
+                    <img src={form.school_logo} alt='School logo' style={{width:80,height:80,objectFit:'contain',borderRadius:'var(--r-sm)',border:'1px solid var(--line)',background:'white',padding:4}}/>
+                    <button onClick={()=>setForm(p=>({...p,school_logo:null}))}
+                      style={{position:'absolute',top:-6,right:-6,width:20,height:20,borderRadius:'50%',background:'var(--rose)',color:'white',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',border:'none'}}>×</button>
+                  </div>
+                ) : (
+                  <div style={{width:80,height:80,borderRadius:'var(--r-sm)',border:'2px dashed var(--line)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--mist3)',fontSize:11}}>No logo</div>
+                )}
+                <div>
+                  <label style={{display:'inline-flex',alignItems:'center',gap:8,padding:'8px 16px',background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',cursor:'pointer',fontSize:13,color:'var(--mist)',fontWeight:500}}>
+                    {logoUploading?<><Spinner/> Uploading…</>:<>⬆ {form.school_logo?'Replace Logo':'Upload Logo'}</>}
+                    <input type='file' accept='.jpg,.jpeg,.png' onChange={handleLogoUpload} style={{display:'none'}}/>
+                  </label>
+                  <p style={{fontSize:11,color:'var(--mist3)',marginTop:8}}>Will appear top-left on PDF reports</p>
+                </div>
+              </div>
+            </Card>
+          )}
+
           <Card style={{marginBottom:20}}>
             <SectionTitle>Currency</SectionTitle>
             <Field label='Currency' value={form.currency_code||'GHS'} onChange={f('currency_code')}
               options={CURRENCIES.map(c=>({value:c.code,label:`${c.symbol}  ${c.name} (${c.code})`}))}/>
-            {(()=>{const cur=getCurrency({...form,currency_code:form.currency_code||'GHS'});return(
-              <div style={{display:'flex',gap:12,alignItems:'center',marginTop:-8,marginBottom:16}}>
-                <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 16px',fontSize:13}}>
-                  <span style={{color:'var(--mist3)'}}>Preview: </span>
-                  <span className='mono' style={{color:'var(--gold)',fontWeight:700}}>{fmtMoney(1250,cur)}</span>
-                </div>
-                <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                  <span style={{fontSize:12,color:'var(--mist3)'}}>Symbol position:</span>
-                  {['before','after'].map(pos=>(
-                    <button key={pos} onClick={()=>{
-                      const comps=CURRENCIES.map(c=>c.code===cur.code?{...c,position:pos}:c)
-                      // update the local currency position by saving it in form
-                      setForm(p=>({...p,currency_position:pos}))
-                    }}
-                      style={{padding:'4px 12px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',
-                        background:(form.currency_position||cur.position)===pos?'var(--ink4)':'transparent',
-                        color:(form.currency_position||cur.position)===pos?'var(--white)':'var(--mist3)',
-                        border:`1px solid ${(form.currency_position||cur.position)===pos?'var(--line2)':'var(--line)'}`}}>
-                      {pos==='before'?'Before (₵100)':'After (100 ₵)'}
-                    </button>
-                  ))}
-                </div>
+            <div style={{display:'flex',gap:12,alignItems:'center',marginTop:-8,marginBottom:16,flexWrap:'wrap'}}>
+              <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 16px',fontSize:13}}>
+                <span style={{color:'var(--mist3)'}}>Preview: </span>
+                <span className='mono' style={{color:'var(--gold)',fontWeight:700}}>{fmtMoney(1250,curPreview)}</span>
               </div>
-            )})()}
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <span style={{fontSize:12,color:'var(--mist3)'}}>Symbol position:</span>
+                {['before','after'].map(pos=>(
+                  <button key={pos} onClick={()=>setForm(p=>({...p,currency_position:pos}))}
+                    style={{padding:'4px 12px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',
+                      background:(form.currency_position||curPreview.position)===pos?'var(--ink4)':'transparent',
+                      color:(form.currency_position||curPreview.position)===pos?'var(--white)':'var(--mist3)',
+                      border:`1px solid ${(form.currency_position||curPreview.position)===pos?'var(--line2)':'var(--line)'}`}}>
+                    {pos==='before'?'Before (₵100)':'After (100 ₵)'}
+                  </button>
+                ))}
+              </div>
+            </div>
             <Field label='Decimal Places' value={form.currency_decimals??2} onChange={v=>setForm(p=>({...p,currency_decimals:parseInt(v)||0}))}
               options={[{value:0,label:'0 — No decimals (e.g. ₵100)'},{value:2,label:'2 — Standard (e.g. ₵100.00)'}]}/>
           </Card>
@@ -1574,17 +2059,12 @@ function Settings({settings,setSettings,toast}) {
             {gradeComponents.map((c,i)=>(
               <div key={c.key} style={{marginBottom:10,padding:'12px 14px',background:c.enabled?'var(--ink3)':'var(--ink)',border:`1px solid ${c.enabled?'var(--line2)':'var(--line)'}`,borderRadius:'var(--r-sm)',transition:'all 0.15s'}}>
                 <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:c.enabled?10:0}}>
-                  {/* Toggle switch */}
                   <button onClick={()=>handleToggle(i)}
                     style={{width:38,height:22,borderRadius:11,background:c.enabled?'var(--emerald)':'var(--line2)',border:'none',cursor:'pointer',transition:'background 0.2s',position:'relative',flexShrink:0}}>
                     <div style={{width:16,height:16,borderRadius:'50%',background:'white',position:'absolute',top:3,left:c.enabled?19:3,transition:'left 0.2s'}}/>
                   </button>
-                  {/* Renameable label */}
-                  <input
-                    value={c.label}
-                    onChange={e=>updComponent(i,'label',e.target.value)}
-                    style={{flex:1,background:'transparent',border:'none',borderBottom:`1px solid ${c.enabled?'var(--line2)':'transparent'}`,color:c.enabled?'var(--white)':'var(--mist3)',fontSize:13,fontWeight:600,padding:'2px 4px',fontFamily:"'Cabinet Grotesk',sans-serif",cursor:'text'}}
-                  />
+                  <input value={c.label} onChange={e=>updComponent(i,'label',e.target.value)}
+                    style={{flex:1,background:'transparent',border:'none',borderBottom:`1px solid ${c.enabled?'var(--line2)':'transparent'}`,color:c.enabled?'var(--white)':'var(--mist3)',fontSize:13,fontWeight:600,padding:'2px 4px',fontFamily:"'Cabinet Grotesk',sans-serif",cursor:'text'}}/>
                   {!c.enabled && <span style={{fontSize:11,color:'var(--mist3)'}}>Disabled</span>}
                 </div>
                 {c.enabled && (
@@ -1866,7 +2346,7 @@ export default function App() {
       case 'reports':      return <Reports      {...props}/>
       case 'announcements':return <Announcements {...props}/>
       case 'users':        return <Users        {...props}/>
-      case 'settings':     return <Settings     settings={settings} setSettings={setSettings} toast={showToast}/>
+      case 'settings':     return <Settings     profile={profile} settings={settings} setSettings={setSettings} toast={showToast}/>
       default:             return <Dashboard    {...props} onNav={setPage}/>
     }
   }
