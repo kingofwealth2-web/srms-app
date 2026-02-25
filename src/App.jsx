@@ -431,7 +431,7 @@ function Login({onLogin}) {
                 </div>
                 <div>
                   <div className='d' style={{fontSize:13,fontWeight:600,color:'var(--white)',marginBottom:3}}>{title}</div>
-                  <div style={{fontSize:12,color:'var(--mist3)',lineHeight:1.5}}>{desc}</div>
+                  <div style={{fontSize:12,color:'var(--mist2)',lineHeight:1.5}}>{desc}</div>
                 </div>
               </div>
             ))}
