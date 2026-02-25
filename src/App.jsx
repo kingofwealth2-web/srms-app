@@ -2025,7 +2025,8 @@ function Users({profile,toast}) {
     // Safety guards — belt and braces on top of the UI hiding the button
     if(u.id===profile?.id){toast('You cannot lock your own account.','error');return}
     if(u.role==='superadmin'){toast('Super Admin accounts cannot be locked.','error');return}
-    await supabase.from('profiles').update({locked:!u.locked}).eq('id',id)
+    const {error} = await supabase.from('profiles').update({locked:!u.locked}).eq('id',id)
+    if(error){toast('Failed to update — check Supabase RLS policies.','error');return}
     setUsers(p=>p.map(x=>x.id===id?{...x,locked:!x.locked}:x))
     toast(u.locked ? 'Account unlocked.' : 'Account locked.')
   }
