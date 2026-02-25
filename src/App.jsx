@@ -363,13 +363,28 @@ function LoadingScreen({msg='Loading…'}) {
 
 // ── LOGIN ──────────────────────────────────────────────────────
 function Login({onLogin}) {
-  const [email,setEmail]       = useState('')
-  const [password,setPassword] = useState('')
-  const [error,setError]       = useState('')
-  const [loading,setLoading]   = useState(false)
+  const [email,setEmail]           = useState('')
+  const [password,setPassword]     = useState('')
+  const [error,setError]           = useState('')
+  const [loading,setLoading]       = useState(false)
+  const [view,setView]             = useState('login') // 'login' | 'forgot' | 'forgot_sent' | 'reset'
+  const [resetEmail,setResetEmail] = useState('')
+  const [resetMsg,setResetMsg]     = useState('')
+  const [resetLoading,setResetLoading] = useState(false)
+  const [newPass,setNewPass]       = useState('')
+  const [newPass2,setNewPass2]     = useState('')
+  const [resetDone,setResetDone]   = useState(false)
   const [schoolName,setSchoolName] = useState('Kandit Standard School')
   const [schoolLogo,setSchoolLogo] = useState(null)
   const [acadYear,setAcadYear]     = useState('2026–2027')
+
+  // Detect password-reset deep link from email
+  useEffect(()=>{
+    const hash = window.location.hash
+    if(hash.includes('type=recovery')||hash.includes('access_token')){
+      supabase.auth.getSession().then(({data:{session}})=>{ if(session) setView('reset') })
+    }
+  },[])
 
   useEffect(()=>{
     supabase.from('settings').select('school_name,school_logo,academic_year').limit(1).single()
@@ -385,10 +400,44 @@ function Login({onLogin}) {
     setLoading(true);setError('')
     const {data,error:err} = await supabase.auth.signInWithPassword({email,password})
     if(err){setError(err.message);setLoading(false);return}
-    // fetch profile
-    const {data:profile} = await supabase.from('profiles').select('*').eq('id',data.user.id).single()
-    onLogin({...data.user,...profile})
+    const {data:prof} = await supabase.from('profiles').select('*').eq('id',data.user.id).single()
+    // Block locked accounts
+    if(prof?.locked){
+      await supabase.auth.signOut()
+      setError('Your account has been locked. Contact your administrator.')
+      setLoading(false);return
+    }
+    onLogin({...data.user,...prof})
     setLoading(false)
+  }
+
+  const sendReset = async () => {
+    if(!resetEmail){setResetMsg('Please enter your email address.');return}
+    setResetLoading(true);setResetMsg('')
+    // Check if this email belongs to a superadmin
+    const {data:prof} = await supabase.from('profiles').select('role').eq('email',resetEmail).single()
+    if(!prof){setResetMsg('No account found with that email address.');setResetLoading(false);return}
+    if(prof.role!=='superadmin'){setResetMsg('Password reset is not available for your account. Contact your administrator.');setResetLoading(false);return}
+    const {error:err} = await supabase.auth.resetPasswordForEmail(resetEmail,{
+      redirectTo: window.location.origin+window.location.pathname,
+    })
+    setResetLoading(false)
+    if(err){setResetMsg(err.message)}else{setView('forgot_sent')}
+  }
+
+  const doReset = async () => {
+    if(!newPass||!newPass2){setResetMsg('Please fill in both fields.');return}
+    if(newPass.length<6){setResetMsg('Password must be at least 6 characters.');return}
+    if(newPass!==newPass2){setResetMsg('Passwords do not match.');return}
+    setResetLoading(true);setResetMsg('')
+    const {error:err} = await supabase.auth.updateUser({password:newPass})
+    setResetLoading(false)
+    if(err){setResetMsg(err.message)}
+    else{
+      setResetDone(true)
+      window.history.replaceState(null,'',window.location.pathname)
+      setTimeout(()=>{setView('login');setResetDone(false);setNewPass('');setNewPass2('')},3000)
+    }
   }
 
   const isMobile = useIsMobile()
@@ -399,93 +448,150 @@ function Login({onLogin}) {
     {icon:'📊', title:'Reports & Analytics', desc:'PDF & Excel exports, per-student report cards'},
   ]
 
+  const MsgBox = ({msg,ok}) => msg?(
+    <div className='fi' style={{background:ok?'rgba(45,212,160,0.08)':'rgba(240,107,122,0.08)',border:`1px solid ${ok?'rgba(45,212,160,0.25)':'rgba(240,107,122,0.25)'}`,borderRadius:'var(--r-sm)',padding:'11px 14px',fontSize:13,color:ok?'var(--emerald)':'var(--rose)',marginBottom:16}}>{msg}</div>
+  ):null
+
+  const LeftPanel = ({children,onKey})=>(
+    <div style={{flex:isMobile?'1':'0 0 520px',display:'flex',flexDirection:'column',justifyContent:'center',padding:isMobile?'40px 28px':'60px',position:'relative',zIndex:1,minHeight:'100vh'}} onKeyDown={onKey}>
+      <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'40px 40px',opacity:0.3,maskImage:'radial-gradient(ellipse at center,black 40%,transparent 80%)'}}/>
+      <div className='fu' style={{position:'relative'}}>
+        <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:48}}>
+          <div style={{width:44,height:44,borderRadius:12,background:'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 24px rgba(232,184,75,0.4)'}}>
+            <span className='d' style={{fontSize:20,fontWeight:700,color:'var(--ink)'}}>S</span>
+          </div>
+          <div>
+            <div className='d' style={{fontSize:20,fontWeight:700}}>SRMS</div>
+            <div style={{fontSize:11,color:'var(--mist3)',marginTop:1}}>Student Record Management System</div>
+          </div>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+
   return (
     <div style={{minHeight:'100vh',display:'flex',background:'var(--ink)',position:'relative',overflow:'hidden'}}>
-      {/* Left — login form */}
-      <div
-        style={{flex: isMobile ? '1' : '0 0 520px',display:'flex',flexDirection:'column',justifyContent:'center',padding: isMobile ? '40px 28px' : '60px',position:'relative',zIndex:1,minHeight:'100vh'}}
-        onKeyDown={e=>{if(e.key==='Enter')attempt()}}
-      >
-        <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'40px 40px',opacity:0.3,maskImage:'radial-gradient(ellipse at center,black 40%,transparent 80%)'}}/>
-        <div className='fu' style={{position:'relative'}}>
-          <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:56}}>
-            <div style={{width:44,height:44,borderRadius:12,background:'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 24px rgba(232,184,75,0.4)'}}>
-              <span className='d' style={{fontSize:20,fontWeight:700,color:'var(--ink)'}}>S</span>
+
+      {/* ── RESET PASSWORD (from email link) ── */}
+      {view==='reset' && (
+        <LeftPanel onKey={e=>{if(e.key==='Enter')doReset()}}>
+          <h1 className='d' style={{fontSize:34,fontWeight:700,letterSpacing:'-0.03em',lineHeight:1.1,marginBottom:10}}>Set new<br/>password.</h1>
+          <p style={{color:'var(--mist2)',fontSize:14,marginBottom:36,lineHeight:1.6}}>Choose a strong password for your account.</p>
+          {resetDone?(
+            <div className='fi' style={{background:'rgba(45,212,160,0.08)',border:'1px solid rgba(45,212,160,0.25)',borderRadius:'var(--r)',padding:'20px 24px',textAlign:'center'}}>
+              <div style={{fontSize:28,marginBottom:8}}>✓</div>
+              <div style={{fontWeight:600,color:'var(--emerald)',marginBottom:4}}>Password updated!</div>
+              <div style={{fontSize:12,color:'var(--mist3)'}}>Redirecting you to sign in…</div>
             </div>
-            <div>
-              <div className='d' style={{fontSize:20,fontWeight:700}}>SRMS</div>
-              <div style={{fontSize:11,color:'var(--mist3)',marginTop:1}}>Student Record Management System</div>
+          ):(
+            <>
+              <Field label='New Password' value={newPass} onChange={setNewPass} type='password' placeholder='At least 6 characters'/>
+              <Field label='Confirm Password' value={newPass2} onChange={setNewPass2} type='password' placeholder='Repeat your new password'/>
+              <MsgBox msg={resetMsg}/>
+              <Btn onClick={doReset} disabled={resetLoading} style={{width:'100%',justifyContent:'center',padding:13,fontSize:14,boxShadow:'0 4px 20px rgba(232,184,75,0.25)'}}>
+                {resetLoading?<><Spinner/> Updating…</>:'Update Password →'}
+              </Btn>
+            </>
+          )}
+        </LeftPanel>
+      )}
+
+      {/* ── FORGOT SENT ── */}
+      {view==='forgot_sent' && (
+        <LeftPanel>
+          <div style={{textAlign:'center',paddingTop:8}}>
+            <div style={{width:72,height:72,borderRadius:'50%',background:'rgba(232,184,75,0.1)',border:'1.5px solid rgba(232,184,75,0.4)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:32,margin:'0 auto 28px'}}>📧</div>
+            <h1 className='d' style={{fontSize:28,fontWeight:700,letterSpacing:'-0.02em',marginBottom:12}}>Check your inbox</h1>
+            <p style={{color:'var(--mist2)',fontSize:14,lineHeight:1.7,marginBottom:32}}>
+              A password reset link has been sent to<br/>
+              <strong style={{color:'var(--white)'}}>{resetEmail}</strong>.<br/>
+              Click the link in that email to set a new password.
+            </p>
+            <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:'14px 20px',fontSize:12,color:'var(--mist3)',textAlign:'left',lineHeight:1.7,marginBottom:32}}>
+              <strong style={{color:'var(--mist2)'}}>Didn't get it?</strong> Check your spam folder. The link expires in 1 hour.
             </div>
+            <button onClick={()=>{setView('forgot');setResetMsg('')}} style={{background:'none',border:'none',color:'var(--mist2)',fontSize:13,cursor:'pointer',textDecoration:'underline',textUnderlineOffset:3}}>← Try a different email</button>
           </div>
+        </LeftPanel>
+      )}
+
+      {/* ── FORGOT ── */}
+      {view==='forgot' && (
+        <LeftPanel onKey={e=>{if(e.key==='Enter')sendReset()}}>
+          <button onClick={()=>{setView('login');setResetMsg('');setResetEmail('')}} style={{display:'inline-flex',alignItems:'center',gap:6,background:'none',border:'none',color:'var(--mist2)',fontSize:13,cursor:'pointer',marginBottom:36,padding:0}}>← Back to sign in</button>
+          <h1 className='d' style={{fontSize:34,fontWeight:700,letterSpacing:'-0.03em',lineHeight:1.1,marginBottom:10}}>Forgot<br/>password?</h1>
+          <p style={{color:'var(--mist2)',fontSize:14,marginBottom:36,lineHeight:1.6}}>Enter your email address and we'll send you a reset link.</p>
+          <Field label='Email Address' value={resetEmail} onChange={setResetEmail} type='email' placeholder='you@school.edu' required/>
+          <MsgBox msg={resetMsg}/>
+          <Btn onClick={sendReset} disabled={resetLoading} style={{width:'100%',justifyContent:'center',padding:13,fontSize:14,boxShadow:'0 4px 20px rgba(232,184,75,0.25)'}}>
+            {resetLoading?<><Spinner/> Checking…</>:'Send Reset Link →'}
+          </Btn>
+        </LeftPanel>
+      )}
+
+      {/* ── LOGIN ── */}
+      {view==='login' && (
+        <LeftPanel onKey={e=>{if(e.key==='Enter')attempt()}}>
           <h1 className='d' style={{fontSize:38,fontWeight:700,letterSpacing:'-0.03em',lineHeight:1.1,marginBottom:12}}>Welcome<br/>back.</h1>
           <p style={{color:'var(--mist2)',fontSize:14,marginBottom:40,lineHeight:1.6}}>Sign in to access your dashboard<br/>and manage student records.</p>
           <Field label='Email Address' value={email} onChange={setEmail} type='email' placeholder='you@school.edu' required/>
           <Field label='Password' value={password} onChange={setPassword} type='password' placeholder='••••••••' required/>
-          {error && <div className='fi' style={{background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r-sm)',padding:'11px 14px',fontSize:13,color:'var(--rose)',marginBottom:16}}>{error}</div>}
+          {error&&<div className='fi' style={{background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r-sm)',padding:'11px 14px',fontSize:13,color:'var(--rose)',marginBottom:16}}>{error}</div>}
           <Btn onClick={attempt} disabled={loading} style={{width:'100%',justifyContent:'center',padding:13,fontSize:14,boxShadow:loading?'none':'0 4px 20px rgba(232,184,75,0.25)'}}>
-            {loading ? <><Spinner/> Signing in…</> : 'Sign In →'}
+            {loading?<><Spinner/> Signing in…</>:'Sign In →'}
           </Btn>
-          <p style={{fontSize:12,color:'var(--mist3)',marginTop:20,textAlign:'center'}}>Contact your administrator if you cannot access your account.</p>
-        </div>
-      </div>
+          <div style={{marginTop:20,textAlign:'center'}}>
+            <button onClick={()=>{setView('forgot');setResetMsg('');setResetEmail(email)}}
+              style={{background:'none',border:'none',color:'var(--mist2)',fontSize:13,cursor:'pointer',textDecoration:'underline',textUnderlineOffset:3}}>
+              Forgot your password?
+            </button>
+          </div>
+        </LeftPanel>
+      )}
 
       {/* Right — branding panel — hidden on mobile */}
-      {!isMobile && <div style={{flex:1,background:'var(--ink2)',borderLeft:'1px solid var(--line)',display:'flex',alignItems:'center',justifyContent:'center',padding:'40px 80px',position:'relative',overflow:'hidden',minHeight:'100vh'}}>
-        {/* Grid background */}
-        <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'60px 60px',opacity:0.35}}/>
-
-
-        <div className='fu fu2' style={{position:'relative',textAlign:'center',maxWidth:400,width:'100%'}}>
-
-          {/* School logo — only shown if uploaded */}
-          {schoolLogo && (
-            <div style={{display:'flex',justifyContent:'center',marginBottom:20}}>
-              <div style={{width:80,height:80,borderRadius:'50%',border:'2px solid rgba(232,184,75,0.4)',boxShadow:'0 0 32px rgba(232,184,75,0.2)',overflow:'hidden',background:'var(--ink)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                <img src={schoolLogo} alt='School logo' style={{width:'100%',height:'100%',objectFit:'cover'}}/>
-              </div>
-            </div>
-          )}
-
-          {/* Graduation cap icon */}
-          <div style={{display:'flex',justifyContent:'center',marginBottom:schoolLogo?20:32}}>
-            <div style={{width:schoolLogo?72:96,height:schoolLogo?72:96,borderRadius:'50%',background:'rgba(232,184,75,0.06)',border:'1.5px solid rgba(232,184,75,0.55)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 0 5px rgba(232,184,75,0.05), 0 0 24px rgba(232,184,75,0.35)',transition:'all 0.3s'}}>
-              <svg width={schoolLogo?38:52} height={schoolLogo?38:52} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M32 10L4 24L32 38L60 24L32 10Z" fill="rgba(232,184,75,0.9)" stroke="rgba(232,184,75,1)" strokeWidth="1.5" strokeLinejoin="round"/>
-                <path d="M16 31V46C16 46 22 52 32 52C42 52 48 46 48 46V31" stroke="rgba(232,184,75,0.8)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M60 24V38" stroke="rgba(232,184,75,0.6)" strokeWidth="2.5" strokeLinecap="round"/>
-                <circle cx="60" cy="40" r="3" fill="rgba(232,184,75,0.7)"/>
-              </svg>
-            </div>
-          </div>
-
-          {/* School name — live from settings */}
-          <div className='d' style={{fontSize:11,fontWeight:600,color:'var(--gold)',textTransform:'uppercase',letterSpacing:'0.18em',marginBottom:10}}>{schoolName}</div>
-          <h2 className='d' style={{fontSize:28,fontWeight:700,letterSpacing:'-0.02em',lineHeight:1.15,marginBottom:10}}>Student Record<br/>Management System</h2>
-          <p style={{fontSize:13,color:'var(--mist3)',marginBottom:44,lineHeight:1.6}}>Empowering education through<br/>smart, secure record keeping.</p>
-
-          {/* Divider */}
-          <div style={{width:'100%',height:1,background:'linear-gradient(90deg,transparent,var(--line),transparent)',marginBottom:36}}/>
-
-          {/* Feature list */}
-          <div style={{display:'flex',flexDirection:'column',gap:0,textAlign:'left'}}>
-            {features.map(({icon,title,desc},i)=>(
-              <div key={i} style={{display:'flex',alignItems:'flex-start',gap:16,padding:'14px 0',borderBottom:i<features.length-1?'1px solid var(--line)':'none'}}>
-                <div style={{width:38,height:38,borderRadius:10,background:'rgba(232,184,75,0.08)',border:'1px solid rgba(232,184,75,0.18)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,flexShrink:0,marginTop:1}}>
-                  {icon}
-                </div>
-                <div>
-                  <div className='d' style={{fontSize:13,fontWeight:600,color:'var(--white)',marginBottom:3}}>{title}</div>
-                  <div style={{fontSize:12,color:'var(--mist2)',lineHeight:1.5}}>{desc}</div>
+      {!isMobile && (
+        <div style={{flex:1,background:'var(--ink2)',borderLeft:'1px solid var(--line)',display:'flex',alignItems:'center',justifyContent:'center',padding:'40px 80px',position:'relative',overflow:'hidden',minHeight:'100vh'}}>
+          <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'60px 60px',opacity:0.35}}/>
+          <div className='fu fu2' style={{position:'relative',textAlign:'center',maxWidth:400,width:'100%'}}>
+            {schoolLogo && (
+              <div style={{display:'flex',justifyContent:'center',marginBottom:20}}>
+                <div style={{width:80,height:80,borderRadius:'50%',border:'2px solid rgba(232,184,75,0.4)',boxShadow:'0 0 32px rgba(232,184,75,0.2)',overflow:'hidden',background:'var(--ink)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  <img src={schoolLogo} alt='School logo' style={{width:'100%',height:'100%',objectFit:'cover'}}/>
                 </div>
               </div>
-            ))}
+            )}
+            <div style={{display:'flex',justifyContent:'center',marginBottom:schoolLogo?20:32}}>
+              <div style={{width:schoolLogo?72:96,height:schoolLogo?72:96,borderRadius:'50%',background:'rgba(232,184,75,0.06)',border:'1.5px solid rgba(232,184,75,0.55)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 0 5px rgba(232,184,75,0.05), 0 0 24px rgba(232,184,75,0.35)'}}>
+                <svg width={schoolLogo?38:52} height={schoolLogo?38:52} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M32 10L4 24L32 38L60 24L32 10Z" fill="rgba(232,184,75,0.9)" stroke="rgba(232,184,75,1)" strokeWidth="1.5" strokeLinejoin="round"/>
+                  <path d="M16 31V46C16 46 22 52 32 52C42 52 48 46 48 46V31" stroke="rgba(232,184,75,0.8)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M60 24V38" stroke="rgba(232,184,75,0.6)" strokeWidth="2.5" strokeLinecap="round"/>
+                  <circle cx="60" cy="40" r="3" fill="rgba(232,184,75,0.7)"/>
+                </svg>
+              </div>
+            </div>
+            <div className='d' style={{fontSize:11,fontWeight:600,color:'var(--gold)',textTransform:'uppercase',letterSpacing:'0.18em',marginBottom:10}}>{schoolName}</div>
+            <h2 className='d' style={{fontSize:28,fontWeight:700,letterSpacing:'-0.02em',lineHeight:1.15,marginBottom:10}}>Student Record<br/>Management System</h2>
+            <p style={{fontSize:13,color:'var(--mist3)',marginBottom:44,lineHeight:1.6}}>Empowering education through<br/>smart, secure record keeping.</p>
+            <div style={{width:'100%',height:1,background:'linear-gradient(90deg,transparent,var(--line),transparent)',marginBottom:36}}/>
+            <div style={{display:'flex',flexDirection:'column',gap:0,textAlign:'left'}}>
+              {features.map(({icon,title,desc},i)=>(
+                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:16,padding:'14px 0',borderBottom:i<features.length-1?'1px solid var(--line)':'none'}}>
+                  <div style={{width:38,height:38,borderRadius:10,background:'rgba(232,184,75,0.08)',border:'1px solid rgba(232,184,75,0.18)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,flexShrink:0,marginTop:1}}>{icon}</div>
+                  <div>
+                    <div className='d' style={{fontSize:13,fontWeight:600,color:'var(--white)',marginBottom:3}}>{title}</div>
+                    <div style={{fontSize:12,color:'var(--mist2)',lineHeight:1.5}}>{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:36,fontSize:11,color:'var(--mist3)',letterSpacing:'0.05em'}}>v1.0.0 · Academic Year {acadYear}</div>
+            <div style={{marginTop:10,fontSize:11,color:'var(--mist3)',letterSpacing:'0.06em'}}>Built by <span style={{color:'var(--gold)',fontWeight:600,letterSpacing:'0.12em'}}>ZELVA STUDIOS</span></div>
           </div>
-
-          {/* Version + academic year — live from settings */}
-          <div style={{marginTop:36,fontSize:11,color:'var(--mist3)',letterSpacing:'0.05em'}}>v1.0.0 · Academic Year {acadYear}</div>
-          <div style={{marginTop:10,fontSize:11,color:'var(--mist3)',letterSpacing:'0.06em'}}>Built by <span style={{color:'var(--gold)',fontWeight:600,letterSpacing:'0.12em'}}>ZELVA STUDIOS</span></div>
         </div>
-      </div>}
+      )}
     </div>
   )
 }
@@ -1972,34 +2078,45 @@ function Announcements({profile,data,setData,toast}) {
 
 // ── USERS MODULE ───────────────────────────────────────────────
 function Users({profile,toast}) {
-  const [users,setUsers]   = useState([])
+  const [users,setUsers]     = useState([])
   const [loading,setLoading] = useState(true)
-  const [modal,setModal]   = useState(false)
-  const [edit,setEdit]     = useState(null)
-  const [form,setForm]     = useState({})
-  const [saving,setSaving] = useState(false)
+  const [modal,setModal]     = useState(false)
+  const [edit,setEdit]       = useState(null)
+  const [form,setForm]       = useState({})
+  const [saving,setSaving]   = useState(false)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
-  useEffect(()=>{
+
+  const loadUsers = ()=>{
     supabase.from('profiles').select('*').then(({data})=>{ if(data) setUsers(data); setLoading(false) })
-  },[])
+  }
+  useEffect(()=>{ loadUsers() },[])
+
   const openAdd  = ()=>{setEdit(null);setForm({full_name:'',email:'',password:'',role:'teacher'});setModal(true)}
   const openEdit = u=>{setEdit(u);setForm({full_name:u.full_name,email:u.email,role:u.role,password:''});setModal(true)}
+
   const save = async ()=>{
     if(!form.full_name||!form.email)return
     setSaving(true)
     if(edit){
-      // Update profile fields
-      const {error} = await supabase.from('profiles').update({full_name:form.full_name,email:form.email,role:form.role}).eq('id',edit.id)
+      const {error} = await supabase.from('profiles').update({
+        full_name: form.full_name,
+        email:     form.email,
+        role:      form.role,
+      }).eq('id',edit.id)
       if(error){ toast(error.message,'error'); setSaving(false); return }
-      setUsers(p=>p.map(u=>u.id===edit.id?{...u,full_name:form.full_name,email:form.email,role:form.role}:u))
-      toast('User updated')
+      // Re-fetch to confirm DB actually persisted the change
+      const {data:refreshed} = await supabase.from('profiles').select('*').eq('id',edit.id).single()
+      if(refreshed){
+        setUsers(p=>p.map(u=>u.id===edit.id?refreshed:u))
+      }
+      toast('User updated successfully')
       setModal(false)
     } else {
       if(!form.password)return
       const {data:authData,error:authErr} = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
-        options: { data: { full_name: form.full_name } }
+        options:{ data:{ full_name: form.full_name } }
       })
       if(authErr){ toast(authErr.message,'error'); setSaving(false); return }
       const uid = authData?.user?.id
@@ -2012,18 +2129,32 @@ function Users({profile,toast}) {
     }
     setSaving(false)
   }
+
   const toggleLock = async id=>{
-    const u=users.find(x=>x.id===id)
-    await supabase.from('profiles').update({locked:!u.locked}).eq('id',id)
-    setUsers(p=>p.map(x=>x.id===id?{...x,locked:!x.locked}:x))
+    const u = users.find(x=>x.id===id)
+    const newLocked = !u.locked
+    const {error} = await supabase.from('profiles').update({locked:newLocked}).eq('id',id)
+    if(error){ toast(error.message,'error'); return }
+    setUsers(p=>p.map(x=>x.id===id?{...x,locked:newLocked}:x))
+    toast(newLocked ? `${u.full_name} has been locked out` : `${u.full_name} has been unlocked`)
   }
+
   const del = async id=>{
-    if(id===profile?.id){alert('You cannot delete your own account.');return}
-    if(!confirm('Delete this user?'))return
-    await supabase.from('profiles').delete().eq('id',id)
+    if(id===profile?.id){toast('You cannot delete your own account.','error');return}
+    const u = users.find(x=>x.id===id)
+    if(!confirm(`Delete ${u?.full_name}? This cannot be undone.`))return
+    // Mark as locked first so they can't log in while deletion processes
+    await supabase.from('profiles').update({locked:true}).eq('id',id)
+    // Delete the profile row
+    const {error} = await supabase.from('profiles').delete().eq('id',id)
+    if(error){ toast(error.message,'error'); return }
+    // Note: Supabase auth.admin.deleteUser() requires service role key (backend only).
+    // Locking the profile above ensures the account is blocked at login even if the
+    // auth record persists. The auth record will be orphaned but cannot be used to log in.
     setUsers(p=>p.filter(x=>x.id!==id))
-    toast('User removed')
+    toast(`${u?.full_name} has been removed`)
   }
+
   if(loading) return <LoadingScreen msg='Loading users…'/>
   return (
     <div>
@@ -2059,8 +2190,12 @@ function Users({profile,toast}) {
           <Field label='Full Name' value={form.full_name} onChange={f('full_name')} required/>
           <Field label='Email Address' value={form.email} onChange={f('email')} type='email' required/>
           {!edit && <Field label='Password' value={form.password} onChange={f('password')} type='password' required/>}
-          <Field label='Role' value={form.role} onChange={f('role')} options={[{value:'admin',label:'Administrator'},{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'}]}/>
-          {edit && <p style={{fontSize:12,color:'var(--mist3)',marginTop:-8,marginBottom:8}}>To change the password, the user must use the forgot password option on the login screen.</p>}
+          <Field label='Role' value={form.role} onChange={f('role')} options={[
+            {value:'admin',      label:'Administrator'},
+            {value:'classteacher',label:'Class Teacher'},
+            {value:'teacher',    label:'Subject Teacher'},
+          ]}/>
+          {edit && <p style={{fontSize:12,color:'var(--mist3)',marginTop:-8,marginBottom:8}}>To change a user's password, use the forgot password option on the login screen.</p>}
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
             <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving…</>:edit?'Save Changes':'Create User'}</Btn>
