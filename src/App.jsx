@@ -388,8 +388,7 @@ function Login({onLogin}) {
       <div style={{flex:1,background:'var(--ink2)',borderLeft:'1px solid var(--line)',display:'flex',alignItems:'center',justifyContent:'center',padding:'40px 80px',position:'relative',overflow:'hidden',minHeight:'100vh'}}>
         {/* Grid background */}
         <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'60px 60px',opacity:0.35}}/>
-        {/* Gold radial glow — crisp, centered */}
-        <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:420,height:420,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,184,75,0.13) 0%,rgba(232,184,75,0.04) 40%,transparent 70%)',pointerEvents:'none'}}/>
+
 
         <div className='fu fu2' style={{position:'relative',textAlign:'center',maxWidth:400,width:'100%'}}>
 
