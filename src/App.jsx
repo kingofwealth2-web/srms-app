@@ -1649,14 +1649,26 @@ function Classes({profile,data,setData,toast}) {
   const teachers = allUsers.filter(u=>['classteacher','teacher'].includes(u.role))
   const saveClass = async ()=>{
     if(!cf.name)return; setSaving(true)
+    const newTeacherId = cf.class_teacher_id||null
     if(editC){
-      const {error}=await supabase.from('classes').update({...cf,class_teacher_id:cf.class_teacher_id||null}).eq('id',editC.id)
-      if(error)toast(error.message,'error')
-      else{setData(p=>({...p,classes:p.classes.map(c=>c.id===editC.id?{...c,...cf,class_teacher_id:cf.class_teacher_id||null}:c)}));toast('Class updated');setClassModal(false)}
+      const {error}=await supabase.from('classes').update({...cf,class_teacher_id:newTeacherId}).eq('id',editC.id)
+      if(error){toast(error.message,'error');setSaving(false);return}
+      // If teacher changed, clear old teacher's class_id and set new one
+      const oldTeacherId = editC.class_teacher_id
+      if(oldTeacherId && oldTeacherId!==newTeacherId)
+        await supabase.from('profiles').update({class_id:null}).eq('id',oldTeacherId)
+      if(newTeacherId)
+        await supabase.from('profiles').update({class_id:editC.id}).eq('id',newTeacherId)
+      setData(p=>({...p,classes:p.classes.map(c=>c.id===editC.id?{...c,...cf,class_teacher_id:newTeacherId}:c)}))
+      toast('Class updated');setClassModal(false)
     } else {
-      const {data:row,error}=await supabase.from('classes').insert({...cf,class_teacher_id:cf.class_teacher_id||null}).select().single()
-      if(error)toast(error.message,'error')
-      else{setData(p=>({...p,classes:[...p.classes,row]}));toast('Class created');setClassModal(false)}
+      const {data:row,error}=await supabase.from('classes').insert({...cf,class_teacher_id:newTeacherId}).select().single()
+      if(error){toast(error.message,'error');setSaving(false);return}
+      // Set the new teacher's class_id
+      if(newTeacherId && row)
+        await supabase.from('profiles').update({class_id:row.id}).eq('id',newTeacherId)
+      setData(p=>({...p,classes:[...p.classes,row]}))
+      toast('Class created');setClassModal(false)
     }
     setSaving(false)
   }
