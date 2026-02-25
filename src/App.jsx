@@ -438,6 +438,7 @@ function Login({onLogin}) {
 
           {/* Version + academic year — live from settings */}
           <div style={{marginTop:36,fontSize:11,color:'var(--mist3)',letterSpacing:'0.05em'}}>v1.0.0 · Academic Year {acadYear}</div>
+          <div style={{marginTop:10,fontSize:11,color:'var(--mist3)',letterSpacing:'0.06em'}}>Built by <span style={{color:'var(--gold)',fontWeight:600,letterSpacing:'0.12em'}}>ZELVA STUDIOS</span></div>
         </div>
       </div>
     </div>
@@ -580,6 +581,10 @@ function Dashboard({profile,data,settings,onNav}) {
         ))}
         <Btn variant='ghost' size='sm' onClick={()=>onNav('announcements')} style={{marginTop:4}}>View all →</Btn>
       </Card>
+      <div style={{marginTop:40,paddingTop:20,borderTop:'1px solid var(--line)',textAlign:'center'}}>
+        <div style={{fontSize:12,color:'var(--mist3)'}}>Designed &amp; developed by <span style={{color:'var(--white)',fontWeight:600}}>Prince William Kofi Anquandah</span></div>
+        <div style={{fontSize:11,color:'var(--mist3)',marginTop:5,letterSpacing:'0.08em'}}><span style={{color:'var(--gold)',fontWeight:600,letterSpacing:'0.12em'}}>ZELVA STUDIOS</span> · {new Date().getFullYear()}</div>
+      </div>
     </div>
   )
 }
