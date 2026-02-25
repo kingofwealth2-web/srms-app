@@ -1358,31 +1358,41 @@ function Users({profile,toast}) {
   const [users,setUsers]   = useState([])
   const [loading,setLoading] = useState(true)
   const [modal,setModal]   = useState(false)
+  const [edit,setEdit]     = useState(null)
   const [form,setForm]     = useState({})
   const [saving,setSaving] = useState(false)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
   useEffect(()=>{
     supabase.from('profiles').select('*').then(({data})=>{ if(data) setUsers(data); setLoading(false) })
   },[])
-  const openAdd = ()=>{setForm({full_name:'',email:'',password:'',role:'teacher'});setModal(true)}
+  const openAdd  = ()=>{setEdit(null);setForm({full_name:'',email:'',password:'',role:'teacher'});setModal(true)}
+  const openEdit = u=>{setEdit(u);setForm({full_name:u.full_name,email:u.email,role:u.role,password:''});setModal(true)}
   const save = async ()=>{
-    if(!form.full_name||!form.email||!form.password)return
+    if(!form.full_name||!form.email)return
     setSaving(true)
-    // Sign up the new user (creates auth entry + triggers profile insert via DB or we insert manually)
-    const {data:authData,error:authErr} = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: { data: { full_name: form.full_name } }
-    })
-    if(authErr){ toast(authErr.message,'error'); setSaving(false); return }
-    const uid = authData?.user?.id
-    if(!uid){ toast('User account created but could not get ID. Ask the user to log in to complete setup.','error'); setSaving(false); return }
-    // Upsert profile row
-    const {error:profErr} = await supabase.from('profiles').upsert({id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false})
-    if(profErr){ toast(profErr.message,'error'); setSaving(false); return }
-    setUsers(p=>[...p,{id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false}])
-    toast('User created successfully')
-    setModal(false)
+    if(edit){
+      // Update profile fields
+      const {error} = await supabase.from('profiles').update({full_name:form.full_name,email:form.email,role:form.role}).eq('id',edit.id)
+      if(error){ toast(error.message,'error'); setSaving(false); return }
+      setUsers(p=>p.map(u=>u.id===edit.id?{...u,full_name:form.full_name,email:form.email,role:form.role}:u))
+      toast('User updated')
+      setModal(false)
+    } else {
+      if(!form.password)return
+      const {data:authData,error:authErr} = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: { data: { full_name: form.full_name } }
+      })
+      if(authErr){ toast(authErr.message,'error'); setSaving(false); return }
+      const uid = authData?.user?.id
+      if(!uid){ toast('User account created but could not get ID.','error'); setSaving(false); return }
+      const {error:profErr} = await supabase.from('profiles').upsert({id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false})
+      if(profErr){ toast(profErr.message,'error'); setSaving(false); return }
+      setUsers(p=>[...p,{id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false}])
+      toast('User created successfully')
+      setModal(false)
+    }
     setSaving(false)
   }
   const toggleLock = async id=>{
@@ -1416,23 +1426,27 @@ function Users({profile,toast}) {
           )},
           {key:'role',label:'Role',render:v=>{const m=ROLE_META[v]||{};return<Badge color={m.color} bg={m.bg}>{m.label||v}</Badge>}},
           {key:'locked',label:'Status',render:v=><Badge color={v?'var(--rose)':'var(--emerald)'} bg={v?'rgba(240,107,122,0.1)':'rgba(45,212,160,0.1)'}>{v?'Locked':'Active'}</Badge>},
-          {key:'id',label:'',render:(v,r)=>(r.id!==profile?.id&&r.role!=='superadmin')?(
+          {key:'id',label:'',render:(v,r)=>(
             <div style={{display:'flex',gap:8}}>
-              <Btn variant='ghost' size='sm' onClick={()=>toggleLock(r.id)}>{r.locked?'Unlock':'Lock'}</Btn>
-              <Btn variant='danger' size='sm' onClick={()=>del(r.id)}>Remove</Btn>
+              <Btn variant='ghost' size='sm' onClick={()=>openEdit(r)}>Edit</Btn>
+              {r.id!==profile?.id && r.role!=='superadmin' && <>
+                <Btn variant='ghost' size='sm' onClick={()=>toggleLock(r.id)}>{r.locked?'Unlock':'Lock'}</Btn>
+                <Btn variant='danger' size='sm' onClick={()=>del(r.id)}>Remove</Btn>
+              </>}
             </div>
-          ):null},
+          )},
         ]}/>
       </Card>
       {modal && (
-        <Modal title='Add New User' subtitle='Create a login account for a staff member.' onClose={()=>setModal(false)}>
+        <Modal title={edit?'Edit User':'Add New User'} subtitle={edit?`Editing ${edit.full_name}`:'Create a login account for a staff member.'} onClose={()=>setModal(false)}>
           <Field label='Full Name' value={form.full_name} onChange={f('full_name')} required/>
           <Field label='Email Address' value={form.email} onChange={f('email')} type='email' required/>
-          <Field label='Password' value={form.password} onChange={f('password')} type='password' required/>
+          {!edit && <Field label='Password' value={form.password} onChange={f('password')} type='password' required/>}
           <Field label='Role' value={form.role} onChange={f('role')} options={[{value:'admin',label:'Administrator'},{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'}]}/>
+          {edit && <p style={{fontSize:12,color:'var(--mist3)',marginTop:-8,marginBottom:8}}>To change the password, the user must use the forgot password option on the login screen.</p>}
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
-            <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Creating…</>:'Create User'}</Btn>
+            <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving…</>:edit?'Save Changes':'Create User'}</Btn>
           </div>
         </Modal>
       )}
@@ -1805,6 +1819,17 @@ export default function App() {
       setProfile(prof)
       setSettings(settingsRow)
       setData({students:students||[],classes:classes||[],subjects:subjects||[],grades:grades||[],attendance:attendance||[],fees:fees||[],behaviour:behaviour||[],announcements:announcements||[]})
+      // If profile row is missing (e.g. new user whose profile wasn't inserted yet), create it
+      if(!prof && session?.user) {
+        const {data:newProf} = await supabase.from('profiles').upsert({
+          id: session.user.id,
+          full_name: session.user.user_metadata?.full_name || session.user.email,
+          email: session.user.email,
+          role: 'teacher',
+          locked: false
+        }).select().single()
+        setProfile(newProf)
+      }
       setLoading(false)
     }
     loadAll()
