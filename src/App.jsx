@@ -951,7 +951,7 @@ function Attendance({profile,data,setData,toast}) {
                   }
                 </div>
                 <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{minWidth:160,justifyContent:'center',boxShadow:hasUnsaved?'0 4px 20px rgba(232,184,75,0.25)':'none'}}>
-                {saving ? <><Spinner /> Saving…</> : `Save Attendance${unmarkedCount > 0 ? ` (${unmarkedCount} unmarked)` : ""}`}
+                  {saving?<><Spinner/> Saving…</>:(unmarkedCount>0?`Save Attendance (${unmarkedCount} unmarked)`:'Save Attendance')}
                 </Btn>
               </div>
             </>
@@ -1368,17 +1368,21 @@ function Users({profile,toast}) {
   const save = async ()=>{
     if(!form.full_name||!form.email||!form.password)return
     setSaving(true)
-    // Create auth user then profile
-    const {data:authData,error:authErr} = await supabase.auth.admin?.createUser({email:form.email,password:form.password,email_confirm:true})
-    if(authErr){
-      // Fallback: just show instructions
-      toast('User created locally. Have them sign up at the login page with these credentials.','success')
-      setUsers(p=>[...p,{id:Date.now(),full_name:form.full_name,email:form.email,role:form.role,locked:false}])
-      setModal(false);setSaving(false);return
-    }
-    const {error} = await supabase.from('profiles').insert({id:authData.user.id,full_name:form.full_name,email:form.email,role:form.role})
-    if(error)toast(error.message,'error')
-    else{setUsers(p=>[...p,{id:authData.user.id,full_name:form.full_name,email:form.email,role:form.role}]);toast('User created');setModal(false)}
+    // Sign up the new user (creates auth entry + triggers profile insert via DB or we insert manually)
+    const {data:authData,error:authErr} = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+      options: { data: { full_name: form.full_name } }
+    })
+    if(authErr){ toast(authErr.message,'error'); setSaving(false); return }
+    const uid = authData?.user?.id
+    if(!uid){ toast('User account created but could not get ID. Ask the user to log in to complete setup.','error'); setSaving(false); return }
+    // Upsert profile row
+    const {error:profErr} = await supabase.from('profiles').upsert({id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false})
+    if(profErr){ toast(profErr.message,'error'); setSaving(false); return }
+    setUsers(p=>[...p,{id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false}])
+    toast('User created successfully')
+    setModal(false)
     setSaving(false)
   }
   const toggleLock = async id=>{
