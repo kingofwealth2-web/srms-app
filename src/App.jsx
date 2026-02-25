@@ -387,6 +387,13 @@ function Login({onLogin}) {
     if(err){setError(err.message);setLoading(false);return}
     // fetch profile
     const {data:profile} = await supabase.from('profiles').select('*').eq('id',data.user.id).single()
+    // Block locked accounts — sign them out immediately and show a clear message
+    if(profile?.locked){
+      await supabase.auth.signOut()
+      setError('Your account has been locked. Please contact your administrator.')
+      setLoading(false)
+      return
+    }
     onLogin({...data.user,...profile})
     setLoading(false)
   }
@@ -2014,8 +2021,13 @@ function Users({profile,toast}) {
   }
   const toggleLock = async id=>{
     const u=users.find(x=>x.id===id)
+    if(!u) return
+    // Safety guards — belt and braces on top of the UI hiding the button
+    if(u.id===profile?.id){toast('You cannot lock your own account.','error');return}
+    if(u.role==='superadmin'){toast('Super Admin accounts cannot be locked.','error');return}
     await supabase.from('profiles').update({locked:!u.locked}).eq('id',id)
     setUsers(p=>p.map(x=>x.id===id?{...x,locked:!x.locked}:x))
+    toast(u.locked ? 'Account unlocked.' : 'Account locked.')
   }
   const del = async id=>{
     if(id===profile?.id){alert('You cannot delete your own account.');return}
