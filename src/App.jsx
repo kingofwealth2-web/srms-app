@@ -323,6 +323,18 @@ function Login({onLogin}) {
   const [password,setPassword] = useState('')
   const [error,setError]       = useState('')
   const [loading,setLoading]   = useState(false)
+  const [schoolName,setSchoolName] = useState('Kandit Standard School')
+  const [schoolLogo,setSchoolLogo] = useState(null)
+  const [acadYear,setAcadYear]     = useState('2026–2027')
+
+  useEffect(()=>{
+    supabase.from('settings').select('school_name,school_logo,academic_year').limit(1).single()
+      .then(({data})=>{
+        if(data?.school_name) setSchoolName(data.school_name)
+        if(data?.school_logo) setSchoolLogo(data.school_logo)
+        if(data?.academic_year) setAcadYear(data.academic_year)
+      })
+  },[])
 
   const attempt = async () => {
     if(!email||!password){setError('Please enter your email and password.');return}
@@ -335,10 +347,20 @@ function Login({onLogin}) {
     setLoading(false)
   }
 
+  const features = [
+    {icon:'🎓', title:'Grades & Assessments', desc:'Flexible components, weighted scoring, term reports'},
+    {icon:'📋', title:'Attendance Tracking', desc:'Daily batch entry with real-time class summaries'},
+    {icon:'💳', title:'Fees Management', desc:'Multi-currency invoicing and payment tracking'},
+    {icon:'📊', title:'Reports & Analytics', desc:'PDF & Excel exports, per-student report cards'},
+  ]
+
   return (
     <div style={{minHeight:'100vh',display:'flex',background:'var(--ink)',position:'relative',overflow:'hidden'}}>
-      {/* Left */}
-      <div style={{flex:'0 0 500px',display:'flex',flexDirection:'column',justifyContent:'center',padding:'60px',position:'relative',zIndex:1}}>
+      {/* Left — login form */}
+      <div
+        style={{flex:'0 0 520px',display:'flex',flexDirection:'column',justifyContent:'center',padding:'60px',position:'relative',zIndex:1}}
+        onKeyDown={e=>{if(e.key==='Enter')attempt()}}
+      >
         <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'40px 40px',opacity:0.3,maskImage:'radial-gradient(ellipse at center,black 40%,transparent 80%)'}}/>
         <div className='fu' style={{position:'relative'}}>
           <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:56}}>
@@ -358,26 +380,65 @@ function Login({onLogin}) {
           <Btn onClick={attempt} disabled={loading} style={{width:'100%',justifyContent:'center',padding:13,fontSize:14,boxShadow:loading?'none':'0 4px 20px rgba(232,184,75,0.25)'}}>
             {loading ? <><Spinner/> Signing in…</> : 'Sign In →'}
           </Btn>
-          <p style={{fontSize:12,color:'var(--mist3)',marginTop:20,textAlign:'center'}}>Use the credentials created in the Supabase setup.</p>
+          <p style={{fontSize:12,color:'var(--mist3)',marginTop:20,textAlign:'center'}}>Contact your administrator if you cannot access your account.</p>
         </div>
       </div>
-      {/* Right decorative */}
-      <div style={{flex:1,background:'var(--ink2)',borderLeft:'1px solid var(--line)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:60,position:'relative',overflow:'hidden'}}>
-        <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'60px 60px',opacity:0.4}}/>
-        <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:400,height:400,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,184,75,0.07) 0%,transparent 70%)',pointerEvents:'none'}}/>
-        <div className='fu fu2' style={{position:'relative',textAlign:'center',maxWidth:340}}>
-          <div style={{background:'var(--ink)',border:'1px solid var(--line)',borderRadius:'var(--r-lg)',padding:28,marginBottom:16,boxShadow:'0 32px 64px rgba(0,0,0,0.5)'}}>
-            <div className='d' style={{fontSize:10,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:20}}>System Overview</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
-              {[['Students','248','var(--gold)',true],['Classes','12','var(--sky)',false],['Attendance','94%','var(--emerald)',false],['Pass Rate','87%','var(--amber)',true]].map(([l,v,c,g])=>(
-                <div key={l} style={{background:'var(--ink2)',border:`1px solid ${g?'var(--gold)':'var(--line)'}`,borderRadius:'var(--r-sm)',padding:14,boxShadow:g?'var(--sh-gold)':undefined}}>
-                  <div className='d' style={{fontSize:22,fontWeight:700,color:c}}>{v}</div>
-                  <div style={{fontSize:10,color:'var(--mist3)',marginTop:4}}>{l}</div>
-                </div>
-              ))}
+
+      {/* Right — branding panel */}
+      <div style={{flex:1,background:'var(--ink2)',borderLeft:'1px solid var(--line)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'60px 80px',position:'relative',overflow:'hidden'}}>
+        {/* Grid background */}
+        <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'60px 60px',opacity:0.35}}/>
+        {/* Gold radial glow */}
+        <div style={{position:'absolute',top:'40%',left:'50%',transform:'translate(-50%,-50%)',width:500,height:500,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,184,75,0.08) 0%,transparent 65%)',pointerEvents:'none'}}/>
+
+        <div className='fu fu2' style={{position:'relative',textAlign:'center',maxWidth:400,width:'100%'}}>
+
+          {/* School logo — only shown if uploaded */}
+          {schoolLogo && (
+            <div style={{display:'flex',justifyContent:'center',marginBottom:20}}>
+              <div style={{width:80,height:80,borderRadius:'50%',border:'2px solid rgba(232,184,75,0.4)',boxShadow:'0 0 32px rgba(232,184,75,0.2)',overflow:'hidden',background:'var(--ink)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <img src={schoolLogo} alt='School logo' style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+              </div>
             </div>
-            <p style={{fontSize:12,color:'var(--mist3)',lineHeight:1.6}}>Grades · Attendance · Fees · Behaviour<br/>All in one secure platform.</p>
+          )}
+
+          {/* Graduation cap icon */}
+          <div style={{display:'flex',justifyContent:'center',marginBottom:schoolLogo?20:32}}>
+            <div style={{width:schoolLogo?72:100,height:schoolLogo?72:100,borderRadius:'50%',background:'rgba(232,184,75,0.1)',border:'1px solid rgba(232,184,75,0.25)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 48px rgba(232,184,75,0.15)',transition:'all 0.3s'}}>
+              <svg width={schoolLogo?38:52} height={schoolLogo?38:52} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M32 10L4 24L32 38L60 24L32 10Z" fill="rgba(232,184,75,0.9)" stroke="rgba(232,184,75,1)" strokeWidth="1.5" strokeLinejoin="round"/>
+                <path d="M16 31V46C16 46 22 52 32 52C42 52 48 46 48 46V31" stroke="rgba(232,184,75,0.8)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M60 24V38" stroke="rgba(232,184,75,0.6)" strokeWidth="2.5" strokeLinecap="round"/>
+                <circle cx="60" cy="40" r="3" fill="rgba(232,184,75,0.7)"/>
+              </svg>
+            </div>
           </div>
+
+          {/* School name — live from settings */}
+          <div className='d' style={{fontSize:11,fontWeight:600,color:'var(--gold)',textTransform:'uppercase',letterSpacing:'0.18em',marginBottom:10}}>{schoolName}</div>
+          <h2 className='d' style={{fontSize:28,fontWeight:700,letterSpacing:'-0.02em',lineHeight:1.15,marginBottom:10}}>Student Record<br/>Management System</h2>
+          <p style={{fontSize:13,color:'var(--mist3)',marginBottom:44,lineHeight:1.6}}>Empowering education through<br/>smart, secure record keeping.</p>
+
+          {/* Divider */}
+          <div style={{width:'100%',height:1,background:'linear-gradient(90deg,transparent,var(--line),transparent)',marginBottom:36}}/>
+
+          {/* Feature list */}
+          <div style={{display:'flex',flexDirection:'column',gap:0,textAlign:'left'}}>
+            {features.map(({icon,title,desc},i)=>(
+              <div key={i} style={{display:'flex',alignItems:'flex-start',gap:16,padding:'14px 0',borderBottom:i<features.length-1?'1px solid var(--line)':'none'}}>
+                <div style={{width:38,height:38,borderRadius:10,background:'rgba(232,184,75,0.08)',border:'1px solid rgba(232,184,75,0.18)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,flexShrink:0,marginTop:1}}>
+                  {icon}
+                </div>
+                <div>
+                  <div className='d' style={{fontSize:13,fontWeight:600,color:'var(--white)',marginBottom:3}}>{title}</div>
+                  <div style={{fontSize:12,color:'var(--mist3)',lineHeight:1.5}}>{desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Version + academic year — live from settings */}
+          <div style={{marginTop:36,fontSize:11,color:'var(--mist3)',letterSpacing:'0.05em'}}>v1.0.0 · Academic Year {acadYear}</div>
         </div>
       </div>
     </div>
