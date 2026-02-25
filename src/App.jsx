@@ -37,7 +37,27 @@ html,body,#root{height:100%;background:var(--ink);color:var(--white);font-family
   background-size:256px;z-index:9999}
 button{cursor:pointer;border:none;outline:none;font-family:inherit}
 input,select,textarea{font-family:inherit;outline:none}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes drawerIn{from{transform:translateX(-100%)}to{transform:translateX(0)}}
+.mob-hide{display:block}.mob-show{display:none!important}
+@media(max-width:768px){
+  .mob-hide{display:none!important}
+  .mob-show{display:flex!important}
+  .mob-pad{padding:16px!important}
+}
 `
+
+
+// ── MOBILE HOOK ────────────────────────────────────────────────
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768)
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+  return isMobile
+}
 
 // ── HELPERS ────────────────────────────────────────────────────
 const ALL_COMPONENTS = ['classwork','homework','midsemester','final_exam','project']
@@ -175,7 +195,8 @@ function Btn({children,variant='primary',size='md',onClick,style,disabled}) {
 }
 
 function Field({label,value,onChange,type='text',placeholder,options,required,rows,style}) {
-  const base = {width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',color:'var(--white)',fontSize:13,transition:'border-color 0.15s',lineHeight:1.5}
+  const isMobile = useIsMobile()
+  const base = {width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding: isMobile ? '12px 14px' : '9px 14px',color:'var(--white)',fontSize: isMobile ? 16 : 13,transition:'border-color 0.15s',lineHeight:1.5}
   const [foc,setFoc] = useState(false)
   const fs = foc ? {borderColor:'var(--gold)',boxShadow:'0 0 0 3px rgba(232,184,75,0.08)'} : {}
   return (
@@ -196,6 +217,25 @@ function Field({label,value,onChange,type='text',placeholder,options,required,ro
 }
 
 function Modal({title,subtitle,onClose,children,width=520}) {
+  const isMobile = useIsMobile()
+  if(isMobile) return (
+    <div onClick={e=>{if(e.target===e.currentTarget)onClose()}}
+      style={{position:'fixed',inset:0,background:'rgba(5,5,10,0.85)',backdropFilter:'blur(8px)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:1000}}>
+      <div style={{width:'100%',background:'var(--ink2)',borderTop:'1px solid var(--line)',borderRadius:'20px 20px 0 0',maxHeight:'92vh',overflow:'auto',boxShadow:'0 -8px 48px rgba(0,0,0,0.6)',animation:'slideUp 0.3s cubic-bezier(.16,1,.3,1) both'}}>
+        <div style={{display:'flex',justifyContent:'center',padding:'12px 0 4px'}}>
+          <div style={{width:40,height:4,borderRadius:2,background:'var(--line2)'}}/>
+        </div>
+        <div style={{padding:'12px 20px 16px',borderBottom:'1px solid var(--line)',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16}}>
+          <div>
+            <h3 className='d' style={{fontSize:16,fontWeight:600}}>{title}</h3>
+            {subtitle && <p style={{fontSize:12,color:'var(--mist2)',marginTop:3}}>{subtitle}</p>}
+          </div>
+          <button onClick={onClose} style={{background:'var(--ink4)',border:'1px solid var(--line)',color:'var(--mist2)',width:30,height:30,borderRadius:'50%',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>×</button>
+        </div>
+        <div style={{padding:'20px'}}>{children}</div>
+      </div>
+    </div>
+  )
   return (
     <div onClick={e=>{if(e.target===e.currentTarget)onClose()}}
       style={{position:'fixed',inset:0,background:'rgba(5,5,10,0.8)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}}>
@@ -251,13 +291,14 @@ function Avatar({name,size=32,color}) {
 }
 
 function PageHeader({title,sub,children}) {
+  const isMobile = useIsMobile()
   return (
-    <div className='fu' style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:28,flexWrap:'wrap',gap:16}}>
+    <div className='fu' style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom: isMobile?20:28,flexWrap:'wrap',gap:12}}>
       <div>
-        <h1 className='d' style={{fontSize:26,fontWeight:700,letterSpacing:'-0.02em'}}>{title}</h1>
-        {sub && <p style={{color:'var(--mist2)',fontSize:13,marginTop:5}}>{sub}</p>}
+        <h1 className='d' style={{fontSize: isMobile?20:26,fontWeight:700,letterSpacing:'-0.02em'}}>{title}</h1>
+        {sub && <p style={{color:'var(--mist2)',fontSize: isMobile?12:13,marginTop:4}}>{sub}</p>}
       </div>
-      {children && <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>{children}</div>}
+      {children && <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>{children}</div>}
     </div>
   )
 }
@@ -293,10 +334,13 @@ function DataTable({columns,data,onRow}) {
   )
 }
 
-function Toast({msg,type='success'}) {
+function Toast({msg,type='success',isMobile}) {
   const color = type==='error' ? 'var(--rose)' : 'var(--emerald)'
+  const pos = isMobile
+    ? {bottom:20,left:16,right:16,transform:'none'}
+    : {bottom:28,right:28}
   return (
-    <div className='fi' style={{position:'fixed',bottom:28,right:28,zIndex:2000,background:'var(--ink2)',border:`1px solid ${color}40`,borderRadius:'var(--r)',padding:'12px 20px',display:'flex',alignItems:'center',gap:10,boxShadow:'0 8px 32px rgba(0,0,0,0.5)'}}>
+    <div className='fi' style={{position:'fixed',zIndex:2000,background:'var(--ink2)',border:`1px solid ${color}40`,borderRadius:'var(--r)',padding:'12px 20px',display:'flex',alignItems:'center',gap:10,boxShadow:'0 8px 32px rgba(0,0,0,0.5)',...pos}}>
       <div style={{width:8,height:8,borderRadius:'50%',background:color,flexShrink:0}}/>
       <span style={{fontSize:13,fontWeight:500}}>{msg}</span>
     </div>
@@ -347,6 +391,7 @@ function Login({onLogin}) {
     setLoading(false)
   }
 
+  const isMobile = useIsMobile()
   const features = [
     {icon:'🎓', title:'Grades & Assessments', desc:'Flexible components, weighted scoring, term reports'},
     {icon:'📋', title:'Attendance Tracking', desc:'Daily batch entry with real-time class summaries'},
@@ -358,7 +403,7 @@ function Login({onLogin}) {
     <div style={{minHeight:'100vh',display:'flex',background:'var(--ink)',position:'relative',overflow:'hidden'}}>
       {/* Left — login form */}
       <div
-        style={{flex:'0 0 520px',display:'flex',flexDirection:'column',justifyContent:'center',padding:'60px',position:'relative',zIndex:1}}
+        style={{flex: isMobile ? '1' : '0 0 520px',display:'flex',flexDirection:'column',justifyContent:'center',padding: isMobile ? '40px 28px' : '60px',position:'relative',zIndex:1,minHeight:'100vh'}}
         onKeyDown={e=>{if(e.key==='Enter')attempt()}}
       >
         <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'40px 40px',opacity:0.3,maskImage:'radial-gradient(ellipse at center,black 40%,transparent 80%)'}}/>
@@ -384,8 +429,8 @@ function Login({onLogin}) {
         </div>
       </div>
 
-      {/* Right — branding panel */}
-      <div style={{flex:1,background:'var(--ink2)',borderLeft:'1px solid var(--line)',display:'flex',alignItems:'center',justifyContent:'center',padding:'40px 80px',position:'relative',overflow:'hidden',minHeight:'100vh'}}>
+      {/* Right — branding panel — hidden on mobile */}
+      {!isMobile && <div style={{flex:1,background:'var(--ink2)',borderLeft:'1px solid var(--line)',display:'flex',alignItems:'center',justifyContent:'center',padding:'40px 80px',position:'relative',overflow:'hidden',minHeight:'100vh'}}>
         {/* Grid background */}
         <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'60px 60px',opacity:0.35}}/>
 
@@ -440,15 +485,74 @@ function Login({onLogin}) {
           <div style={{marginTop:36,fontSize:11,color:'var(--mist3)',letterSpacing:'0.05em'}}>v1.0.0 · Academic Year {acadYear}</div>
           <div style={{marginTop:10,fontSize:11,color:'var(--mist3)',letterSpacing:'0.06em'}}>Built by <span style={{color:'var(--gold)',fontWeight:600,letterSpacing:'0.12em'}}>ZELVA STUDIOS</span></div>
         </div>
-      </div>
+      </div>}
     </div>
   )
 }
 
 // ── SIDEBAR ────────────────────────────────────────────────────
-function Sidebar({profile,active,onNav,collapsed,onToggle,onLogout}) {
+function Sidebar({profile,active,onNav,collapsed,onToggle,onLogout,isMobile,drawerOpen,onDrawerClose}) {
   const items = NAV_ITEMS[profile?.role] || []
   const rm    = ROLE_META[profile?.role] || {}
+
+  const navContent = (
+    <>
+      <div style={{padding:'18px 16px',borderBottom:'1px solid var(--line)',display:'flex',alignItems:'center',gap:10,justifyContent:'space-between',minHeight:64}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:32,height:32,borderRadius:8,background:'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 12px rgba(232,184,75,0.3)'}}>
+            <span className='d' style={{fontSize:15,fontWeight:700,color:'var(--ink)'}}>S</span>
+          </div>
+          <span className='d' style={{fontWeight:700,fontSize:15}}>SRMS</span>
+        </div>
+        {isMobile ? (
+          <button onClick={onDrawerClose} style={{background:'var(--ink4)',border:'1px solid var(--line)',color:'var(--mist2)',width:30,height:30,borderRadius:'50%',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+        ) : (
+          <button onClick={onToggle} style={{background:'none',color:'var(--mist3)',fontSize:18,padding:'2px 6px',borderRadius:4,transition:'all 0.15s'}}
+            onMouseEnter={e=>{e.currentTarget.style.color='var(--mist)';e.currentTarget.style.background='var(--ink4)'}}
+            onMouseLeave={e=>{e.currentTarget.style.color='var(--mist3)';e.currentTarget.style.background='none'}}>‹</button>
+        )}
+      </div>
+      <nav style={{flex:1,padding:'10px 8px',overflowY:'auto'}}>
+        <div style={{fontSize:9,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.12em',padding:'8px 8px 6px',fontFamily:"'Clash Display',sans-serif"}}>Navigation</div>
+        {items.map(key=>{
+          const m=NAV_META[key]; const isAct=active===key
+          return (
+            <button key={key} onClick={()=>{onNav(key);if(isMobile)onDrawerClose()}}
+              style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'11px 10px',borderRadius:'var(--r-sm)',marginBottom:2,background:isAct?'rgba(232,184,75,0.1)':'transparent',color:isAct?'var(--gold)':'var(--mist2)',fontSize:14,fontWeight:isAct?600:400,transition:'all 0.15s',justifyContent:'flex-start',borderLeft:isAct?'2px solid var(--gold)':'2px solid transparent'}}
+              onMouseEnter={e=>{if(!isAct){e.currentTarget.style.background='var(--ink3)';e.currentTarget.style.color='var(--white)'}}}
+              onMouseLeave={e=>{if(!isAct){e.currentTarget.style.background='transparent';e.currentTarget.style.color='var(--mist2)'}}}>
+              <span style={{fontSize:16,flexShrink:0,opacity:isAct?1:0.7}}>{m.icon}</span>
+              <span>{m.label}</span>
+            </button>
+          )
+        })}
+      </nav>
+      <div style={{borderTop:'1px solid var(--line)',padding:'14px 12px'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <Avatar name={profile?.full_name} size={34} color={rm.bg}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{profile?.full_name}</div>
+            <Badge color={rm.color} bg={rm.bg}>{rm.label}</Badge>
+          </div>
+          <button onClick={onLogout} title='Sign out' style={{background:'none',color:'var(--mist3)',fontSize:14,padding:4,borderRadius:4,transition:'color 0.15s'}}
+            onMouseEnter={e=>e.currentTarget.style.color='var(--rose)'}
+            onMouseLeave={e=>e.currentTarget.style.color='var(--mist3)'}>⏻</button>
+        </div>
+      </div>
+    </>
+  )
+
+  if(isMobile) return (
+    <>
+      {drawerOpen && (
+        <div onClick={onDrawerClose} style={{position:'fixed',inset:0,background:'rgba(5,5,10,0.7)',zIndex:200,backdropFilter:'blur(4px)'}}/>
+      )}
+      <div style={{position:'fixed',top:0,left:0,width:280,height:'100vh',background:'var(--ink2)',borderRight:'1px solid var(--line)',display:'flex',flexDirection:'column',zIndex:201,transform:drawerOpen?'translateX(0)':'translateX(-100%)',transition:'transform 0.3s cubic-bezier(.16,1,.3,1)',boxShadow:drawerOpen?'8px 0 48px rgba(0,0,0,0.6)':'none'}}>
+        {navContent}
+      </div>
+    </>
+  )
+
   return (
     <div style={{width:collapsed?64:228,minHeight:'100vh',background:'var(--ink2)',borderRight:'1px solid var(--line)',display:'flex',flexDirection:'column',transition:'width 0.25s cubic-bezier(.16,1,.3,1)',flexShrink:0,zIndex:10}}>
       <div style={{padding:collapsed?'18px 0':'18px 16px',borderBottom:'1px solid var(--line)',display:'flex',alignItems:'center',gap:10,justifyContent:collapsed?'center':'space-between',minHeight:64}}>
@@ -505,6 +609,7 @@ function Sidebar({profile,active,onNav,collapsed,onToggle,onLogout}) {
 
 // ── DASHBOARD ──────────────────────────────────────────────────
 function Dashboard({profile,data,settings,onNav}) {
+  const isMobile = useIsMobile()
   const {students=[],classes=[],fees=[],attendance=[],grades=[],announcements=[],subjects=[]} = data
   const today = new Date().toISOString().split('T')[0]
   const scale = settings?.grading_scale || []
@@ -542,7 +647,7 @@ function Dashboard({profile,data,settings,onNav}) {
         </div>
       )}
       <PageHeader title={`Good ${new Date().getHours()<12?'morning':'afternoon'}, ${profile?.full_name?.split(' ')[0]||'there'}.`} sub={`${settings?.school_name||'SRMS'} · ${settings?.academic_year||''}`}/>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16,marginBottom:28}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12,marginBottom: isMobile?20:28}}>
         {isAdmin && <>
           <KPI label='Total Students'   value={students.length}      color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
           <KPI label='Attendance Rate'  value={`${schoolAttRate}%`}  color='var(--emerald)' sub={`${schoolAttPresent} of ${schoolAttTotal} records`} index={1}/>
@@ -2343,6 +2448,8 @@ export default function App() {
   const [collapsed,setCollapsed] = useState(false)
   const [loading,setLoading]   = useState(true)
   const [toast,setToast]       = useState(null)
+  const [drawerOpen,setDrawerOpen] = useState(false)
+  const isMobile = useIsMobile()
 
   const showToast = useCallback((msg,type='success')=>{
     setToast({msg,type})
@@ -2355,6 +2462,9 @@ export default function App() {
     const {data:{subscription}} = supabase.auth.onAuthStateChange((_,session)=>{ setSession(session) })
     return ()=>subscription.unsubscribe()
   },[])
+
+  // Close drawer on page change
+  useEffect(()=>{ setDrawerOpen(false) },[page])
 
   // Load profile + all data when session changes
   useEffect(()=>{
@@ -2376,7 +2486,6 @@ export default function App() {
       setProfile(prof)
       setSettings(settingsRow)
       setData({students:students||[],classes:classes||[],subjects:subjects||[],grades:grades||[],attendance:attendance||[],fees:fees||[],behaviour:behaviour||[],announcements:announcements||[]})
-      // If profile row is missing (e.g. new user whose profile wasn't inserted yet), create it
       if(!prof && session?.user) {
         const {data:newProf} = await supabase.from('profiles').upsert({
           id: session.user.id,
@@ -2416,37 +2525,51 @@ export default function App() {
     }
   }
 
+  const pageTitles = {dashboard:'Dashboard',students:'Students',classes:'Classes & Subjects',grades:'Grades',attendance:'Attendance',fees:'Fees',behaviour:'Behaviour',reports:'Reports',announcements:'Announcements',users:'Users',settings:'Settings'}
+
   return (
     <>
       <style>{G}</style>
       <div className='grain' style={{display:'flex',height:'100vh',overflow:'hidden'}}>
-        <Sidebar profile={profile} active={page} onNav={setPage} collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)} onLogout={logout}/>
+        <Sidebar profile={profile} active={page} onNav={setPage} collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)} onLogout={logout} isMobile={isMobile} drawerOpen={drawerOpen} onDrawerClose={()=>setDrawerOpen(false)}/>
         <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',background:'var(--ink)'}}>
           {/* Topbar */}
-          <div style={{height:56,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px',borderBottom:'1px solid var(--line)',background:'var(--ink2)',flexShrink:0}}>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <span className='d' style={{fontSize:12,color:'var(--mist3)',fontWeight:500,letterSpacing:'0.06em'}}>{settings?.school_name||'SRMS'}</span>
-              <span style={{color:'var(--line2)'}}>·</span>
-              <span style={{fontSize:12,color:'var(--mist3)'}}>{settings?.academic_year||''}</span>
+          {isMobile ? (
+            <div style={{height:56,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px',borderBottom:'1px solid var(--line)',background:'var(--ink2)',flexShrink:0}}>
+              <button onClick={()=>setDrawerOpen(true)} style={{width:40,height:40,borderRadius:'var(--r-sm)',background:'var(--ink4)',border:'1px solid var(--line)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:5,flexShrink:0}}>
+                <div style={{width:18,height:1.5,background:'var(--mist2)',borderRadius:1}}/>
+                <div style={{width:18,height:1.5,background:'var(--mist2)',borderRadius:1}}/>
+                <div style={{width:18,height:1.5,background:'var(--mist2)',borderRadius:1}}/>
+              </button>
+              <span className='d' style={{fontSize:15,fontWeight:700,letterSpacing:'-0.01em'}}>{pageTitles[page]||'SRMS'}</span>
+              <Avatar name={profile?.full_name} size={34} color={ROLE_META[profile?.role]?.bg}/>
             </div>
-            <div style={{display:'flex',alignItems:'center',gap:16}}>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <Avatar name={profile?.full_name} size={30} color={ROLE_META[profile?.role]?.bg}/>
-                <div>
-                  <div style={{fontSize:12,fontWeight:600,lineHeight:1.2}}>{profile?.full_name}</div>
-                  <div style={{fontSize:10,color:'var(--mist3)'}}>{ROLE_META[profile?.role]?.label}</div>
-                </div>
+          ) : (
+            <div style={{height:56,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px',borderBottom:'1px solid var(--line)',background:'var(--ink2)',flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <span className='d' style={{fontSize:12,color:'var(--mist3)',fontWeight:500,letterSpacing:'0.06em'}}>{settings?.school_name||'SRMS'}</span>
+                <span style={{color:'var(--line2)'}}>·</span>
+                <span style={{fontSize:12,color:'var(--mist3)'}}>{settings?.academic_year||''}</span>
               </div>
-              <Btn variant='ghost' size='sm' onClick={logout}>Sign Out</Btn>
+              <div style={{display:'flex',alignItems:'center',gap:16}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <Avatar name={profile?.full_name} size={30} color={ROLE_META[profile?.role]?.bg}/>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:600,lineHeight:1.2}}>{profile?.full_name}</div>
+                    <div style={{fontSize:10,color:'var(--mist3)'}}>{ROLE_META[profile?.role]?.label}</div>
+                  </div>
+                </div>
+                <Btn variant='ghost' size='sm' onClick={logout}>Sign Out</Btn>
+              </div>
             </div>
-          </div>
+          )}
           {/* Content */}
-          <div style={{flex:1,overflowY:'auto',padding:'32px 36px'}}>
+          <div style={{flex:1,overflowY:'auto',padding: isMobile ? '20px 16px' : '32px 36px'}}>
             {renderPage()}
           </div>
         </div>
       </div>
-      {toast && <Toast msg={toast.msg} type={toast.type}/>}
+      {toast && <Toast msg={toast.msg} type={toast.type} isMobile={isMobile}/>}
     </>
   )
 }
