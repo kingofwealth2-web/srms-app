@@ -2022,7 +2022,6 @@ function Users({profile,toast}) {
   const toggleLock = async id=>{
     const u=users.find(x=>x.id===id)
     if(!u) return
-    // Safety guards — belt and braces on top of the UI hiding the button
     if(u.id===profile?.id){toast('You cannot lock your own account.','error');return}
     if(u.role==='superadmin'){toast('Super Admin accounts cannot be locked.','error');return}
     const {error} = await supabase.from('profiles').update({locked:!u.locked}).eq('id',id)
@@ -2030,13 +2029,7 @@ function Users({profile,toast}) {
     setUsers(p=>p.map(x=>x.id===id?{...x,locked:!x.locked}:x))
     toast(u.locked ? 'Account unlocked.' : 'Account locked.')
   }
-  const del = async id=>{
-    if(id===profile?.id){alert('You cannot delete your own account.');return}
-    if(!confirm('Delete this user?'))return
-    await supabase.from('profiles').delete().eq('id',id)
-    setUsers(p=>p.filter(x=>x.id!==id))
-    toast('User removed')
-  }
+
   if(loading) return <LoadingScreen msg='Loading users…'/>
   return (
     <div>
@@ -2059,10 +2052,9 @@ function Users({profile,toast}) {
           {key:'id',label:'',render:(v,r)=>(
             <div style={{display:'flex',gap:8}}>
               <Btn variant='ghost' size='sm' onClick={()=>openEdit(r)}>Edit</Btn>
-              {r.id!==profile?.id && r.role!=='superadmin' && <>
+              {r.id!==profile?.id && r.role!=='superadmin' &&
                 <Btn variant='ghost' size='sm' onClick={()=>toggleLock(r.id)}>{r.locked?'Unlock':'Lock'}</Btn>
-                <Btn variant='danger' size='sm' onClick={()=>del(r.id)}>Remove</Btn>
-              </>}
+              }
             </div>
           )},
         ]}/>
