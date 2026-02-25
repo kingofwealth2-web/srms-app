@@ -385,11 +385,11 @@ function Login({onLogin}) {
       </div>
 
       {/* Right — branding panel */}
-      <div style={{flex:1,background:'var(--ink2)',borderLeft:'1px solid var(--line)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'60px 80px',position:'relative',overflow:'hidden'}}>
+      <div style={{flex:1,background:'var(--ink2)',borderLeft:'1px solid var(--line)',display:'flex',alignItems:'center',justifyContent:'center',padding:'40px 80px',position:'relative',overflow:'hidden',minHeight:'100vh'}}>
         {/* Grid background */}
         <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'60px 60px',opacity:0.35}}/>
-        {/* Gold radial glow */}
-        <div style={{position:'absolute',top:'40%',left:'50%',transform:'translate(-50%,-50%)',width:500,height:500,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,184,75,0.08) 0%,transparent 65%)',pointerEvents:'none'}}/>
+        {/* Gold radial glow — crisp, centered */}
+        <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:420,height:420,borderRadius:'50%',background:'radial-gradient(circle,rgba(232,184,75,0.13) 0%,rgba(232,184,75,0.04) 40%,transparent 70%)',pointerEvents:'none'}}/>
 
         <div className='fu fu2' style={{position:'relative',textAlign:'center',maxWidth:400,width:'100%'}}>
 
@@ -404,7 +404,7 @@ function Login({onLogin}) {
 
           {/* Graduation cap icon */}
           <div style={{display:'flex',justifyContent:'center',marginBottom:schoolLogo?20:32}}>
-            <div style={{width:schoolLogo?72:100,height:schoolLogo?72:100,borderRadius:'50%',background:'rgba(232,184,75,0.1)',border:'1px solid rgba(232,184,75,0.25)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 48px rgba(232,184,75,0.15)',transition:'all 0.3s'}}>
+            <div style={{width:schoolLogo?72:96,height:schoolLogo?72:96,borderRadius:'50%',background:'rgba(232,184,75,0.06)',border:'1.5px solid rgba(232,184,75,0.55)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 0 5px rgba(232,184,75,0.05), 0 0 24px rgba(232,184,75,0.35)',transition:'all 0.3s'}}>
               <svg width={schoolLogo?38:52} height={schoolLogo?38:52} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M32 10L4 24L32 38L60 24L32 10Z" fill="rgba(232,184,75,0.9)" stroke="rgba(232,184,75,1)" strokeWidth="1.5" strokeLinejoin="round"/>
                 <path d="M16 31V46C16 46 22 52 32 52C42 52 48 46 48 46V31" stroke="rgba(232,184,75,0.8)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
