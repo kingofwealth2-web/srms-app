@@ -643,7 +643,7 @@ function Dashboard({profile,data,settings,onNav}) {
 
   // Classes with no teacher assigned — live check for superadmin
   const unassignedClasses = profile?.role==='superadmin'
-    ? classes.filter(c=>!c.teacher_id)
+    ? classes.filter(c=>!c.class_teacher_id)
     : []
 
   return (
@@ -2023,7 +2023,7 @@ function Users({profile,toast}) {
         // Null their class_id in profiles
         await supabase.from('profiles').update({class_id:null}).eq('id',edit.id)
         // Null the teacher_id on the class they were running
-        await supabase.from('classes').update({teacher_id:null}).eq('teacher_id',edit.id)
+        await supabase.from('classes').update({class_teacher_id:null}).eq('class_teacher_id',edit.id)
       }
       setUsers(p=>p.map(u=>u.id===edit.id?{...u,full_name:form.full_name,email:form.email,role:form.role}:u))
       toast('User updated')
