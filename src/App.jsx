@@ -2340,9 +2340,13 @@ function Classes({profile,data,setData,toast}) {
   const teachers = allUsers.filter(u=>u.role==='classteacher')
   const saveClass = async ()=>{
     if(!cf.name)return; setSaving(true)
+    // Auto-capitalize each word e.g. "class 6a" → "Class 6A"
+    const cleanName = cf.name.replace(/\b\w/g, c=>c.toUpperCase())
     const newTeacherId = cf.class_teacher_id||null
+    // Only send name and class_teacher_id — never overwrite other columns
+    const payload = {name:cleanName, class_teacher_id:newTeacherId}
     if(editC){
-      const {error}=await supabase.from('classes').update({...cf,class_teacher_id:newTeacherId}).eq('id',editC.id)
+      const {error}=await supabase.from('classes').update(payload).eq('id',editC.id)
       if(error){toast(error.message,'error');setSaving(false);return}
       // If teacher changed, clear old teacher's class_id and set new one
       const oldTeacherId = editC.class_teacher_id
@@ -2350,10 +2354,10 @@ function Classes({profile,data,setData,toast}) {
         await supabase.from('profiles').update({class_id:null}).eq('id',oldTeacherId)
       if(newTeacherId)
         await supabase.from('profiles').update({class_id:editC.id}).eq('id',newTeacherId)
-      setData(p=>({...p,classes:p.classes.map(c=>c.id===editC.id?{...c,...cf,class_teacher_id:newTeacherId}:c)}))
+      setData(p=>({...p,classes:p.classes.map(c=>c.id===editC.id?{...c,...payload}:c)}))
       toast('Class updated');setClassModal(false)
     } else {
-      const {data:row,error}=await supabase.from('classes').insert({...cf,class_teacher_id:newTeacherId}).select().single()
+      const {data:row,error}=await supabase.from('classes').insert(payload).select().single()
       if(error){toast(error.message,'error');setSaving(false);return}
       // Set the new teacher's class_id
       if(newTeacherId && row)
@@ -2382,7 +2386,7 @@ function Classes({profile,data,setData,toast}) {
     <div>
       <PageHeader title='Classes & Subjects' sub={`${classes.length} classes · ${subjects.length} subjects`}>
         <Btn variant='ghost' onClick={()=>{setSubjectModal(true);setEditS(null);setSf({name:'',code:'',class_id:selected?.id||'',teacher_id:''})}}>+ Subject</Btn>
-        <Btn onClick={()=>{setClassModal(true);setEditC(null);setCf({name:'',level:'',section:'',class_teacher_id:''})}}>+ New Class</Btn>
+        <Btn onClick={()=>{setClassModal(true);setEditC(null);setCf({name:'',class_teacher_id:''})}}>+ New Class</Btn>
       </PageHeader>
       <div style={{display:'grid',gridTemplateColumns:selected?'260px 1fr':'repeat(auto-fill,minmax(260px,1fr))',gap:16}}>
         {selected ? (
@@ -2453,9 +2457,7 @@ function Classes({profile,data,setData,toast}) {
       </div>
       {classModal && (
         <Modal title={editC?'Edit Class':'New Class'} onClose={()=>setClassModal(false)}>
-          <Field label='Class Name' value={cf.name} onChange={fc('name')} placeholder='e.g. Grade 10 — Alpha' required/>
-          <Field label='Level'   value={cf.level}   onChange={fc('level')}   placeholder='e.g. Grade 10'/>
-          <Field label='Section' value={cf.section} onChange={fc('section')} placeholder='e.g. Alpha'/>
+          <Field label='Class Name' value={cf.name} onChange={fc('name')} placeholder='e.g. Class 6A, JHS 2B, Form 1A' required/>
           <Field label='Class Teacher' value={cf.class_teacher_id} onChange={fc('class_teacher_id')} options={[{value:'',label:'None — Unassigned'},...teachers.map(t=>({value:t.id,label:t.full_name}))]}/>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setClassModal(false)}>Cancel</Btn>
