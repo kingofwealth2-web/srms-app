@@ -641,8 +641,28 @@ function Dashboard({profile,data,settings,onNav}) {
   const myClassPresent   = myClassAtt.filter(a=>a.status==='Present').length
   const myClassAttRate   = myClassAtt.length ? Math.round(myClassPresent/myClassAtt.length*100) : 0
 
+  // Classes with no teacher assigned — live check for superadmin
+  const unassignedClasses = profile?.role==='superadmin'
+    ? classes.filter(c=>!c.teacher_id)
+    : []
+
   return (
     <div>
+      {/* Superadmin warning — classes with no teacher */}
+      {profile?.role==='superadmin' && unassignedClasses.length>0 && (
+        <div className='fu' style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
+          {unassignedClasses.map(cls=>(
+            <div key={cls.id} style={{background:'rgba(240,107,122,0.06)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r)',padding:'14px 20px',display:'flex',alignItems:'center',gap:14}}>
+              <div style={{width:36,height:36,borderRadius:'50%',background:'rgba(240,107,122,0.12)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>⚠</div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:14,color:'var(--rose)'}}>No Teacher Assigned</div>
+                <div style={{fontSize:12,color:'var(--mist2)',marginTop:2}}><strong>{cls.name}</strong> has no class teacher. Assign one to restore full functionality.</div>
+              </div>
+              <Btn size='sm' onClick={()=>onNav('classes')}>Assign Teacher →</Btn>
+            </div>
+          ))}
+        </div>
+      )}
       {profile?.role==='classteacher' && !todayMarked && (
         <div className='fu' style={{background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.25)',borderRadius:'var(--r)',padding:'14px 20px',marginBottom:24,display:'flex',alignItems:'center',gap:14}}>
           <div style={{width:36,height:36,borderRadius:'50%',background:'rgba(251,159,58,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>⚠</div>
@@ -1998,6 +2018,13 @@ function Users({profile,toast}) {
       // Update profile fields
       const {error} = await supabase.from('profiles').update({full_name:form.full_name,email:form.email,role:form.role}).eq('id',edit.id)
       if(error){ toast(error.message,'error'); setSaving(false); return }
+      // If user WAS a class teacher and role is changing — clean up their class assignment
+      if(edit.role==='classteacher' && form.role!=='classteacher'){
+        // Null their class_id in profiles
+        await supabase.from('profiles').update({class_id:null}).eq('id',edit.id)
+        // Null the teacher_id on the class they were running
+        await supabase.from('classes').update({teacher_id:null}).eq('teacher_id',edit.id)
+      }
       setUsers(p=>p.map(u=>u.id===edit.id?{...u,full_name:form.full_name,email:form.email,role:form.role}:u))
       toast('User updated')
       setModal(false)
@@ -2064,7 +2091,16 @@ function Users({profile,toast}) {
           <Field label='Full Name' value={form.full_name} onChange={f('full_name')} required/>
           <Field label='Email Address' value={form.email} onChange={f('email')} type='email' required/>
           {!edit && <Field label='Password' value={form.password} onChange={f('password')} type='password' required/>}
-          <Field label='Role' value={form.role} onChange={f('role')} options={[{value:'admin',label:'Administrator'},{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'}]}/>
+          {edit?.id===profile?.id
+            ? <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Role</div>
+                <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <span>{ROLE_META[form.role]?.label||form.role}</span>
+                  <span style={{fontSize:11,color:'var(--mist3)'}}>Cannot change your own role</span>
+                </div>
+              </div>
+            : <Field label='Role' value={form.role} onChange={f('role')} options={[{value:'admin',label:'Administrator'},{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'}]}/>
+          }
           {edit && <p style={{fontSize:12,color:'var(--mist3)',marginTop:-8,marginBottom:8}}>To change the password, the user must use the forgot password option on the login screen.</p>}
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
