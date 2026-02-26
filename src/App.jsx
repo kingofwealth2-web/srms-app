@@ -143,6 +143,20 @@ const FEE_STATUS   = {
   Partial:    {color:'var(--amber)',  bg:'rgba(251,159,58,0.12)'},
   Outstanding:{color:'var(--rose)',   bg:'rgba(240,107,122,0.12)'},
 }
+
+// ── YEAR HELPERS ───────────────────────────────────────────────
+function generateYears(centerYear) {
+  // centerYear like "2026/2027" or "2026-2027"
+  const norm = (y) => y ? y.replace('-','/') : ''
+  const base = centerYear ? parseInt(centerYear.replace(/[^0-9]/,'').slice(0,4)) : new Date().getFullYear()
+  const years = []
+  for(let y = base-3; y <= base+3; y++) years.push(`${y}/${y+1}`)
+  return years
+}
+function currentYearFromSettings(settings) {
+  return settings?.academic_year ? settings.academic_year.replace('-','/') : `${new Date().getFullYear()}/${new Date().getFullYear()+1}`
+}
+
 const NAV_ITEMS = {
   superadmin:  ['dashboard','students','classes','grades','attendance','fees','behaviour','reports','announcements','users','settings'],
   admin:       ['dashboard','students','classes','grades','attendance','fees','behaviour','reports','announcements'],
@@ -614,9 +628,14 @@ function Sidebar({profile,active,onNav,collapsed,onToggle,onLogout,isMobile,draw
 }
 
 // ── DASHBOARD ──────────────────────────────────────────────────
-function Dashboard({profile,data,settings,onNav}) {
+function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
   const isMobile = useIsMobile()
-  const {students=[],classes=[],fees=[],attendance=[],grades=[],announcements=[],subjects=[]} = data
+  const {students=[],classes=[],fees=[],attendance=[],grades=[],announcements=[],subjects=[],enrolments=[]} = data
+  // When viewing past year, use enrolment records to know which students were enrolled
+  const enrolledStudentIds = enrolments.length>0 ? new Set(enrolments.map(e=>e.student_id)) : null
+  const yearStudents = enrolledStudentIds
+    ? students.filter(s=>enrolledStudentIds.has(s.id))
+    : students.filter(s=>!s.archived)
   const today = new Date().toISOString().split('T')[0]
   const scale = settings?.grading_scale || []
   const gradeComps = getGradeComponents(settings)
@@ -670,10 +689,16 @@ function Dashboard({profile,data,settings,onNav}) {
           <Btn size='sm' onClick={()=>onNav('attendance')}>Mark Now &rarr;</Btn>
         </div>
       )}
-      <PageHeader title={`Good ${new Date().getHours()<12?'morning':'afternoon'}, ${profile?.full_name?.split(' ')[0]||'there'}.`} sub={`${settings?.school_name||'SRMS'} . ${settings?.academic_year||''}`}/>
+      {isViewingPast && (
+        <div style={{background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:12}}>
+          <span style={{fontSize:16}}>(!)</span>
+          <span style={{fontSize:13,color:'var(--amber)'}}>You are viewing <strong>{activeYear}</strong> -- this is a read-only archive. Switch to the current year in the topbar to make changes.</span>
+        </div>
+      )}
+      <PageHeader title={`Good ${new Date().getHours()<12?'morning':'afternoon'}, ${profile?.full_name?.split(' ')[0]||'there'}.`} sub={`${settings?.school_name||'SRMS'} . ${activeYear}`}/>
       <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12,marginBottom: isMobile?20:28}}>
         {isAdmin && <>
-          <KPI label='Total Students'   value={students.length}      color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
+          <KPI label='Total Students'   value={yearStudents.length}      color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
           <KPI label='Attendance Rate'  value={`${schoolAttRate}%`}  color='var(--emerald)' sub={`${schoolAttPresent} of ${schoolAttTotal} records`} index={1}/>
           <KPI label='Average Score'    value={avgScore}             color='var(--sky)'     sub={`Pass rate: ${passRate}%`} index={2}/>
           <KPI label='Fee Collection'   value={`${totalFees?Math.round(totalPaid/totalFees*100):0}%`} color='var(--amber)' sub={`${fmtMoney(totalPaid,currency)} collected`} index={3}/>
@@ -719,7 +744,7 @@ function Dashboard({profile,data,settings,onNav}) {
 }
 
 // ── STUDENTS ───────────────────────────────────────────────────
-function Students({profile,data,setData,toast,settings}) {
+function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   const {students=[],classes=[]} = data
   const [search,setSearch] = useState('')
   const [fc,setFc]         = useState('')
@@ -729,7 +754,7 @@ function Students({profile,data,setData,toast,settings}) {
   const [saving,setSaving] = useState(false)
   const [showArchived,setShowArchived] = useState(false)
   const f = k => v => setForm(p=>({...p,[k]:v}))
-  const canEdit = ['superadmin','admin'].includes(profile?.role)
+  const canEdit = ['superadmin','admin'].includes(profile?.role) && !isViewingPast
   const activeStudents   = students.filter(s=>!s.archived)
   const archivedStudents = students.filter(s=>s.archived)
   const pool   = showArchived ? archivedStudents : (profile?.role==='classteacher' ? activeStudents.filter(s=>s.class_id===profile.class_id) : activeStudents)
@@ -749,7 +774,7 @@ function Students({profile,data,setData,toast,settings}) {
       if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));toast('Student updated');setModal(false)}
     } else {
       const sid = genSID(students)
-      const {data:row,error} = await supabase.from('students').insert({...form,student_id:sid,created_at:new Date()}).select().single()
+      const {data:row,error} = await supabase.from('students').insert({...form,student_id:sid,created_at:new Date(),entry_year:activeYear}).select().single()
       if(error){toast(error.message,'error')}else{setData(p=>({...p,students:[...p.students,row]}));toast('Student added');setModal(false)}
     }
     setSaving(false)
@@ -839,7 +864,7 @@ function Students({profile,data,setData,toast,settings}) {
 }
 
 // ── GRADES ─────────────────────────────────────────────────────
-function Grades({profile,data,setData,toast,settings}) {
+function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   const {grades=[],students=[],subjects=[]} = data
   const scale = settings?.grading_scale || []
   const allComps = getGradeComponents(settings)
@@ -862,7 +887,7 @@ function Grades({profile,data,setData,toast,settings}) {
   const openAdd = () => {
     const emptyScores = ALL_COMPONENTS.reduce((acc,k)=>({...acc,[k]:''}),{})
     setEdit(null)
-    setForm({student_id:'',subject_id:mySubjects[0]?.id||'',...emptyScores,period:periods[0],year:settings?.academic_year||''})
+    setForm({student_id:'',subject_id:mySubjects[0]?.id||'',...emptyScores,period:periods[0],year:activeYear})
     setModal(true)
   }
   const openEdit = g => { setEdit(g); setForm({...g}); setModal(true) }
@@ -1000,7 +1025,7 @@ function Grades({profile,data,setData,toast,settings}) {
 }
 
 // ── ATTENDANCE ─────────────────────────────────────────────────
-function Attendance({profile,data,setData,toast}) {
+function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   const {attendance=[],students=[],classes=[]} = data
   const today = new Date().toISOString().split('T')[0]
   const [date,setDate]     = useState(today)
@@ -1044,7 +1069,7 @@ function Attendance({profile,data,setData,toast}) {
     setSaving(true)
     try {
       const allMarks = classStudents
-        .map(s=>({student_id:s.id,class_id:cid,date,status:getStatus(s.id)||null,marked_by:profile?.id}))
+        .map(s=>({student_id:s.id,class_id:cid,date,status:getStatus(s.id)||null,marked_by:profile?.id,academic_year:activeYear}))
         .filter(m=>m.status)
       if(allMarks.length===0){toast('No students marked -- nothing to save','error');setSaving(false);return}
       const {error:delErr} = await supabase.from('attendance').delete().eq('class_id',cid).eq('date',date)
@@ -1166,9 +1191,9 @@ function Attendance({profile,data,setData,toast}) {
                     : <span style={{color:'var(--mist3)'}}>All changes saved</span>
                   }
                 </div>
-                <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{minWidth:160,justifyContent:'center',boxShadow:hasUnsaved?'0 4px 20px rgba(232,184,75,0.25)':'none'}}>
+                {!isViewingPast && <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{minWidth:160,justifyContent:'center',boxShadow:hasUnsaved?'0 4px 20px rgba(232,184,75,0.25)':'none'}}>
                   {saving?<><Spinner/> Saving...</>:(unmarkedCount>0?`Save Attendance (${unmarkedCount} unmarked)`:'Save Attendance')}
-                </Btn>
+                </Btn>}
               </div>
             </>
           )}
@@ -1188,7 +1213,7 @@ function Attendance({profile,data,setData,toast}) {
 }
 
 // ── FEES ───────────────────────────────────────────────────────
-function Fees({profile,data,setData,toast,settings}) {
+function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   const {fees=[],students=[]} = data
   const currency = getCurrency(settings)
   const [search,setSearch]   = useState('')
@@ -1215,7 +1240,7 @@ function Fees({profile,data,setData,toast,settings}) {
   const saveFee = async ()=>{
     if(!form.student_id||!form.amount)return
     setSaving(true)
-    const {data:row,error}=await supabase.from('fees').insert({student_id:form.student_id,fee_type:form.fee_type,amount:parseFloat(form.amount),paid:0,due_date:form.due_date}).select().single()
+    const {data:row,error}=await supabase.from('fees').insert({student_id:form.student_id,fee_type:form.fee_type,amount:parseFloat(form.amount),paid:0,due_date:form.due_date,academic_year:activeYear}).select().single()
     if(error)toast(error.message,'error')
     else{setData(p=>({...p,fees:[...p.fees,row]}));toast('Fee record added');setModal(false)}
     setSaving(false)
@@ -1231,7 +1256,7 @@ function Fees({profile,data,setData,toast,settings}) {
   return (
     <div>
       <PageHeader title='Fee Management' sub='Track payments, balances and receipts'>
-        <Btn onClick={openAdd}>+ Add Fee Record</Btn>
+        {!isViewingPast && <Btn onClick={openAdd}>+ Add Fee Record</Btn>}
       </PageHeader>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16,marginBottom:24}}>
         <KPI label='Total Owed'      value={fmtMoney(totalOwed,currency)} color='var(--mist)'    sub='All fees' index={0}/>
@@ -1294,7 +1319,7 @@ function Fees({profile,data,setData,toast,settings}) {
 }
 
 // ── BEHAVIOUR ──────────────────────────────────────────────────
-function Behaviour({profile,data,setData,toast}) {
+function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   const {behaviour=[],students=[]} = data
   const [ftype,setFtype] = useState('')
   const [fsid,setFsid]   = useState('')
@@ -1309,7 +1334,7 @@ function Behaviour({profile,data,setData,toast}) {
   const save = async ()=>{
     if(!form.student_id||!form.title)return
     setSaving(true)
-    const {data:row,error}=await supabase.from('behaviour').insert({...form,recorded_by_id:profile?.id,recorded_by_name:profile?.full_name}).select().single()
+    const {data:row,error}=await supabase.from('behaviour').insert({...form,recorded_by_id:profile?.id,recorded_by_name:profile?.full_name,academic_year:activeYear}).select().single()
     if(error)toast(error.message,'error')
     else{setData(p=>({...p,behaviour:[row,...p.behaviour]}));toast('Record added');setModal(false)}
     setSaving(false)
@@ -1407,7 +1432,7 @@ const ordinal = n => {
 }
 
 // ── REPORTS ────────────────────────────────────────────────────
-function Reports({data,settings}) {
+function Reports({data,settings,activeYear,isViewingPast}) {
   const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
@@ -1945,7 +1970,7 @@ const thStyle={padding:'10px 12px',textAlign:'left',fontSize:10,fontWeight:600,c
 const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlign:'middle'}
 
 // ── ANNOUNCEMENTS ──────────────────────────────────────────────
-function Announcements({profile,data,setData,toast}) {
+function Announcements({profile,data,setData,toast,activeYear,isViewingPast}) {
   const {announcements=[]} = data
   const canManage = ['superadmin','admin'].includes(profile?.role)
   const [modal,setModal] = useState(false)
@@ -1957,7 +1982,7 @@ function Announcements({profile,data,setData,toast}) {
   const save = async ()=>{
     if(!form.title||!form.body)return
     setSaving(true)
-    const {data:row,error}=await supabase.from('announcements').insert({...form,active:true,posted_by_id:profile?.id,posted_by_name:profile?.full_name}).select().single()
+    const {data:row,error}=await supabase.from('announcements').insert({...form,active:true,posted_by_id:profile?.id,posted_by_name:profile?.full_name,academic_year:activeYear}).select().single()
     if(error)toast(error.message,'error')
     else{setData(p=>({...p,announcements:[row,...p.announcements]}));toast('Announcement posted');setModal(false)}
     setSaving(false)
@@ -2130,7 +2155,7 @@ function Users({profile,toast}) {
 }
 
 // ── SETTINGS ───────────────────────────────────────────────────
-function Settings({profile,settings,setSettings,toast}) {
+function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}) {
   const [form,setForm]   = useState(JSON.parse(JSON.stringify(settings||{})))
   const [saving,setSaving] = useState(false)
   const [weightWarning,setWeightWarning] = useState(false)
@@ -2215,7 +2240,22 @@ function Settings({profile,settings,setSettings,toast}) {
             <Field label='School Name'   value={form.school_name}   onChange={f('school_name')} required/>
             <Field label='Address'       value={form.address}       onChange={f('address')}/>
             <Field label='School Motto'  value={form.motto}         onChange={f('motto')}/>
-            <Field label='Academic Year' value={form.academic_year} onChange={f('academic_year')} placeholder='e.g. 2024-2025'/>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Academic Year</div>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <select value={form.academic_year||''} onChange={e=>setForm(p=>({...p,academic_year:e.target.value}))}
+                  style={{flex:1,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',color:'var(--white)',fontSize:13,cursor:'pointer'}}>
+                  {generateYears(form.academic_year||activeYear).map(y=><option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
+            {profile?.role==='superadmin' && (
+              <div style={{padding:'14px 16px',background:'rgba(45,212,160,0.04)',border:'1px solid rgba(45,212,160,0.15)',borderRadius:'var(--r-sm)',marginBottom:8}}>
+                <div style={{fontSize:13,fontWeight:600,color:'var(--emerald)',marginBottom:4}}>Ready to close this year?</div>
+                <div style={{fontSize:12,color:'var(--mist2)',marginBottom:12}}>Archive all {activeYear} data and open a new academic year. All history is preserved.</div>
+                <Btn onClick={onStartNewYear} size='sm'>Start New Academic Year &rarr;</Btn>
+              </div>
+            )}
           </Card>
 
           {canAdmin && (
@@ -2340,7 +2380,7 @@ function Settings({profile,settings,setSettings,toast}) {
 }
 
 // ── CLASSES ────────────────────────────────────────────────────
-function Classes({profile,data,setData,toast}) {
+function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
   const {classes=[],subjects=[],students=[]} = data
   const [allUsers,setAllUsers] = useState([])
   const [selected,setSelected] = useState(null)
@@ -2390,10 +2430,18 @@ function Classes({profile,data,setData,toast}) {
     const toPromote  = promoStudents.filter(p=>p.action==='promote')
     const toRepeat   = promoStudents.filter(p=>p.action==='repeat')
     const toGraduate = promoStudents.filter(p=>p.action==='graduate')
+    // Write enrolment history for ALL students in source class before moving them
+    const enrolmentRows = promoStudents.map(p=>({
+      student_id: p.student.id,
+      class_id: promoSource,
+      academic_year: activeYear
+    }))
+    // Upsert — avoid duplicates
+    await supabase.from('student_year_enrolment').upsert(enrolmentRows, {onConflict:'student_id,academic_year'})
     for(const p of toPromote)
       await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id)
     for(const p of toGraduate)
-      await supabase.from('students').update({archived:true,class_id:null}).eq('id',p.student.id)
+      await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear}).eq('id',p.student.id)
     const promotedIds  = toPromote.map(p=>p.student.id)
     const graduatedIds = toGraduate.map(p=>p.student.id)
     const destMap      = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
@@ -2452,9 +2500,9 @@ function Classes({profile,data,setData,toast}) {
   return (
     <div>
       <PageHeader title='Classes & Subjects' sub={`${classes.length} classes . ${subjects.length} subjects`}>
-        {profile?.role==='superadmin' && <Btn variant='ghost' onClick={openPromo}>Promote Students</Btn>}
+        {profile?.role==='superadmin' && !isViewingPast && <Btn variant='ghost' onClick={openPromo}>Promote Students</Btn>}
         <Btn variant='ghost' onClick={()=>{setSubjectModal(true);setEditS(null);setSf({name:'',code:'',class_id:selected?.id||'',teacher_id:''})}}>+ Subject</Btn>
-        <Btn onClick={()=>{setClassModal(true);setEditC(null);setCf({name:'',class_teacher_id:''})}}>+ New Class</Btn>
+        {!isViewingPast && <Btn onClick={()=>{setClassModal(true);setEditC(null);setCf({name:'',class_teacher_id:''})}}>+ New Class</Btn>}
       </PageHeader>
       <div style={{display:'grid',gridTemplateColumns:selected?'260px 1fr':'repeat(auto-fill,minmax(260px,1fr))',gap:16}}>
         {selected ? (
@@ -2654,12 +2702,16 @@ export default function App() {
   const [session,setSession]   = useState(null)
   const [profile,setProfile]   = useState(null)
   const [settings,setSettings] = useState(null)
-  const [data,setData]         = useState({students:[],classes:[],subjects:[],grades:[],attendance:[],fees:[],behaviour:[],announcements:[]})
+  const [data,setData]         = useState({students:[],classes:[],subjects:[],grades:[],attendance:[],fees:[],behaviour:[],announcements:[],enrolments:[]})
   const [page,setPage]         = useState('dashboard')
   const [collapsed,setCollapsed] = useState(false)
   const [loading,setLoading]   = useState(true)
   const [toast,setToast]       = useState(null)
   const [drawerOpen,setDrawerOpen] = useState(false)
+  const [selectedYear,setSelectedYear] = useState(null) // null = current year
+  const [newYearModal,setNewYearModal] = useState(false)
+  const [newYearStep,setNewYearStep]   = useState(1)
+  const [newYearWorking,setNewYearWorking] = useState(false)
   const isMobile = useIsMobile()
 
   const showToast = useCallback((msg,type='success')=>{
@@ -2677,26 +2729,42 @@ export default function App() {
   // Close drawer on page change
   useEffect(()=>{ setDrawerOpen(false) },[page])
 
-  // Load profile + all data when session changes
+  // Load all data — re-runs when session or selectedYear changes
+  const loadData = useCallback(async (yr, prof, settingsRow) => {
+    const year = yr || currentYearFromSettings(settingsRow)
+    const [
+      {data:students},{data:classes},{data:subjects},
+      {data:grades},{data:attendance},{data:fees},
+      {data:behaviour},{data:announcements},{data:enrolments}
+    ] = await Promise.all([
+      supabase.from('students').select('*').order('student_id'),
+      supabase.from('classes').select('*').order('name'),
+      supabase.from('subjects').select('*').order('name'),
+      supabase.from('grades').select('*').eq('year',year),
+      supabase.from('attendance').select('*').eq('academic_year',year).order('date',{ascending:false}),
+      supabase.from('fees').select('*').or(`academic_year.eq.${year},arrear_from_year.eq.${year}`),
+      supabase.from('behaviour').select('*').eq('academic_year',year).order('created_at',{ascending:false}),
+      supabase.from('announcements').select('*').eq('academic_year',year).order('created_at',{ascending:false}),
+      supabase.from('student_year_enrolment').select('*').eq('academic_year',year),
+    ])
+    setData({
+      students:students||[], classes:classes||[], subjects:subjects||[],
+      grades:grades||[], attendance:attendance||[], fees:fees||[],
+      behaviour:behaviour||[], announcements:announcements||[], enrolments:enrolments||[]
+    })
+  },[])
+
+  // Load profile + settings first, then data
   useEffect(()=>{
     if(!session){setProfile(null);setLoading(false);return}
     setLoading(true)
     const loadAll = async ()=>{
-      const [{data:prof},{data:settingsRow},{data:students},{data:classes},{data:subjects},{data:grades},{data:attendance},{data:fees},{data:behaviour},{data:announcements}] = await Promise.all([
+      const [{data:prof},{data:settingsRow}] = await Promise.all([
         supabase.from('profiles').select('*').eq('id',session.user.id).single(),
         supabase.from('settings').select('*').single(),
-        supabase.from('students').select('*').order('student_id'),
-        supabase.from('classes').select('*').order('name'),
-        supabase.from('subjects').select('*').order('name'),
-        supabase.from('grades').select('*'),
-        supabase.from('attendance').select('*').order('date',{ascending:false}),
-        supabase.from('fees').select('*'),
-        supabase.from('behaviour').select('*').order('created_at',{ascending:false}),
-        supabase.from('announcements').select('*').order('created_at',{ascending:false}),
       ])
       setProfile(prof)
       setSettings(settingsRow)
-      setData({students:students||[],classes:classes||[],subjects:subjects||[],grades:grades||[],attendance:attendance||[],fees:fees||[],behaviour:behaviour||[],announcements:announcements||[]})
       if(!prof && session?.user) {
         const {data:newProf} = await supabase.from('profiles').upsert({
           id: session.user.id,
@@ -2707,17 +2775,110 @@ export default function App() {
         }).select().single()
         setProfile(newProf)
       }
+      await loadData(selectedYear, prof, settingsRow)
       setLoading(false)
     }
     loadAll()
   },[session])
 
+  // Reload data when year changes
+  useEffect(()=>{
+    if(!session||!settings) return
+    loadData(selectedYear, profile, settings)
+  },[selectedYear])
+
+  const [newYearTarget,setNewYearTarget] = useState('')
+
   const logout = async ()=>{ await supabase.auth.signOut(); setPage('dashboard') }
+
+  const confirmNewYear = async () => {
+    if(!newYearTarget) return
+    setNewYearWorking(true)
+    try {
+      // 1. Tag all untagged attendance with current year
+      await supabase.from('attendance')
+        .update({academic_year: activeYear})
+        .is('academic_year', null)
+
+      // 2. Tag all untagged fees with current year
+      await supabase.from('fees')
+        .update({academic_year: activeYear})
+        .is('academic_year', null)
+
+      // 3. Tag all untagged behaviour with current year
+      await supabase.from('behaviour')
+        .update({academic_year: activeYear})
+        .is('academic_year', null)
+
+      // 4. Tag all untagged announcements with current year
+      await supabase.from('announcements')
+        .update({academic_year: activeYear})
+        .is('academic_year', null)
+
+      // 5. Tag all untagged grades with current year
+      await supabase.from('grades')
+        .update({year: activeYear})
+        .is('year', null)
+
+      // 6. Write enrolment snapshot — every active student in their current class
+      const activeStudents = data.students.filter(s=>!s.archived && s.class_id)
+      if(activeStudents.length > 0) {
+        const enrolmentRows = activeStudents.map(s=>({
+          student_id: s.id,
+          class_id: s.class_id,
+          academic_year: activeYear
+        }))
+        // Delete existing enrolments for this year first to avoid duplicates
+        await supabase.from('student_year_enrolment')
+          .delete().eq('academic_year', activeYear)
+        await supabase.from('student_year_enrolment')
+          .insert(enrolmentRows)
+      }
+
+      // 7. Carry over outstanding fee balances as arrears
+      const outstanding = data.fees.filter(f=>Number(f.amount||0)-Number(f.paid||0)>0)
+      if(outstanding.length > 0) {
+        const arrearRows = outstanding.map(f=>({
+          student_id: f.student_id,
+          fee_type: f.fee_type + ' (Arrears from ' + activeYear + ')',
+          amount: Number(f.amount||0)-Number(f.paid||0),
+          paid: 0,
+          academic_year: newYearTarget,
+          is_arrear: true,
+          arrear_from_year: activeYear
+        }))
+        await supabase.from('fees').insert(arrearRows)
+      }
+
+      // 8. Set entry_year on students that don't have one
+      await supabase.from('students')
+        .update({entry_year: activeYear})
+        .is('entry_year', null)
+
+      // 9. Update settings to new year
+      await supabase.from('settings')
+        .update({academic_year: newYearTarget})
+        .eq('id', settings.id)
+
+      setSettings(p=>({...p, academic_year: newYearTarget}))
+      setSelectedYear(null) // switch to new current year
+      setNewYearModal(false)
+      setNewYearStep(1)
+      setNewYearTarget('')
+      showToast('New academic year ' + newYearTarget + ' started successfully.')
+    } catch(err) {
+      showToast('Error: ' + err.message, 'error')
+    }
+    setNewYearWorking(false)
+  }
 
   if(loading) return <><style>{G}</style><LoadingScreen msg={session?'Loading your workspace...':'Initialising...'}/></>
   if(!session||!profile) return <><style>{G}</style><Login onLogin={p=>setProfile(p)}/></>
 
-  const props = {profile,data,setData,toast:showToast,settings}
+  const currentYear = currentYearFromSettings(settings)
+  const activeYear  = selectedYear || currentYear
+  const isViewingPast = selectedYear && selectedYear !== currentYear
+  const props = {profile,data,setData,toast:showToast,settings,activeYear,isViewingPast,reloadData:()=>loadData(activeYear,profile,settings)}
 
   const renderPage = ()=>{
     switch(page){
@@ -2731,7 +2892,7 @@ export default function App() {
       case 'reports':      return <Reports      {...props}/>
       case 'announcements':return <Announcements {...props}/>
       case 'users':        return <Users        {...props}/>
-      case 'settings':     return <Settings     profile={profile} settings={settings} setSettings={setSettings} toast={showToast}/>
+      case 'settings':     return <Settings     profile={profile} settings={settings} setSettings={setSettings} toast={showToast} activeYear={activeYear} onStartNewYear={()=>setNewYearModal(true)}/>
       default:             return <Dashboard    {...props} onNav={setPage}/>
     }
   }
@@ -2757,10 +2918,18 @@ export default function App() {
             </div>
           ) : (
             <div style={{height:56,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px',borderBottom:'1px solid var(--line)',background:'var(--ink2)',flexShrink:0}}>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                 <span className='d' style={{fontSize:12,color:'var(--mist3)',fontWeight:500,letterSpacing:'0.06em'}}>{settings?.school_name||'SRMS'}</span>
                 <span style={{color:'var(--line2)'}}>.</span>
-                <span style={{fontSize:12,color:'var(--mist3)'}}>{settings?.academic_year||''}</span>
+                {profile?.role==='superadmin' ? (
+                  <select value={activeYear} onChange={e=>setSelectedYear(e.target.value===currentYear?null:e.target.value)}
+                    style={{background:'transparent',border:'none',color:isViewingPast?'var(--amber)':'var(--mist3)',fontSize:12,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif",padding:0}}>
+                    {generateYears(currentYear).map(y=><option key={y} value={y}>{y}{y===currentYear?' (current)':''}</option>)}
+                  </select>
+                ) : (
+                  <span style={{fontSize:12,color:'var(--mist3)'}}>{activeYear}</span>
+                )}
+                {isViewingPast && <span style={{fontSize:10,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:4,padding:'2px 8px',letterSpacing:'0.06em'}}>READ ONLY</span>}
               </div>
               <div style={{display:'flex',alignItems:'center',gap:16}}>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -2781,6 +2950,69 @@ export default function App() {
         </div>
       </div>
       {toast && <Toast msg={toast.msg} type={toast.type} isMobile={isMobile}/>}
+
+      {newYearModal && (
+        <Modal title='Start New Academic Year' subtitle={`Closing ${activeYear}`} onClose={()=>!newYearWorking&&setNewYearModal(false)} width={560}>
+          {newYearStep===1 && (
+            <div>
+              <p style={{fontSize:13,color:'var(--mist2)',marginBottom:20,lineHeight:1.7}}>
+                Starting a new academic year will archive all current data under <strong style={{color:'var(--gold)'}}>{activeYear}</strong> and open a fresh year. All previous data remains fully accessible by switching the year in the topbar.
+              </p>
+              <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:16,marginBottom:20}}>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12}}>What will happen</div>
+                {[
+                  ['Students','Active students carry over. Promoted/graduated students stay in their new class/archived status.'],
+                  ['Grades','All grades are saved under '+activeYear+'. New year starts with no grades.'],
+                  ['Attendance','All attendance saved under '+activeYear+'. New year starts fresh.'],
+                  ['Fees','Outstanding balances carry over as arrears. Paid fees archived under '+activeYear+'.'],
+                  ['Behaviour','Records carry over -- full history always visible.'],
+                  ['Announcements','Current announcements archived. New year starts clean.'],
+                ].map(([title,desc])=>(
+                  <div key={title} style={{display:'flex',gap:10,marginBottom:10}}>
+                    <div style={{width:6,height:6,borderRadius:'50%',background:'var(--emerald)',marginTop:5,flexShrink:0}}/>
+                    <div><strong style={{fontSize:13}}>{title}</strong><span style={{fontSize:12,color:'var(--mist2)',marginLeft:8}}>{desc}</span></div>
+                  </div>
+                ))}
+              </div>
+              <div style={{padding:'12px 16px',background:'rgba(240,107,122,0.06)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--mist2)',marginBottom:20}}>
+                (!) Make sure all promotions are complete before starting a new year. This cannot be undone.
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
+                <Btn variant='ghost' onClick={()=>setNewYearModal(false)}>Cancel</Btn>
+                <Btn onClick={()=>setNewYearStep(2)}>Continue &rarr;</Btn>
+              </div>
+            </div>
+          )}
+          {newYearStep===2 && (
+            <div>
+              <p style={{fontSize:13,color:'var(--mist2)',marginBottom:16,lineHeight:1.6}}>Select the new academic year to open:</p>
+              <Field label='New Academic Year' value={newYearTarget||''} onChange={v=>setNewYearTarget(v)}
+                options={generateYears(currentYear).filter(y=>y>currentYear).map(y=>({value:y,label:y}))}/>
+              <p style={{fontSize:12,color:'var(--mist3)',marginBottom:20}}>All existing data will be saved under <strong style={{color:'var(--gold)'}}>{activeYear}</strong>.</p>
+              <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
+                <Btn variant='ghost' onClick={()=>setNewYearStep(1)}>&larr; Back</Btn>
+                <Btn disabled={!newYearTarget} onClick={()=>setNewYearStep(3)}>Review &rarr;</Btn>
+              </div>
+            </div>
+          )}
+          {newYearStep===3 && (
+            <div>
+              <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:20,marginBottom:20,textAlign:'center'}}>
+                <div style={{fontSize:12,color:'var(--mist3)',marginBottom:8}}>Closing</div>
+                <div className='d' style={{fontSize:28,fontWeight:700,color:'var(--rose)',marginBottom:16}}>{activeYear}</div>
+                <div style={{fontSize:18,color:'var(--mist3)',marginBottom:8}}>Opening</div>
+                <div className='d' style={{fontSize:28,fontWeight:700,color:'var(--emerald)'}}>{newYearTarget}</div>
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
+                <Btn variant='ghost' onClick={()=>setNewYearStep(2)}>&larr; Back</Btn>
+                <Btn variant='danger' onClick={confirmNewYear} disabled={newYearWorking}>
+                  {newYearWorking?<><Spinner/> Processing...</>:'Confirm -- Start New Year'}
+                </Btn>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
     </>
   )
 }
