@@ -842,6 +842,7 @@ function Grades({profile,data,setData,toast,settings}) {
   const myGrades   = ['superadmin','admin'].includes(profile?.role) ? grades   : grades.filter(g=>mySubjects.some(s=>s.id===g.subject_id))
   const [fs,setFs] = useState('')
   const [fp,setFp] = useState('')
+  const [fy,setFy] = useState('')
   const [modal,setModal] = useState(false)
   const [edit,setEdit]   = useState(null)
   const [form,setForm]   = useState({})
@@ -850,7 +851,7 @@ function Grades({profile,data,setData,toast,settings}) {
   const periods = settings?.period_type==='term'
     ? Array.from({length:settings.period_count||2},(_,i)=>`Term ${i+1}`)
     : Array.from({length:settings.period_count||2},(_,i)=>`Semester ${i+1}`)
-  const filtered = myGrades.filter(g=>(!fs||g.subject_id===fs)&&(!fp||g.period===fp))
+  const filtered = myGrades.filter(g=>(!fs||g.subject_id===fs)&&(!fp||g.period===fp)&&(!fy||g.year===fy))
 
   const openAdd = () => {
     const emptyScores = ALL_COMPONENTS.reduce((acc,k)=>({...acc,[k]:''}),{})
@@ -907,6 +908,10 @@ function Grades({profile,data,setData,toast,settings}) {
           <select value={fp} onChange={e=>setFp(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Periods</option>
             {periods.map(p=><option key={p}>{p}</option>)}
+          </select>
+          <select value={fy} onChange={e=>setFy(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:140}}>
+            <option value=''>All Years</option>
+            {[...new Set(grades.map(g=>g.year).filter(Boolean))].sort().reverse().map(y=><option key={y}>{y}</option>)}
           </select>
         </div>
       </Card>
@@ -1408,6 +1413,7 @@ function Reports({data,settings}) {
   const [rtype,setRtype]         = useState('academic')
   const [fc,setFc]               = useState('')
   const [fp,setFp]               = useState('')
+  const [fy,setFy]               = useState('')
   const [studentSearch,setStudentSearch] = useState('')
   const [selectedStudent,setSelectedStudent] = useState(null)
   const [showDropdown,setShowDropdown]   = useState(false)
@@ -1441,7 +1447,7 @@ function Reports({data,settings}) {
 
   // ── Academic data ──
   const academicData = scopedStudents.map(s=>{
-    const sg = grades.filter(g=>g.student_id===s.id&&(!fp||g.period===fp))
+    const sg = grades.filter(g=>g.student_id===s.id&&(!fp||g.period===fp)&&(!fy||g.year===fy))
     // Per-subject scores
     const subjectScores = {}
     sg.forEach(g=>{ subjectScores[g.subject_id] = calcTotal(g,gradeComps) })
@@ -1724,6 +1730,10 @@ function Reports({data,settings}) {
           <Field label='Academic Year' value={pdfYear} onChange={setPdfYear} placeholder='e.g. 2024-2025'/>
           <Field label={`${periodLabel} / Period`} value={pdfPeriod} onChange={setPdfPeriod}
             options={[{value:'',label:'All Periods'},...periods.map(p=>({value:p,label:p}))]}/>
+          <select value={fy} onChange={e=>setFy(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:140}}>
+            <option value=''>All Years</option>
+            {[...new Set(grades.map(g=>g.year).filter(Boolean))].sort().reverse().map(y=><option key={y}>{y}</option>)}
+          </select>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:8}}>
             <Btn variant='ghost' onClick={()=>setPdfModal(false)}>Cancel</Btn>
             <Btn onClick={exportPDF} disabled={exporting}>{exporting?<><Spinner/> Generating…</>:'Generate PDF'}</Btn>
@@ -2334,10 +2344,68 @@ function Classes({profile,data,setData,toast}) {
   const [cf,setCf] = useState({})
   const [sf,setSf] = useState({})
   const [saving,setSaving] = useState(false)
+  // Promotion wizard
+  const [promoModal,setPromoModal] = useState(false)
+  const [promoStep,setPromoStep]   = useState(1)
+  const [promoSource,setPromoSource] = useState('')
+  const [promoDest,setPromoDest]   = useState('')
+  const [promoStudents,setPromoStudents] = useState([]) // [{student, destClass, include}]
+  const [promoting,setPromoting]   = useState(false)
   const fc = k=>v=>setCf(p=>({...p,[k]:v}))
   const fs = k=>v=>setSf(p=>({...p,[k]:v}))
   useEffect(()=>{ supabase.from('profiles').select('*').then(({data})=>{ if(data) setAllUsers(data) }) },[])
   const teachers = allUsers.filter(u=>u.role==='classteacher')
+
+  // Delete class — only if no students and no subjects
+  const deleteClass = async (cls)=>{
+    const hasStudents = students.some(s=>s.class_id===cls.id)
+    const hasSubjects = subjects.some(s=>s.class_id===cls.id)
+    if(hasStudents){ toast('Cannot delete — this class has students assigned to it.','error'); return }
+    if(hasSubjects){ toast('Cannot delete — this class has subjects. Remove them first.','error'); return }
+    if(!confirm(`Delete "${cls.name}"? This cannot be undone.`)) return
+    const {error} = await supabase.from('classes').delete().eq('id',cls.id)
+    if(error){ toast(error.message,'error'); return }
+    // Clear teacher's class_id if they were assigned to this class
+    if(cls.class_teacher_id)
+      await supabase.from('profiles').update({class_id:null}).eq('id',cls.class_teacher_id)
+    setData(p=>({...p,classes:p.classes.filter(c=>c.id!==cls.id)}))
+    if(selected?.id===cls.id) setSelected(null)
+    toast(`"${cls.name}" deleted.`)
+  }
+
+  // Promotion wizard helpers
+  const openPromo = ()=>{
+    setPromoStep(1); setPromoSource(''); setPromoDest('')
+    setPromoStudents([]); setPromoModal(true)
+  }
+  const buildPromoStudents = (srcId, dstId)=>{
+    const src = students.filter(s=>s.class_id===srcId)
+    setPromoStudents(src.map(s=>({student:s, destClassId:dstId, include:true})))
+  }
+  const confirmPromo = async ()=>{
+    setPromoting(true)
+    const toMove    = promoStudents.filter(p=>p.include)
+    const toRepeat  = promoStudents.filter(p=>!p.include)
+    // Move included students to their destination class
+    for(const p of toMove){
+      await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id)
+    }
+    // Carry over outstanding fees for moved students
+    // (fees stay linked to student_id — no action needed, they carry over automatically)
+    // Update local state
+    const movedIds  = toMove.map(p=>p.student.id)
+    const destMap   = Object.fromEntries(toMove.map(p=>[p.student.id, p.destClassId]))
+    setData(prev=>({...prev,
+      students: prev.students.map(s=>
+        movedIds.includes(s.id) ? {...s, class_id:destMap[s.id]} : s
+      )
+    }))
+    setPromoting(false)
+    setPromoModal(false)
+    const movedCount   = toMove.length
+    const repeatCount  = toRepeat.length
+    toast(`✓ ${movedCount} student${movedCount!==1?'s':''} promoted.${repeatCount>0?` ${repeatCount} staying back.`:''}`)
+  }
   const saveClass = async ()=>{
     if(!cf.name)return; setSaving(true)
     // Auto-capitalize each word e.g. "class 6a" → "Class 6A"
@@ -2385,6 +2453,7 @@ function Classes({profile,data,setData,toast}) {
   return (
     <div>
       <PageHeader title='Classes & Subjects' sub={`${classes.length} classes · ${subjects.length} subjects`}>
+        {profile?.role==='superadmin' && <Btn variant='ghost' onClick={openPromo}>⇑ Promote Students</Btn>}
         <Btn variant='ghost' onClick={()=>{setSubjectModal(true);setEditS(null);setSf({name:'',code:'',class_id:selected?.id||'',teacher_id:''})}}>+ Subject</Btn>
         <Btn onClick={()=>{setClassModal(true);setEditC(null);setCf({name:'',class_teacher_id:''})}}>+ New Class</Btn>
       </PageHeader>
@@ -2438,6 +2507,7 @@ function Classes({profile,data,setData,toast}) {
                 <div style={{display:'flex',gap:8}}>
                   <Btn variant='ghost' size='sm' onClick={()=>setSelected(null)}>← Back</Btn>
                   <Btn variant='secondary' size='sm' onClick={()=>{setEditC(selected);setCf({...selected,class_teacher_id:selected.class_teacher_id||''});setClassModal(true)}}>Edit</Btn>
+                  {profile?.role==='superadmin' && <Btn variant='danger' size='sm' onClick={()=>deleteClass(selected)}>Delete</Btn>}
                 </div>
               </div>
             </Card>
@@ -2475,6 +2545,116 @@ function Classes({profile,data,setData,toast}) {
             <Btn variant='ghost' onClick={()=>setSubjectModal(false)}>Cancel</Btn>
             <Btn onClick={saveSubject} disabled={saving}>{saving?<><Spinner/> Saving…</>:'Save Subject'}</Btn>
           </div>
+        </Modal>
+      )}
+
+      {/* ── PROMOTION WIZARD ── */}
+      {promoModal && (
+        <Modal title='Promote Students' subtitle={`Step ${promoStep} of 3`} onClose={()=>setPromoModal(false)} width={620}>
+          {/* STEP 1 — Select source and destination class */}
+          {promoStep===1 && (
+            <div>
+              <p style={{fontSize:13,color:'var(--mist2)',marginBottom:20,lineHeight:1.6}}>Select the class to promote from and the class students will move to. You can reassign individual students on the next step.</p>
+              <Field label='Promote FROM (current class)' value={promoSource} onChange={v=>{setPromoSource(v);setPromoDest('')}}
+                options={[{value:'',label:'Select a class…'},...classes.map(c=>({value:c.id,label:`${c.name} (${students.filter(s=>s.class_id===c.id).length} students)`}))]}/>
+              {promoSource && (
+                <Field label='Promote TO (destination class)' value={promoDest} onChange={setPromoDest}
+                  options={[{value:'',label:'Select destination…'},...classes.filter(c=>c.id!==promoSource).map(c=>({value:c.id,label:c.name}))]}/>
+              )}
+              {promoSource && students.filter(s=>s.class_id===promoSource).length===0 && (
+                <div style={{padding:'12px 16px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)',fontSize:13,color:'var(--rose)',marginTop:8}}>
+                  This class has no students to promote.
+                </div>
+              )}
+              <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:8}}>
+                <Btn variant='ghost' onClick={()=>setPromoModal(false)}>Cancel</Btn>
+                <Btn disabled={!promoSource||!promoDest||students.filter(s=>s.class_id===promoSource).length===0}
+                  onClick={()=>{buildPromoStudents(promoSource,promoDest);setPromoStep(2)}}>
+                  Next → Review Students
+                </Btn>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2 — Review student list: uncheck repeaters, reassign skippers */}
+          {promoStep===2 && (
+            <div>
+              <p style={{fontSize:13,color:'var(--mist2)',marginBottom:16,lineHeight:1.6}}>
+                Review each student. <strong style={{color:'var(--white)'}}>Uncheck</strong> any student who is repeating the year — they will stay in <strong style={{color:'var(--gold)'}}>{classes.find(c=>c.id===promoSource)?.name}</strong>. You can also send individual students to a different class.
+              </p>
+              <div style={{maxHeight:340,overflowY:'auto',display:'flex',flexDirection:'column',gap:6,marginBottom:16}}>
+                {promoStudents.map((p,i)=>(
+                  <div key={p.student.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${p.include?'var(--line)':'rgba(240,107,122,0.3)'}`}}>
+                    <input type='checkbox' checked={p.include} onChange={e=>{
+                      setPromoStudents(prev=>prev.map((x,j)=>j===i?{...x,include:e.target.checked}:x))
+                    }} style={{width:16,height:16,cursor:'pointer',accentColor:'var(--gold)'}}/>
+                    <Avatar name={`${p.student.first_name} ${p.student.last_name}`} size={28}/>
+                    <div style={{flex:1,fontSize:13,fontWeight:500}}>{p.student.first_name} {p.student.last_name}</div>
+                    {p.include && (
+                      <select value={p.destClassId} onChange={e=>{
+                        const v=e.target.value
+                        setPromoStudents(prev=>prev.map((x,j)=>j===i?{...x,destClassId:v}:x))
+                      }} style={{background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'5px 10px',color:'var(--mist)',fontSize:12,cursor:'pointer'}}>
+                        {classes.filter(c=>c.id!==promoSource).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    )}
+                    {!p.include && <span style={{fontSize:11,color:'var(--rose)',fontWeight:600}}>Repeating year</span>}
+                  </div>
+                ))}
+              </div>
+              <div style={{padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:16,fontSize:12,color:'var(--mist2)',display:'flex',gap:20}}>
+                <span style={{color:'var(--emerald)'}}>✓ {promoStudents.filter(p=>p.include).length} moving</span>
+                <span style={{color:'var(--rose)',marginLeft:16}}>✗ {promoStudents.filter(p=>!p.include).length} staying back</span>
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
+                <Btn variant='ghost' onClick={()=>setPromoStep(1)}>← Back</Btn>
+                <Btn disabled={promoStudents.filter(p=>p.include).length===0}
+                  onClick={()=>setPromoStep(3)}>
+                  Next → Preview & Confirm
+                </Btn>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3 — Preview and confirm */}
+          {promoStep===3 && (
+            <div>
+              <p style={{fontSize:13,color:'var(--mist2)',marginBottom:16,lineHeight:1.6}}>
+                Review what will happen then click <strong style={{color:'var(--white)'}}>Confirm Promotion</strong>. This cannot be undone.
+              </p>
+              <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:16,marginBottom:16}}>
+                <div style={{fontSize:12,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12}}>Summary</div>
+                <div style={{display:'flex',gap:24,flexWrap:'wrap',marginBottom:16}}>
+                  <div><div style={{fontSize:10,color:'var(--mist3)'}}>FROM</div><div style={{fontSize:14,fontWeight:600,color:'var(--gold)'}}>{classes.find(c=>c.id===promoSource)?.name}</div></div>
+                  <div style={{color:'var(--mist3)',alignSelf:'center',fontSize:18}}>→</div>
+                  <div><div style={{fontSize:10,color:'var(--mist3)'}}>DEFAULT TO</div><div style={{fontSize:14,fontWeight:600,color:'var(--emerald)'}}>{classes.find(c=>c.id===promoDest)?.name}</div></div>
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:240,overflowY:'auto'}}>
+                  {promoStudents.filter(p=>p.include).map(p=>(
+                    <div key={p.student.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'6px 0',borderBottom:'1px solid var(--line)'}}>
+                      <span style={{fontWeight:500}}>{p.student.first_name} {p.student.last_name}</span>
+                      <span style={{color:'var(--emerald)'}}>→ {classes.find(c=>c.id===p.destClassId)?.name}</span>
+                    </div>
+                  ))}
+                  {promoStudents.filter(p=>!p.include).map(p=>(
+                    <div key={p.student.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'6px 0',borderBottom:'1px solid var(--line)',opacity:0.5}}>
+                      <span style={{fontWeight:500}}>{p.student.first_name} {p.student.last_name}</span>
+                      <span style={{color:'var(--rose)'}}>Repeating — stays in {classes.find(c=>c.id===promoSource)?.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{padding:'10px 14px',background:'rgba(232,184,75,0.06)',border:'1px solid rgba(232,184,75,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--mist2)',marginBottom:16}}>
+                ⚠ Outstanding fee balances carry over automatically — they remain linked to each student.
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
+                <Btn variant='ghost' onClick={()=>setPromoStep(2)}>← Back</Btn>
+                <Btn onClick={confirmPromo} disabled={promoting}>
+                  {promoting?<><Spinner/> Promoting…</>:'✓ Confirm Promotion'}
+                </Btn>
+              </div>
+            </div>
+          )}
         </Modal>
       )}
     </div>
