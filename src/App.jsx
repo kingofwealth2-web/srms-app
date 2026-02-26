@@ -497,6 +497,11 @@ function Login({onLogin}) {
   const [password,setPassword] = useState('')
   const [error,setError]       = useState('')
   const [loading,setLoading]   = useState(false)
+  const [showTempCode,setShowTempCode] = useState(false)
+  const [tempEmail,setTempEmail]       = useState('')
+  const [tempCode,setTempCode]         = useState('')
+  const [tempError,setTempError]       = useState('')
+  const [tempLoading,setTempLoading]   = useState(false)
   const [schoolName,setSchoolName] = useState('Kandit Standard School')
   const [schoolLogo,setSchoolLogo] = useState(null)
   const [acadYear,setAcadYear]     = useState('2026–2027')
@@ -525,6 +530,26 @@ function Login({onLogin}) {
     }
     onLogin({...data.user,...profile})
     setLoading(false)
+  }
+
+  const attemptTempCode = async () => {
+    if(!tempEmail||!tempCode){setTempError('Please enter your email and temporary code.');return}
+    setTempLoading(true);setTempError('')
+    // Check the temp code against the profiles table first
+    const {data:prof} = await supabase.from('profiles').select('*').eq('email',tempEmail).single()
+    if(!prof){setTempError('No account found with that email.');setTempLoading(false);return}
+    if(!prof.must_change_password||!prof.temp_password){setTempError('No temporary code is set for this account. Contact your administrator.');setTempLoading(false);return}
+    if(prof.temp_password!==tempCode){setTempError('Incorrect temporary code. Please try again.');setTempLoading(false);return}
+    // Code matches — sign in using the temp code as the password (Edge Function set it as their real password)
+    const {data,error:err} = await supabase.auth.signInWithPassword({email:tempEmail, password:tempCode})
+    if(err){setTempError(err.message);setTempLoading(false);return}
+    if(prof.locked){
+      await supabase.auth.signOut()
+      setTempError('Your account has been locked. Please contact your administrator.')
+      setTempLoading(false);return
+    }
+    onLogin({...data.user,...prof})
+    setTempLoading(false)
   }
 
   const isMobile = useIsMobile()
@@ -567,6 +592,23 @@ function Login({onLogin}) {
               <strong style={{color:'var(--mist2)'}}>Contact your Super Admin</strong> for assistance.
             </p>
             <SuperAdminForgot/>
+            <div style={{marginTop:16,paddingTop:16,borderTop:'1px solid var(--line)'}}>
+              <button onClick={()=>{setShowTempCode(v=>!v);setTempError('');setTempCode('');setTempEmail(email)}}
+                style={{background:'none',border:'none',color:'var(--mist3)',fontSize:11,cursor:'pointer',textDecoration:'underline',textUnderlineOffset:3,fontFamily:"'Cabinet Grotesk',sans-serif"}}>
+                {showTempCode ? 'Cancel' : 'Have a temporary code?'}
+              </button>
+              {showTempCode && (
+                <div className='fi' style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:16,marginTop:12,textAlign:'left'}}>
+                  <div style={{fontSize:12,fontWeight:600,marginBottom:10,color:'var(--mist2)'}}>Sign in with temporary code</div>
+                  <Field label='Your Email' value={tempEmail} onChange={setTempEmail} type='email' placeholder='you@school.edu'/>
+                  <Field label='Temporary Code' value={tempCode} onChange={setTempCode} type='text' placeholder='Enter code from administrator'/>
+                  {tempError && <div style={{fontSize:12,color:'var(--rose)',marginBottom:8}}>{tempError}</div>}
+                  <Btn onClick={attemptTempCode} disabled={tempLoading} style={{width:'100%',justifyContent:'center'}}>
+                    {tempLoading?<><Spinner/> Verifying…</>:'Verify & Continue →'}
+                  </Btn>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -2226,9 +2268,26 @@ function Users({profile,toast}) {
   const confirmReset = async ()=>{
     if(!resetUser) return
     setSaving(true)
-    const {error} = await supabase.auth.admin?.updateUserById
-      ? await supabase.from('profiles').update({temp_password:tempPassword, must_change_password:true}).eq('id',resetUser.id)
-      : await supabase.from('profiles').update({temp_password:tempPassword, must_change_password:true}).eq('id',resetUser.id)
+    // Step 1: Call Edge Function to update the user's actual Supabase auth password to the temp code
+    try {
+      const res = await fetch('https://kfcqkgvuluftnwzeqzmw.supabase.co/functions/v1/reset-user-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({ userId: resetUser.id, tempPassword })
+      })
+      const result = await res.json()
+      if(!res.ok || result.error){ toast(result.error || 'Reset failed.', 'error'); setSaving(false); return }
+    } catch(err) {
+      toast('Could not reach reset service.', 'error'); setSaving(false); return
+    }
+    // Step 2: Save temp_password and must_change_password flag to profiles
+    const {error} = await supabase.from('profiles').update({
+      temp_password: tempPassword,
+      must_change_password: true
+    }).eq('id', resetUser.id)
     if(error){ toast(error.message,'error'); setSaving(false); return }
     setResetDone(true)
     setSaving(false)
