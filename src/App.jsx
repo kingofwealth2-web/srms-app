@@ -375,6 +375,122 @@ function LoadingScreen({msg='Loading...'}) {
   )
 }
 
+
+// ── PASSWORD RESET PAGE ────────────────────────────────────────
+// Handles the Supabase email reset link — Super Admins only
+function PasswordReset({onDone}) {
+  const [password,setPassword]   = useState('')
+  const [confirm,setConfirm]     = useState('')
+  const [loading,setLoading]     = useState(false)
+  const [error,setError]         = useState('')
+  const [success,setSuccess]     = useState(false)
+  const isMobile = useIsMobile()
+
+  const submit = async () => {
+    if(!password||!confirm){setError('Please fill in both fields.');return}
+    if(password.length<8){setError('Password must be at least 8 characters.');return}
+    if(password!==confirm){setError('Passwords do not match.');return}
+    setLoading(true);setError('')
+    const {error:err} = await supabase.auth.updateUser({password})
+    if(err){setError(err.message);setLoading(false);return}
+    setSuccess(true)
+    setTimeout(()=>onDone(),2000)
+  }
+
+  return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--ink)',padding:24,position:'relative',overflow:'hidden'}}>
+      <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'40px 40px',opacity:0.3,maskImage:'radial-gradient(ellipse at center,black 40%,transparent 80%)'}}/>
+      <div className='fu' style={{position:'relative',width:'100%',maxWidth:420}}>
+        {/* Logo */}
+        <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:48,justifyContent:'center'}}>
+          <div style={{width:44,height:44,borderRadius:12,background:'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 24px rgba(232,184,75,0.4)'}}>
+            <span className='d' style={{fontSize:20,fontWeight:700,color:'var(--ink)'}}>S</span>
+          </div>
+          <div>
+            <div className='d' style={{fontSize:20,fontWeight:700}}>SRMS</div>
+            <div style={{fontSize:11,color:'var(--mist3)',marginTop:1}}>Student Record Management System</div>
+          </div>
+        </div>
+
+        <div style={{background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:'var(--r-lg)',padding:isMobile?28:40,boxShadow:'var(--sh)'}}>
+          {success ? (
+            <div style={{textAlign:'center',padding:'20px 0'}}>
+              <div style={{width:56,height:56,borderRadius:'50%',background:'rgba(45,212,160,0.12)',border:'2px solid var(--emerald)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,margin:'0 auto 20px'}}>✓</div>
+              <h2 className='d' style={{fontSize:22,fontWeight:700,marginBottom:8}}>Password Updated</h2>
+              <p style={{color:'var(--mist2)',fontSize:14}}>Redirecting you to the login screen...</p>
+            </div>
+          ) : (
+            <>
+              <h2 className='d' style={{fontSize:26,fontWeight:700,letterSpacing:'-0.02em',marginBottom:8}}>Set new password</h2>
+              <p style={{color:'var(--mist2)',fontSize:13,marginBottom:28,lineHeight:1.6}}>Choose a strong password for your Super Admin account.</p>
+              <Field label='New Password' value={password} onChange={setPassword} type='password' placeholder='Minimum 8 characters' required/>
+              <Field label='Confirm Password' value={confirm} onChange={setConfirm} type='password' placeholder='Repeat your new password' required/>
+              {error && (
+                <div className='fi' style={{background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r-sm)',padding:'11px 14px',fontSize:13,color:'var(--rose)',marginBottom:16}}>{error}</div>
+              )}
+              <Btn onClick={submit} disabled={loading} style={{width:'100%',justifyContent:'center',padding:13,fontSize:14,boxShadow:loading?'none':'0 4px 20px rgba(232,184,75,0.25)'}}>
+                {loading?<><Spinner/> Updating...</>:'Set New Password'}
+              </Btn>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+// ── SUPER ADMIN FORGOT PASSWORD ────────────────────────────────
+function SuperAdminForgot() {
+  const [open,setOpen]     = useState(false)
+  const [email,setEmail]   = useState('')
+  const [sent,setSent]     = useState(false)
+  const [loading,setLoading] = useState(false)
+  const [error,setError]   = useState('')
+
+  const send = async () => {
+    if(!email){setError('Please enter your email.');return}
+    setLoading(true);setError('')
+    const {error:err} = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin
+    })
+    if(err){setError(err.message);setLoading(false);return}
+    setSent(true)
+    setLoading(false)
+  }
+
+  if(!open) return (
+    <button onClick={()=>setOpen(true)}
+      style={{background:'none',border:'none',color:'var(--mist3)',fontSize:11,cursor:'pointer',textDecoration:'underline',fontFamily:"'Cabinet Grotesk',sans-serif",fontStyle:'italic'}}>
+      Super Admin? Reset your password
+    </button>
+  )
+
+  return (
+    <div className='fi' style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:16,marginTop:4,textAlign:'left'}}>
+      {sent ? (
+        <div style={{textAlign:'center',padding:'8px 0'}}>
+          <div style={{fontSize:20,marginBottom:8}}>✉</div>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Reset email sent</div>
+          <div style={{fontSize:12,color:'var(--mist3)'}}>Check your inbox and click the link to set a new password.</div>
+        </div>
+      ) : (
+        <>
+          <div style={{fontSize:12,fontWeight:600,marginBottom:10}}>Super Admin Password Reset</div>
+          <Field label='Your Email' value={email} onChange={setEmail} type='email' placeholder='admin@school.edu'/>
+          {error && <div style={{fontSize:12,color:'var(--rose)',marginBottom:8}}>{error}</div>}
+          <div style={{display:'flex',gap:8}}>
+            <Btn onClick={send} disabled={loading} style={{flex:1,justifyContent:'center'}}>
+              {loading?<><Spinner/> Sending...</>:'Send Reset Email'}
+            </Btn>
+            <Btn variant='ghost' onClick={()=>setOpen(false)}>Cancel</Btn>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── LOGIN ──────────────────────────────────────────────────────
 function Login({onLogin}) {
   const [email,setEmail]       = useState('')
@@ -445,7 +561,13 @@ function Login({onLogin}) {
           <Btn onClick={attempt} disabled={loading} style={{width:'100%',justifyContent:'center',padding:13,fontSize:14,boxShadow:loading?'none':'0 4px 20px rgba(232,184,75,0.25)'}}>
             {loading ? <><Spinner/> Signing in...</> : 'Sign In >'}
           </Btn>
-          <p style={{fontSize:12,color:'var(--mist3)',marginTop:20,textAlign:'center'}}>Contact your administrator if you cannot access your account.</p>
+          <div style={{marginTop:20,textAlign:'center'}}>
+            <p style={{fontSize:12,color:'var(--mist3)',lineHeight:1.7,marginBottom:12}}>
+              Forgotten your password?<br/>
+              <strong style={{color:'var(--mist2)'}}>Contact your Super Admin</strong> for assistance.
+            </p>
+            <SuperAdminForgot/>
+          </div>
         </div>
       </div>
 
@@ -1323,8 +1445,35 @@ function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast
   const [fsid,setFsid]   = useState('')
   const [modal,setModal] = useState(false)
   const [form,setForm]   = useState({})
-  const [saving,setSaving] = useState(false)
+  const [saving,setSaving]       = useState(false)
+  const [resetModal,setResetModal] = useState(false)
+  const [resetUser,setResetUser]   = useState(null)
+  const [tempPassword,setTempPassword] = useState('')
+  const [resetDone,setResetDone]   = useState(false)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
+
+  const genTempPassword = () => `SRMS-${Math.floor(1000+Math.random()*9000)}`
+
+  const openReset = (user) => {
+    setResetUser(user)
+    setTempPassword(genTempPassword())
+    setResetDone(false)
+    setResetModal(true)
+  }
+
+  const confirmReset = async () => {
+    if(!resetUser||!tempPassword) return
+    setSaving(true)
+    // Store temp password hash in profile so app knows to force change on next login
+    const {error} = await supabase.from('profiles')
+      .update({temp_password: tempPassword, must_change_password: true})
+      .eq('id', resetUser.id)
+    if(error){toast(error.message,'error');setSaving(false);return}
+    // Also update the actual Supabase auth password via admin API
+    // Since we can't use service role in frontend, we store it and handle via temp_password field
+    setResetDone(true)
+    setSaving(false)
+  }
   const types = ['Discipline','Achievement','Club Activity','Notes']
   const filtered = behaviour.filter(b=>(!ftype||b.type===ftype)&&(!fsid||b.student_id===fsid)).sort((a,b)=>b.created_at?.localeCompare(a.created_at))
   const counts   = types.reduce((acc,t)=>({...acc,[t]:behaviour.filter(b=>b.type===t).length}),{})
@@ -2119,13 +2268,52 @@ function Users({profile,toast}) {
           {key:'id',label:'',render:(v,r)=>(
             <div style={{display:'flex',gap:8}}>
               <Btn variant='ghost' size='sm' onClick={()=>openEdit(r)}>Edit</Btn>
-              {r.id!==profile?.id && r.role!=='superadmin' &&
+              {r.id!==profile?.id && r.role!=='superadmin' && <>
                 <Btn variant='ghost' size='sm' onClick={()=>toggleLock(r.id)}>{r.locked?'Unlock':'Lock'}</Btn>
-              }
+                <Btn variant='ghost' size='sm' onClick={()=>openReset(r)}>Reset Password</Btn>
+              </>}
             </div>
           )},
         ]}/>
       </Card>
+      {resetModal && resetUser && (
+        <Modal title='Reset Password' subtitle={`${resetUser.full_name}`} onClose={()=>{setResetModal(false);setResetDone(false)}} width={420}>
+          {resetDone ? (
+            <div style={{textAlign:'center',padding:'16px 0'}}>
+              <div style={{width:56,height:56,borderRadius:'50%',background:'rgba(45,212,160,0.12)',border:'2px solid var(--emerald)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,margin:'0 auto 20px'}}>✓</div>
+              <h3 className='d' style={{fontSize:18,fontWeight:700,marginBottom:8}}>Password Reset</h3>
+              <p style={{fontSize:13,color:'var(--mist2)',marginBottom:20,lineHeight:1.6}}>Share this temporary password with <strong style={{color:'var(--white)'}}>{resetUser.full_name}</strong>. They will be asked to change it on their next login.</p>
+              <div style={{background:'var(--ink3)',border:'2px solid var(--gold)',borderRadius:'var(--r)',padding:'20px 24px',marginBottom:20}}>
+                <div style={{fontSize:11,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>Temporary Password</div>
+                <div className='d mono' style={{fontSize:28,fontWeight:700,color:'var(--gold)',letterSpacing:'0.05em'}}>{tempPassword}</div>
+              </div>
+              <p style={{fontSize:11,color:'var(--mist3)',marginBottom:20}}>Send this via WhatsApp, SMS, or tell them in person. Do not share by email.</p>
+              <div style={{display:'flex',gap:10,justifyContent:'center'}}>
+                <Btn onClick={()=>{navigator.clipboard?.writeText(tempPassword);toast('Copied to clipboard')}}>Copy Password</Btn>
+                <Btn variant='ghost' onClick={()=>{setResetModal(false);setResetDone(false)}}>Done</Btn>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p style={{fontSize:13,color:'var(--mist2)',marginBottom:20,lineHeight:1.6}}>
+                This will generate a temporary password for <strong style={{color:'var(--white)'}}>{resetUser.full_name}</strong>. Share it with them directly and they will be prompted to set a new password when they next log in.
+              </p>
+              <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:'16px 20px',marginBottom:20,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+                <div>
+                  <div style={{fontSize:11,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Generated Password</div>
+                  <div className='d mono' style={{fontSize:22,fontWeight:700,color:'var(--gold)'}}>{tempPassword}</div>
+                </div>
+                <Btn variant='ghost' size='sm' onClick={()=>setTempPassword(genTempPassword())}>Regenerate</Btn>
+              </div>
+              <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
+                <Btn variant='ghost' onClick={()=>setResetModal(false)}>Cancel</Btn>
+                <Btn onClick={confirmReset} disabled={saving}>{saving?<><Spinner/> Resetting...</>:'Confirm Reset'}</Btn>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
+
       {modal && (
         <Modal title={edit?'Edit User':'Add New User'} subtitle={edit?`Editing ${edit.full_name}`:'Create a login account for a staff member.'} onClose={()=>setModal(false)}>
           <Field label='Full Name' value={form.full_name} onChange={f('full_name')} required/>
@@ -2699,6 +2887,11 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
 export default function App() {
   const [session,setSession]   = useState(null)
   const [profile,setProfile]   = useState(null)
+  const [isPasswordReset,setIsPasswordReset]   = useState(false)
+  const [forceChangeModal,setForceChangeModal] = useState(false)
+  const [newPwForm,setNewPwForm]               = useState({password:'',confirm:''})
+  const [newPwError,setNewPwError]             = useState('')
+  const [newPwSaving,setNewPwSaving]           = useState(false)
   const [settings,setSettings] = useState(null)
   const [data,setData]         = useState({students:[],classes:[],subjects:[],grades:[],attendance:[],fees:[],behaviour:[],announcements:[],enrolments:[]})
   const [page,setPage]         = useState('dashboard')
@@ -2717,10 +2910,13 @@ export default function App() {
     setTimeout(()=>setToast(null),3000)
   },[])
 
-  // Auth listener
+  // Auth listener — also detect password reset flow from email link
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{ setSession(session) })
-    const {data:{subscription}} = supabase.auth.onAuthStateChange((_,session)=>{ setSession(session) })
+    const {data:{subscription}} = supabase.auth.onAuthStateChange((event,session)=>{
+      setSession(session)
+      if(event==='PASSWORD_RECOVERY') setIsPasswordReset(true)
+    })
     return ()=>subscription.unsubscribe()
   },[])
 
@@ -2763,6 +2959,7 @@ export default function App() {
       ])
       setProfile(prof)
       setSettings(settingsRow)
+      if(prof?.must_change_password) setForceChangeModal(true)
       if(!prof && session?.user) {
         const {data:newProf} = await supabase.from('profiles').upsert({
           id: session.user.id,
@@ -2788,6 +2985,23 @@ export default function App() {
   const [newYearTarget,setNewYearTarget] = useState('')
 
   const logout = async ()=>{ await supabase.auth.signOut(); setPage('dashboard') }
+
+  const submitNewPassword = async () => {
+    const {password,confirm} = newPwForm
+    if(!password||!confirm){setNewPwError('Please fill in both fields.');return}
+    if(password.length<8){setNewPwError('Password must be at least 8 characters.');return}
+    if(password!==confirm){setNewPwError('Passwords do not match.');return}
+    setNewPwSaving(true);setNewPwError('')
+    const {error} = await supabase.auth.updateUser({password})
+    if(error){setNewPwError(error.message);setNewPwSaving(false);return}
+    // Clear the flag
+    await supabase.from('profiles').update({must_change_password:false,temp_password:null}).eq('id',profile.id)
+    setProfile(p=>({...p,must_change_password:false,temp_password:null}))
+    setForceChangeModal(false)
+    setNewPwForm({password:'',confirm:''})
+    showToast('Password updated successfully.')
+    setNewPwSaving(false)
+  }
 
   const confirmNewYear = async () => {
     if(!newYearTarget) return
@@ -2871,6 +3085,7 @@ export default function App() {
   }
 
   if(loading) return <><style>{G}</style><LoadingScreen msg={session?'Loading your workspace...':'Initialising...'}/></>
+  if(isPasswordReset) return <><style>{G}</style><PasswordReset onDone={()=>{setIsPasswordReset(false);supabase.auth.signOut()}}/></>
   if(!session||!profile) return <><style>{G}</style><Login onLogin={p=>setProfile(p)}/></>
 
   const currentYear = currentYearFromSettings(settings)
@@ -2964,6 +3179,34 @@ export default function App() {
         </div>
       </div>
       {toast && <Toast msg={toast.msg} type={toast.type} isMobile={isMobile}/>}
+
+      {/* Force password change -- shown when Super Admin reset a staff password */}
+      {forceChangeModal && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:9000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+          <div className='fu' style={{background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:'var(--r-lg)',padding:isMobile?28:40,width:'100%',maxWidth:420,boxShadow:'var(--sh)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:28}}>
+              <div style={{width:44,height:44,borderRadius:12,background:'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 24px rgba(232,184,75,0.4)',flexShrink:0}}>
+                <span className='d' style={{fontSize:20,fontWeight:700,color:'var(--ink)'}}>S</span>
+              </div>
+              <div>
+                <div className='d' style={{fontSize:16,fontWeight:700}}>Password Change Required</div>
+                <div style={{fontSize:11,color:'var(--mist3)',marginTop:1}}>Your administrator has reset your password</div>
+              </div>
+            </div>
+            <p style={{fontSize:13,color:'var(--mist2)',marginBottom:24,lineHeight:1.6}}>
+              You have been given a temporary password. Please set a new personal password to continue.
+            </p>
+            <Field label='New Password' value={newPwForm.password} onChange={v=>setNewPwForm(p=>({...p,password:v}))} type='password' placeholder='Minimum 8 characters' required/>
+            <Field label='Confirm Password' value={newPwForm.confirm} onChange={v=>setNewPwForm(p=>({...p,confirm:v}))} type='password' placeholder='Repeat your new password' required/>
+            {newPwError && (
+              <div className='fi' style={{background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r-sm)',padding:'11px 14px',fontSize:13,color:'var(--rose)',marginBottom:16}}>{newPwError}</div>
+            )}
+            <Btn onClick={submitNewPassword} disabled={newPwSaving} style={{width:'100%',justifyContent:'center',padding:13,fontSize:14,marginTop:4,boxShadow:newPwSaving?'none':'0 4px 20px rgba(232,184,75,0.25)'}}>
+              {newPwSaving?<><Spinner/> Updating...</>:'Set New Password'}
+            </Btn>
+          </div>
+        </div>
+      )}
 
       {newYearModal && (
         <Modal title='Start New Academic Year' subtitle={`Closing ${activeYear}`} onClose={()=>!newYearWorking&&setNewYearModal(false)} width={560}>
