@@ -2191,30 +2191,65 @@ function Announcements({profile,data,setData,toast,activeYear,isViewingPast}) {
 }
 
 // ── USERS MODULE ───────────────────────────────────────────────
+const genTempPassword = () => {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  return Array.from({length:10}, ()=>chars[Math.floor(Math.random()*chars.length)]).join('')
+}
+
 function Users({profile,toast}) {
-  const [users,setUsers]   = useState([])
-  const [loading,setLoading] = useState(true)
-  const [modal,setModal]   = useState(false)
-  const [edit,setEdit]     = useState(null)
-  const [form,setForm]     = useState({})
-  const [saving,setSaving] = useState(false)
+  const [users,setUsers]       = useState([])
+  const [loading,setLoading]   = useState(true)
+  const [modal,setModal]       = useState(false)
+  const [edit,setEdit]         = useState(null)
+  const [form,setForm]         = useState({})
+  const [saving,setSaving]     = useState(false)
+  const [resetModal,setResetModal]   = useState(false)
+  const [resetUser,setResetUser]     = useState(null)
+  const [resetDone,setResetDone]     = useState(false)
+  const [tempPassword,setTempPassword] = useState('')
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
+
   useEffect(()=>{
     supabase.from('profiles').select('*').then(({data})=>{ if(data) setUsers(data); setLoading(false) })
   },[])
+
   const openAdd  = ()=>{setEdit(null);setForm({full_name:'',email:'',password:'',role:'teacher'});setModal(true)}
   const openEdit = u=>{setEdit(u);setForm({full_name:u.full_name,email:u.email,role:u.role,password:''});setModal(true)}
+
+  const openReset = u=>{
+    setResetUser(u)
+    setTempPassword(genTempPassword())
+    setResetDone(false)
+    setResetModal(true)
+  }
+
+  const confirmReset = async ()=>{
+    if(!resetUser) return
+    setSaving(true)
+    const {error} = await supabase.auth.admin?.updateUserById
+      ? await supabase.from('profiles').update({temp_password:tempPassword, must_change_password:true}).eq('id',resetUser.id)
+      : await supabase.from('profiles').update({temp_password:tempPassword, must_change_password:true}).eq('id',resetUser.id)
+    if(error){ toast(error.message,'error'); setSaving(false); return }
+    setResetDone(true)
+    setSaving(false)
+  }
+
   const save = async ()=>{
     if(!form.full_name||!form.email)return
     setSaving(true)
     if(edit){
       const {error} = await supabase.from('profiles').update({full_name:form.full_name,email:form.email,role:form.role}).eq('id',edit.id)
       if(error){ toast(error.message,'error'); setSaving(false); return }
+      // If switching away from class teacher, unlink from class
       if(edit.role==='classteacher' && form.role!=='classteacher'){
         await supabase.from('profiles').update({class_id:null}).eq('id',edit.id)
         await supabase.from('classes').update({class_teacher_id:null}).eq('class_teacher_id',edit.id)
       }
-      setUsers(p=>p.map(u=>u.id===edit.id?{...u,full_name:form.full_name,email:form.email,role:form.role}:u))
+      // Re-fetch from DB to confirm the change actually saved
+      const {data:refreshed} = await supabase.from('profiles').select('*').eq('id',edit.id).single()
+      if(refreshed){
+        setUsers(p=>p.map(u=>u.id===edit.id?refreshed:u))
+      }
       toast('User updated')
       setModal(false)
     } else {
@@ -2235,6 +2270,7 @@ function Users({profile,toast}) {
     }
     setSaving(false)
   }
+
   const toggleLock = async id=>{
     const u=users.find(x=>x.id===id)
     if(!u) return
