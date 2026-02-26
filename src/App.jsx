@@ -808,7 +808,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
         </div>
       </Card>
       <Card>
-        <DataTable onRow={canEdit?openEdit:null} data={filtered} columns={[
+        <DataTable onRow={canEdit&&!isViewingPast?openEdit:null} data={filtered} columns={[
           {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
           {key:'first_name',label:'Student',render:(v,r)=>(
             <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -820,7 +820,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
           {key:'gender',label:'Gender'},
           {key:'dob',label:'Date of Birth',render:v=>fmtDate(v)},
           {key:'medical_info',label:'Medical',render:v=>v&&v!=='None'?<Badge color='var(--rose)'>{v}</Badge>:<span style={{color:'var(--mist3)'}}>None</span>},
-          canEdit?{key:'id',label:'',render:(v,r)=>(
+          canEdit&&!isViewingPast?{key:'id',label:'',render:(v,r)=>(
             <div style={{display:'flex',gap:6}} onClick={e=>e.stopPropagation()}>
               <Btn variant='ghost' size='sm' onClick={()=>openEdit(r)}>Edit</Btn>
               <Btn variant='danger' size='sm' onClick={()=>del(r.id)}>Remove</Btn>
@@ -873,7 +873,6 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
   const myGrades   = ['superadmin','admin'].includes(profile?.role) ? grades   : grades.filter(g=>mySubjects.some(s=>s.id===g.subject_id))
   const [fs,setFs] = useState('')
   const [fp,setFp] = useState('')
-  const [fy,setFy] = useState('')
   const [modal,setModal] = useState(false)
   const [edit,setEdit]   = useState(null)
   const [form,setForm]   = useState({})
@@ -882,7 +881,7 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
   const periods = settings?.period_type==='term'
     ? Array.from({length:settings.period_count||2},(_,i)=>`Term ${i+1}`)
     : Array.from({length:settings.period_count||2},(_,i)=>`Semester ${i+1}`)
-  const filtered = myGrades.filter(g=>(!fs||g.subject_id===fs)&&(!fp||g.period===fp)&&(!fy||g.year===fy))
+  const filtered = myGrades.filter(g=>(!fs||g.subject_id===fs)&&(!fp||g.period===fp))
 
   const openAdd = () => {
     const emptyScores = ALL_COMPONENTS.reduce((acc,k)=>({...acc,[k]:''}),{})
@@ -925,9 +924,11 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
   return (
     <div>
       <PageHeader title='Grades & Records' sub={`${filtered.length} grade records`}>
-        {activeComps.length===0
-          ? <span style={{fontSize:12,color:'var(--rose)',padding:'8px 16px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)'}}>(!) No grade components active. Configure in Settings.</span>
-          : <Btn onClick={openAdd}>+ Record Grades</Btn>
+        {isViewingPast
+          ? <span style={{fontSize:12,color:'var(--amber)',padding:'8px 16px',background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r-sm)'}}>Read only -- viewing {activeYear}</span>
+          : activeComps.length===0
+            ? <span style={{fontSize:12,color:'var(--rose)',padding:'8px 16px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)'}}>(!) No grade components active. Configure in Settings.</span>
+            : <Btn onClick={openAdd}>+ Record Grades</Btn>
         }
       </PageHeader>
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
@@ -940,14 +941,11 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
             <option value=''>All Periods</option>
             {periods.map(p=><option key={p}>{p}</option>)}
           </select>
-          <select value={fy} onChange={e=>setFy(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:140}}>
-            <option value=''>All Years</option>
-            {[...new Set(grades.map(g=>g.year).filter(Boolean))].sort().reverse().map(y=><option key={y}>{y}</option>)}
-          </select>
+
         </div>
       </Card>
       <Card>
-        <DataTable onRow={openEdit} data={filtered} columns={[
+        <DataTable onRow={isViewingPast?null:openEdit} data={filtered} columns={[
           {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?(<div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${s.first_name} ${s.last_name}`} size={28}/><span style={{fontWeight:600}}>{s.first_name} {s.last_name}</span></div>):'--'}},
           {key:'subject_id',label:'Subject',render:v=>subjects.find(s=>s.id===v)?.name||'--'},
           {key:'period',label:'Period'},
@@ -1279,13 +1277,13 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
       <Card>
         <DataTable data={filtered} columns={[
           {key:'student_name',label:'Student',render:(v,r)=>{const s=students.find(x=>x.id===r.student_id);return(<div style={{display:'flex',alignItems:'center',gap:10}}>{s&&<Avatar name={v} size={28}/>}<span style={{fontWeight:600}}>{v}</span></div>)}},
-          {key:'fee_type',label:'Fee Type'},
+          {key:'fee_type',label:'Fee Type',render:(v,r)=>(<div style={{display:'flex',gap:6,alignItems:'center'}}><span>{v}</span>{r.is_arrear&&<Badge color='var(--amber)' bg='rgba(251,159,58,0.1)'>Arrear from {r.arrear_from_year}</Badge>}</div>)},
           {key:'amount', label:'Amount',  render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
           {key:'paid',   label:'Paid',    render:v=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
           {key:'balance',label:'Balance', render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
           {key:'status', label:'Status',  render:v=><Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>},
           {key:'receipt_no',label:'Receipt',render:v=>v?<span className='mono' style={{fontSize:12,color:'var(--mist2)'}}>{v}</span>:'--'},
-          {key:'id',label:'',render:(_,r)=>r.balance>0?<Btn size='sm' onClick={()=>openPay(r)}>Record Payment</Btn>:<Badge color='var(--emerald)'>Paid</Badge>},
+          {key:'id',label:'',render:(_,r)=>isViewingPast?null:r.balance>0?<Btn size='sm' onClick={()=>openPay(r)}>Record Payment</Btn>:<Badge color='var(--emerald)'>Paid</Badge>},
         ]}/>
       </Card>
       {modal && (
@@ -1348,7 +1346,7 @@ function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast
   return (
     <div>
       <PageHeader title='Behaviour & Extracurricular' sub='Discipline, achievements and co-curricular records'>
-        <Btn onClick={openAdd}>+ Add Record</Btn>
+        {!isViewingPast && <Btn onClick={openAdd}>+ Add Record</Btn>}
       </PageHeader>
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
         {types.map((t,i)=>{
@@ -1399,9 +1397,9 @@ function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast
                       Recorded by {b.recorded_by_name} . {fmtDate(b.date||b.created_at)}
                     </div>
                   </div>
-                  <button onClick={()=>del(b.id)} style={{background:'none',color:'var(--mist3)',fontSize:16,padding:'4px 8px',borderRadius:4,cursor:'pointer',transition:'all 0.15s'}}
+                  {!isViewingPast && <button onClick={()=>del(b.id)} style={{background:'none',color:'var(--mist3)',fontSize:16,padding:'4px 8px',borderRadius:4,cursor:'pointer',transition:'all 0.15s'}}
                     onMouseEnter={e=>{e.currentTarget.style.color='var(--rose)';e.currentTarget.style.background='rgba(240,107,122,0.1)'}}
-                    onMouseLeave={e=>{e.currentTarget.style.color='var(--mist3)';e.currentTarget.style.background='none'}}>×</button>
+                    onMouseLeave={e=>{e.currentTarget.style.color='var(--mist3)';e.currentTarget.style.background='none'}}>×</button>}
                 </div>
               </div>
             </div>
@@ -1444,7 +1442,7 @@ function Reports({data,settings,activeYear,isViewingPast}) {
   const [rtype,setRtype]         = useState('academic')
   const [fc,setFc]               = useState('')
   const [fp,setFp]               = useState('')
-  const [fy,setFy]               = useState('')
+  // Year is controlled globally via activeYear prop (topbar switcher)
   const [studentSearch,setStudentSearch] = useState('')
   const [selectedStudent,setSelectedStudent] = useState(null)
   const [showDropdown,setShowDropdown]   = useState(false)
@@ -1482,7 +1480,7 @@ function Reports({data,settings,activeYear,isViewingPast}) {
 
   // ── Academic data ──
   const academicData = scopedStudents.map(s=>{
-    const sg = grades.filter(g=>g.student_id===s.id&&(!fp||g.period===fp)&&(!fy||g.year===fy))
+    const sg = grades.filter(g=>g.student_id===s.id&&(!fp||g.period===fp))
     // Per-subject scores
     const subjectScores = {}
     sg.forEach(g=>{ subjectScores[g.subject_id] = calcTotal(g,gradeComps) })
@@ -1527,14 +1525,14 @@ function Reports({data,settings,activeYear,isViewingPast}) {
 
   // ── Attendance data ──
   const attData = scopedStudents.map(s=>{
-    const sa=attendance.filter(a=>a.student_id===s.id&&(!fy||a.date?.slice(0,4)===fy.slice(0,4)))
+    const sa=attendance.filter(a=>a.student_id===s.id)
     const pres=sa.filter(a=>a.status==='Present').length
     return{...s,total:sa.length,present:pres,absent:sa.filter(a=>a.status==='Absent').length,late:sa.filter(a=>a.status==='Late').length,excused:sa.filter(a=>a.status==='Excused').length,rate:sa.length?Math.round(pres/sa.length*100):null}
   })
 
   // ── Fee data ──
   const feeData = scopedStudents.map(s=>{
-    const sf=fees.filter(f=>f.student_id===s.id&&(!fy||f.due_date?.slice(0,4)===fy.slice(0,4)||f.created_at?.slice(0,4)===fy.slice(0,4)))
+    const sf=fees.filter(f=>f.student_id===s.id)
     const owed=sf.reduce((a,f)=>a+Number(f.amount||0),0)
     const paid=sf.reduce((a,f)=>a+Number(f.paid||0),0)
     return{...s,owed,paid,balance:owed-paid,feeStatus:owed===0?'--':paid>=owed?'Paid':paid>0?'Partial':'Outstanding'}
@@ -1836,15 +1834,11 @@ function Reports({data,settings,activeYear,isViewingPast}) {
               {periods.map(p=><option key={p}>{p}</option>)}
             </select>
           )}
-          <select value={fy} onChange={e=>setFy(e.target.value)}
-            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:140}}>
-            <option value=''>All Years</option>
-            {[...new Set([
-              ...grades.map(g=>g.year),
-              ...attendance.map(a=>a.date?.slice(0,4)),
-              ...fees.map(f=>f.due_date?.slice(0,4)||f.created_at?.slice(0,4))
-            ].filter(Boolean))].sort().reverse().map(y=><option key={y}>{y}</option>)}
-          </select>
+          <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)'}}>
+            <span style={{fontSize:11,color:'var(--mist3)'}}>Year:</span>
+            <span style={{fontSize:13,fontWeight:600,color:'var(--gold)'}}>{activeYear}</span>
+            {isViewingPast && <span style={{fontSize:10,color:'var(--amber)'}}>Switch year in topbar</span>}
+          </div>
         </div>
 
         {/* Active scope indicators */}
@@ -2006,7 +2000,7 @@ function Announcements({profile,data,setData,toast,activeYear,isViewingPast}) {
   return (
     <div>
       <PageHeader title='Announcements' sub={`${announcements.filter(a=>a.active).length} active`}>
-        {canManage && <Btn onClick={openAdd}>+ Post Announcement</Btn>}
+        {canManage && !isViewingPast && <Btn onClick={openAdd}>+ Post Announcement</Btn>}
       </PageHeader>
       {visible.length===0 && <Card style={{textAlign:'center',padding:60}}><div style={{fontSize:32,marginBottom:12}}>◯</div><div style={{fontWeight:600,marginBottom:6}}>No announcements</div><div style={{color:'var(--mist3)',fontSize:13,marginBottom:20}}>Nothing posted yet.</div>{canManage&&<Btn onClick={openAdd}>Post First Announcement</Btn>}</Card>}
       <div style={{display:'flex',flexDirection:'column',gap:12}}>
@@ -2022,7 +2016,7 @@ function Announcements({profile,data,setData,toast,activeYear,isViewingPast}) {
                 <p style={{fontSize:13,color:'var(--mist2)',lineHeight:1.7}}>{a.body}</p>
                 <div style={{fontSize:11,color:'var(--mist3)',marginTop:12}}>Posted by <strong style={{color:'var(--mist2)'}}>{a.posted_by_name}</strong> . {fmtDate(a.created_at)}</div>
               </div>
-              {canManage && (
+              {canManage && !isViewingPast && (
                 <div style={{display:'flex',gap:8,flexShrink:0}}>
                   <Btn variant='ghost' size='sm' onClick={()=>toggle(a.id)}>{a.active?'Deactivate':'Activate'}</Btn>
                   <Btn variant='danger' size='sm' onClick={()=>del(a.id)}>Delete</Btn>
