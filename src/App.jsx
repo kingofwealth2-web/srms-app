@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabase.js'
 
 /* ═══════════════════════════════════════════════════════════════
-   SRMS Premium — Fully wired to Supabase
-   Auth · Real-time data · Role-based access
+   SRMS Premium -- Fully wired to Supabase
+   Auth . Real-time data . Role-based access
 ═══════════════════════════════════════════════════════════════ */
 
 const G = `
@@ -81,7 +81,7 @@ const calcTotal = (g, gradeComponents) => {
 }
 const getLetter = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.letter; return 'F' }
 const getGPA    = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.gpa;    return 0   }
-const fmtDate   = d => d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'
+const fmtDate   = d => d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '--'
 const CURRENCIES = [
   {code:'GHS',symbol:'₵', name:'Ghanaian Cedi',    position:'before', decimals:2},
   {code:'USD',symbol:'$', name:'US Dollar',         position:'before', decimals:2},
@@ -152,7 +152,7 @@ const NAV_ITEMS = {
 const NAV_META = {
   dashboard:    {icon:'▦', label:'Dashboard'},
   students:     {icon:'◈', label:'Students'},
-  classes:      {icon:'⊟', label:'Classes'},
+  classes:      {icon:'[=]', label:'Classes'},
   grades:       {icon:'◎', label:'Grades'},
   attendance:   {icon:'◉', label:'Attendance'},
   fees:         {icon:'◈', label:'Fees'},
@@ -204,7 +204,7 @@ function Field({label,value,onChange,type='text',placeholder,options,required,ro
       {label && <label style={{display:'block',fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>{label}{required&&<span style={{color:'var(--gold)',marginLeft:3}}>*</span>}</label>}
       {options ? (
         <select value={value||''} onChange={e=>onChange(e.target.value)} onFocus={()=>setFoc(true)} onBlur={()=>setFoc(false)} style={{...base,...fs,cursor:'pointer'}}>
-          <option value=''>— Select —</option>
+          <option value=''>-- Select --</option>
           {options.map(o=><option key={o.value??o} value={o.value??o}>{o.label??o}</option>)}
         </select>
       ) : rows ? (
@@ -323,7 +323,7 @@ function DataTable({columns,data,onRow}) {
               onMouseLeave={e=>{e.currentTarget.style.background='transparent'}}>
               {columns.map(c=>(
                 <td key={c.key} style={{padding:'13px 16px',fontSize:13,color:'var(--white)',verticalAlign:'middle'}}>
-                  {c.render ? c.render(row[c.key],row) : (row[c.key]??'—')}
+                  {c.render ? c.render(row[c.key],row) : (row[c.key]??'--')}
                 </td>
               ))}
             </tr>
@@ -348,7 +348,7 @@ function Toast({msg,type='success',isMobile}) {
 }
 
 // ── LOADING SCREEN ─────────────────────────────────────────────
-function LoadingScreen({msg='Loading…'}) {
+function LoadingScreen({msg='Loading...'}) {
   return (
     <div style={{height:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,background:'var(--ink)'}}>
       <div style={{width:44,height:44,borderRadius:12,background:'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 24px rgba(232,184,75,0.4)'}}>
@@ -387,7 +387,6 @@ function Login({onLogin}) {
     if(err){setError(err.message);setLoading(false);return}
     // fetch profile
     const {data:profile} = await supabase.from('profiles').select('*').eq('id',data.user.id).single()
-    // Block locked accounts — sign them out immediately and show a clear message
     if(profile?.locked){
       await supabase.auth.signOut()
       setError('Your account has been locked. Please contact your administrator.')
@@ -408,7 +407,7 @@ function Login({onLogin}) {
 
   return (
     <div style={{minHeight:'100vh',display:'flex',background:'var(--ink)',position:'relative',overflow:'hidden'}}>
-      {/* Left — login form */}
+      {/* Left -- login form */}
       <div
         style={{flex: isMobile ? '1' : '0 0 520px',display:'flex',flexDirection:'column',justifyContent:'center',padding: isMobile ? '40px 28px' : '60px',position:'relative',zIndex:1,minHeight:'100vh'}}
         onKeyDown={e=>{if(e.key==='Enter')attempt()}}
@@ -427,16 +426,16 @@ function Login({onLogin}) {
           <h1 className='d' style={{fontSize:38,fontWeight:700,letterSpacing:'-0.03em',lineHeight:1.1,marginBottom:12}}>Welcome<br/>back.</h1>
           <p style={{color:'var(--mist2)',fontSize:14,marginBottom:40,lineHeight:1.6}}>Sign in to access your dashboard<br/>and manage student records.</p>
           <Field label='Email Address' value={email} onChange={setEmail} type='email' placeholder='you@school.edu' required/>
-          <Field label='Password' value={password} onChange={setPassword} type='password' placeholder='••••••••' required/>
+          <Field label='Password' value={password} onChange={setPassword} type='password' placeholder='********' required/>
           {error && <div className='fi' style={{background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r-sm)',padding:'11px 14px',fontSize:13,color:'var(--rose)',marginBottom:16}}>{error}</div>}
           <Btn onClick={attempt} disabled={loading} style={{width:'100%',justifyContent:'center',padding:13,fontSize:14,boxShadow:loading?'none':'0 4px 20px rgba(232,184,75,0.25)'}}>
-            {loading ? <><Spinner/> Signing in…</> : 'Sign In →'}
+            {loading ? <><Spinner/> Signing in...</> : 'Sign In >'}
           </Btn>
           <p style={{fontSize:12,color:'var(--mist3)',marginTop:20,textAlign:'center'}}>Contact your administrator if you cannot access your account.</p>
         </div>
       </div>
 
-      {/* Right — branding panel — hidden on mobile */}
+      {/* Right -- branding panel -- hidden on mobile */}
       {!isMobile && <div style={{flex:1,background:'var(--ink2)',borderLeft:'1px solid var(--line)',display:'flex',alignItems:'center',justifyContent:'center',padding:'40px 80px',position:'relative',overflow:'hidden',minHeight:'100vh'}}>
         {/* Grid background */}
         <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'60px 60px',opacity:0.35}}/>
@@ -444,7 +443,7 @@ function Login({onLogin}) {
 
         <div className='fu fu2' style={{position:'relative',textAlign:'center',maxWidth:400,width:'100%'}}>
 
-          {/* School logo — only shown if uploaded */}
+          {/* School logo -- only shown if uploaded */}
           {schoolLogo && (
             <div style={{display:'flex',justifyContent:'center',marginBottom:20}}>
               <div style={{width:80,height:80,borderRadius:'50%',border:'2px solid rgba(232,184,75,0.4)',boxShadow:'0 0 32px rgba(232,184,75,0.2)',overflow:'hidden',background:'var(--ink)',display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -465,7 +464,7 @@ function Login({onLogin}) {
             </div>
           </div>
 
-          {/* School name — live from settings */}
+          {/* School name -- live from settings */}
           <div className='d' style={{fontSize:11,fontWeight:600,color:'var(--gold)',textTransform:'uppercase',letterSpacing:'0.18em',marginBottom:10}}>{schoolName}</div>
           <h2 className='d' style={{fontSize:28,fontWeight:700,letterSpacing:'-0.02em',lineHeight:1.15,marginBottom:10}}>Student Record<br/>Management System</h2>
           <p style={{fontSize:13,color:'var(--mist3)',marginBottom:44,lineHeight:1.6}}>Empowering education through<br/>smart, secure record keeping.</p>
@@ -488,8 +487,8 @@ function Login({onLogin}) {
             ))}
           </div>
 
-          {/* Version + academic year — live from settings */}
-          <div style={{marginTop:36,fontSize:11,color:'var(--mist3)',letterSpacing:'0.05em'}}>v1.0.0 · Academic Year {acadYear}</div>
+          {/* Version + academic year -- live from settings */}
+          <div style={{marginTop:36,fontSize:11,color:'var(--mist3)',letterSpacing:'0.05em'}}>v1.0.0 . Academic Year {acadYear}</div>
           <div style={{marginTop:10,fontSize:11,color:'var(--mist3)',letterSpacing:'0.06em'}}>Built by <span style={{color:'var(--gold)',fontWeight:600,letterSpacing:'0.12em'}}>ZELVA STUDIOS</span></div>
         </div>
       </div>}
@@ -641,39 +640,37 @@ function Dashboard({profile,data,settings,onNav}) {
   const myClassPresent   = myClassAtt.filter(a=>a.status==='Present').length
   const myClassAttRate   = myClassAtt.length ? Math.round(myClassPresent/myClassAtt.length*100) : 0
 
-  // Classes with no teacher assigned — live check for superadmin
   const unassignedClasses = profile?.role==='superadmin'
     ? classes.filter(c=>!c.class_teacher_id)
     : []
 
   return (
     <div>
-      {/* Superadmin warning — classes with no teacher */}
       {profile?.role==='superadmin' && unassignedClasses.length>0 && (
-        <div className='fu' style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
+        <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
           {unassignedClasses.map(cls=>(
             <div key={cls.id} style={{background:'rgba(240,107,122,0.06)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r)',padding:'14px 20px',display:'flex',alignItems:'center',gap:14}}>
-              <div style={{width:36,height:36,borderRadius:'50%',background:'rgba(240,107,122,0.12)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>⚠</div>
+              <div style={{width:36,height:36,borderRadius:'50%',background:'rgba(240,107,122,0.12)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>(!)</div>
               <div style={{flex:1}}>
                 <div style={{fontWeight:600,fontSize:14,color:'var(--rose)'}}>No Teacher Assigned</div>
                 <div style={{fontSize:12,color:'var(--mist2)',marginTop:2}}><strong>{cls.name}</strong> has no class teacher. Assign one to restore full functionality.</div>
               </div>
-              <Btn size='sm' onClick={()=>onNav('classes')}>Assign Teacher →</Btn>
+              <Btn size='sm' onClick={()=>onNav('classes')}>Assign Teacher &rarr;</Btn>
             </div>
           ))}
         </div>
       )}
       {profile?.role==='classteacher' && !todayMarked && (
         <div className='fu' style={{background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.25)',borderRadius:'var(--r)',padding:'14px 20px',marginBottom:24,display:'flex',alignItems:'center',gap:14}}>
-          <div style={{width:36,height:36,borderRadius:'50%',background:'rgba(251,159,58,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>⚠</div>
+          <div style={{width:36,height:36,borderRadius:'50%',background:'rgba(251,159,58,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>(!)</div>
           <div style={{flex:1}}>
             <div style={{fontWeight:600,fontSize:14,color:'var(--amber)'}}>Attendance Not Marked Today</div>
-            <div style={{fontSize:12,color:'var(--mist2)',marginTop:2}}>{myClass?.name} · {fmtDate(today)}</div>
+            <div style={{fontSize:12,color:'var(--mist2)',marginTop:2}}>{myClass?.name} . {fmtDate(today)}</div>
           </div>
-          <Btn size='sm' onClick={()=>onNav('attendance')}>Mark Now →</Btn>
+          <Btn size='sm' onClick={()=>onNav('attendance')}>Mark Now &rarr;</Btn>
         </div>
       )}
-      <PageHeader title={`Good ${new Date().getHours()<12?'morning':'afternoon'}, ${profile?.full_name?.split(' ')[0]||'there'}.`} sub={`${settings?.school_name||'SRMS'} · ${settings?.academic_year||''}`}/>
+      <PageHeader title={`Good ${new Date().getHours()<12?'morning':'afternoon'}, ${profile?.full_name?.split(' ')[0]||'there'}.`} sub={`${settings?.school_name||'SRMS'} . ${settings?.academic_year||''}`}/>
       <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12,marginBottom: isMobile?20:28}}>
         {isAdmin && <>
           <KPI label='Total Students'   value={students.length}      color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
@@ -682,9 +679,9 @@ function Dashboard({profile,data,settings,onNav}) {
           <KPI label='Fee Collection'   value={`${totalFees?Math.round(totalPaid/totalFees*100):0}%`} color='var(--amber)' sub={`${fmtMoney(totalPaid,currency)} collected`} index={3}/>
         </>}
         {profile?.role==='classteacher' && <>
-          <KPI label='My Class'         value={myClass?.name||'—'}   color='var(--gold)'    sub='Your assigned class' index={0}/>
+          <KPI label='My Class'         value={myClass?.name||'--'}   color='var(--gold)'    sub='Your assigned class' index={0}/>
           <KPI label='Students'         value={myClassStudents.length} color='var(--sky)'   sub='In your class' index={1}/>
-          <KPI label='Attendance Rate'  value={myClassAtt.length?`${myClassAttRate}%`:'—'} color='var(--emerald)' sub={todayMarked?'Today marked':'Not marked today'} index={2}/>
+          <KPI label='Attendance Rate'  value={myClassAtt.length?`${myClassAttRate}%`:'--'} color='var(--emerald)' sub={todayMarked?'Today marked':'Not marked today'} index={2}/>
           <KPI label='Pass Rate'        value={`${passRate}%`}       color='var(--amber)'   sub='This semester' index={3}/>
         </>}
         {profile?.role==='teacher' && <>
@@ -705,17 +702,17 @@ function Dashboard({profile,data,settings,onNav}) {
               <div>
                 <div style={{fontWeight:600,fontSize:13,marginBottom:5}}>{a.title}</div>
                 <div style={{fontSize:12,color:'var(--mist2)',lineHeight:1.5}}>{a.body}</div>
-                <div style={{fontSize:11,color:'var(--mist3)',marginTop:8}}>Posted by {a.posted_by_name} · {fmtDate(a.created_at)}</div>
+                <div style={{fontSize:11,color:'var(--mist3)',marginTop:8}}>Posted by {a.posted_by_name} . {fmtDate(a.created_at)}</div>
               </div>
               <div style={{fontSize:11,color:'var(--mist3)',whiteSpace:'nowrap'}}>{fmtDate(a.created_at)}</div>
             </div>
           </div>
         ))}
-        <Btn variant='ghost' size='sm' onClick={()=>onNav('announcements')} style={{marginTop:4}}>View all →</Btn>
+        <Btn variant='ghost' size='sm' onClick={()=>onNav('announcements')} style={{marginTop:4}}>View all &rarr;</Btn>
       </Card>
       <div style={{marginTop:40,paddingTop:20,borderTop:'1px solid var(--line)',textAlign:'center'}}>
         <div style={{fontSize:12,color:'var(--mist3)'}}>Designed &amp; developed by <span style={{color:'var(--white)',fontWeight:600}}>Prince William Kofi Anquandah</span></div>
-        <div style={{fontSize:11,color:'var(--mist3)',marginTop:5,letterSpacing:'0.08em'}}><span style={{color:'var(--gold)',fontWeight:600,letterSpacing:'0.12em'}}>ZELVA STUDIOS</span> · {new Date().getFullYear()}</div>
+        <div style={{fontSize:11,color:'var(--mist3)',marginTop:5,letterSpacing:'0.08em'}}><span style={{color:'var(--gold)',fontWeight:600,letterSpacing:'0.12em'}}>ZELVA STUDIOS</span> . {new Date().getFullYear()}</div>
       </div>
     </div>
   )
@@ -730,9 +727,13 @@ function Students({profile,data,setData,toast,settings}) {
   const [edit,setEdit]     = useState(null)
   const [form,setForm]     = useState({})
   const [saving,setSaving] = useState(false)
+  const [showArchived,setShowArchived] = useState(false)
   const f = k => v => setForm(p=>({...p,[k]:v}))
   const canEdit = ['superadmin','admin'].includes(profile?.role)
-  const visible = profile?.role==='classteacher' ? students.filter(s=>s.class_id===profile.class_id) : students
+  const activeStudents   = students.filter(s=>!s.archived)
+  const archivedStudents = students.filter(s=>s.archived)
+  const pool   = showArchived ? archivedStudents : (profile?.role==='classteacher' ? activeStudents.filter(s=>s.class_id===profile.class_id) : activeStudents)
+  const visible = pool
   const filtered = visible.filter(s=>{
     const q=search.toLowerCase()
     return (`${s.first_name} ${s.last_name} ${s.student_id}`).toLowerCase().includes(q) && (!fc||s.class_id===fc)
@@ -761,16 +762,21 @@ function Students({profile,data,setData,toast,settings}) {
   }
   return (
     <div>
-      <PageHeader title='Students' sub={`${filtered.length} of ${visible.length} students`}>
-        {canEdit && <Btn onClick={openAdd}>+ New Student</Btn>}
+      <PageHeader title={showArchived?'Archived Students':'Students'} sub={showArchived?`${archivedStudents.length} archived`:`${filtered.length} of ${activeStudents.length} students`}>
+        {canEdit && !showArchived && <Btn onClick={openAdd}>+ New Student</Btn>}
+        {profile?.role==='superadmin' && (
+          <Btn variant='ghost' onClick={()=>{setShowArchived(v=>!v);setSearch('');setFc('')}}>
+            {showArchived?'Back to Students':'⊡ Archives'}
+          </Btn>
+        )}
       </PageHeader>
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
           <div style={{position:'relative',flex:'1 1 240px'}}>
             <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:14}}>⌕</span>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search by name or ID…' style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search by name or ID...' style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
           </div>
-          {canEdit && <select value={fc} onChange={e=>setFc(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
+          {canEdit && !showArchived && <select value={fc} onChange={e=>setFc(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Classes</option>
             {classes.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
           </select>}
@@ -782,10 +788,10 @@ function Students({profile,data,setData,toast,settings}) {
           {key:'first_name',label:'Student',render:(v,r)=>(
             <div style={{display:'flex',alignItems:'center',gap:10}}>
               <Avatar name={`${r.first_name} ${r.last_name}`} size={30}/>
-              <div><div style={{fontWeight:600}}>{r.first_name} {r.last_name}</div><div style={{fontSize:11,color:'var(--mist3)'}}>{r.email||'—'}</div></div>
+              <div><div style={{fontWeight:600}}>{r.first_name} {r.last_name}</div><div style={{fontSize:11,color:'var(--mist3)'}}>{r.email||'--'}</div></div>
             </div>
           )},
-          {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'—'},
+          {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
           {key:'gender',label:'Gender'},
           {key:'dob',label:'Date of Birth',render:v=>fmtDate(v)},
           {key:'medical_info',label:'Medical',render:v=>v&&v!=='None'?<Badge color='var(--rose)'>{v}</Badge>:<span style={{color:'var(--mist3)'}}>None</span>},
@@ -809,7 +815,7 @@ function Students({profile,data,setData,toast,settings}) {
             <Field label='Email' value={form.email} onChange={f('email')} type='email'/>
             <Field label='Address' value={form.address} onChange={f('address')}/>
           </div>
-          <Field label='Medical Information' value={form.medical_info} onChange={f('medical_info')} placeholder='Known conditions, allergies…'/>
+          <Field label='Medical Information' value={form.medical_info} onChange={f('medical_info')} placeholder='Known conditions, allergies...'/>
           <div style={{margin:'16px 0 10px',paddingTop:16,borderTop:'1px solid var(--line)'}}>
             <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12,display:'flex',alignItems:'center',gap:8}}>
               <span>Parent / Guardian</span>
@@ -824,7 +830,7 @@ function Students({profile,data,setData,toast,settings}) {
           </div>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
-            <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving…</>:'Save Student'}</Btn>
+            <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save Student'}</Btn>
           </div>
         </Modal>
       )}
@@ -895,7 +901,7 @@ function Grades({profile,data,setData,toast,settings}) {
     <div>
       <PageHeader title='Grades & Records' sub={`${filtered.length} grade records`}>
         {activeComps.length===0
-          ? <span style={{fontSize:12,color:'var(--rose)',padding:'8px 16px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)'}}>⚠ No grade components active. Configure in Settings.</span>
+          ? <span style={{fontSize:12,color:'var(--rose)',padding:'8px 16px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)'}}>(!) No grade components active. Configure in Settings.</span>
           : <Btn onClick={openAdd}>+ Record Grades</Btn>
         }
       </PageHeader>
@@ -917,8 +923,8 @@ function Grades({profile,data,setData,toast,settings}) {
       </Card>
       <Card>
         <DataTable onRow={openEdit} data={filtered} columns={[
-          {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?(<div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${s.first_name} ${s.last_name}`} size={28}/><span style={{fontWeight:600}}>{s.first_name} {s.last_name}</span></div>):'—'}},
-          {key:'subject_id',label:'Subject',render:v=>subjects.find(s=>s.id===v)?.name||'—'},
+          {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?(<div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${s.first_name} ${s.last_name}`} size={28}/><span style={{fontWeight:600}}>{s.first_name} {s.last_name}</span></div>):'--'}},
+          {key:'subject_id',label:'Subject',render:v=>subjects.find(s=>s.id===v)?.name||'--'},
           {key:'period',label:'Period'},
           ...tableComps.map(c=>({
             key:c.key,
@@ -940,11 +946,11 @@ function Grades({profile,data,setData,toast,settings}) {
             <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={students.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name}`}))}/>
             <Field label='Subject' value={form.subject_id} onChange={f('subject_id')} required options={mySubjects.map(s=>({value:s.id,label:s.name}))}/>
             <Field label='Period'        value={form.period} onChange={f('period')} options={periods}/>
-            <Field label='Academic Year' value={form.year}   onChange={f('year')}/>
+            <div style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Academic Year</div><div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>{form.year||settings?.academic_year||'--'}</div></div>
           </div>
           <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:18,marginBottom:16}}>
             <SectionTitle>Score Entry</SectionTitle>
-            {/* Active components — editable */}
+            {/* Active components -- editable */}
             {activeComps.length>0 && (
               <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(activeComps.length,4)},1fr)`,gap:'8px 12px',marginBottom:12}}>
                 {activeComps.map(c=>(
@@ -952,7 +958,7 @@ function Grades({profile,data,setData,toast,settings}) {
                 ))}
               </div>
             )}
-            {/* Disabled components with existing scores — read-only */}
+            {/* Disabled components with existing scores -- read-only */}
             {edit && allComps.filter(c=>!c.enabled&&+form[c.key]>0).length>0 && (
               <div style={{marginTop:8,padding:'10px 14px',background:'var(--ink4)',borderRadius:'var(--r-sm)',border:'1px solid var(--line)'}}>
                 <div style={{fontSize:10,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Archived scores (component disabled)</div>
@@ -985,7 +991,7 @@ function Grades({profile,data,setData,toast,settings}) {
           </div>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
-            <Btn onClick={save} disabled={saving||activeComps.length===0}>{saving?<><Spinner/> Saving…</>:'Save Grade'}</Btn>
+            <Btn onClick={save} disabled={saving||activeComps.length===0}>{saving?<><Spinner/> Saving...</>:'Save Grade'}</Btn>
           </div>
         </Modal>
       )}
@@ -1040,7 +1046,7 @@ function Attendance({profile,data,setData,toast}) {
       const allMarks = classStudents
         .map(s=>({student_id:s.id,class_id:cid,date,status:getStatus(s.id)||null,marked_by:profile?.id}))
         .filter(m=>m.status)
-      if(allMarks.length===0){toast('No students marked — nothing to save','error');setSaving(false);return}
+      if(allMarks.length===0){toast('No students marked -- nothing to save','error');setSaving(false);return}
       const {error:delErr} = await supabase.from('attendance').delete().eq('class_id',cid).eq('date',date)
       if(delErr) throw delErr
       const {data:rows,error:insErr} = await supabase.from('attendance').insert(allMarks).select()
@@ -1048,7 +1054,7 @@ function Attendance({profile,data,setData,toast}) {
       setData(p=>({...p,attendance:[...p.attendance.filter(a=>!(a.class_id===cid&&a.date===date)),...(rows||[])]}))
       setPendingMarks({})
       setHasUnsaved(false)
-      toast(`Attendance saved — ${allMarks.length} student${allMarks.length!==1?'s':''} recorded ✓`)
+      toast(`Attendance saved -- ${allMarks.length} student${allMarks.length!==1?'s':''} recorded done`)
     } catch(err) {
       toast(`Save failed: ${err.message}. Please try again.`,'error')
     }
@@ -1095,20 +1101,20 @@ function Attendance({profile,data,setData,toast}) {
             <>
               {!hasUnsaved && alreadyMarkedToday && (
                 <div className='fi' style={{background:'rgba(45,212,160,0.06)',border:'1px solid rgba(45,212,160,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
-                  <span style={{fontSize:16}}>✓</span>
+                  <span style={{fontSize:16}}>done</span>
                   <span style={{fontSize:13,color:'var(--emerald)'}}>Attendance already marked for today. You can still edit and save again.</span>
                 </div>
               )}
               {!hasUnsaved && !alreadyMarkedToday && savedRecs.length===0 && date===today && (
                 <div className='fi' style={{background:'rgba(251,159,58,0.06)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
-                  <span style={{fontSize:16}}>⚠</span>
+                  <span style={{fontSize:16}}>(!)</span>
                   <span style={{fontSize:13,color:'var(--amber)'}}>Attendance has not been marked yet today for <strong>{cls.name}</strong>.</span>
                 </div>
               )}
               {hasUnsaved && unmarkedCount>0 && (
                 <div className='fi' style={{background:'rgba(240,107,122,0.06)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
                   <span style={{fontSize:16,color:'var(--rose)'}}>●</span>
-                  <span style={{fontSize:13,color:'var(--rose)'}}><strong>{unmarkedCount} student{unmarkedCount!==1?'s':''}</strong> not yet marked — they won't be recorded.</span>
+                  <span style={{fontSize:13,color:'var(--rose)'}}><strong>{unmarkedCount} student{unmarkedCount!==1?'s':''}</strong> not yet marked -- they won't be recorded.</span>
                 </div>
               )}
               <Card>
@@ -1156,12 +1162,12 @@ function Attendance({profile,data,setData,toast}) {
               <div style={{position:'sticky',bottom:0,marginTop:16,background:'var(--ink2)',border:'1px solid var(--line)',borderTop:`2px solid ${hasUnsaved?'var(--gold)':'var(--line)'}`,borderRadius:'var(--r)',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,boxShadow:'0 -8px 32px rgba(0,0,0,0.4)'}}>
                 <div style={{fontSize:13}}>
                   {hasUnsaved
-                    ? <><span style={{fontWeight:600,color:'var(--amber)'}}>⚠ Unsaved changes</span><span style={{color:'var(--mist2)'}}> — click Save to record attendance</span></>
-                    : <span style={{color:'var(--mist3)'}}>✓ All changes saved</span>
+                    ? <><span style={{fontWeight:600,color:'var(--amber)'}}>(!) Unsaved changes</span><span style={{color:'var(--mist2)'}}> -- click Save to record attendance</span></>
+                    : <span style={{color:'var(--mist3)'}}>All changes saved</span>
                   }
                 </div>
                 <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{minWidth:160,justifyContent:'center',boxShadow:hasUnsaved?'0 4px 20px rgba(232,184,75,0.25)':'none'}}>
-                  {saving?<><Spinner/> Saving…</>:(unmarkedCount>0?`Save Attendance (${unmarkedCount} unmarked)`:'Save Attendance')}
+                  {saving?<><Spinner/> Saving...</>:(unmarkedCount>0?`Save Attendance (${unmarkedCount} unmarked)`:'Save Attendance')}
                 </Btn>
               </div>
             </>
@@ -1171,8 +1177,8 @@ function Attendance({profile,data,setData,toast}) {
         <Card>
           <DataTable data={histRecs.slice(0,100)} columns={[
             {key:'date',label:'Date',render:v=>fmtDate(v)},
-            {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'—'},
-            {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?`${s.first_name} ${s.last_name}`:'—'}},
+            {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
+            {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?`${s.first_name} ${s.last_name}`:'--'}},
             {key:'status',label:'Status',render:v=><Badge color={STATUS_META[v]?.color} bg={STATUS_META[v]?.bg}>{v}</Badge>},
           ]}/>
         </Card>
@@ -1199,7 +1205,7 @@ function Fees({profile,data,setData,toast,settings}) {
     const s=students.find(x=>x.id===fee.student_id)
     const bal=Number(fee.amount||0)-Number(fee.paid||0)
     const status=bal<=0?'Paid':fee.paid>0?'Partial':'Outstanding'
-    return{...fee,student_name:s?`${s.first_name} ${s.last_name}`:'—',balance:bal,status}
+    return{...fee,student_name:s?`${s.first_name} ${s.last_name}`:'--',balance:bal,status}
   })
   const filtered = enriched.filter(f=>f.student_name.toLowerCase().includes(search.toLowerCase())&&(!fstatus||f.status===fstatus))
   const totalOwed = fees.reduce((s,f)=>s+Number(f.amount||0),0)
@@ -1237,7 +1243,7 @@ function Fees({profile,data,setData,toast,settings}) {
         <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
           <div style={{position:'relative',flex:'1 1 200px'}}>
             <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:14}}>⌕</span>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search student…' style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search student...' style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
           </div>
           <select value={fstatus} onChange={e=>setFstatus(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Status</option>
@@ -1253,8 +1259,8 @@ function Fees({profile,data,setData,toast,settings}) {
           {key:'paid',   label:'Paid',    render:v=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
           {key:'balance',label:'Balance', render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
           {key:'status', label:'Status',  render:v=><Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>},
-          {key:'receipt_no',label:'Receipt',render:v=>v?<span className='mono' style={{fontSize:12,color:'var(--mist2)'}}>{v}</span>:'—'},
-          {key:'id',label:'',render:(_,r)=>r.balance>0?<Btn size='sm' onClick={()=>openPay(r)}>Record Payment</Btn>:<Badge color='var(--emerald)'>✓ Paid</Badge>},
+          {key:'receipt_no',label:'Receipt',render:v=>v?<span className='mono' style={{fontSize:12,color:'var(--mist2)'}}>{v}</span>:'--'},
+          {key:'id',label:'',render:(_,r)=>r.balance>0?<Btn size='sm' onClick={()=>openPay(r)}>Record Payment</Btn>:<Badge color='var(--emerald)'>Paid</Badge>},
         ]}/>
       </Card>
       {modal && (
@@ -1265,12 +1271,12 @@ function Fees({profile,data,setData,toast,settings}) {
           <Field label='Due Date' value={form.due_date} onChange={f('due_date')} type='date'/>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
-            <Btn onClick={saveFee} disabled={saving}>{saving?<><Spinner/> Saving…</>:'Save'}</Btn>
+            <Btn onClick={saveFee} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save'}</Btn>
           </div>
         </Modal>
       )}
       {payModal && editFee && (
-        <Modal title='Record Payment' subtitle={`${editFee.student_name} · ${editFee.fee_type}`} onClose={()=>setPayModal(false)}>
+        <Modal title='Record Payment' subtitle={`${editFee.student_name} . ${editFee.fee_type}`} onClose={()=>setPayModal(false)}>
           <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:18,marginBottom:20,display:'flex',gap:24,flexWrap:'wrap'}}>
             {[['Total',fmtMoney(editFee.amount,currency),'var(--mist)'],['Paid',fmtMoney(editFee.paid,currency),'var(--emerald)'],['Balance',fmtMoney(editFee.balance,currency),'var(--rose)']].map(([l,v,c])=>(
               <div key={l}><div className='d' style={{fontSize:10,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>{l}</div><div className='d' style={{fontSize:20,fontWeight:700,color:c}}>{v}</div></div>
@@ -1364,8 +1370,8 @@ function Behaviour({profile,data,setData,toast}) {
                     </div>
                     <p style={{fontSize:13,color:'var(--mist2)',lineHeight:1.6}}>{b.description}</p>
                     <div style={{fontSize:11,color:'var(--mist3)',marginTop:8}}>
-                      {s&&<><span style={{color:'var(--mist2)',fontWeight:500}}>{s.first_name} {s.last_name}</span> · </>}
-                      Recorded by {b.recorded_by_name} · {fmtDate(b.date||b.created_at)}
+                      {s&&<><span style={{color:'var(--mist2)',fontWeight:500}}>{s.first_name} {s.last_name}</span> . </>}
+                      Recorded by {b.recorded_by_name} . {fmtDate(b.date||b.created_at)}
                     </div>
                   </div>
                   <button onClick={()=>del(b.id)} style={{background:'none',color:'var(--mist3)',fontSize:16,padding:'4px 8px',borderRadius:4,cursor:'pointer',transition:'all 0.15s'}}
@@ -1382,11 +1388,11 @@ function Behaviour({profile,data,setData,toast}) {
           <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={students.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name}`}))}/>
           <Field label='Record Type' value={form.type} onChange={f('type')} options={types}/>
           <Field label='Title' value={form.title} onChange={f('title')} placeholder='Brief descriptive title' required/>
-          <Field label='Description' value={form.description} onChange={f('description')} rows={3} placeholder='Provide full details…'/>
+          <Field label='Description' value={form.description} onChange={f('description')} rows={3} placeholder='Provide full details...'/>
           <Field label='Date' value={form.date} onChange={f('date')} type='date'/>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
-            <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving…</>:'Save Record'}</Btn>
+            <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save Record'}</Btn>
           </div>
         </Modal>
       )}
@@ -1426,7 +1432,7 @@ function Reports({data,settings}) {
   const periodLabel = settings?.period_type==='term'?'Term':'Semester'
   const periods = Array.from({length:settings?.period_count||2},(_,i)=>`${periodLabel} ${i+1}`)
 
-  // Student autofill — filter by class if class is selected, otherwise all
+  // Student autofill -- filter by class if class is selected, otherwise all
   const searchPool = fc ? students.filter(s=>s.class_id===fc) : students
   const matchedStudents = studentSearch.length>0
     ? searchPool.filter(s=>`${s.first_name} ${s.last_name}`.toLowerCase().includes(studentSearch.toLowerCase())).slice(0,8)
@@ -1440,7 +1446,7 @@ function Reports({data,settings}) {
   }
   const clearStudent = () => { setSelectedStudent(null); setStudentSearch(''); setShowDropdown(false) }
 
-  // Scope: if student selected → just that student, else filter by class
+  // Scope: if student selected -> just that student, else filter by class
   const scopedStudents = selectedStudent
     ? students.filter(s=>s.id===selectedStudent.id)
     : students.filter(s=>!fc||s.class_id===fc)
@@ -1454,7 +1460,7 @@ function Reports({data,settings}) {
     const tots = Object.values(subjectScores)
     const total = tots.length ? tots.reduce((a,b)=>a+b,0) : null
     const avg   = tots.length ? Math.round(total/tots.length) : null
-    return {...s, subjectScores, total: total||0, avg, gpa: avg!==null?getGPA(avg,scale):null, count:sg.length, letter:avg!==null?getLetter(avg,scale):'—', pass:avg!==null?avg>=50:null}
+    return {...s, subjectScores, total: total||0, avg, gpa: avg!==null?getGPA(avg,scale):null, count:sg.length, letter:avg!==null?getLetter(avg,scale):'--', pass:avg!==null?avg>=50:null}
   })
   // Sort by total descending for ranking
   const sortedAcademic = [...academicData].sort((a,b)=>(b.total||0)-(a.total||0))
@@ -1492,17 +1498,17 @@ function Reports({data,settings}) {
 
   // ── Attendance data ──
   const attData = scopedStudents.map(s=>{
-    const sa=attendance.filter(a=>a.student_id===s.id)
+    const sa=attendance.filter(a=>a.student_id===s.id&&(!fy||a.date?.slice(0,4)===fy.slice(0,4)))
     const pres=sa.filter(a=>a.status==='Present').length
     return{...s,total:sa.length,present:pres,absent:sa.filter(a=>a.status==='Absent').length,late:sa.filter(a=>a.status==='Late').length,excused:sa.filter(a=>a.status==='Excused').length,rate:sa.length?Math.round(pres/sa.length*100):null}
   })
 
   // ── Fee data ──
   const feeData = scopedStudents.map(s=>{
-    const sf=fees.filter(f=>f.student_id===s.id)
+    const sf=fees.filter(f=>f.student_id===s.id&&(!fy||f.due_date?.slice(0,4)===fy.slice(0,4)||f.created_at?.slice(0,4)===fy.slice(0,4)))
     const owed=sf.reduce((a,f)=>a+Number(f.amount||0),0)
     const paid=sf.reduce((a,f)=>a+Number(f.paid||0),0)
-    return{...s,owed,paid,balance:owed-paid,feeStatus:owed===0?'—':paid>=owed?'Paid':paid>0?'Partial':'Outstanding'}
+    return{...s,owed,paid,balance:owed-paid,feeStatus:owed===0?'--':paid>=owed?'Paid':paid>0?'Partial':'Outstanding'}
   })
 
   // ── Summary KPIs ──
@@ -1545,7 +1551,7 @@ function Reports({data,settings}) {
       ctx.fillStyle='#e8b84b'; ctx.font='bold 20px Arial'; ctx.fillText(schoolName,headerX,34)
       ctx.fillStyle='#8888a8'; ctx.font='13px Arial'
       if(schoolMotto) ctx.fillText(schoolMotto,headerX,52)
-      ctx.fillText(`${rtype.charAt(0).toUpperCase()+rtype.slice(1)} Report · ${scope} · ${periodStr} · ${yearStr}`,headerX,schoolMotto?68:52)
+      ctx.fillText(`${rtype.charAt(0).toUpperCase()+rtype.slice(1)} Report . ${scope} . ${periodStr} . ${yearStr}`,headerX,schoolMotto?68:52)
 
       // Timestamp top right
       ctx.fillStyle='#55556a'; ctx.font='11px Arial'
@@ -1590,8 +1596,8 @@ function Reports({data,settings}) {
           let cx2=margin
           row.forEach((cell,ci)=>{
             ctx.fillStyle='#222'; ctx.font='12px Arial'
-            const txt=String(cell??'—')
-            ctx.fillText(txt.length>22?txt.slice(0,22)+'…':txt,cx2+8,y+18)
+            const txt=String(cell??'--')
+            ctx.fillText(txt.length>22?txt.slice(0,22)+'...':txt,cx2+8,y+18)
             cx2+=colWidths[ci]
             if(ci<row.length-1){ctx.beginPath();ctx.moveTo(cx2,y);ctx.lineTo(cx2,y+rowH);ctx.stroke()}
           })
@@ -1610,7 +1616,7 @@ function Reports({data,settings}) {
             const subj=subjects.find(s=>s.id===g.subject_id)
             const tot=calcTotal(g,gradeComps)
             const let_=getLetter(tot,scale)
-            return[subj?.name||'—',
+            return[subj?.name||'--',
               ...gradeComps.filter(c=>c.enabled).map(c=>g[c.key]||0),
               tot,let_,getGPA(tot,scale).toFixed(1),tot>=50?'Pass':'Fail']
           })
@@ -1627,8 +1633,8 @@ function Reports({data,settings}) {
           const colWidths=[36,64,100,...visSubjects.map(()=>Math.max(baseW,50)),56,48,48,52]
           const rows=rankedAcademic.map(s=>[
             ordinal(s.position),s.student_id,`${s.first_name} ${s.last_name}`,
-            ...visSubjects.map(sub=>s.subjectScores[sub.id]??'—'),
-            s.total||'—',s.avg??'—',s.letter,s.pass===null?'—':s.pass?'Pass':'Fail'
+            ...visSubjects.map(sub=>s.subjectScores[sub.id]??'--'),
+            s.total||'--',s.avg??'--',s.letter,s.pass===null?'--':s.pass?'Pass':'Fail'
           ])
           drawTable(headers,rows,colWidths)
         }
@@ -1637,21 +1643,21 @@ function Reports({data,settings}) {
         const headers=['ID','Student','Class','Total Days','Present','Absent','Late','Excused','Rate']
         const cw=Math.floor(usableW/9)
         const colWidths=[64,120,90,cw,cw,cw,cw,cw,60]
-        const rows=attData.map(s=>[s.student_id,`${s.first_name} ${s.last_name}`,classes.find(c=>c.id===s.class_id)?.name||'—',s.total,s.present,s.absent,s.late,s.excused,s.rate!==null?`${s.rate}%`:'—'])
+        const rows=attData.map(s=>[s.student_id,`${s.first_name} ${s.last_name}`,classes.find(c=>c.id===s.class_id)?.name||'--',s.total,s.present,s.absent,s.late,s.excused,s.rate!==null?`${s.rate}%`:'--'])
         drawTable(headers,rows,colWidths)
       }
       if(rtype==='fees'){
         const headers=['ID','Student','Class','Total Owed','Paid','Balance','Status']
         const cw=Math.floor(usableW/7)
         const colWidths=[64,140,90,cw,cw,cw,80]
-        const rows=feeData.map(s=>[s.student_id,`${s.first_name} ${s.last_name}`,classes.find(c=>c.id===s.class_id)?.name||'—',fmtMoney(s.owed,currency),fmtMoney(s.paid,currency),fmtMoney(s.balance,currency),s.feeStatus])
+        const rows=feeData.map(s=>[s.student_id,`${s.first_name} ${s.last_name}`,classes.find(c=>c.id===s.class_id)?.name||'--',fmtMoney(s.owed,currency),fmtMoney(s.paid,currency),fmtMoney(s.balance,currency),s.feeStatus])
         drawTable(headers,rows,colWidths)
       }
 
       // Footer
       ctx.fillStyle='#f0f0f0'; ctx.fillRect(0,h-30,w,30)
       ctx.fillStyle='#888'; ctx.font='10px Arial'; ctx.textAlign='center'
-      ctx.fillText(`${schoolName} · SRMS Report · ${now.toLocaleDateString()}`,w/2,h-12)
+      ctx.fillText(`${schoolName} . SRMS Report . ${now.toLocaleDateString()}`,w/2,h-12)
       ctx.textAlign='left'
 
       const link=document.createElement('a')
@@ -1687,23 +1693,23 @@ function Reports({data,settings}) {
           grades.filter(g=>g.student_id===selectedStudent.id&&(!fp||g.period===fp)).forEach(g=>{
             const subj=subjects.find(s=>s.id===g.subject_id)
             const tot=calcTotal(g,gradeComps), let_=getLetter(tot,scale)
-            csv+=`"${subj?.name||'—'}",${gradeComps.filter(c=>c.enabled).map(c=>g[c.key]||0).join(',')},${tot},${let_},${getGPA(tot,scale).toFixed(1)},${tot>=50?'Pass':'Fail'}\n`
+            csv+=`"${subj?.name||'--'}",${gradeComps.filter(c=>c.enabled).map(c=>g[c.key]||0).join(',')},${tot},${let_},${getGPA(tot,scale).toFixed(1)},${tot>=50?'Pass':'Fail'}\n`
           })
         } else {
           const visSubjects=classSubjects.length>0?classSubjects:subjects
           csv='Position,Student ID,Student,'+visSubjects.map(s=>`"${s.name}"`).join(',')+',Total,Average,Grade,GPA,Status\n'
           rankedAcademic.forEach(s=>{
-            csv+=`${ordinal(s.position)},"${s.student_id}","${s.first_name} ${s.last_name}",${visSubjects.map(sub=>s.subjectScores[sub.id]??0).join(',')},${s.total||0},${s.avg??0},${s.letter},${s.gpa!==null?s.gpa.toFixed(1):''},${s.pass===null?'—':s.pass?'Pass':'Fail'}\n`
+            csv+=`${ordinal(s.position)},"${s.student_id}","${s.first_name} ${s.last_name}",${visSubjects.map(sub=>s.subjectScores[sub.id]??0).join(',')},${s.total||0},${s.avg??0},${s.letter},${s.gpa!==null?s.gpa.toFixed(1):''},${s.pass===null?'--':s.pass?'Pass':'Fail'}\n`
           })
         }
         filename=`SRMS_Academic_${scope}_${fp||'AllPeriods'}.csv`
       } else if(rtype==='attendance'){
         csv='Student ID,Student,Class,Total Days,Present,Absent,Late,Excused,Rate\n'
-        attData.forEach(s=>{csv+=`"${s.student_id}","${s.first_name} ${s.last_name}","${classes.find(c=>c.id===s.class_id)?.name||'—'}",${s.total},${s.present},${s.absent},${s.late},${s.excused},${s.rate!==null?s.rate+'%':'—'}\n`})
+        attData.forEach(s=>{csv+=`"${s.student_id}","${s.first_name} ${s.last_name}","${classes.find(c=>c.id===s.class_id)?.name||'--'}",${s.total},${s.present},${s.absent},${s.late},${s.excused},${s.rate!==null?s.rate+'%':'--'}\n`})
         filename=`SRMS_Attendance_${scope}.csv`
       } else {
         csv='Student ID,Student,Class,Total Owed,Paid,Balance,Status\n'
-        feeData.forEach(s=>{csv+=`"${s.student_id}","${s.first_name} ${s.last_name}","${classes.find(c=>c.id===s.class_id)?.name||'—'}","${fmtMoney(s.owed,currency)}","${fmtMoney(s.paid,currency)}","${fmtMoney(s.balance,currency)}",${s.feeStatus}\n`})
+        feeData.forEach(s=>{csv+=`"${s.student_id}","${s.first_name} ${s.last_name}","${classes.find(c=>c.id===s.class_id)?.name||'--'}","${fmtMoney(s.owed,currency)}","${fmtMoney(s.paid,currency)}","${fmtMoney(s.balance,currency)}",${s.feeStatus}\n`})
         filename=`SRMS_Fees_${scope}.csv`
       }
       const blob=new Blob([csv],{type:'text/csv'})
@@ -1730,13 +1736,9 @@ function Reports({data,settings}) {
           <Field label='Academic Year' value={pdfYear} onChange={setPdfYear} placeholder='e.g. 2024-2025'/>
           <Field label={`${periodLabel} / Period`} value={pdfPeriod} onChange={setPdfPeriod}
             options={[{value:'',label:'All Periods'},...periods.map(p=>({value:p,label:p}))]}/>
-          <select value={fy} onChange={e=>setFy(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:140}}>
-            <option value=''>All Years</option>
-            {[...new Set(grades.map(g=>g.year).filter(Boolean))].sort().reverse().map(y=><option key={y}>{y}</option>)}
-          </select>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:8}}>
             <Btn variant='ghost' onClick={()=>setPdfModal(false)}>Cancel</Btn>
-            <Btn onClick={exportPDF} disabled={exporting}>{exporting?<><Spinner/> Generating…</>:'Generate PDF'}</Btn>
+            <Btn onClick={exportPDF} disabled={exporting}>{exporting?<><Spinner/> Generating...</>:'Generate PDF'}</Btn>
           </div>
         </Modal>
       )}
@@ -1766,7 +1768,7 @@ function Reports({data,settings}) {
               onChange={e=>{setStudentSearch(e.target.value);setShowDropdown(true);if(!e.target.value)clearStudent()}}
               onFocus={()=>studentSearch&&setShowDropdown(true)}
               onBlur={()=>setTimeout(()=>setShowDropdown(false),200)}
-              placeholder='Search student…'
+              placeholder='Search student...'
               style={{width:'100%',background:'var(--ink3)',border:`1px solid ${selectedStudent?'var(--gold)':'var(--line)'}`,borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
             {selectedStudent && (
               <button onClick={clearStudent} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',background:'none',color:'var(--mist3)',fontSize:16,cursor:'pointer'}}>×</button>
@@ -1781,7 +1783,7 @@ function Reports({data,settings}) {
                     <Avatar name={`${s.first_name} ${s.last_name}`} size={26}/>
                     <div>
                       <div style={{fontSize:13,fontWeight:600}}>{s.first_name} {s.last_name}</div>
-                      <div style={{fontSize:11,color:'var(--mist3)'}}>{classes.find(c=>c.id===s.class_id)?.name||'—'} · {s.student_id}</div>
+                      <div style={{fontSize:11,color:'var(--mist3)'}}>{classes.find(c=>c.id===s.class_id)?.name||'--'} . {s.student_id}</div>
                     </div>
                   </div>
                 ))}
@@ -1789,7 +1791,7 @@ function Reports({data,settings}) {
             )}
           </div>
 
-          {/* Class filter — disabled when student selected */}
+          {/* Class filter -- disabled when student selected */}
           {!selectedStudent && (
             <select value={fc} onChange={e=>setFc(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:180}}>
@@ -1805,6 +1807,15 @@ function Reports({data,settings}) {
               {periods.map(p=><option key={p}>{p}</option>)}
             </select>
           )}
+          <select value={fy} onChange={e=>setFy(e.target.value)}
+            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:140}}>
+            <option value=''>All Years</option>
+            {[...new Set([
+              ...grades.map(g=>g.year),
+              ...attendance.map(a=>a.date?.slice(0,4)),
+              ...fees.map(f=>f.due_date?.slice(0,4)||f.created_at?.slice(0,4))
+            ].filter(Boolean))].sort().reverse().map(y=><option key={y}>{y}</option>)}
+          </select>
         </div>
 
         {/* Active scope indicators */}
@@ -1834,7 +1845,7 @@ function Reports({data,settings}) {
             {!selectedStudent && (fc || academicData.length>0) && (
               <div style={{marginBottom:12,display:'flex',alignItems:'center',gap:8}}>
                 <span style={{fontSize:11,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em'}}>Ranked by total score</span>
-                {classSubjects.length>0 && <span style={{fontSize:11,color:'var(--mist3)'}}>· {classSubjects.length} subjects</span>}
+                {classSubjects.length>0 && <span style={{fontSize:11,color:'var(--mist3)'}}>. {classSubjects.length} subjects</span>}
               </div>
             )}
             <div style={{overflowX:'auto'}}>
@@ -1847,7 +1858,7 @@ function Reports({data,settings}) {
                     {!selectedStudent && <th style={thStyle}>Class</th>}
                     {selectedStudent
                       ? <><th style={thStyle}>Subject</th>{gradeComps.filter(c=>c.enabled).map(c=><th key={c.key} style={thStyle}>{c.label}</th>)}</>
-                      : classSubjects.map(s=><th key={s.id} style={{...thStyle,maxWidth:90}}>{s.name.length>12?s.name.slice(0,12)+'…':s.name}</th>)
+                      : classSubjects.map(s=><th key={s.id} style={{...thStyle,maxWidth:90}}>{s.name.length>12?s.name.slice(0,12)+'...':s.name}</th>)
                     }
                     <th style={thStyle}>Total</th>
                     {!selectedStudent && <th style={thStyle}>Avg</th>}
@@ -1867,7 +1878,7 @@ function Reports({data,settings}) {
                             <tr key={g.id} style={{borderBottom:'1px solid var(--line)',background:i%2===0?'transparent':'var(--ink3)'}}>
                               <td style={tdStyle}><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{selectedStudent.student_id}</span></td>
                               <td style={tdStyle}><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={`${selectedStudent.first_name} ${selectedStudent.last_name}`} size={24}/><span style={{fontWeight:600}}>{selectedStudent.first_name} {selectedStudent.last_name}</span></div></td>
-                              <td style={tdStyle}>{subj?.name||'—'}</td>
+                              <td style={tdStyle}>{subj?.name||'--'}</td>
                               {gradeComps.filter(c=>c.enabled).map(c=><td key={c.key} style={tdStyle}><span className='mono'>{g[c.key]||0}</span></td>)}
                               <td style={tdStyle}><span className='mono' style={{fontWeight:700,fontSize:14}}>{tot}</span></td>
                               <td style={tdStyle}><Badge color={LETTER_COLOR[let_]||'var(--mist2)'}>{let_}</Badge></td>
@@ -1886,13 +1897,13 @@ function Reports({data,settings}) {
                             </td>
                             <td style={tdStyle}><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{s.student_id}</span></td>
                             <td style={tdStyle}><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={`${s.first_name} ${s.last_name}`} size={26}/><span style={{fontWeight:600}}>{s.first_name} {s.last_name}</span></div></td>
-                            <td style={tdStyle}>{classes.find(c=>c.id===s.class_id)?.name||'—'}</td>
-                            {classSubjects.map(sub=><td key={sub.id} style={tdStyle}><span className='mono'>{s.subjectScores[sub.id]??'—'}</span></td>)}
-                            <td style={tdStyle}><span className='mono' style={{fontWeight:700}}>{s.total||'—'}</span></td>
-                            <td style={tdStyle}><span className='mono'>{s.avg??'—'}</span></td>
-                            <td style={tdStyle}>{s.letter!=='—'?<Badge color={LETTER_COLOR[s.letter]||'var(--mist2)'}>{s.letter}</Badge>:'—'}</td>
-                            <td style={tdStyle}>{s.gpa!==null?<span className='mono'>{s.gpa.toFixed(1)}</span>:'—'}</td>
-                            <td style={tdStyle}>{s.pass===null?'—':s.pass?<Badge color='var(--emerald)'>Pass</Badge>:<Badge color='var(--rose)'>Fail</Badge>}</td>
+                            <td style={tdStyle}>{classes.find(c=>c.id===s.class_id)?.name||'--'}</td>
+                            {classSubjects.map(sub=><td key={sub.id} style={tdStyle}><span className='mono'>{s.subjectScores[sub.id]??'--'}</span></td>)}
+                            <td style={tdStyle}><span className='mono' style={{fontWeight:700}}>{s.total||'--'}</span></td>
+                            <td style={tdStyle}><span className='mono'>{s.avg??'--'}</span></td>
+                            <td style={tdStyle}>{s.letter!=='--'?<Badge color={LETTER_COLOR[s.letter]||'var(--mist2)'}>{s.letter}</Badge>:'--'}</td>
+                            <td style={tdStyle}>{s.gpa!==null?<span className='mono'>{s.gpa.toFixed(1)}</span>:'--'}</td>
+                            <td style={tdStyle}>{s.pass===null?'--':s.pass?<Badge color='var(--emerald)'>Pass</Badge>:<Badge color='var(--rose)'>Fail</Badge>}</td>
                           </tr>
                         ))
                   )}
@@ -1905,24 +1916,24 @@ function Reports({data,settings}) {
           <DataTable data={attData} columns={[
             {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
             {key:'first_name',label:'Student',render:(v,r)=><div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${r.first_name} ${r.last_name}`} size={28}/><span style={{fontWeight:600}}>{r.first_name} {r.last_name}</span></div>},
-            {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'—'},
+            {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
             {key:'total',label:'Days'},
             {key:'present',label:'Present',render:v=><span style={{color:'var(--emerald)',fontWeight:600}}>{v}</span>},
             {key:'absent',label:'Absent',render:v=><span style={{color:'var(--rose)',fontWeight:600}}>{v}</span>},
             {key:'late',label:'Late',render:v=><span style={{color:'var(--amber)',fontWeight:600}}>{v}</span>},
             {key:'excused',label:'Excused',render:v=><span style={{color:'var(--sky)',fontWeight:600}}>{v}</span>},
-            {key:'rate',label:'Rate',render:v=>v!==null?<span className='mono' style={{fontWeight:700,color:v>=80?'var(--emerald)':v>=60?'var(--amber)':'var(--rose)'}}>{v}%</span>:'—'},
+            {key:'rate',label:'Rate',render:v=>v!==null?<span className='mono' style={{fontWeight:700,color:v>=80?'var(--emerald)':v>=60?'var(--amber)':'var(--rose)'}}>{v}%</span>:'--'},
           ]}/>
         )}
         {rtype==='fees' && (
           <DataTable data={feeData} columns={[
             {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
             {key:'first_name',label:'Student',render:(v,r)=><div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${r.first_name} ${r.last_name}`} size={28}/><span style={{fontWeight:600}}>{r.first_name} {r.last_name}</span></div>},
-            {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'—'},
+            {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
             {key:'owed',label:'Owed',render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
             {key:'paid',label:'Paid',render:v=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
             {key:'balance',label:'Balance',render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
-            {key:'feeStatus',label:'Status',render:v=>v!=='—'?<Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>:'—'},
+            {key:'feeStatus',label:'Status',render:v=>v!=='--'?<Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>:'--'},
           ]}/>
         )}
       </Card>
@@ -1980,7 +1991,7 @@ function Announcements({profile,data,setData,toast}) {
                   {!a.active && <Badge color='var(--mist3)'>Inactive</Badge>}
                 </div>
                 <p style={{fontSize:13,color:'var(--mist2)',lineHeight:1.7}}>{a.body}</p>
-                <div style={{fontSize:11,color:'var(--mist3)',marginTop:12}}>Posted by <strong style={{color:'var(--mist2)'}}>{a.posted_by_name}</strong> · {fmtDate(a.created_at)}</div>
+                <div style={{fontSize:11,color:'var(--mist3)',marginTop:12}}>Posted by <strong style={{color:'var(--mist2)'}}>{a.posted_by_name}</strong> . {fmtDate(a.created_at)}</div>
               </div>
               {canManage && (
                 <div style={{display:'flex',gap:8,flexShrink:0}}>
@@ -1995,11 +2006,11 @@ function Announcements({profile,data,setData,toast}) {
       {modal && (
         <Modal title='New Announcement' onClose={()=>setModal(false)}>
           <Field label='Title' value={form.title} onChange={f('title')} required/>
-          <Field label='Message' value={form.body} onChange={f('body')} rows={4} required placeholder='Full announcement text…'/>
+          <Field label='Message' value={form.body} onChange={f('body')} rows={4} required placeholder='Full announcement text...'/>
           <Field label='Target Audience' value={form.target_role} onChange={f('target_role')} options={[{value:'all',label:'Everyone'},{value:'teacher',label:'Teachers Only'},{value:'admin',label:'Admins Only'}]}/>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
-            <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Posting…</>:'Post Announcement'}</Btn>
+            <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Posting...</>:'Post Announcement'}</Btn>
           </div>
         </Modal>
       )}
@@ -2025,14 +2036,10 @@ function Users({profile,toast}) {
     if(!form.full_name||!form.email)return
     setSaving(true)
     if(edit){
-      // Update profile fields
       const {error} = await supabase.from('profiles').update({full_name:form.full_name,email:form.email,role:form.role}).eq('id',edit.id)
       if(error){ toast(error.message,'error'); setSaving(false); return }
-      // If user WAS a class teacher and role is changing — clean up their class assignment
       if(edit.role==='classteacher' && form.role!=='classteacher'){
-        // Null their class_id in profiles
         await supabase.from('profiles').update({class_id:null}).eq('id',edit.id)
-        // Null the teacher_id on the class they were running
         await supabase.from('classes').update({class_teacher_id:null}).eq('class_teacher_id',edit.id)
       }
       setUsers(p=>p.map(u=>u.id===edit.id?{...u,full_name:form.full_name,email:form.email,role:form.role}:u))
@@ -2062,12 +2069,12 @@ function Users({profile,toast}) {
     if(u.id===profile?.id){toast('You cannot lock your own account.','error');return}
     if(u.role==='superadmin'){toast('Super Admin accounts cannot be locked.','error');return}
     const {error} = await supabase.from('profiles').update({locked:!u.locked}).eq('id',id)
-    if(error){toast('Failed to update — check Supabase RLS policies.','error');return}
+    if(error){toast('Failed to update -- check Supabase RLS policies.','error');return}
     setUsers(p=>p.map(x=>x.id===id?{...x,locked:!x.locked}:x))
     toast(u.locked ? 'Account unlocked.' : 'Account locked.')
   }
 
-  if(loading) return <LoadingScreen msg='Loading users…'/>
+  if(loading) return <LoadingScreen msg='Loading users...'/>
   return (
     <div>
       <PageHeader title='User Management' sub={`${users.length} system users`}>
@@ -2114,7 +2121,7 @@ function Users({profile,toast}) {
           {edit && <p style={{fontSize:12,color:'var(--mist3)',marginTop:-8,marginBottom:8}}>To change the password, the user must use the forgot password option on the login screen.</p>}
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
-            <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving…</>:edit?'Save Changes':'Create User'}</Btn>
+            <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving...</>:edit?'Save Changes':'Create User'}</Btn>
           </div>
         </Modal>
       )}
@@ -2161,7 +2168,7 @@ function Settings({profile,settings,setSettings,toast}) {
       const base64 = ev.target.result
       setForm(p=>({...p, school_logo: base64}))
       setLogoUploading(false)
-      toast('Logo uploaded — click Save Changes to apply')
+      toast('Logo uploaded -- click Save Changes to apply')
     }
     reader.readAsDataURL(file)
   }
@@ -2182,22 +2189,22 @@ function Settings({profile,settings,setSettings,toast}) {
     if(wasEnabled) {
       const key = comps[i].key
       await supabase.from('grades').update({[key]:0}).neq('id','00000000-0000-0000-0000-000000000000')
-      toast(`${comps[i].label} disabled — all scores cleared`)
+      toast(`${comps[i].label} disabled -- all scores cleared`)
     }
   }
 
-  if(!form.id) return <div style={{padding:48,textAlign:'center',color:'var(--mist3)'}}>Loading settings…</div>
+  if(!form.id) return <div style={{padding:48,textAlign:'center',color:'var(--mist3)'}}>Loading settings...</div>
   const curPreview = getCurrency({...form,currency_code:form.currency_code||'GHS'})
   return (
     <div>
       <PageHeader title='System Settings' sub='School configuration, grading scale and academic structure'>
-        <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving…</>:'Save Changes'}</Btn>
+        <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save Changes'}</Btn>
       </PageHeader>
 
       {weightWarning && (
         <div className='fi' style={{background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:20,display:'flex',alignItems:'center',gap:10}}>
-          <span style={{fontSize:18}}>⚠</span>
-          <span style={{fontSize:13,color:'var(--amber)'}}>Active component weights add up to <strong>{totalWeight}%</strong> — they should total 100% for accurate grade calculations. Settings saved anyway.</span>
+          <span style={{fontSize:18}}>(!)</span>
+          <span style={{fontSize:13,color:'var(--amber)'}}>Active component weights add up to <strong>{totalWeight}%</strong> -- they should total 100% for accurate grade calculations. Settings saved anyway.</span>
         </div>
       )}
 
@@ -2227,7 +2234,7 @@ function Settings({profile,settings,setSettings,toast}) {
                 )}
                 <div>
                   <label style={{display:'inline-flex',alignItems:'center',gap:8,padding:'8px 16px',background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',cursor:'pointer',fontSize:13,color:'var(--mist)',fontWeight:500}}>
-                    {logoUploading?<><Spinner/> Uploading…</>:<>⬆ {form.school_logo?'Replace Logo':'Upload Logo'}</>}
+                    {logoUploading?<><Spinner/> Uploading...</>:<>⬆ {form.school_logo?'Replace Logo':'Upload Logo'}</>}
                     <input type='file' accept='.jpg,.jpeg,.png' onChange={handleLogoUpload} style={{display:'none'}}/>
                   </label>
                   <p style={{fontSize:11,color:'var(--mist3)',marginTop:8}}>Will appear top-left on PDF reports</p>
@@ -2259,7 +2266,7 @@ function Settings({profile,settings,setSettings,toast}) {
               </div>
             </div>
             <Field label='Decimal Places' value={form.currency_decimals??2} onChange={v=>setForm(p=>({...p,currency_decimals:parseInt(v)||0}))}
-              options={[{value:0,label:'0 — No decimals (e.g. ₵100)'},{value:2,label:'2 — Standard (e.g. ₵100.00)'}]}/>
+              options={[{value:0,label:'0 -- No decimals (e.g. ₵100)'},{value:2,label:'2 -- Standard (e.g. ₵100.00)'}]}/>
           </Card>
           <Card>
             <SectionTitle>Academic Periods</SectionTitle>
@@ -2339,84 +2346,77 @@ function Classes({profile,data,setData,toast}) {
   const [selected,setSelected] = useState(null)
   const [classModal,setClassModal] = useState(false)
   const [subjectModal,setSubjectModal] = useState(false)
+  const [promoModal,setPromoModal] = useState(false)
+  const [promoStep,setPromoStep]   = useState(1)
+  const [promoSource,setPromoSource] = useState('')
+  const [promoDest,setPromoDest]   = useState('')
+  const [promoStudents,setPromoStudents] = useState([])
+  const [promoting,setPromoting]   = useState(false)
   const [editC,setEditC] = useState(null)
   const [editS,setEditS] = useState(null)
   const [cf,setCf] = useState({})
   const [sf,setSf] = useState({})
   const [saving,setSaving] = useState(false)
-  // Promotion wizard
-  const [promoModal,setPromoModal] = useState(false)
-  const [promoStep,setPromoStep]   = useState(1)
-  const [promoSource,setPromoSource] = useState('')
-  const [promoDest,setPromoDest]   = useState('')
-  const [promoStudents,setPromoStudents] = useState([]) // [{student, destClass, include}]
-  const [promoting,setPromoting]   = useState(false)
   const fc = k=>v=>setCf(p=>({...p,[k]:v}))
   const fs = k=>v=>setSf(p=>({...p,[k]:v}))
   useEffect(()=>{ supabase.from('profiles').select('*').then(({data})=>{ if(data) setAllUsers(data) }) },[])
   const teachers = allUsers.filter(u=>u.role==='classteacher')
+  const subjectTeachers = allUsers.filter(u=>u.role==='teacher')
 
-  // Delete class — only if no students and no subjects
-  const deleteClass = async (cls)=>{
+  const deleteClass = async cls=>{
     const hasStudents = students.some(s=>s.class_id===cls.id)
     const hasSubjects = subjects.some(s=>s.class_id===cls.id)
-    if(hasStudents){ toast('Cannot delete — this class has students assigned to it.','error'); return }
-    if(hasSubjects){ toast('Cannot delete — this class has subjects. Remove them first.','error'); return }
-    if(!confirm(`Delete "${cls.name}"? This cannot be undone.`)) return
-    const {error} = await supabase.from('classes').delete().eq('id',cls.id)
-    if(error){ toast(error.message,'error'); return }
-    // Clear teacher's class_id if they were assigned to this class
+    if(hasStudents){toast('Cannot delete -- this class has students assigned to it.','error');return}
+    if(hasSubjects){toast('Cannot delete -- this class has subjects. Remove them first.','error');return}
+    if(!confirm('Delete "'+cls.name+'"? This cannot be undone.')) return
+    const {error}=await supabase.from('classes').delete().eq('id',cls.id)
+    if(error){toast(error.message,'error');return}
     if(cls.class_teacher_id)
       await supabase.from('profiles').update({class_id:null}).eq('id',cls.class_teacher_id)
     setData(p=>({...p,classes:p.classes.filter(c=>c.id!==cls.id)}))
     if(selected?.id===cls.id) setSelected(null)
-    toast(`"${cls.name}" deleted.`)
+    toast('"'+cls.name+'" deleted.')
   }
 
-  // Promotion wizard helpers
-  const openPromo = ()=>{
-    setPromoStep(1); setPromoSource(''); setPromoDest('')
-    setPromoStudents([]); setPromoModal(true)
+  const openPromo = ()=>{setPromoStep(1);setPromoSource('');setPromoDest('');setPromoStudents([]);setPromoModal(true)}
+
+  const buildPromoStudents = (srcId,dstId)=>{
+    const src=students.filter(s=>s.class_id===srcId)
+    setPromoStudents(src.map(s=>({student:s,destClassId:dstId,action:'promote'})))
   }
-  const buildPromoStudents = (srcId, dstId)=>{
-    const src = students.filter(s=>s.class_id===srcId)
-    setPromoStudents(src.map(s=>({student:s, destClassId:dstId, include:true})))
-  }
+
   const confirmPromo = async ()=>{
     setPromoting(true)
-    const toMove    = promoStudents.filter(p=>p.include)
-    const toRepeat  = promoStudents.filter(p=>!p.include)
-    // Move included students to their destination class
-    for(const p of toMove){
+    const toPromote  = promoStudents.filter(p=>p.action==='promote')
+    const toRepeat   = promoStudents.filter(p=>p.action==='repeat')
+    const toGraduate = promoStudents.filter(p=>p.action==='graduate')
+    for(const p of toPromote)
       await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id)
-    }
-    // Carry over outstanding fees for moved students
-    // (fees stay linked to student_id — no action needed, they carry over automatically)
-    // Update local state
-    const movedIds  = toMove.map(p=>p.student.id)
-    const destMap   = Object.fromEntries(toMove.map(p=>[p.student.id, p.destClassId]))
-    setData(prev=>({...prev,
-      students: prev.students.map(s=>
-        movedIds.includes(s.id) ? {...s, class_id:destMap[s.id]} : s
-      )
-    }))
-    setPromoting(false)
-    setPromoModal(false)
-    const movedCount   = toMove.length
-    const repeatCount  = toRepeat.length
-    toast(`✓ ${movedCount} student${movedCount!==1?'s':''} promoted.${repeatCount>0?` ${repeatCount} staying back.`:''}`)
+    for(const p of toGraduate)
+      await supabase.from('students').update({archived:true,class_id:null}).eq('id',p.student.id)
+    const promotedIds  = toPromote.map(p=>p.student.id)
+    const graduatedIds = toGraduate.map(p=>p.student.id)
+    const destMap      = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
+    setData(prev=>({...prev,students:prev.students.map(s=>{
+      if(promotedIds.includes(s.id))  return {...s,class_id:destMap[s.id]}
+      if(graduatedIds.includes(s.id)) return {...s,archived:true,class_id:null}
+      return s
+    })}))
+    setPromoting(false);setPromoModal(false)
+    const parts=[]
+    if(toPromote.length)  parts.push(toPromote.length+' promoted')
+    if(toGraduate.length) parts.push(toGraduate.length+' graduated')
+    if(toRepeat.length)   parts.push(toRepeat.length+' staying back')
+    toast(''+parts.join(', ')+'.')
   }
   const saveClass = async ()=>{
     if(!cf.name)return; setSaving(true)
-    // Auto-capitalize each word e.g. "class 6a" → "Class 6A"
     const cleanName = cf.name.replace(/\b\w/g, c=>c.toUpperCase())
     const newTeacherId = cf.class_teacher_id||null
-    // Only send name and class_teacher_id — never overwrite other columns
     const payload = {name:cleanName, class_teacher_id:newTeacherId}
     if(editC){
       const {error}=await supabase.from('classes').update(payload).eq('id',editC.id)
       if(error){toast(error.message,'error');setSaving(false);return}
-      // If teacher changed, clear old teacher's class_id and set new one
       const oldTeacherId = editC.class_teacher_id
       if(oldTeacherId && oldTeacherId!==newTeacherId)
         await supabase.from('profiles').update({class_id:null}).eq('id',oldTeacherId)
@@ -2427,7 +2427,6 @@ function Classes({profile,data,setData,toast}) {
     } else {
       const {data:row,error}=await supabase.from('classes').insert(payload).select().single()
       if(error){toast(error.message,'error');setSaving(false);return}
-      // Set the new teacher's class_id
       if(newTeacherId && row)
         await supabase.from('profiles').update({class_id:row.id}).eq('id',newTeacherId)
       setData(p=>({...p,classes:[...p.classes,row]}))
@@ -2452,8 +2451,8 @@ function Classes({profile,data,setData,toast}) {
   const classStudents = selected ? students.filter(s=>s.class_id===selected.id) : []
   return (
     <div>
-      <PageHeader title='Classes & Subjects' sub={`${classes.length} classes · ${subjects.length} subjects`}>
-        {profile?.role==='superadmin' && <Btn variant='ghost' onClick={openPromo}>⇑ Promote Students</Btn>}
+      <PageHeader title='Classes & Subjects' sub={`${classes.length} classes . ${subjects.length} subjects`}>
+        {profile?.role==='superadmin' && <Btn variant='ghost' onClick={openPromo}>Promote Students</Btn>}
         <Btn variant='ghost' onClick={()=>{setSubjectModal(true);setEditS(null);setSf({name:'',code:'',class_id:selected?.id||'',teacher_id:''})}}>+ Subject</Btn>
         <Btn onClick={()=>{setClassModal(true);setEditC(null);setCf({name:'',class_teacher_id:''})}}>+ New Class</Btn>
       </PageHeader>
@@ -2502,10 +2501,10 @@ function Classes({profile,data,setData,toast}) {
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,flexWrap:'wrap'}}>
                 <div>
                   <h2 className='d' style={{fontSize:22,fontWeight:700}}>{selected.name}</h2>
-                  <p style={{color:'var(--mist2)',fontSize:13,marginTop:4}}>{classStudents.length} students · {classSubjects.length} subjects</p>
+                  <p style={{color:'var(--mist2)',fontSize:13,marginTop:4}}>{classStudents.length} students . {classSubjects.length} subjects</p>
                 </div>
                 <div style={{display:'flex',gap:8}}>
-                  <Btn variant='ghost' size='sm' onClick={()=>setSelected(null)}>← Back</Btn>
+                  <Btn variant='ghost' size='sm' onClick={()=>setSelected(null)}>&larr; Back</Btn>
                   <Btn variant='secondary' size='sm' onClick={()=>{setEditC(selected);setCf({...selected,class_teacher_id:selected.class_teacher_id||''});setClassModal(true)}}>Edit</Btn>
                   {profile?.role==='superadmin' && <Btn variant='danger' size='sm' onClick={()=>deleteClass(selected)}>Delete</Btn>}
                 </div>
@@ -2518,7 +2517,7 @@ function Classes({profile,data,setData,toast}) {
               </div>
               <DataTable data={classSubjects} columns={[
                 {key:'name',label:'Subject',render:(v,r)=><div><div style={{fontWeight:600}}>{v}</div><span className='mono' style={{fontSize:11,color:'var(--mist3)'}}>{r.code}</span></div>},
-                {key:'teacher_id',label:'Teacher',render:v=>v?allUsers.find(u=>u.id===v)?.full_name||'—':<span style={{color:'var(--mist3)'}}>Unassigned</span>},
+                {key:'teacher_id',label:'Teacher',render:v=>v?allUsers.find(u=>u.id===v)?.full_name||'--':<span style={{color:'var(--mist3)'}}>Unassigned</span>},
                 {key:'id',label:'',render:(v,r)=><Btn variant='ghost' size='sm' onClick={()=>{setEditS(r);setSf({...r,teacher_id:r.teacher_id||''});setSubjectModal(true)}}>Edit</Btn>},
               ]}/>
             </Card>
@@ -2528,10 +2527,10 @@ function Classes({profile,data,setData,toast}) {
       {classModal && (
         <Modal title={editC?'Edit Class':'New Class'} onClose={()=>setClassModal(false)}>
           <Field label='Class Name' value={cf.name} onChange={fc('name')} placeholder='e.g. Class 6A, JHS 2B, Form 1A' required/>
-          <Field label='Class Teacher' value={cf.class_teacher_id} onChange={fc('class_teacher_id')} options={[{value:'',label:'None — Unassigned'},...teachers.map(t=>({value:t.id,label:t.full_name}))]}/>
+          <Field label='Class Teacher' value={cf.class_teacher_id} onChange={fc('class_teacher_id')} options={[{value:'',label:'None -- Unassigned'},...teachers.map(t=>({value:t.id,label:t.full_name}))]}/>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setClassModal(false)}>Cancel</Btn>
-            <Btn onClick={saveClass} disabled={saving}>{saving?<><Spinner/> Saving…</>:'Save Class'}</Btn>
+            <Btn onClick={saveClass} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save Class'}</Btn>
           </div>
         </Modal>
       )}
@@ -2540,118 +2539,107 @@ function Classes({profile,data,setData,toast}) {
           <Field label='Subject Name' value={sf.name} onChange={fs('name')} required/>
           <Field label='Subject Code' value={sf.code} onChange={fs('code')} placeholder='e.g. MTH-101'/>
           <Field label='Assign to Class' value={sf.class_id} onChange={fs('class_id')} required options={classes.map(c=>({value:c.id,label:c.name}))}/>
-          <Field label='Assigned Teacher' value={sf.teacher_id} onChange={fs('teacher_id')} options={[{value:'',label:'Unassigned'},...teachers.map(t=>({value:t.id,label:t.full_name}))]}/>
+          <Field label='Assigned Teacher' value={sf.teacher_id} onChange={fs('teacher_id')} options={[{value:'',label:'Unassigned'},...subjectTeachers.map(t=>({value:t.id,label:t.full_name}))]}/>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setSubjectModal(false)}>Cancel</Btn>
-            <Btn onClick={saveSubject} disabled={saving}>{saving?<><Spinner/> Saving…</>:'Save Subject'}</Btn>
+            <Btn onClick={saveSubject} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save Subject'}</Btn>
           </div>
         </Modal>
       )}
 
-      {/* ── PROMOTION WIZARD ── */}
       {promoModal && (
         <Modal title='Promote Students' subtitle={`Step ${promoStep} of 3`} onClose={()=>setPromoModal(false)} width={620}>
-          {/* STEP 1 — Select source and destination class */}
           {promoStep===1 && (
             <div>
-              <p style={{fontSize:13,color:'var(--mist2)',marginBottom:20,lineHeight:1.6}}>Select the class to promote from and the class students will move to. You can reassign individual students on the next step.</p>
+              <p style={{fontSize:13,color:'var(--mist2)',marginBottom:20,lineHeight:1.6}}>Select the class to promote from and the class students will move to. You can adjust individual students on the next step.</p>
               <Field label='Promote FROM (current class)' value={promoSource} onChange={v=>{setPromoSource(v);setPromoDest('')}}
-                options={[{value:'',label:'Select a class…'},...classes.map(c=>({value:c.id,label:`${c.name} (${students.filter(s=>s.class_id===c.id).length} students)`}))]}/>
+                options={[{value:'',label:'Select a class...'},...classes.map(c=>({value:c.id,label:`${c.name} (${students.filter(s=>s.class_id===c.id).length} students)`}))]}/>
               {promoSource && (
-                <Field label='Promote TO (destination class)' value={promoDest} onChange={setPromoDest}
-                  options={[{value:'',label:'Select destination…'},...classes.filter(c=>c.id!==promoSource).map(c=>({value:c.id,label:c.name}))]}/>
+                <Field label='Default destination class' value={promoDest} onChange={setPromoDest}
+                  options={[{value:'',label:'Select destination...'},...classes.filter(c=>c.id!==promoSource).map(c=>({value:c.id,label:c.name}))]}/>
               )}
               {promoSource && students.filter(s=>s.class_id===promoSource).length===0 && (
-                <div style={{padding:'12px 16px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)',fontSize:13,color:'var(--rose)',marginTop:8}}>
-                  This class has no students to promote.
-                </div>
+                <div style={{padding:'12px 16px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)',fontSize:13,color:'var(--rose)',marginTop:8}}>This class has no students.</div>
               )}
               <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:8}}>
                 <Btn variant='ghost' onClick={()=>setPromoModal(false)}>Cancel</Btn>
                 <Btn disabled={!promoSource||!promoDest||students.filter(s=>s.class_id===promoSource).length===0}
-                  onClick={()=>{buildPromoStudents(promoSource,promoDest);setPromoStep(2)}}>
-                  Next → Review Students
-                </Btn>
+                  onClick={()=>{buildPromoStudents(promoSource,promoDest);setPromoStep(2)}}>Next - Review Students</Btn>
               </div>
             </div>
           )}
 
-          {/* STEP 2 — Review student list: uncheck repeaters, reassign skippers */}
           {promoStep===2 && (
             <div>
               <p style={{fontSize:13,color:'var(--mist2)',marginBottom:16,lineHeight:1.6}}>
-                Review each student. <strong style={{color:'var(--white)'}}>Uncheck</strong> any student who is repeating the year — they will stay in <strong style={{color:'var(--gold)'}}>{classes.find(c=>c.id===promoSource)?.name}</strong>. You can also send individual students to a different class.
+                Set each student's outcome. <strong style={{color:'var(--white)'}}>Promote</strong> moves them to a class. <strong style={{color:'var(--amber)'}}>Repeat</strong> keeps them in <strong style={{color:'var(--gold)'}}>{classes.find(c=>c.id===promoSource)?.name}</strong>. <strong style={{color:'var(--rose)'}}>Graduate</strong> archives them -- they leave the school.
               </p>
               <div style={{maxHeight:340,overflowY:'auto',display:'flex',flexDirection:'column',gap:6,marginBottom:16}}>
                 {promoStudents.map((p,i)=>(
-                  <div key={p.student.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${p.include?'var(--line)':'rgba(240,107,122,0.3)'}`}}>
-                    <input type='checkbox' checked={p.include} onChange={e=>{
-                      setPromoStudents(prev=>prev.map((x,j)=>j===i?{...x,include:e.target.checked}:x))
-                    }} style={{width:16,height:16,cursor:'pointer',accentColor:'var(--gold)'}}/>
+                  <div key={p.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${p.action==='graduate'?'rgba(240,107,122,0.3)':p.action==='repeat'?'rgba(251,159,58,0.3)':'var(--line)'}`}}>
                     <Avatar name={`${p.student.first_name} ${p.student.last_name}`} size={28}/>
                     <div style={{flex:1,fontSize:13,fontWeight:500}}>{p.student.first_name} {p.student.last_name}</div>
-                    {p.include && (
-                      <select value={p.destClassId} onChange={e=>{
-                        const v=e.target.value
-                        setPromoStudents(prev=>prev.map((x,j)=>j===i?{...x,destClassId:v}:x))
-                      }} style={{background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'5px 10px',color:'var(--mist)',fontSize:12,cursor:'pointer'}}>
+                    <div style={{display:'flex',gap:6}}>
+                      {['promote','repeat','graduate'].map(a=>(
+                        <button key={a} onClick={()=>setPromoStudents(prev=>prev.map((x,j)=>j===i?{...x,action:a}:x))}
+                          style={{padding:'4px 10px',fontSize:11,fontWeight:600,borderRadius:'var(--r-sm)',cursor:'pointer',border:'1px solid',
+                            background:p.action===a?(a==='promote'?'rgba(45,212,160,0.15)':a==='repeat'?'rgba(251,159,58,0.15)':'rgba(240,107,122,0.15)'):'transparent',
+                            color:p.action===a?(a==='promote'?'var(--emerald)':a==='repeat'?'var(--amber)':'var(--rose)'):'var(--mist3)',
+                            borderColor:p.action===a?(a==='promote'?'var(--emerald)':a==='repeat'?'var(--amber)':'var(--rose)'):'var(--line)'}}>
+                          {a.charAt(0).toUpperCase()+a.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                    {p.action==='promote' && (
+                      <select value={p.destClassId} onChange={e=>setPromoStudents(prev=>prev.map((x,j)=>j===i?{...x,destClassId:e.target.value}:x))}
+                        style={{background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'5px 10px',color:'var(--mist)',fontSize:12,cursor:'pointer'}}>
                         {classes.filter(c=>c.id!==promoSource).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                     )}
-                    {!p.include && <span style={{fontSize:11,color:'var(--rose)',fontWeight:600}}>Repeating year</span>}
                   </div>
                 ))}
               </div>
-              <div style={{padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:16,fontSize:12,color:'var(--mist2)',display:'flex',gap:20}}>
-                <span style={{color:'var(--emerald)'}}>✓ {promoStudents.filter(p=>p.include).length} moving</span>
-                <span style={{color:'var(--rose)',marginLeft:16}}>✗ {promoStudents.filter(p=>!p.include).length} staying back</span>
+              <div style={{padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:16,fontSize:12,color:'var(--mist2)',display:'flex',gap:16}}>
+                <span style={{color:'var(--emerald)'}}>{promoStudents.filter(p=>p.action==='promote').length} promoting</span>
+                <span style={{color:'var(--amber)'}}>repeat {promoStudents.filter(p=>p.action==='repeat').length} repeating</span>
+                <span style={{color:'var(--rose)'}}>* {promoStudents.filter(p=>p.action==='graduate').length} graduating</span>
               </div>
               <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
-                <Btn variant='ghost' onClick={()=>setPromoStep(1)}>← Back</Btn>
-                <Btn disabled={promoStudents.filter(p=>p.include).length===0}
-                  onClick={()=>setPromoStep(3)}>
-                  Next → Preview & Confirm
-                </Btn>
+                <Btn variant='ghost' onClick={()=>setPromoStep(1)}>&larr; Back</Btn>
+                <Btn onClick={()=>setPromoStep(3)}>Next - Preview & Confirm</Btn>
               </div>
             </div>
           )}
 
-          {/* STEP 3 — Preview and confirm */}
           {promoStep===3 && (
             <div>
-              <p style={{fontSize:13,color:'var(--mist2)',marginBottom:16,lineHeight:1.6}}>
-                Review what will happen then click <strong style={{color:'var(--white)'}}>Confirm Promotion</strong>. This cannot be undone.
-              </p>
-              <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:16,marginBottom:16}}>
-                <div style={{fontSize:12,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12}}>Summary</div>
-                <div style={{display:'flex',gap:24,flexWrap:'wrap',marginBottom:16}}>
-                  <div><div style={{fontSize:10,color:'var(--mist3)'}}>FROM</div><div style={{fontSize:14,fontWeight:600,color:'var(--gold)'}}>{classes.find(c=>c.id===promoSource)?.name}</div></div>
-                  <div style={{color:'var(--mist3)',alignSelf:'center',fontSize:18}}>→</div>
-                  <div><div style={{fontSize:10,color:'var(--mist3)'}}>DEFAULT TO</div><div style={{fontSize:14,fontWeight:600,color:'var(--emerald)'}}>{classes.find(c=>c.id===promoDest)?.name}</div></div>
-                </div>
-                <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:240,overflowY:'auto'}}>
-                  {promoStudents.filter(p=>p.include).map(p=>(
-                    <div key={p.student.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'6px 0',borderBottom:'1px solid var(--line)'}}>
-                      <span style={{fontWeight:500}}>{p.student.first_name} {p.student.last_name}</span>
-                      <span style={{color:'var(--emerald)'}}>→ {classes.find(c=>c.id===p.destClassId)?.name}</span>
-                    </div>
-                  ))}
-                  {promoStudents.filter(p=>!p.include).map(p=>(
-                    <div key={p.student.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'6px 0',borderBottom:'1px solid var(--line)',opacity:0.5}}>
-                      <span style={{fontWeight:500}}>{p.student.first_name} {p.student.last_name}</span>
-                      <span style={{color:'var(--rose)'}}>Repeating — stays in {classes.find(c=>c.id===promoSource)?.name}</span>
-                    </div>
-                  ))}
-                </div>
+              <p style={{fontSize:13,color:'var(--mist2)',marginBottom:16,lineHeight:1.6}}>Review what will happen then confirm. <strong style={{color:'var(--rose)'}}>This cannot be undone.</strong></p>
+              <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:16,marginBottom:16,maxHeight:320,overflowY:'auto'}}>
+                {promoStudents.filter(p=>p.action==='promote').map(p=>(
+                  <div key={p.student.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'6px 0',borderBottom:'1px solid var(--line)'}}>
+                    <span style={{fontWeight:500}}>{p.student.first_name} {p.student.last_name}</span>
+                    <span style={{color:'var(--emerald)'}}>&rarr; {classes.find(c=>c.id===p.destClassId)?.name}</span>
+                  </div>
+                ))}
+                {promoStudents.filter(p=>p.action==='repeat').map(p=>(
+                  <div key={p.student.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'6px 0',borderBottom:'1px solid var(--line)',opacity:0.6}}>
+                    <span style={{fontWeight:500}}>{p.student.first_name} {p.student.last_name}</span>
+                    <span style={{color:'var(--amber)'}}>repeat Repeating -- stays in {classes.find(c=>c.id===promoSource)?.name}</span>
+                  </div>
+                ))}
+                {promoStudents.filter(p=>p.action==='graduate').map(p=>(
+                  <div key={p.student.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'6px 0',borderBottom:'1px solid var(--line)',opacity:0.6}}>
+                    <span style={{fontWeight:500}}>{p.student.first_name} {p.student.last_name}</span>
+                    <span style={{color:'var(--rose)'}}>* Graduated -- archived</span>
+                  </div>
+                ))}
               </div>
               <div style={{padding:'10px 14px',background:'rgba(232,184,75,0.06)',border:'1px solid rgba(232,184,75,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--mist2)',marginBottom:16}}>
-                ⚠ Outstanding fee balances carry over automatically — they remain linked to each student.
+                (!) Outstanding fee balances carry over automatically. Archived students' full history is preserved.
               </div>
               <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
-                <Btn variant='ghost' onClick={()=>setPromoStep(2)}>← Back</Btn>
-                <Btn onClick={confirmPromo} disabled={promoting}>
-                  {promoting?<><Spinner/> Promoting…</>:'✓ Confirm Promotion'}
-                </Btn>
+                <Btn variant='ghost' onClick={()=>setPromoStep(2)}>&larr; Back</Btn>
+                <Btn onClick={confirmPromo} disabled={promoting}>{promoting?<><Spinner/> Promoting...</>:'Confirm Promotion'}</Btn>
               </div>
             </div>
           )}
@@ -2726,7 +2714,7 @@ export default function App() {
 
   const logout = async ()=>{ await supabase.auth.signOut(); setPage('dashboard') }
 
-  if(loading) return <><style>{G}</style><LoadingScreen msg={session?'Loading your workspace…':'Initialising…'}/></>
+  if(loading) return <><style>{G}</style><LoadingScreen msg={session?'Loading your workspace...':'Initialising...'}/></>
   if(!session||!profile) return <><style>{G}</style><Login onLogin={p=>setProfile(p)}/></>
 
   const props = {profile,data,setData,toast:showToast,settings}
@@ -2771,7 +2759,7 @@ export default function App() {
             <div style={{height:56,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px',borderBottom:'1px solid var(--line)',background:'var(--ink2)',flexShrink:0}}>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
                 <span className='d' style={{fontSize:12,color:'var(--mist3)',fontWeight:500,letterSpacing:'0.06em'}}>{settings?.school_name||'SRMS'}</span>
-                <span style={{color:'var(--line2)'}}>·</span>
+                <span style={{color:'var(--line2)'}}>.</span>
                 <span style={{fontSize:12,color:'var(--mist3)'}}>{settings?.academic_year||''}</span>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:16}}>
