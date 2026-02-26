@@ -1433,7 +1433,7 @@ const ordinal = n => {
 
 // ── REPORTS ────────────────────────────────────────────────────
 function Reports({data,settings,activeYear,isViewingPast}) {
-  const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[]} = data
+  const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
   const currency   = getCurrency(settings)
@@ -1471,10 +1471,14 @@ function Reports({data,settings,activeYear,isViewingPast}) {
   }
   const clearStudent = () => { setSelectedStudent(null); setStudentSearch(''); setShowDropdown(false) }
 
-  // Scope: if student selected -> just that student, else filter by class
+  // Scope: use enrolment records for past years so students show in their year's class
+  const enrolmentMap = enrolments.reduce((acc,e)=>{acc[e.student_id]=e.class_id;return acc},{})
+  const studentsWithYearClass = enrolments.length>0
+    ? students.filter(s=>enrolmentMap[s.id]).map(s=>({...s,class_id:enrolmentMap[s.id]}))
+    : students.filter(s=>!s.archived)
   const scopedStudents = selectedStudent
-    ? students.filter(s=>s.id===selectedStudent.id)
-    : students.filter(s=>!fc||s.class_id===fc)
+    ? studentsWithYearClass.filter(s=>s.id===selectedStudent.id)
+    : studentsWithYearClass.filter(s=>!fc||s.class_id===fc)
 
   // ── Academic data ──
   const academicData = scopedStudents.map(s=>{
@@ -2907,19 +2911,35 @@ export default function App() {
         <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',background:'var(--ink)'}}>
           {/* Topbar */}
           {isMobile ? (
-            <div style={{height:56,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px',borderBottom:'1px solid var(--line)',background:'var(--ink2)',flexShrink:0}}>
-              <button onClick={()=>setDrawerOpen(true)} style={{width:40,height:40,borderRadius:'var(--r-sm)',background:'var(--ink4)',border:'1px solid var(--line)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:5,flexShrink:0}}>
-                <div style={{width:18,height:1.5,background:'var(--mist2)',borderRadius:1}}/>
-                <div style={{width:18,height:1.5,background:'var(--mist2)',borderRadius:1}}/>
-                <div style={{width:18,height:1.5,background:'var(--mist2)',borderRadius:1}}/>
-              </button>
-              <span className='d' style={{fontSize:15,fontWeight:700,letterSpacing:'-0.01em'}}>{pageTitles[page]||'SRMS'}</span>
-              <Avatar name={profile?.full_name} size={34} color={ROLE_META[profile?.role]?.bg}/>
+            <div style={{flexShrink:0,borderBottom:'1px solid var(--line)',background:'var(--ink2)'}}>
+              <div style={{height:56,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px'}}>
+                <button onClick={()=>setDrawerOpen(true)} style={{width:40,height:40,borderRadius:'var(--r-sm)',background:'var(--ink4)',border:'1px solid var(--line)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:5,flexShrink:0}}>
+                  <div style={{width:18,height:1.5,background:'var(--mist2)',borderRadius:1}}/>
+                  <div style={{width:18,height:1.5,background:'var(--mist2)',borderRadius:1}}/>
+                  <div style={{width:18,height:1.5,background:'var(--mist2)',borderRadius:1}}/>
+                </button>
+                <span className='d' style={{fontSize:15,fontWeight:700,letterSpacing:'-0.01em'}}>{pageTitles[page]||'SRMS'}</span>
+                <Avatar name={profile?.full_name} size={34} color={ROLE_META[profile?.role]?.bg}/>
+              </div>
+              {/* Mobile year bar — only superadmin sees switcher */}
+              <div style={{height:28,display:'flex',alignItems:'center',justifyContent:'center',gap:8,borderTop:'1px solid var(--line)',background:isViewingPast?'rgba(251,159,58,0.06)':'transparent'}}>
+                <span style={{fontSize:10,color:'var(--mist3)',letterSpacing:'0.06em'}}>{settings?.school_name||'SRMS'}</span>
+                <span style={{color:'var(--line2)',fontSize:10}}>.</span>
+                {profile?.role==='superadmin' ? (
+                  <select value={activeYear} onChange={e=>setSelectedYear(e.target.value===currentYear?null:e.target.value)}
+                    style={{background:'transparent',border:'none',color:isViewingPast?'var(--amber)':'var(--mist3)',fontSize:10,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif",padding:0}}>
+                    {generateYears(currentYear).map(y=><option key={y} value={y}>{y}{y===currentYear?' (current)':''}</option>)}
+                  </select>
+                ) : (
+                  <span style={{fontSize:10,color:'var(--mist3)'}}>{activeYear}</span>
+                )}
+                {isViewingPast && <span style={{fontSize:9,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:3,padding:'1px 6px',letterSpacing:'0.06em'}}>READ ONLY</span>}
+              </div>
             </div>
           ) : (
             <div style={{height:56,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px',borderBottom:'1px solid var(--line)',background:'var(--ink2)',flexShrink:0}}>
-              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                <span className='d' style={{fontSize:12,color:'var(--mist3)',fontWeight:500,letterSpacing:'0.06em'}}>{settings?.school_name||'SRMS'}</span>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <span className='d' style={{fontSize:12,color:'var(--mist3)',fontWeight:500,letterSpacing:'0.06em',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:160}}>{settings?.school_name||'SRMS'}</span>
                 <span style={{color:'var(--line2)'}}>.</span>
                 {profile?.role==='superadmin' ? (
                   <select value={activeYear} onChange={e=>setSelectedYear(e.target.value===currentYear?null:e.target.value)}
@@ -2929,7 +2949,7 @@ export default function App() {
                 ) : (
                   <span style={{fontSize:12,color:'var(--mist3)'}}>{activeYear}</span>
                 )}
-                {isViewingPast && <span style={{fontSize:10,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:4,padding:'2px 8px',letterSpacing:'0.06em'}}>READ ONLY</span>}
+                {isViewingPast && <span style={{fontSize:10,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:4,padding:'2px 8px',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>READ ONLY</span>}
               </div>
               <div style={{display:'flex',alignItems:'center',gap:16}}>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
