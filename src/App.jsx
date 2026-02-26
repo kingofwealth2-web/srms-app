@@ -2337,7 +2337,7 @@ function Classes({profile,data,setData,toast}) {
   const fc = k=>v=>setCf(p=>({...p,[k]:v}))
   const fs = k=>v=>setSf(p=>({...p,[k]:v}))
   useEffect(()=>{ supabase.from('profiles').select('*').then(({data})=>{ if(data) setAllUsers(data) }) },[])
-  const teachers = allUsers.filter(u=>['classteacher','teacher'].includes(u.role))
+  const teachers = allUsers.filter(u=>u.role==='classteacher')
   const saveClass = async ()=>{
     if(!cf.name)return; setSaving(true)
     const newTeacherId = cf.class_teacher_id||null
