@@ -904,10 +904,8 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
   const scale = settings?.grading_scale || []
   const allComps = getGradeComponents(settings)
   const activeComps = allComps.filter(c=>c.enabled)
-  const mySubjects  = ['superadmin','admin'].includes(profile?.role) ? subjects : subjects.filter(s=>s.teacher_id===profile?.id)
-  const myGrades    = ['superadmin','admin'].includes(profile?.role) ? grades   : grades.filter(g=>mySubjects.some(s=>s.id===g.subject_id))
-  const myClassIds  = ['superadmin','admin'].includes(profile?.role) ? null : [...new Set(mySubjects.map(s=>s.class_id))]
-  const myStudents  = myClassIds===null ? students : students.filter(s=>myClassIds.includes(s.class_id))
+  const mySubjects = ['superadmin','admin'].includes(profile?.role) ? subjects : subjects.filter(s=>s.teacher_id===profile?.id)
+  const myGrades   = ['superadmin','admin'].includes(profile?.role) ? grades   : grades.filter(g=>mySubjects.some(s=>s.id===g.subject_id))
   const [fs,setFs] = useState('')
   const [fp,setFp] = useState('')
   const [modal,setModal] = useState(false)
@@ -942,9 +940,22 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
       if(error)toast(error.message,'error')
       else{setData(p=>({...p,grades:p.grades.map(x=>x.id===edit.id?{...x,...g}:x)}));toast('Grade updated');setModal(false)}
     } else {
-      const {data:row,error}=await supabase.from('grades').insert(g).select().single()
-      if(error)toast(error.message,'error')
-      else{setData(p=>({...p,grades:[...p.grades,row]}));toast('Grade recorded');setModal(false)}
+      // Check if a grade already exists for this student/subject/period/year
+      const existing = grades.find(x=>
+        x.student_id===g.student_id &&
+        x.subject_id===g.subject_id &&
+        x.period===g.period &&
+        x.year===g.year
+      )
+      if(existing) {
+        const {error}=await supabase.from('grades').update(g).eq('id',existing.id)
+        if(error)toast(error.message,'error')
+        else{setData(p=>({...p,grades:p.grades.map(x=>x.id===existing.id?{...x,...g}:x)}));toast('Grade updated');setModal(false)}
+      } else {
+        const {data:row,error}=await supabase.from('grades').insert(g).select().single()
+        if(error)toast(error.message,'error')
+        else{setData(p=>({...p,grades:[...p.grades,row]}));toast('Grade recorded');setModal(false)}
+      }
     }
     setSaving(false)
   }
@@ -1003,7 +1014,7 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
       {modal && (
         <Modal title={edit?'Edit Grade':'Record Grades'} onClose={()=>setModal(false)} width={600}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 20px'}}>
-            <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={myStudents.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name}`}))}/>
+            <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={students.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name}`}))}/>
             <Field label='Subject' value={form.subject_id} onChange={f('subject_id')} required options={mySubjects.map(s=>({value:s.id,label:s.name}))}/>
             <Field label='Period'        value={form.period} onChange={f('period')} options={periods}/>
             <div style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Academic Year</div><div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>{form.year||settings?.academic_year||'--'}</div></div>
