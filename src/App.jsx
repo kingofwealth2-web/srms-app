@@ -144,6 +144,38 @@ const FEE_STATUS   = {
   Outstanding:{color:'var(--rose)',   bg:'rgba(240,107,122,0.12)'},
 }
 
+// ── GHANA PUBLIC HOLIDAYS (month/day, recurring annually) ─────
+const GHANA_PUBLIC_HOLIDAYS = [
+  {id:'gh01', name:"New Year's Day",          month:1,  day:1},
+  {id:'gh02', name:'Constitution Day',         month:1,  day:7},
+  {id:'gh03', name:'Independence Day',         month:3,  day:6},
+  {id:'gh04', name:"Workers' Day",            month:5,  day:1},
+  {id:'gh05', name:'Africa Unity Day',         month:5,  day:25},
+  {id:'gh06', name:'Republic Day',             month:7,  day:1},
+  {id:'gh07', name:"Founders' Day",           month:8,  day:4},
+  {id:'gh08', name:'Kwame Nkrumah Day',        month:9,  day:21},
+  {id:'gh09', name:"Farmers' Day",            month:12, day:6},
+  {id:'gh10', name:'Christmas Day',            month:12, day:25},
+  {id:'gh11', name:'Boxing Day',               month:12, day:26},
+]
+function getHolidayOnDate(dateStr, customHolidays=[]) {
+  if(!dateStr) return null
+  const d = new Date(dateStr + 'T00:00:00')
+  const m = d.getMonth() + 1
+  const day = d.getDate()
+  const custom = customHolidays.find(h => h.date === dateStr)
+  if(custom) return custom.name
+  const gh = GHANA_PUBLIC_HOLIDAYS.find(h => h.month === m && h.day === day)
+  if(gh) return gh.name
+  return null
+}
+function getVacationOnDate(dateStr, vacations=[], academicYear) {
+  if(!dateStr) return null
+  const vacs = vacations.filter(v => v.academic_year === academicYear)
+  const v = vacs.find(v => dateStr >= v.start_date && dateStr <= v.end_date)
+  return v ? v.name : null
+}
+
 // ── YEAR HELPERS ───────────────────────────────────────────────
 function generateYears(centerYear) {
   // centerYear like "2026/2027" or "2026-2027"
@@ -1043,6 +1075,17 @@ function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPas
   const getStatus = sid => pendingMarks[sid] !== undefined ? pendingMarks[sid] : getSavedStatus(sid)
   const alreadyMarkedToday = date===today && savedRecs.length>0 && Object.keys(pendingMarks).length===0
   const unmarkedCount = classStudents.filter(s=>!getStatus(s.id)).length
+  // Calendar blocking
+  const vacations    = settings?.vacations    || []
+  const customHols   = settings?.custom_holidays || []
+  const holidayName  = getHolidayOnDate(date, customHols)
+  const vacationName = getVacationOnDate(date, vacations, activeYear)
+  const isBlocked    = !!(holidayName || vacationName)
+  const blockReason  = vacationName
+    ? { icon: '🏖', title: 'School is on Vacation', sub: vacationName, color: 'var(--sky)', bg: 'rgba(91,168,245,0.06)', border: 'rgba(91,168,245,0.2)' }
+    : holidayName
+    ? { icon: '🎉', title: 'Public Holiday', sub: holidayName, color: 'var(--emerald)', bg: 'rgba(45,212,160,0.06)', border: 'rgba(45,212,160,0.2)' }
+    : null
 
   const changeContext = (newCid, newDate) => {
     if(hasUnsaved) {
@@ -1108,7 +1151,7 @@ function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPas
           )}
           <input type='date' value={date} onChange={e=>changeContext(undefined,e.target.value)}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--white)',fontSize:13}}/>
-          {tab==='mark'&&cls&&(
+          {tab==='mark'&&cls&&!isBlocked&&(
             <div style={{display:'flex',gap:6,marginLeft:'auto',flexWrap:'wrap',alignItems:'center'}}>
               <span style={{fontSize:12,color:'var(--mist3)',marginRight:4}}>Mark all:</span>
               {statuses.map(s=>(
@@ -1119,6 +1162,14 @@ function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPas
           )}
         </div>
       </Card>
+      {isBlocked && tab==='mark' && (
+        <div className='fi' style={{background:blockReason.bg,border:'1px solid '+blockReason.border,borderRadius:'var(--r)',padding:'28px 24px',marginBottom:16,textAlign:'center'}}>
+          <div style={{fontSize:36,marginBottom:10}}>{blockReason.icon}</div>
+          <div style={{fontSize:16,fontWeight:700,color:blockReason.color,marginBottom:6}}>{blockReason.title}</div>
+          <div style={{fontSize:13,color:'var(--mist2)'}}>{blockReason.sub}</div>
+          <div style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>Attendance marking is not available on this date.</div>
+        </div>
+      )}
       {tab==='mark' ? (
         <div>
           {!cls ? (
@@ -1192,7 +1243,7 @@ function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPas
                     : <span style={{color:'var(--mist3)'}}>All changes saved</span>
                   }
                 </div>
-                {!isViewingPast && <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{minWidth:160,justifyContent:'center',boxShadow:hasUnsaved?'0 4px 20px rgba(232,184,75,0.25)':'none'}}>
+                {!isViewingPast && !isBlocked && <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{minWidth:160,justifyContent:'center',boxShadow:hasUnsaved?'0 4px 20px rgba(232,184,75,0.25)':'none'}}>
                   {saving?<><Spinner/> Saving...</>:(unmarkedCount>0?`Save Attendance (${unmarkedCount} unmarked)`:'Save Attendance')}
                 </Btn>}
               </div>
@@ -2944,7 +2995,238 @@ function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}
           </Card>
         </div>
       </div>
+
+      {/* ── ACADEMIC CALENDAR ── */}
+      {profile?.role==='superadmin' && (
+        <div style={{marginTop:20}}>
+          <AcademicCalendar
+            form={form}
+            setForm={setForm}
+            activeYear={activeYear}
+          />
+        </div>
+      )}
     </div>
+  )
+}
+
+// ── ACADEMIC CALENDAR SETTINGS ─────────────────────────────────
+function AcademicCalendar({form, setForm, activeYear}) {
+  const [vacTab, setVacTab] = useState('vacations')
+  // Vacations
+  const vacations = form.vacations || []
+  const yearVacs  = vacations.filter(v => v.academic_year === activeYear)
+  const [vacModal, setVacModal]   = useState(false)
+  const [editVac,  setEditVac]    = useState(null)
+  const [vacForm,  setVacForm]    = useState({name:'', start_date:'', end_date:'', academic_year:activeYear})
+  // Custom holidays
+  const customHols = form.custom_holidays || []
+  const [holModal, setHolModal]   = useState(false)
+  const [holForm,  setHolForm]    = useState({name:'', date:''})
+  const [editHol,  setEditHol]    = useState(null)
+
+  const openAddVac = () => {
+    setEditVac(null)
+    setVacForm({name:'', start_date:'', end_date:'', academic_year:activeYear})
+    setVacModal(true)
+  }
+  const openEditVac = (v) => {
+    setEditVac(v)
+    setVacForm({...v})
+    setVacModal(true)
+  }
+  const saveVac = () => {
+    if(!vacForm.name||!vacForm.start_date||!vacForm.end_date) return
+    let updated
+    if(editVac) {
+      updated = vacations.map(v => v.id===editVac.id ? {...vacForm, id:editVac.id} : v)
+    } else {
+      updated = [...vacations, {...vacForm, id: Date.now().toString(), academic_year:activeYear}]
+    }
+    setForm(p=>({...p, vacations:updated}))
+    setVacModal(false)
+  }
+  const delVac = (id) => {
+    setForm(p=>({...p, vacations:(p.vacations||[]).filter(v=>v.id!==id)}))
+  }
+
+  const openAddHol = () => {
+    setEditHol(null)
+    setHolForm({name:'', date:''})
+    setHolModal(true)
+  }
+  const openEditHol = (h) => {
+    setEditHol(h)
+    setHolForm({...h})
+    setHolModal(true)
+  }
+  const saveHol = () => {
+    if(!holForm.name||!holForm.date) return
+    let updated
+    if(editHol) {
+      updated = customHols.map(h => h.id===editHol.id ? {...holForm, id:editHol.id} : h)
+    } else {
+      updated = [...customHols, {...holForm, id: Date.now().toString()}]
+    }
+    setForm(p=>({...p, custom_holidays:updated}))
+    setHolModal(false)
+  }
+  const delHol = (id) => {
+    setForm(p=>({...p, custom_holidays:(p.custom_holidays||[]).filter(h=>h.id!==id)}))
+  }
+
+  const fmtD = d => d ? new Date(d+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '--'
+
+  return (
+    <Card>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:10}}>
+        <SectionTitle style={{marginBottom:0}}>Academic Calendar</SectionTitle>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={()=>setVacTab('vacations')}
+            style={{padding:'5px 14px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',
+              background:vacTab==='vacations'?'var(--ink4)':'transparent',
+              color:vacTab==='vacations'?'var(--white)':'var(--mist3)',
+              border:`1px solid ${vacTab==='vacations'?'var(--line2)':'var(--line)'}`,fontFamily:"'Cabinet Grotesk',sans-serif"}}>
+            Vacation Periods
+          </button>
+          <button onClick={()=>setVacTab('holidays')}
+            style={{padding:'5px 14px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',
+              background:vacTab==='holidays'?'var(--ink4)':'transparent',
+              color:vacTab==='holidays'?'var(--white)':'var(--mist3)',
+              border:`1px solid ${vacTab==='holidays'?'var(--line2)':'var(--line)'}`,fontFamily:"'Cabinet Grotesk',sans-serif"}}>
+            Public Holidays
+          </button>
+        </div>
+      </div>
+
+      {vacTab==='vacations' && (
+        <div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+            <p style={{fontSize:12,color:'var(--mist2)',lineHeight:1.6}}>
+              Attendance marking is blocked on all dates within these periods for <strong style={{color:'var(--gold)'}}>{activeYear}</strong>.
+            </p>
+            <Btn size='sm' onClick={openAddVac} style={{flexShrink:0,marginLeft:16}}>+ Add Period</Btn>
+          </div>
+          {yearVacs.length===0 ? (
+            <div style={{padding:'24px',textAlign:'center',color:'var(--mist3)',fontSize:13,background:'var(--ink3)',borderRadius:'var(--r-sm)'}}>
+              No vacation periods set for {activeYear}.
+            </div>
+          ) : (
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {yearVacs.map(v=>(
+                <div key={v.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',background:'rgba(91,168,245,0.06)',border:'1px solid rgba(91,168,245,0.15)',borderRadius:'var(--r-sm)',gap:12,flexWrap:'wrap'}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600,color:'var(--sky)',marginBottom:3}}>{v.name}</div>
+                    <div style={{fontSize:11,color:'var(--mist3)'}}>{fmtD(v.start_date)} — {fmtD(v.end_date)}</div>
+                  </div>
+                  <div style={{display:'flex',gap:8}}>
+                    <button onClick={()=>openEditVac(v)} style={{background:'transparent',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--mist2)',fontSize:11,padding:'4px 10px',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>Edit</button>
+                    <button onClick={()=>delVac(v.id)} style={{background:'transparent',border:'1px solid rgba(240,107,122,0.3)',borderRadius:'var(--r-sm)',color:'var(--rose)',fontSize:11,padding:'4px 10px',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {vacTab==='holidays' && (
+        <div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+            <p style={{fontSize:12,color:'var(--mist2)',lineHeight:1.6}}>
+              Ghana public holidays are pre-loaded and block attendance automatically. Add school-specific holidays below.
+            </p>
+            <Btn size='sm' onClick={openAddHol} style={{flexShrink:0,marginLeft:16}}>+ Add Holiday</Btn>
+          </div>
+
+          {/* Ghana pre-loaded */}
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Ghana National Holidays (Pre-loaded)</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {GHANA_PUBLIC_HOLIDAYS.map(h=>(
+                <div key={h.id} style={{fontSize:11,color:'var(--mist2)',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:4,padding:'3px 10px'}}>
+                  {h.name} <span style={{color:'var(--mist3)',marginLeft:4}}>{String(h.month).padStart(2,'0')}/{String(h.day).padStart(2,'0')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom holidays */}
+          <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>School-specific Holidays</div>
+          {customHols.length===0 ? (
+            <div style={{padding:'18px',textAlign:'center',color:'var(--mist3)',fontSize:13,background:'var(--ink3)',borderRadius:'var(--r-sm)'}}>
+              No custom holidays added.
+            </div>
+          ) : (
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {customHols.map(h=>(
+                <div key={h.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 16px',background:'rgba(45,212,160,0.05)',border:'1px solid rgba(45,212,160,0.15)',borderRadius:'var(--r-sm)',gap:12,flexWrap:'wrap'}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600,color:'var(--emerald)',marginBottom:2}}>{h.name}</div>
+                    <div style={{fontSize:11,color:'var(--mist3)'}}>{fmtD(h.date)}</div>
+                  </div>
+                  <div style={{display:'flex',gap:8}}>
+                    <button onClick={()=>openEditHol(h)} style={{background:'transparent',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--mist2)',fontSize:11,padding:'4px 10px',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>Edit</button>
+                    <button onClick={()=>delHol(h.id)} style={{background:'transparent',border:'1px solid rgba(240,107,122,0.3)',borderRadius:'var(--r-sm)',color:'var(--rose)',fontSize:11,padding:'4px 10px',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Vacation Modal */}
+      {vacModal && (
+        <Modal title={editVac?'Edit Vacation Period':'Add Vacation Period'} onClose={()=>setVacModal(false)} width={440}>
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Name</div>
+            <input value={vacForm.name} onChange={e=>setVacForm(p=>({...p,name:e.target.value}))} placeholder='e.g. Christmas Break'
+              style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',color:'var(--white)',fontSize:13,fontFamily:"'Cabinet Grotesk',sans-serif"}}/>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
+            <div>
+              <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Start Date</div>
+              <input type='date' value={vacForm.start_date} onChange={e=>setVacForm(p=>({...p,start_date:e.target.value}))}
+                style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',color:'var(--white)',fontSize:13}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>End Date</div>
+              <input type='date' value={vacForm.end_date} onChange={e=>setVacForm(p=>({...p,end_date:e.target.value}))}
+                style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',color:'var(--white)',fontSize:13}}/>
+            </div>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
+            <Btn variant='ghost' onClick={()=>setVacModal(false)}>Cancel</Btn>
+            <Btn onClick={saveVac} disabled={!vacForm.name||!vacForm.start_date||!vacForm.end_date}>
+              {editVac?'Save Changes':'Add Period'}
+            </Btn>
+          </div>
+        </Modal>
+      )}
+
+      {/* Holiday Modal */}
+      {holModal && (
+        <Modal title={editHol?'Edit Holiday':'Add Holiday'} onClose={()=>setHolModal(false)} width={400}>
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Holiday Name</div>
+            <input value={holForm.name} onChange={e=>setHolForm(p=>({...p,name:e.target.value}))} placeholder="e.g. Founder's Day (School)"
+              style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',color:'var(--white)',fontSize:13,fontFamily:"'Cabinet Grotesk',sans-serif"}}/>
+          </div>
+          <div style={{marginBottom:20}}>
+            <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Date</div>
+            <input type='date' value={holForm.date} onChange={e=>setHolForm(p=>({...p,date:e.target.value}))}
+              style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',color:'var(--white)',fontSize:13}}/>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
+            <Btn variant='ghost' onClick={()=>setHolModal(false)}>Cancel</Btn>
+            <Btn onClick={saveHol} disabled={!holForm.name||!holForm.date}>
+              {editHol?'Save Changes':'Add Holiday'}
+            </Btn>
+          </div>
+        </Modal>
+      )}
+    </Card>
   )
 }
 
@@ -3422,6 +3704,74 @@ function YearSwitcher({ activeYear, currentYear, selectedYear, setSelectedYear, 
 
 
 // ─────────────────────────────────────────────────────────────
+// STEP 2A: Replace the DESKTOP topbar select block
+// Find this exact block (around line 3511):
+// ─────────────────────────────────────────────────────────────
+
+// FIND (desktop):
+/*
+{profile?.role==='superadmin' ? (
+  <select value={activeYear} onChange={e=>setSelectedYear(e.target.value===currentYear?null:e.target.value)}
+    style={{background:'transparent',border:'none',color:isViewingPast?'var(--amber)':'var(--mist3)',fontSize:12,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif",padding:0}}>
+    {generateYears(currentYear).map(y=><option key={y} value={y}>{y}{y===currentYear?' (current)':''}</option>)}
+  </select>
+) : (
+  <span style={{fontSize:12,color:'var(--mist3)'}}>{activeYear}</span>
+)}
+{isViewingPast && <span style={{fontSize:10,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:4,padding:'2px 8px',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>READ ONLY</span>}
+*/
+
+// REPLACE WITH (desktop):
+/*
+{profile?.role==='superadmin' ? (
+  <YearSwitcher
+    activeYear={activeYear}
+    currentYear={currentYear}
+    selectedYear={selectedYear}
+    setSelectedYear={setSelectedYear}
+    isMobile={false}
+  />
+) : (
+  <span style={{fontSize:12,color:'var(--mist3)'}}>{activeYear}</span>
+)}
+{isViewingPast && <span style={{fontSize:10,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:4,padding:'2px 8px',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>READ ONLY</span>}
+*/
+
+
+// ─────────────────────────────────────────────────────────────
+// STEP 2B: Replace the MOBILE topbar select block
+// Find this exact block (around line 3495):
+// ─────────────────────────────────────────────────────────────
+
+// FIND (mobile):
+/*
+{profile?.role==='superadmin' ? (
+  <select value={activeYear} onChange={e=>setSelectedYear(e.target.value===currentYear?null:e.target.value)}
+    style={{background:'transparent',border:'none',color:isViewingPast?'var(--amber)':'var(--mist3)',fontSize:10,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif",padding:0}}>
+    {generateYears(currentYear).map(y=><option key={y} value={y}>{y}{y===currentYear?' (current)':''}</option>)}
+  </select>
+) : (
+  <span style={{fontSize:10,color:'var(--mist3)'}}>{activeYear}</span>
+)}
+{isViewingPast && <span style={{fontSize:9,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:3,padding:'1px 6px',letterSpacing:'0.06em'}}>READ ONLY</span>}
+*/
+
+// REPLACE WITH (mobile):
+/*
+{profile?.role==='superadmin' ? (
+  <YearSwitcher
+    activeYear={activeYear}
+    currentYear={currentYear}
+    selectedYear={selectedYear}
+    setSelectedYear={setSelectedYear}
+    isMobile={true}
+  />
+) : (
+  <span style={{fontSize:10,color:'var(--mist3)'}}>{activeYear}</span>
+)}
+{isViewingPast && <span style={{fontSize:9,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:3,padding:'1px 6px',letterSpacing:'0.06em'}}>READ ONLY</span>}
+*/
+
 // ── ROOT APP ───────────────────────────────────────────────────
 export default function App() {
   const [session,setSession]   = useState(null)
@@ -3649,7 +3999,10 @@ export default function App() {
                 <span style={{fontSize:10,color:'var(--mist3)',letterSpacing:'0.06em'}}>{settings?.school_name||'SRMS'}</span>
                 <span style={{color:'var(--line2)',fontSize:10}}>.</span>
                 {profile?.role==='superadmin' ? (
-                  <YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={true}/>
+                  <select value={activeYear} onChange={e=>setSelectedYear(e.target.value===currentYear?null:e.target.value)}
+                    style={{background:'transparent',border:'none',color:isViewingPast?'var(--amber)':'var(--mist3)',fontSize:10,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif",padding:0}}>
+                    {generateYears(currentYear).map(y=><option key={y} value={y}>{y}{y===currentYear?' (current)':''}</option>)}
+                  </select>
                 ) : (
                   <span style={{fontSize:10,color:'var(--mist3)'}}>{activeYear}</span>
                 )}
@@ -3662,7 +4015,10 @@ export default function App() {
                 <span className='d' style={{fontSize:12,color:'var(--mist3)',fontWeight:500,letterSpacing:'0.06em',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:160}}>{settings?.school_name||'SRMS'}</span>
                 <span style={{color:'var(--line2)'}}>.</span>
                 {profile?.role==='superadmin' ? (
-                  <YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={false}/>
+                  <select value={activeYear} onChange={e=>setSelectedYear(e.target.value===currentYear?null:e.target.value)}
+                    style={{background:'transparent',border:'none',color:isViewingPast?'var(--amber)':'var(--mist3)',fontSize:12,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif",padding:0}}>
+                    {generateYears(currentYear).map(y=><option key={y} value={y}>{y}{y===currentYear?' (current)':''}</option>)}
+                  </select>
                 ) : (
                   <span style={{fontSize:12,color:'var(--mist3)'}}>{activeYear}</span>
                 )}
