@@ -1213,9 +1213,187 @@ function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPas
   )
 }
 
+// ── RECEIPT PRINTER ────────────────────────────────────────────
+function printReceipt({fee, feePayments, student, cls, settings, currency}) {
+  const schoolName  = settings?.school_name  || 'School'
+  const schoolMotto = settings?.motto         || ''
+  const schoolLogo  = settings?.school_logo   || null
+  const totalPaid   = feePayments.reduce((a,p)=>a+Number(p.amount||0),0)
+  // legacy: any paid amount on fee record not covered by payments table
+  const legacyPaid  = Math.max(0, Number(fee.paid||0) - totalPaid)
+  const allPaid     = legacyPaid + totalPaid
+  const balance     = Number(fee.amount||0) - allPaid
+  const isPaidFull  = balance <= 0
+  const lastPayment = [...feePayments].sort((a,b)=>b.created_at?.localeCompare(a.created_at))[0]
+  const receiptNo   = lastPayment?.receipt_no || fee.receipt_no || '--'
+  const fmtD        = d => d ? new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '--'
+  const fmtT        = d => d ? new Date(d).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : ''
+
+  const logoTag = schoolLogo
+    ? `<img src="${schoolLogo}" style="width:52px;height:52px;object-fit:contain;border-radius:6px;" />`
+    : `<div style="width:52px;height:52px;border-radius:10px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-family:'Arial Black',sans-serif;font-size:22px;font-weight:900;color:#e8b84b;flex-shrink:0;">S</div>`
+
+  const paymentRows = feePayments.length > 0
+    ? feePayments.map((p,i) => `
+        <tr>
+          <td style="padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:12px;color:#444;">${fmtD(p.created_at)} ${fmtT(p.created_at)}</td>
+          <td style="padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:12px;color:#444;font-family:monospace;">${p.receipt_no||'--'}</td>
+          <td style="padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:12px;color:#444;">${p.recorded_by_name||'--'}</td>
+          <td style="padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px;font-weight:700;color:#1a7a4a;text-align:right;">${fmtMoney(p.amount,currency)}</td>
+        </tr>`).join('')
+    : `<tr><td colspan="4" style="padding:10px 0;font-size:12px;color:#aaa;text-align:center;">No payment transactions recorded</td></tr>`
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<title>Receipt ${receiptNo}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#e8e8e8;font-family:'Helvetica Neue',Arial,sans-serif;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:32px 16px}
+  .card{width:420px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 48px rgba(0,0,0,0.18)}
+  @media print{
+    body{background:#fff;padding:0;display:block}
+    .card{width:100%;box-shadow:none;border-radius:0}
+    .no-print{display:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <!-- Header -->
+  <div style="background:linear-gradient(135deg,#0f0f1a 0%,#1a1a2e 60%,#0f2027 100%);padding:24px 24px 0 24px;position:relative;overflow:hidden;">
+    <!-- Decorative circles -->
+    <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:rgba(232,184,75,0.08);pointer-events:none;"></div>
+    <div style="position:absolute;bottom:-20px;left:-20px;width:80px;height:80px;border-radius:50%;background:rgba(232,184,75,0.05);pointer-events:none;"></div>
+
+    <!-- Logo + school info -->
+    <div style="display:flex;align-items:flex-start;gap:14px;position:relative;z-index:1;">
+      ${logoTag}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:15px;font-weight:800;color:#fff;letter-spacing:-0.02em;line-height:1.2;">${schoolName}</div>
+        ${schoolMotto ? `<div style="font-size:10px;color:#e8b84b;margin-top:3px;font-style:italic;opacity:0.9;">"${schoolMotto}"</div>` : ''}
+        <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:4px;letter-spacing:0.06em;text-transform:uppercase;">Official Payment Receipt</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="background:rgba(232,184,75,0.15);border:1px solid rgba(232,184,75,0.4);border-radius:8px;padding:6px 10px;">
+          <div style="font-size:9px;color:rgba(232,184,75,0.7);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:2px;">Receipt No.</div>
+          <div style="font-size:13px;font-weight:800;color:#e8b84b;font-family:monospace;letter-spacing:0.05em;">${receiptNo}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gold divider wave -->
+    <div style="margin-top:20px;height:3px;background:linear-gradient(90deg,transparent,#e8b84b,#f5d07a,#e8b84b,transparent);border-radius:2px;"></div>
+
+    <!-- Status ribbon -->
+    <div style="background:${isPaidFull?'rgba(45,212,160,0.12)':'rgba(251,159,58,0.12)'};padding:10px 0;text-align:center;margin-top:0;">
+      <span style="font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${isPaidFull?'#2dd4a0':'#fb9f3a'};">
+        ${isPaidFull ? '✓ Fully Paid' : `Balance Remaining: ${fmtMoney(balance,currency)}`}
+      </span>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div style="padding:20px 24px;">
+
+    <!-- Student info -->
+    <div style="background:#f8f8fc;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+      <div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Student Information</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div>
+          <div style="font-size:10px;color:#999;margin-bottom:2px;">Full Name</div>
+          <div style="font-size:13px;font-weight:700;color:#111;">${student?.first_name||''} ${student?.last_name||''}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:#999;margin-bottom:2px;">Student ID</div>
+          <div style="font-size:13px;font-weight:700;color:#111;font-family:monospace;">${student?.student_id||'--'}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:#999;margin-bottom:2px;">Class</div>
+          <div style="font-size:13px;font-weight:600;color:#111;">${cls?.name||'--'}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:#999;margin-bottom:2px;">Academic Year</div>
+          <div style="font-size:13px;font-weight:600;color:#111;">${fee.academic_year||'--'}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fee details -->
+    <div style="margin-bottom:16px;">
+      <div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">Fee Details</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#f8f8fc;border-radius:8px;margin-bottom:6px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#111;">${fee.fee_type||'Fee'}</div>
+          ${fee.period?`<div style="font-size:11px;color:#888;margin-top:2px;">${fee.period}</div>`:''}
+        </div>
+        <div style="font-size:15px;font-weight:800;color:#111;">${fmtMoney(fee.amount,currency)}</div>
+      </div>
+
+      <!-- Balance breakdown -->
+      <div style="border:1px solid #eee;border-radius:8px;overflow:hidden;">
+        ${[
+          ['Total Fee', fmtMoney(fee.amount,currency), '#111', false],
+          ['Total Paid', fmtMoney(allPaid,currency), '#1a7a4a', false],
+          ['Balance', fmtMoney(Math.max(0,balance),currency), isPaidFull?'#1a7a4a':'#c0392b', true],
+        ].map(([l,v,c,bold])=>`
+          <div style="display:flex;justify-content:space-between;padding:9px 14px;border-bottom:1px solid #f5f5f5;">
+            <span style="font-size:12px;color:#666;">${l}</span>
+            <span style="font-size:13px;font-weight:${bold?800:600};color:${c};">${v}</span>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Payment history -->
+    <div style="margin-bottom:16px;">
+      <div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">Payment History</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:#f8f8fc;">
+            <th style="padding:7px 0;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:0.08em;text-align:left;">Date</th>
+            <th style="padding:7px 0;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:0.08em;text-align:left;">Receipt</th>
+            <th style="padding:7px 0;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:0.08em;text-align:left;">Recorded By</th>
+            <th style="padding:7px 0;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:0.08em;text-align:right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>${paymentRows}</tbody>
+      </table>
+    </div>
+
+    ${isPaidFull ? `
+    <!-- PAID watermark -->
+    <div style="text-align:center;margin-bottom:14px;">
+      <div style="display:inline-block;border:3px solid #2dd4a0;border-radius:8px;padding:6px 20px;transform:rotate(-2deg);">
+        <span style="font-size:22px;font-weight:900;color:#2dd4a0;letter-spacing:0.2em;">PAID</span>
+      </div>
+    </div>` : ''}
+
+    <!-- Footer -->
+    <div style="border-top:1px solid #eee;padding-top:12px;text-align:center;">
+      <div style="font-size:10px;color:#bbb;">Generated ${fmtD(new Date())} ${fmtT(new Date())}</div>
+      <div style="font-size:10px;color:#ccc;margin-top:3px;letter-spacing:0.06em;">${schoolName} · SRMS</div>
+    </div>
+  </div>
+
+  <!-- Print button -->
+  <div class="no-print" style="padding:0 24px 20px;text-align:center;">
+    <button onclick="window.print()" style="width:100%;padding:12px;background:linear-gradient(135deg,#e8b84b,#f5d07a);border:none;border-radius:10px;font-size:14px;font-weight:700;color:#1a1a2e;cursor:pointer;letter-spacing:0.02em;">
+      ⎙ Print Receipt
+    </button>
+  </div>
+</div>
+</body>
+</html>`
+
+  const w = window.open('','_blank','width=500,height=800')
+  if(w){ w.document.write(html); w.document.close() }
+}
+
 // ── FEES ───────────────────────────────────────────────────────
 function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
-  const {fees=[],students=[],classes=[]} = data
+  const {fees=[],students=[],classes=[],payments=[]} = data
   const currency = getCurrency(settings)
   const isMobile = useIsMobile()
   const canBulk = ['superadmin','admin'].includes(profile?.role)
@@ -1342,15 +1520,19 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   // ── Existing fee helpers ──
   const enriched = fees.map(fee=>{
     const s=students.find(x=>x.id===fee.student_id)
-    const bal=Number(fee.amount||0)-Number(fee.paid||0)
-    const status=bal<=0?'Paid':fee.paid>0?'Partial':'Outstanding'
-    return{...fee,student_name:s?`${s.first_name} ${s.last_name}`:'--',balance:bal,status}
+    const feePayments = payments.filter(p=>p.fee_id===fee.id)
+    const paymentsPaid = feePayments.reduce((a,p)=>a+Number(p.amount||0),0)
+    // Use whichever is higher — payments table total or legacy fee.paid
+    const effectivePaid = Math.max(Number(fee.paid||0), paymentsPaid)
+    const bal=Number(fee.amount||0)-effectivePaid
+    const status=bal<=0?'Paid':effectivePaid>0?'Partial':'Outstanding'
+    return{...fee,student_name:s?`${s.first_name} ${s.last_name}`:'--',balance:bal,effectivePaid,status,hasPayments:feePayments.length>0||effectivePaid>0}
   })
   const filtered = enriched.filter(r=>r.student_name.toLowerCase().includes(search.toLowerCase())&&(!fstatus||r.status===fstatus))
   const totalOwed = fees.reduce((s,f)=>s+Number(f.amount||0),0)
   const totalPaid = fees.reduce((s,f)=>s+Number(f.paid||0),0)
   const openAdd = ()=>{setForm({student_id:'',fee_type:'',amount:'',due_date:'',period:''});setModal(true)}
-  const openPay = fee=>{setEditFee(fee);setPayForm({amount:fee.balance});setPayModal(true)}
+  const openPay = fee=>{setEditFee(fee);setPayForm({amount:fee.balance>0?fee.balance:''});setPayModal(true)}
 
   const saveFee = async ()=>{
     if(!form.student_id||!form.amount)return
@@ -1365,16 +1547,56 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
     if(!confirm('Remove this fee record? This cannot be undone.'))return
     const {error}=await supabase.from('fees').delete().eq('id',id)
     if(error)toast(error.message,'error')
-    else{setData(p=>({...p,fees:p.fees.filter(f=>f.id!==id)}));toast('Fee record removed')}
+    else{setData(p=>({...p,fees:p.fees.filter(f=>f.id!==id),payments:p.payments.filter(p=>p.fee_id!==id)}));toast('Fee record removed')}
   }
 
-  const recordPayment = async ()=>{
-    const amt=Math.min(parseFloat(payForm.amount)||0,editFee.balance)
-    const newPaid=Number(editFee.paid||0)+amt
-    const rcpt=editFee.receipt_no||genRCP(fees)
-    const {error}=await supabase.from('fees').update({paid:newPaid,receipt_no:rcpt}).eq('id',editFee.id)
-    if(error)toast(error.message,'error')
-    else{setData(p=>({...p,fees:p.fees.map(f=>f.id===editFee.id?{...f,paid:newPaid,receipt_no:rcpt}:f)}));toast('Payment recorded');setPayModal(false)}
+  const recordPayment = async () => {
+    if(!editFee) return
+    const feePayments = payments.filter(p=>p.fee_id===editFee.id)
+    const alreadyPaid = feePayments.reduce((a,p)=>a+Number(p.amount||0),0)
+    const legacyPaid  = Math.max(0, Number(editFee.paid||0) - alreadyPaid)
+    const currentPaid = alreadyPaid + legacyPaid
+    const currentBalance = Number(editFee.amount||0) - currentPaid
+    const amt = Math.min(parseFloat(payForm.amount)||0, currentBalance)
+    if(amt<=0){ toast('Amount must be greater than zero','error'); return }
+    const newCumPaid = currentPaid + amt
+    const rcpt = genRCP([...fees, ...payments])
+    // Insert payment record
+    const {data:payRow, error:payErr} = await supabase.from('payments').insert({
+      fee_id:          editFee.id,
+      student_id:      editFee.student_id,
+      amount:          amt,
+      receipt_no:      rcpt,
+      recorded_by_id:  profile?.id,
+      recorded_by_name:profile?.full_name,
+    }).select().single()
+    if(payErr){ toast(payErr.message,'error'); return }
+    // Update cumulative paid on fee record
+    const {error:feeErr} = await supabase.from('fees').update({paid:newCumPaid, receipt_no:rcpt}).eq('id',editFee.id)
+    if(feeErr){ toast(feeErr.message,'error'); return }
+    const updatedFee = {...editFee, paid:newCumPaid, receipt_no:rcpt}
+    setData(p=>({
+      ...p,
+      fees:     p.fees.map(f=>f.id===editFee.id ? updatedFee : f),
+      payments: [payRow, ...p.payments],
+    }))
+    toast('Payment recorded')
+    setPayModal(false)
+    // Auto-open receipt
+    const student = students.find(s=>s.id===editFee.student_id)
+    const cls     = classes.find(c=>c.id===student?.class_id)
+    printReceipt({
+      fee:         updatedFee,
+      feePayments: [payRow, ...feePayments],
+      student, cls, settings, currency,
+    })
+  }
+
+  const openReceipt = (fee) => {
+    const feePayments = payments.filter(p=>p.fee_id===fee.id)
+    const student = students.find(s=>s.id===fee.student_id)
+    const cls     = classes.find(c=>c.id===student?.class_id)
+    printReceipt({fee, feePayments, student, cls, settings, currency})
   }
 
   // ── Step 3 preview values ──
@@ -1420,16 +1642,15 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
           {key:'student_name',label:'Student',render:(v,r)=>{const s=students.find(x=>x.id===r.student_id);return(<div style={{display:'flex',alignItems:'center',gap:10}}>{s&&<Avatar name={v} size={28}/>}<span style={{fontWeight:600}}>{v}</span></div>)}},
           {key:'fee_type',label:'Fee Type',render:(v,r)=>(<div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><span>{v}</span>{r.period&&<Badge color='var(--sky)' bg='rgba(91,168,245,0.08)'>{r.period}</Badge>}{r.is_arrear&&<Badge color='var(--amber)' bg='rgba(251,159,58,0.1)'>Arrear from {r.arrear_from_year}</Badge>}</div>)},
           {key:'amount', label:'Amount',  render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
-          {key:'paid',   label:'Paid',    render:v=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
+          {key:'paid',   label:'Paid',    render:(_,r)=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(r.effectivePaid,currency)}</span>},
           {key:'balance',label:'Balance', render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
           {key:'status', label:'Status',  render:v=><Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>},
           {key:'receipt_no',label:'Receipt',render:v=>v?<span className='mono' style={{fontSize:12,color:'var(--mist2)'}}>{v}</span>:'--'},
           {key:'id',label:'',render:(_,r)=>isViewingPast?null:(
-            <div style={{display:'flex',gap:6}} onClick={e=>e.stopPropagation()}>
-              {r.balance>0
-                ? <Btn size='sm' onClick={()=>openPay(r)}>Record Payment</Btn>
-                : <Badge color='var(--emerald)'>Paid</Badge>
-              }
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}} onClick={e=>e.stopPropagation()}>
+              {r.balance>0 && <Btn size='sm' onClick={()=>openPay(r)}>Record Payment</Btn>}
+              {r.hasPayments && <Btn variant='ghost' size='sm' onClick={()=>openReceipt(r)}>⎙ Receipt</Btn>}
+              {r.balance<=0 && !r.hasPayments && <Badge color='var(--emerald)'>Paid</Badge>}
               {canBulk && <Btn variant='danger' size='sm' onClick={()=>delFee(r.id)}>Remove</Btn>}
             </div>
           )},
@@ -1453,13 +1674,14 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
 
       {/* ── Record Payment Modal ── */}
       {payModal && editFee && (
-        <Modal title='Record Payment' subtitle={`${editFee.student_name} . ${editFee.fee_type}`} onClose={()=>setPayModal(false)}>
+        <Modal title='Record Payment' subtitle={`${editFee.student_name} · ${editFee.fee_type}${editFee.period?' · '+editFee.period:''}`} onClose={()=>setPayModal(false)}>
           <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:18,marginBottom:20,display:'flex',gap:24,flexWrap:'wrap'}}>
-            {[['Total',fmtMoney(editFee.amount,currency),'var(--mist)'],['Paid',fmtMoney(editFee.paid,currency),'var(--emerald)'],['Balance',fmtMoney(editFee.balance,currency),'var(--rose)']].map(([l,v,c])=>(
+            {[['Total',fmtMoney(editFee.amount,currency),'var(--mist)'],['Paid',fmtMoney(editFee.effectivePaid,currency),'var(--emerald)'],['Balance',fmtMoney(editFee.balance,currency),'var(--rose)']].map(([l,v,c])=>(
               <div key={l}><div className='d' style={{fontSize:10,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>{l}</div><div className='d' style={{fontSize:20,fontWeight:700,color:c}}>{v}</div></div>
             ))}
           </div>
           <Field label='Payment Amount' value={payForm.amount} onChange={pf('amount')} type='number'/>
+          <p style={{fontSize:11,color:'var(--mist3)',marginTop:-10,marginBottom:16}}>A receipt will open automatically after saving.</p>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setPayModal(false)}>Cancel</Btn>
             <Btn onClick={recordPayment}>Confirm Payment</Btn>
@@ -3050,7 +3272,7 @@ export default function App() {
   const [profile,setProfile]   = useState(null)
 
   const [settings,setSettings] = useState(null)
-  const [data,setData]         = useState({students:[],classes:[],subjects:[],grades:[],attendance:[],fees:[],behaviour:[],announcements:[],enrolments:[]})
+  const [data,setData]         = useState({students:[],classes:[],subjects:[],grades:[],attendance:[],fees:[],payments:[],behaviour:[],announcements:[],enrolments:[]})
   const [page,setPage]         = useState('dashboard')
   const [collapsed,setCollapsed] = useState(false)
   const [loading,setLoading]   = useState(true)
@@ -3083,7 +3305,7 @@ export default function App() {
     const [
       {data:students},{data:classes},{data:subjects},
       {data:grades},{data:attendance},{data:fees},
-      {data:behaviour},{data:announcements},{data:enrolments}
+      {data:payments},{data:behaviour},{data:announcements},{data:enrolments}
     ] = await Promise.all([
       supabase.from('students').select('*').order('student_id'),
       supabase.from('classes').select('*').order('name'),
@@ -3091,6 +3313,7 @@ export default function App() {
       supabase.from('grades').select('*').eq('year',year),
       supabase.from('attendance').select('*').eq('academic_year',year).order('date',{ascending:false}),
       supabase.from('fees').select('*').or(`academic_year.eq.${year},arrear_from_year.eq.${year}`),
+      supabase.from('payments').select('*').order('created_at',{ascending:false}),
       supabase.from('behaviour').select('*').eq('academic_year',year).order('created_at',{ascending:false}),
       supabase.from('announcements').select('*').eq('academic_year',year).order('created_at',{ascending:false}),
       supabase.from('student_year_enrolment').select('*').eq('academic_year',year),
@@ -3098,7 +3321,7 @@ export default function App() {
     setData({
       students:students||[], classes:classes||[], subjects:subjects||[],
       grades:grades||[], attendance:attendance||[], fees:fees||[],
-      behaviour:behaviour||[], announcements:announcements||[], enrolments:enrolments||[]
+      payments:payments||[], behaviour:behaviour||[], announcements:announcements||[], enrolments:enrolments||[]
     })
   },[])
 
