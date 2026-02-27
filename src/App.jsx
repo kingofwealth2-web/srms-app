@@ -2231,11 +2231,7 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
   const [studentSearch,setStudentSearch] = useState('')
   const [selectedStudent,setSelectedStudent] = useState(null)
   const [showDropdown,setShowDropdown]   = useState(false)
-  // PDF generation options modal
-  const [pdfModal,setPdfModal]   = useState(false)
-  const [pdfYear,setPdfYear]     = useState(settings?.academic_year||'')
-  const [pdfPeriod,setPdfPeriod] = useState('')
-  const [exporting,setExporting] = useState(false)
+
 
   // Role-based scoping
   const isClassTeacher = profile?.role === 'classteacher'
@@ -2244,13 +2240,13 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
   const allowedTabs = isClassTeacher
     ? ['academic','attendance','reportcards']
     : isTeacher
-      ? ['academic','attendance','reportcards']
+      ? ['academic','reportcards']
       : ['academic','attendance','fees','reportcards']
 
   // Report cards state
-  const [rcClass,setRcClass]         = useState(isClassTeacher ? profile?.class_id||'' : '')
+  const [rcClass,setRcClass]         = useState(isClassTeacher ? profile?.class_id||'' : isTeacher ? (subjects.filter(s=>s.teacher_id===profile?.id)[0]?.class_id||'') : '')
   const [rcPeriod,setRcPeriod]       = useState('')
-  const [rcType,setRcType]           = useState(profile?.role==='teacher'?'subject':'broadsheet')
+  const [rcType,setRcType]           = useState('broadsheet')
   const [rcSubject,setRcSubject]     = useState('')
   const [rcStudent,setRcStudent]     = useState('')
   const [rcRemarks,setRcRemarks]     = useState({}) // {studentId: remark}
@@ -2361,168 +2357,6 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
   const totalF    = feeData.reduce((a,s)=>a+s.owed,0)
   const totalP    = feeData.reduce((a,s)=>a+s.paid,0)
 
-  // ── PDF Export ──
-  const exportPDF = () => {
-    setExporting(true)
-    try {
-      const isLandscape = (rtype==='academic' && classSubjects.length>3) || (rtype==='academic' && !selectedStudent)
-      const w = isLandscape?1122:794, h=isLandscape?794:1122
-      const margin=40, now=new Date()
-      const scope = selectedStudent?`${selectedStudent.first_name} ${selectedStudent.last_name}`:fc?classes.find(c=>c.id===fc)?.name:'All Students'
-      const periodStr = pdfPeriod||fp||'All Periods'
-      const yearStr   = pdfYear||settings?.academic_year||''
-
-      const canvas = document.createElement('canvas')
-      canvas.width=w*2; canvas.height=h*2
-      const ctx=canvas.getContext('2d')
-      ctx.scale(2,2)
-      ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,w,h)
-
-      // Header band
-      ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,w,80)
-
-      // Logo
-      let headerX=margin
-      if(schoolLogo){
-        const img=new Image(); img.src=schoolLogo
-        ctx.drawImage(img,margin,10,60,60)
-        headerX=margin+70
-      }
-
-      // School name & info
-      ctx.fillStyle='#e8b84b'; ctx.font='bold 20px Arial'; ctx.fillText(schoolName,headerX,34)
-      ctx.fillStyle='#8888a8'; ctx.font='13px Arial'
-      if(schoolMotto) ctx.fillText(schoolMotto,headerX,52)
-      ctx.fillText(`${rtype.charAt(0).toUpperCase()+rtype.slice(1)} Report . ${scope} . ${periodStr} . ${yearStr}`,headerX,schoolMotto?68:52)
-
-      // Timestamp top right
-      ctx.fillStyle='#55556a'; ctx.font='11px Arial'
-      ctx.textAlign='right'
-      ctx.fillText(`Generated: ${now.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})} ${now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}`,w-margin,52)
-      ctx.textAlign='left'
-
-      // Student rank badge (single student academic)
-      if(selectedStudent && rtype==='academic' && studentRankInClass) {
-        ctx.fillStyle='rgba(232,184,75,0.15)'; ctx.strokeStyle='#e8b84b'; ctx.lineWidth=1
-        const badge=`Class Position: ${ordinal(studentRankInClass)}`
-        ctx.font='bold 13px Arial'
-        const bw=ctx.measureText(badge).width+20
-        ctx.beginPath(); ctx.roundRect(w-margin-bw,16,bw,32,6); ctx.fill(); ctx.stroke()
-        ctx.fillStyle='#e8b84b'; ctx.fillText(badge,w-margin-bw+10,36)
-      }
-
-      let y=100
-
-      // Table helper
-      const drawTable=(headers,rows,colWidths)=>{
-        const tableW=colWidths.reduce((a,b)=>a+b,0)
-        const rowH=28, headH=32
-        // Header row
-        ctx.fillStyle='#f5f5f5'; ctx.fillRect(margin,y,tableW,headH)
-        ctx.strokeStyle='#e0e0e0'; ctx.lineWidth=0.5
-        ctx.strokeRect(margin,y,tableW,headH)
-        let cx=margin
-        headers.forEach((h,i)=>{
-          ctx.fillStyle='#333'; ctx.font='bold 11px Arial'
-          ctx.fillText(h.toUpperCase(),cx+8,y+20)
-          cx+=colWidths[i]
-          if(i<headers.length-1){ctx.beginPath();ctx.moveTo(cx,y);ctx.lineTo(cx,y+headH);ctx.stroke()}
-        })
-        y+=headH
-        rows.forEach((row,ri)=>{
-          if(y+rowH>h-margin){y=margin+10; /* would need multi-page */ }
-          ctx.fillStyle=ri%2===0?'#fafafa':'#ffffff'
-          ctx.fillRect(margin,y,tableW,rowH)
-          ctx.strokeStyle='#eeeeee'; ctx.lineWidth=0.5
-          ctx.strokeRect(margin,y,tableW,rowH)
-          let cx2=margin
-          row.forEach((cell,ci)=>{
-            ctx.fillStyle='#222'; ctx.font='12px Arial'
-            const txt=String(cell??'--')
-            ctx.fillText(txt.length>22?txt.slice(0,22)+'...':txt,cx2+8,y+18)
-            cx2+=colWidths[ci]
-            if(ci<row.length-1){ctx.beginPath();ctx.moveTo(cx2,y);ctx.lineTo(cx2,y+rowH);ctx.stroke()}
-          })
-          y+=rowH
-        })
-        y+=16
-      }
-
-      const usableW=w-margin*2
-
-      if(rtype==='academic'){
-        if(selectedStudent){
-          // Single student: subject-by-subject
-          const sg=grades.filter(g=>g.student_id===selectedStudent.id&&(!fp||g.period===fp))
-          const rows=sg.map(g=>{
-            const subj=subjects.find(s=>s.id===g.subject_id)
-            const tot=calcTotal(g,gradeComps)
-            const let_=getLetter(tot,scale)
-            return[subj?.name||'--',
-              ...gradeComps.filter(c=>c.enabled).map(c=>g[c.key]||0),
-              tot,let_,getGPA(tot,scale).toFixed(1),tot>=50?'Pass':'Fail']
-          })
-          const compHeaders=gradeComps.filter(c=>c.enabled).map(c=>c.label)
-          const headers=['Subject',...compHeaders,'Total','Grade','GPA','Status']
-          const colW=Math.floor(usableW/headers.length)
-          const colWidths=headers.map((_,i)=>i===0?colW*1.5:colW)
-          drawTable(headers,rows,colWidths)
-        } else {
-          // Class/school ranked table
-          const visSubjects=classSubjects.length>0?classSubjects:subjects
-          const headers=['Pos','ID','Student',...visSubjects.map(s=>s.name.slice(0,10)),'Total','Avg','Grade','Status']
-          const baseW=Math.floor((usableW-80-80-80)/(3+visSubjects.length+3))
-          const colWidths=[36,64,100,...visSubjects.map(()=>Math.max(baseW,50)),56,48,48,52]
-          const rows=rankedAcademic.map(s=>[
-            ordinal(s.position),s.student_id,`${s.first_name} ${s.last_name}`,
-            ...visSubjects.map(sub=>s.subjectScores[sub.id]??'--'),
-            s.total||'--',s.avg??'--',s.letter,s.pass===null?'--':s.pass?'Pass':'Fail'
-          ])
-          drawTable(headers,rows,colWidths)
-        }
-      }
-      if(rtype==='attendance'){
-        const headers=['ID','Student','Class','Total Days','Present','Absent','Late','Excused','Rate']
-        const cw=Math.floor(usableW/9)
-        const colWidths=[64,120,90,cw,cw,cw,cw,cw,60]
-        const rows=attData.map(s=>[s.student_id,`${s.first_name} ${s.last_name}`,classes.find(c=>c.id===s.class_id)?.name||'--',s.total,s.present,s.absent,s.late,s.excused,s.rate!==null?`${s.rate}%`:'--'])
-        drawTable(headers,rows,colWidths)
-      }
-      if(rtype==='fees'){
-        const headers=['ID','Student','Class','Total Owed','Paid','Balance','Status']
-        const cw=Math.floor(usableW/7)
-        const colWidths=[64,140,90,cw,cw,cw,80]
-        const rows=feeData.map(s=>[s.student_id,`${s.first_name} ${s.last_name}`,classes.find(c=>c.id===s.class_id)?.name||'--',fmtMoney(s.owed,currency),fmtMoney(s.paid,currency),fmtMoney(s.balance,currency),s.feeStatus])
-        drawTable(headers,rows,colWidths)
-      }
-
-      // Footer
-      ctx.fillStyle='#f0f0f0'; ctx.fillRect(0,h-30,w,30)
-      ctx.fillStyle='#888'; ctx.font='10px Arial'; ctx.textAlign='center'
-      ctx.fillText(`${schoolName} . SRMS Report . ${now.toLocaleDateString()}`,w/2,h-12)
-      ctx.textAlign='left'
-
-      const link=document.createElement('a')
-      link.download=`SRMS_${rtype}_report_${scope.replace(/\s+/g,'_')}_${pdfPeriod||'all'}.pdf`
-      // Convert canvas to image and wrap in minimal PDF
-      const imgData=canvas.toDataURL('image/jpeg',0.92)
-      const pdfW=isLandscape?'841.89':'595.28', pdfH=isLandscape?'595.28':'841.89'
-      const pdf=`%PDF-1.4
-1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
-2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj
-3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 ${pdfW} ${pdfH}]/Contents 4 0 R/Resources<</XObject<</Im1 5 0 R>>>>>>endobj
-4 0 obj<</Length 32>>stream\nq ${pdfW} 0 0 ${pdfH} 0 0 cm /Im1 Do Q\nendstream\nendobj`
-      // Use html canvas print approach instead
-      const printW=window.open('','_blank')
-      if(printW){
-        printW.document.write(`<!DOCTYPE html><html><head><title>${schoolName} Report</title><style>*{margin:0;padding:0}body{background:#fff}img{width:100%;height:auto;display:block}</style></head><body><img src="${imgData}" onload="window.print()"/></body></html>`)
-        printW.document.close()
-      }
-    } catch(e){ console.error(e) }
-    setExporting(false)
-    setPdfModal(false)
-  }
-
   // ── Excel Export ──
   const exportExcel = () => {
     try {
@@ -2568,28 +2402,28 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
   return (
     <div>
       <PageHeader title='Reports & Analytics' sub={`Viewing: ${scopeLabel}`}>
-        <Btn variant='ghost' onClick={()=>setPdfModal(true)} disabled={exporting}>⬇ Export PDF</Btn>
-        <Btn variant='ghost' onClick={exportExcel}>⬇ Export Excel</Btn>
+        {isAdmin && <Btn variant='ghost' onClick={exportExcel}>⬇ Export Excel</Btn>}
       </PageHeader>
 
-      {/* PDF Options Modal */}
-      {pdfModal && (
-        <Modal title='Export PDF Report' subtitle='Select the period for this report' onClose={()=>setPdfModal(false)} width={420}>
-          <Field label='Academic Year' value={pdfYear} onChange={setPdfYear} placeholder='e.g. 2024-2025'/>
-          <Field label={`${periodLabel} / Period`} value={pdfPeriod} onChange={setPdfPeriod}
-            options={[{value:'',label:'All Periods'},...periods.map(p=>({value:p,label:p}))]}/>
-          <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:8}}>
-            <Btn variant='ghost' onClick={()=>setPdfModal(false)}>Cancel</Btn>
-            <Btn onClick={exportPDF} disabled={exporting}>{exporting?<><Spinner/> Generating...</>:'Generate PDF'}</Btn>
-          </div>
-        </Modal>
-      )}
-
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:16,marginBottom:24}}>
-        <KPI label='Pass Rate'      value={`${passRate}%`}                              color='var(--emerald)' index={0}/>
-        <KPI label='Avg Attendance' value={`${avgAtt}%`}                                color='var(--sky)'     index={1}/>
-        {!isClassTeacher && <KPI label='Fee Collection' value={`${totalF?Math.round(totalP/totalF*100):0}%`} color='var(--gold)' sub={fmtMoney(totalP,currency)} index={2}/>}
-        <KPI label='Students'       value={scopedStudents.length}                        color='var(--amber)'   index={3}/>
+        {/* Admin/superadmin — full KPIs */}
+        {isAdmin && <>
+          <KPI label='Pass Rate'      value={`${passRate}%`}   color='var(--emerald)' index={0}/>
+          <KPI label='Avg Attendance' value={`${avgAtt}%`}     color='var(--sky)'     index={1}/>
+          <KPI label='Fee Collection' value={`${totalF?Math.round(totalP/totalF*100):0}%`} color='var(--gold)' sub={fmtMoney(totalP,currency)} index={2}/>
+          <KPI label='Students'       value={scopedStudents.length} color='var(--amber)' index={3}/>
+        </>}
+        {/* Class teacher — class-scoped, no fees */}
+        {isClassTeacher && <>
+          <KPI label='Pass Rate'      value={`${passRate}%`}   color='var(--emerald)' index={0}/>
+          <KPI label='Avg Attendance' value={`${avgAtt}%`}     color='var(--sky)'     index={1}/>
+          <KPI label='Students'       value={scopedStudents.length} color='var(--amber)' index={2}/>
+        </>}
+        {/* Subject teacher — academic only */}
+        {isTeacher && <>
+          <KPI label='Pass Rate'      value={`${passRate}%`}   color='var(--emerald)' index={0}/>
+          <KPI label='Students'       value={scopedStudents.length} color='var(--sky)'  index={1}/>
+        </>}
       </div>
 
       {/* Tabs */}
