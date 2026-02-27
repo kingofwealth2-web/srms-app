@@ -3422,74 +3422,6 @@ function YearSwitcher({ activeYear, currentYear, selectedYear, setSelectedYear, 
 
 
 // ─────────────────────────────────────────────────────────────
-// STEP 2A: Replace the DESKTOP topbar select block
-// Find this exact block (around line 3511):
-// ─────────────────────────────────────────────────────────────
-
-// FIND (desktop):
-/*
-{profile?.role==='superadmin' ? (
-  <select value={activeYear} onChange={e=>setSelectedYear(e.target.value===currentYear?null:e.target.value)}
-    style={{background:'transparent',border:'none',color:isViewingPast?'var(--amber)':'var(--mist3)',fontSize:12,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif",padding:0}}>
-    {generateYears(currentYear).map(y=><option key={y} value={y}>{y}{y===currentYear?' (current)':''}</option>)}
-  </select>
-) : (
-  <span style={{fontSize:12,color:'var(--mist3)'}}>{activeYear}</span>
-)}
-{isViewingPast && <span style={{fontSize:10,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:4,padding:'2px 8px',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>READ ONLY</span>}
-*/
-
-// REPLACE WITH (desktop):
-/*
-{profile?.role==='superadmin' ? (
-  <YearSwitcher
-    activeYear={activeYear}
-    currentYear={currentYear}
-    selectedYear={selectedYear}
-    setSelectedYear={setSelectedYear}
-    isMobile={false}
-  />
-) : (
-  <span style={{fontSize:12,color:'var(--mist3)'}}>{activeYear}</span>
-)}
-{isViewingPast && <span style={{fontSize:10,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:4,padding:'2px 8px',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>READ ONLY</span>}
-*/
-
-
-// ─────────────────────────────────────────────────────────────
-// STEP 2B: Replace the MOBILE topbar select block
-// Find this exact block (around line 3495):
-// ─────────────────────────────────────────────────────────────
-
-// FIND (mobile):
-/*
-{profile?.role==='superadmin' ? (
-  <select value={activeYear} onChange={e=>setSelectedYear(e.target.value===currentYear?null:e.target.value)}
-    style={{background:'transparent',border:'none',color:isViewingPast?'var(--amber)':'var(--mist3)',fontSize:10,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif",padding:0}}>
-    {generateYears(currentYear).map(y=><option key={y} value={y}>{y}{y===currentYear?' (current)':''}</option>)}
-  </select>
-) : (
-  <span style={{fontSize:10,color:'var(--mist3)'}}>{activeYear}</span>
-)}
-{isViewingPast && <span style={{fontSize:9,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:3,padding:'1px 6px',letterSpacing:'0.06em'}}>READ ONLY</span>}
-*/
-
-// REPLACE WITH (mobile):
-/*
-{profile?.role==='superadmin' ? (
-  <YearSwitcher
-    activeYear={activeYear}
-    currentYear={currentYear}
-    selectedYear={selectedYear}
-    setSelectedYear={setSelectedYear}
-    isMobile={true}
-  />
-) : (
-  <span style={{fontSize:10,color:'var(--mist3)'}}>{activeYear}</span>
-)}
-{isViewingPast && <span style={{fontSize:9,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:3,padding:'1px 6px',letterSpacing:'0.06em'}}>READ ONLY</span>}
-*/
-
 // ── ROOT APP ───────────────────────────────────────────────────
 export default function App() {
   const [session,setSession]   = useState(null)
@@ -3717,10 +3649,7 @@ export default function App() {
                 <span style={{fontSize:10,color:'var(--mist3)',letterSpacing:'0.06em'}}>{settings?.school_name||'SRMS'}</span>
                 <span style={{color:'var(--line2)',fontSize:10}}>.</span>
                 {profile?.role==='superadmin' ? (
-                  <select value={activeYear} onChange={e=>setSelectedYear(e.target.value===currentYear?null:e.target.value)}
-                    style={{background:'transparent',border:'none',color:isViewingPast?'var(--amber)':'var(--mist3)',fontSize:10,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif",padding:0}}>
-                    {generateYears(currentYear).map(y=><option key={y} value={y}>{y}{y===currentYear?' (current)':''}</option>)}
-                  </select>
+                  <YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={true}/>
                 ) : (
                   <span style={{fontSize:10,color:'var(--mist3)'}}>{activeYear}</span>
                 )}
@@ -3733,10 +3662,7 @@ export default function App() {
                 <span className='d' style={{fontSize:12,color:'var(--mist3)',fontWeight:500,letterSpacing:'0.06em',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:160}}>{settings?.school_name||'SRMS'}</span>
                 <span style={{color:'var(--line2)'}}>.</span>
                 {profile?.role==='superadmin' ? (
-                  <select value={activeYear} onChange={e=>setSelectedYear(e.target.value===currentYear?null:e.target.value)}
-                    style={{background:'transparent',border:'none',color:isViewingPast?'var(--amber)':'var(--mist3)',fontSize:12,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif",padding:0}}>
-                    {generateYears(currentYear).map(y=><option key={y} value={y}>{y}{y===currentYear?' (current)':''}</option>)}
-                  </select>
+                  <YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={false}/>
                 ) : (
                   <span style={{fontSize:12,color:'var(--mist3)'}}>{activeYear}</span>
                 )}
