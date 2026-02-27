@@ -195,7 +195,7 @@ const NAV_ITEMS = {
   superadmin:  ['dashboard','students','classes','grades','attendance','fees','behaviour','reports','announcements','users','settings'],
   admin:       ['dashboard','students','classes','grades','attendance','fees','behaviour','reports','announcements'],
   classteacher:['dashboard','students','grades','attendance','behaviour','reports','announcements'],
-  teacher:     ['dashboard','students','grades','announcements'],
+  teacher:     ['dashboard','students','grades','reports','announcements'],
 }
 const NAV_META = {
   dashboard:    {icon:'▦', label:'Dashboard'},
@@ -2250,7 +2250,7 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
   // Report cards state
   const [rcClass,setRcClass]         = useState(isClassTeacher ? profile?.class_id||'' : '')
   const [rcPeriod,setRcPeriod]       = useState('')
-  const [rcType,setRcType]           = useState('broadsheet') // broadsheet | subject | individual
+  const [rcType,setRcType]           = useState(profile?.role==='teacher'?'subject':'broadsheet')
   const [rcSubject,setRcSubject]     = useState('')
   const [rcStudent,setRcStudent]     = useState('')
   const [rcRemarks,setRcRemarks]     = useState({}) // {studentId: remark}
