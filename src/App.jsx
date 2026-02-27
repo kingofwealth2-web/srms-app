@@ -327,8 +327,11 @@ function SectionTitle({children}) {
   )
 }
 
-function Avatar({name,size=32,color}) {
+function Avatar({name,size=32,color,photo}) {
   const initials = (name||'?').split(' ').map(w=>w[0]).slice(0,2).join('')
+  if(photo) return (
+    <img src={photo} alt={name} style={{width:size,height:size,borderRadius:'50%',objectFit:'cover',border:'1px solid var(--line)',flexShrink:0}}/>
+  )
   return (
     <div style={{width:size,height:size,borderRadius:'50%',background:color||'var(--ink5)',border:'1px solid var(--line)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:size*0.35,fontWeight:700,color:'var(--mist)',flexShrink:0}}>
       {initials}
@@ -746,7 +749,7 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
         </>}
         {profile?.role==='teacher' && <>
           <KPI label='Subjects'        value={subjects.filter(s=>s.teacher_id===profile.id).length} color='var(--gold)'  sub='Assigned to you' index={0}/>
-          <KPI label='Grades Entered'  value={grades.filter(g=>g.subject_id===profile.subject_id).length} color='var(--sky)' sub='Total records' index={1}/>
+          <KPI label='Grades Entered'  value={grades.filter(g=>subjects.some(s=>s.id===g.subject_id&&s.teacher_id===profile.id)).length} color='var(--sky)' sub='Total records' index={1}/>
           <KPI label='Avg Score'       value={avgScore}             color='var(--emerald)' sub='Your subjects' index={2}/>
           <KPI label='Announcements'   value={activeAnn.length}     color='var(--amber)'   sub='Active' index={3}/>
         </>}
@@ -789,7 +792,18 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
   const [saving,setSaving] = useState(false)
   const [showArchived,setShowArchived] = useState(false)
   const f = k => v => setForm(p=>({...p,[k]:v}))
+  const [viewStudent, setViewStudent] = useState(null)
   const canEdit = ['superadmin','admin'].includes(profile?.role) && !isViewingPast
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files?.[0]
+    if(!file) return
+    if(!file.type.startsWith('image/')) { toast('Please upload an image file','error'); return }
+    if(file.size > 2*1024*1024) { toast('Image must be under 2MB','error'); return }
+    const reader = new FileReader()
+    reader.onload = ev => setForm(p=>({...p, photo: ev.target.result}))
+    reader.readAsDataURL(file)
+  }
   const activeStudents   = students.filter(s=>!s.archived)
   const archivedStudents = students.filter(s=>s.archived)
   // Subject teacher: view students in classes they teach
@@ -853,11 +867,11 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
         </div>
       </Card>
       <Card>
-        <DataTable onRow={canEdit&&!isViewingPast?openEdit:null} data={filtered} columns={[
+        <DataTable onRow={s=>setViewStudent(s)} data={filtered} columns={[
           {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
           {key:'first_name',label:'Student',render:(v,r)=>(
             <div style={{display:'flex',alignItems:'center',gap:10}}>
-              <Avatar name={`${r.first_name} ${r.last_name}`} size={30}/>
+              <Avatar name={`${r.first_name} ${r.last_name}`} size={30} photo={r.photo}/>
               <div><div style={{fontWeight:600}}>{r.first_name} {r.last_name}</div><div style={{fontSize:11,color:'var(--mist3)'}}>{r.email||'--'}</div></div>
             </div>
           )},
@@ -875,6 +889,24 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
       </Card>
       {modal && (
         <Modal title={edit?'Edit Student':'New Student'} subtitle={edit?`ID: ${edit.student_id}`:'A Student ID will be generated automatically.'} onClose={()=>setModal(false)} width={580}>
+          {/* Photo upload */}
+          <div style={{display:'flex',alignItems:'center',gap:16,padding:'14px 16px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:20,border:'1px solid var(--line)'}}>
+            <div style={{position:'relative',flexShrink:0}}>
+              <Avatar name={`${form.first_name||'?'} ${form.last_name||''}`} size={56} photo={form.photo}/>
+              {form.photo && (
+                <button onClick={()=>setForm(p=>({...p,photo:null}))}
+                  style={{position:'absolute',top:-4,right:-4,width:18,height:18,borderRadius:'50%',background:'var(--rose)',color:'white',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',border:'none'}}>×</button>
+              )}
+            </div>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:'var(--white)',marginBottom:2}}>Student Photo</div>
+              <div style={{fontSize:11,color:'var(--mist3)',marginBottom:8}}>JPG or PNG, max 2MB</div>
+              <label style={{display:'inline-flex',alignItems:'center',gap:6,padding:'5px 12px',background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',cursor:'pointer',fontSize:12,color:'var(--mist)',fontWeight:500}}>
+                ⬆ Upload Photo
+                <input type='file' accept='.jpg,.jpeg,.png' onChange={handlePhotoUpload} style={{display:'none'}}/>
+              </label>
+            </div>
+          </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 20px'}}>
             <Field label='First Name' value={form.first_name} onChange={f('first_name')} required/>
             <Field label='Last Name'  value={form.last_name}  onChange={f('last_name')}  required/>
@@ -904,6 +936,126 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
           </div>
         </Modal>
       )}
+
+      {/* Student Profile View */}
+      {viewStudent && (() => {
+        const s = viewStudent
+        const cls = classes.find(c=>c.id===s.class_id)
+        const subjectsForClass = data.subjects?.filter(sub=>sub.class_id===s.class_id)||[]
+        const studentGrades = data.grades?.filter(g=>g.student_id===s.id)||[]
+        const gradeComps = getGradeComponents(settings)
+        const scale = settings?.grading_scale||[]
+        const attRecs = data.attendance?.filter(a=>a.student_id===s.id)||[]
+        const present = attRecs.filter(a=>a.status==='Present').length
+        const absent  = attRecs.filter(a=>a.status==='Absent').length
+        const late    = attRecs.filter(a=>a.status==='Late').length
+        const attRate = attRecs.length ? Math.round(present/attRecs.length*100) : null
+        return (
+          <Modal title='' onClose={()=>setViewStudent(null)} width={780}>
+            {/* Header */}
+            <div style={{display:'flex',alignItems:'flex-start',gap:20,marginBottom:24,paddingBottom:20,borderBottom:'1px solid var(--line)'}}>
+              <div style={{position:'relative',flexShrink:0}}>
+                <Avatar name={`${s.first_name} ${s.last_name}`} size={80} photo={s.photo}/>
+                <div style={{position:'absolute',bottom:4,right:4,width:12,height:12,borderRadius:'50%',background:s.archived?'var(--mist3)':'var(--emerald)',border:'2px solid var(--ink3)'}}/>
+              </div>
+              <div style={{flex:1}}>
+                <h2 className='d' style={{fontSize:22,fontWeight:700,letterSpacing:'-0.02em',marginBottom:8}}>{s.first_name} {s.last_name}</h2>
+                <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+                  <span className='mono' style={{fontSize:12,color:'var(--gold)',background:'rgba(232,184,75,0.1)',border:'1px solid rgba(232,184,75,0.25)',borderRadius:4,padding:'2px 8px'}}>{s.student_id}</span>
+                  {cls && <span style={{fontSize:12,color:'var(--sky)',background:'rgba(91,168,245,0.1)',border:'1px solid rgba(91,168,245,0.2)',borderRadius:4,padding:'2px 8px'}}>{cls.name}</span>}
+                  {s.gender && <span style={{fontSize:12,color:'var(--mist2)'}}>{s.gender}</span>}
+                </div>
+              </div>
+              {canEdit && (
+                <button onClick={()=>{setViewStudent(null);openEdit(s)}}
+                  style={{width:34,height:34,borderRadius:'50%',background:'rgba(232,184,75,0.12)',border:'1px solid rgba(232,184,75,0.3)',color:'var(--gold)',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}>✎</button>
+              )}
+            </div>
+
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
+              {/* Left col */}
+              <div>
+                <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Personal Details</div>
+                {[
+                  ['Date of Birth', fmtDate(s.dob)],
+                  ['Gender', s.gender||'--'],
+                  ['Phone', s.phone||'--'],
+                  ['Email', s.email||'--'],
+                  ['Address', s.address||'--'],
+                  ['Entry Year', s.entry_year||'--'],
+                ].map(([label,value])=>(
+                  <div key={label} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--line)'}}>
+                    <span style={{fontSize:12,color:'var(--mist3)'}}>{label}</span>
+                    <span style={{fontSize:12,color:'var(--mist)',textAlign:'right',maxWidth:'60%'}}>{value}</span>
+                  </div>
+                ))}
+                {(s.guardian_name||s.guardian_phone) && <>
+                  <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginTop:20,marginBottom:12}}>Parent / Guardian</div>
+                  {[
+                    ['Name', s.guardian_name||'--'],
+                    ['Relationship', s.guardian_relation||'--'],
+                    ['Phone', s.guardian_phone||'--'],
+                    ['Email', s.guardian_email||'--'],
+                  ].map(([label,value])=>(
+                    <div key={label} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--line)'}}>
+                      <span style={{fontSize:12,color:'var(--mist3)'}}>{label}</span>
+                      <span style={{fontSize:12,color:'var(--mist)',textAlign:'right',maxWidth:'60%'}}>{value}</span>
+                    </div>
+                  ))}
+                </>}
+                {s.medical_info && s.medical_info!=='None' && (
+                  <div style={{marginTop:12,padding:'10px 14px',background:'rgba(240,107,122,0.06)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)'}}>
+                    <div style={{fontSize:10,fontWeight:700,color:'var(--rose)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Medical Info</div>
+                    <div style={{fontSize:12,color:'var(--mist2)'}}>{s.medical_info}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right col */}
+              <div>
+                <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Academic Summary</div>
+                {subjectsForClass.length===0
+                  ? <div style={{fontSize:13,color:'var(--mist3)',padding:'12px 0'}}>No subjects for this class.</div>
+                  : subjectsForClass.map(sub=>{
+                      const g = studentGrades.find(g=>g.subject_id===sub.id)
+                      const total = g ? calcTotal(g, gradeComps) : null
+                      const grade = total!==null ? (scale.find(s=>total>=s.min&&total<=s.max)?.letter||'--') : '--'
+                      const gradeColor = LETTER_COLOR[grade]||'var(--mist3)'
+                      return (
+                        <div key={sub.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:6,border:'1px solid var(--line)'}}>
+                          <span style={{fontSize:13,color:'var(--mist)'}}>{sub.name}</span>
+                          <div style={{display:'flex',alignItems:'center',gap:10}}>
+                            <span style={{fontSize:13,fontWeight:700,color:'var(--white)'}}>{total!==null?total:'--'}</span>
+                            <span style={{fontSize:11,fontWeight:700,color:gradeColor,background:`${gradeColor}20`,border:`1px solid ${gradeColor}40`,borderRadius:4,padding:'1px 6px'}}>{grade}</span>
+                          </div>
+                        </div>
+                      )
+                    })
+                }
+
+                <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginTop:20,marginBottom:12}}>Attendance</div>
+                {attRecs.length===0
+                  ? <div style={{fontSize:13,color:'var(--mist3)'}}>No attendance records yet.</div>
+                  : <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                      {[['Present',present,'var(--emerald)'],['Absent',absent,'var(--rose)'],['Late',late,'var(--amber)']].map(([label,count,color])=>(
+                        <div key={label} style={{flex:1,minWidth:70,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${color}30`,textAlign:'center'}}>
+                          <div style={{fontSize:18,fontWeight:700,color}}>{count}</div>
+                          <div style={{fontSize:10,color:'var(--mist3)',marginTop:2}}>{label}</div>
+                        </div>
+                      ))}
+                      {attRate!==null && (
+                        <div style={{flex:1,minWidth:70,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:'1px solid var(--line)',textAlign:'center'}}>
+                          <div style={{fontSize:18,fontWeight:700,color:'var(--sky)'}}>{attRate}%</div>
+                          <div style={{fontSize:10,color:'var(--mist3)',marginTop:2}}>Rate</div>
+                        </div>
+                      )}
+                    </div>
+                }
+              </div>
+            </div>
+          </Modal>
+        )
+      })()}
     </div>
   )
 }
