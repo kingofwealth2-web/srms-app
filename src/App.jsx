@@ -3264,7 +3264,231 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
       )}
     </div>
   )
+}// ─────────────────────────────────────────────────────────────
+// STEP 1: Add this component to App.jsx
+// Paste it just above the main `export default function App()`
+// ─────────────────────────────────────────────────────────────
+
+function YearSwitcher({ activeYear, currentYear, selectedYear, setSelectedYear, isMobile }) {
+  const [open, setOpen] = useState(false)
+  const years = generateYears(currentYear)
+  const isViewingPast = selectedYear && selectedYear !== currentYear
+
+  const select = (y) => {
+    setSelectedYear(y === currentYear ? null : y)
+    setOpen(false)
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {/* Trigger button */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: isMobile ? '3px 8px' : '4px 10px',
+          background: isViewingPast ? 'rgba(251,159,58,0.1)' : 'rgba(255,255,255,0.04)',
+          border: `1px solid ${isViewingPast ? 'rgba(251,159,58,0.35)' : 'var(--line2)'}`,
+          borderRadius: 6,
+          cursor: 'pointer',
+          transition: 'all 0.15s',
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = isViewingPast ? 'rgba(251,159,58,0.15)' : 'rgba(255,255,255,0.07)'
+          e.currentTarget.style.borderColor = isViewingPast ? 'rgba(251,159,58,0.5)' : 'var(--mist3)'
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = isViewingPast ? 'rgba(251,159,58,0.1)' : 'rgba(255,255,255,0.04)'
+          e.currentTarget.style.borderColor = isViewingPast ? 'rgba(251,159,58,0.35)' : 'var(--line2)'
+        }}
+      >
+        {/* Calendar icon */}
+        <svg width={isMobile ? 10 : 11} height={isMobile ? 10 : 11} viewBox="0 0 12 12" fill="none">
+          <rect x="1" y="2" width="10" height="9" rx="1.5" stroke={isViewingPast ? 'var(--amber)' : 'var(--mist2)'} strokeWidth="1.2"/>
+          <path d="M1 5h10" stroke={isViewingPast ? 'var(--amber)' : 'var(--mist2)'} strokeWidth="1.2"/>
+          <path d="M4 1v2M8 1v2" stroke={isViewingPast ? 'var(--amber)' : 'var(--mist2)'} strokeWidth="1.2" strokeLinecap="round"/>
+        </svg>
+
+        <span style={{
+          fontSize: isMobile ? 10 : 12,
+          fontWeight: 600,
+          color: isViewingPast ? 'var(--amber)' : 'var(--mist2)',
+          letterSpacing: '0.01em',
+          fontFamily: "'Cabinet Grotesk', sans-serif",
+          lineHeight: 1,
+        }}>
+          {activeYear}
+        </span>
+
+        {/* Chevron */}
+        <svg
+          width={8} height={8} viewBox="0 0 8 8" fill="none"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+        >
+          <path d="M1.5 2.5L4 5L6.5 2.5" stroke={isViewingPast ? 'var(--amber)' : 'var(--mist3)'} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+
+      {/* Dropdown panel */}
+      {open && (
+        <>
+          {/* Click-outside backdrop */}
+          <div
+            onClick={() => setOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 998 }}
+          />
+          <div style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            left: isMobile ? '50%' : 0,
+            transform: isMobile ? 'translateX(-50%)' : 'none',
+            zIndex: 999,
+            background: 'var(--ink3)',
+            border: '1px solid var(--line2)',
+            borderRadius: 10,
+            boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
+            minWidth: 170,
+            overflow: 'hidden',
+            animation: 'fadeUp 0.18s cubic-bezier(.16,1,.3,1) both',
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '10px 14px 8px',
+              borderBottom: '1px solid var(--line)',
+              fontSize: 10,
+              fontWeight: 700,
+              color: 'var(--mist3)',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+            }}>
+              Academic Year
+            </div>
+
+            {/* Year list */}
+            {[...years].reverse().map(y => {
+              const isCurrent = y === currentYear
+              const isActive = y === activeYear
+              return (
+                <button
+                  key={y}
+                  onClick={() => select(y)}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '9px 14px',
+                    background: isActive ? 'rgba(232,184,75,0.08)' : 'transparent',
+                    borderBottom: '1px solid var(--line)',
+                    color: isActive ? 'var(--gold)' : isCurrent ? 'var(--white)' : 'var(--mist2)',
+                    fontSize: 13,
+                    fontWeight: isActive ? 600 : 400,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'background 0.12s',
+                    fontFamily: "'Cabinet Grotesk', sans-serif",
+                  }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <span>{y}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {isCurrent && (
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, color: 'var(--emerald)',
+                        background: 'rgba(45,212,160,0.1)', border: '1px solid rgba(45,212,160,0.25)',
+                        borderRadius: 3, padding: '1px 5px', letterSpacing: '0.06em', textTransform: 'uppercase',
+                      }}>
+                        Current
+                      </span>
+                    )}
+                    {isActive && (
+                      <svg width={12} height={12} viewBox="0 0 12 12" fill="none">
+                        <path d="M2 6L5 9L10 3" stroke="var(--gold)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
+
+
+// ─────────────────────────────────────────────────────────────
+// STEP 2A: Replace the DESKTOP topbar select block
+// Find this exact block (around line 3511):
+// ─────────────────────────────────────────────────────────────
+
+// FIND (desktop):
+/*
+{profile?.role==='superadmin' ? (
+  <select value={activeYear} onChange={e=>setSelectedYear(e.target.value===currentYear?null:e.target.value)}
+    style={{background:'transparent',border:'none',color:isViewingPast?'var(--amber)':'var(--mist3)',fontSize:12,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif",padding:0}}>
+    {generateYears(currentYear).map(y=><option key={y} value={y}>{y}{y===currentYear?' (current)':''}</option>)}
+  </select>
+) : (
+  <span style={{fontSize:12,color:'var(--mist3)'}}>{activeYear}</span>
+)}
+{isViewingPast && <span style={{fontSize:10,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:4,padding:'2px 8px',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>READ ONLY</span>}
+*/
+
+// REPLACE WITH (desktop):
+/*
+{profile?.role==='superadmin' ? (
+  <YearSwitcher
+    activeYear={activeYear}
+    currentYear={currentYear}
+    selectedYear={selectedYear}
+    setSelectedYear={setSelectedYear}
+    isMobile={false}
+  />
+) : (
+  <span style={{fontSize:12,color:'var(--mist3)'}}>{activeYear}</span>
+)}
+{isViewingPast && <span style={{fontSize:10,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:4,padding:'2px 8px',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>READ ONLY</span>}
+*/
+
+
+// ─────────────────────────────────────────────────────────────
+// STEP 2B: Replace the MOBILE topbar select block
+// Find this exact block (around line 3495):
+// ─────────────────────────────────────────────────────────────
+
+// FIND (mobile):
+/*
+{profile?.role==='superadmin' ? (
+  <select value={activeYear} onChange={e=>setSelectedYear(e.target.value===currentYear?null:e.target.value)}
+    style={{background:'transparent',border:'none',color:isViewingPast?'var(--amber)':'var(--mist3)',fontSize:10,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif",padding:0}}>
+    {generateYears(currentYear).map(y=><option key={y} value={y}>{y}{y===currentYear?' (current)':''}</option>)}
+  </select>
+) : (
+  <span style={{fontSize:10,color:'var(--mist3)'}}>{activeYear}</span>
+)}
+{isViewingPast && <span style={{fontSize:9,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:3,padding:'1px 6px',letterSpacing:'0.06em'}}>READ ONLY</span>}
+*/
+
+// REPLACE WITH (mobile):
+/*
+{profile?.role==='superadmin' ? (
+  <YearSwitcher
+    activeYear={activeYear}
+    currentYear={currentYear}
+    selectedYear={selectedYear}
+    setSelectedYear={setSelectedYear}
+    isMobile={true}
+  />
+) : (
+  <span style={{fontSize:10,color:'var(--mist3)'}}>{activeYear}</span>
+)}
+{isViewingPast && <span style={{fontSize:9,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:3,padding:'1px 6px',letterSpacing:'0.06em'}}>READ ONLY</span>}
+*/
 
 // ── ROOT APP ───────────────────────────────────────────────────
 export default function App() {
