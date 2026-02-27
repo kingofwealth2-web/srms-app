@@ -778,6 +778,238 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
   )
 }
 
+// ─────────────────────────────────────────────────────────────
+// STUDENT PROFILE MODAL
+// Replace the existing Students component AND add StudentProfile
+// just above it.
+// ─────────────────────────────────────────────────────────────
+
+// ── STUDENT PROFILE ────────────────────────────────────────────
+function StudentProfile({ student, classes, onClose, onEdit, onDelete, canEdit, settings, data }) {
+  const cls = classes.find(c => c.id === student.class_id)
+  const isMobile = useIsMobile()
+  const gradeComps = getGradeComponents(settings)
+  const scale = settings?.grading_scale || []
+  const currency = getCurrency(settings)
+
+  // Derive grades, attendance, fees for this student
+  const { grades = [], attendance = [], fees = [], payments = [], subjects = [], behaviour = [] } = data
+  const studentGrades = grades.filter(g => g.student_id === student.id)
+  const studentAtt = attendance.filter(a => a.student_id === student.id)
+  const studentFees = fees.filter(f => f.student_id === student.id)
+  const studentBehaviour = behaviour.filter(b => b.student_id === student.id)
+
+  const attRate = studentAtt.length
+    ? Math.round(studentAtt.filter(a => a.status === 'Present').length / studentAtt.length * 100)
+    : null
+
+  const totalOwed = studentFees.reduce((s, f) => s + Number(f.amount || 0), 0)
+  const totalPaid = studentFees.reduce((s, f) => s + Number(f.paid || 0), 0)
+  const feeBalance = totalOwed - totalPaid
+
+  // Group grades by subject
+  const gradesBySubject = {}
+  studentGrades.forEach(g => {
+    if (!gradesBySubject[g.subject_id]) gradesBySubject[g.subject_id] = []
+    gradesBySubject[g.subject_id].push(g)
+  })
+
+  const rm = ROLE_META // not needed here but nice
+  const genderColor = student.gender === 'Male' ? 'var(--sky)' : student.gender === 'Female' ? 'var(--rose)' : 'var(--mist2)'
+
+  const Section = ({ title, children, action }) => (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span className='d' style={{ fontSize: 10, fontWeight: 600, color: 'var(--mist3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{title}</span>
+          <div style={{ height: 1, width: 40, background: 'var(--line)' }} />
+        </div>
+        {action}
+      </div>
+      {children}
+    </div>
+  )
+
+  const InfoRow = ({ label, value, color }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+      <span style={{ fontSize: 12, color: 'var(--mist3)' }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 500, color: color || 'var(--white)', textAlign: 'right', maxWidth: '60%' }}>{value || '--'}</span>
+    </div>
+  )
+
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(5,5,10,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 1000, padding: isMobile ? 0 : 20 }}
+    >
+      <div className='fu' style={{
+        width: '100%', maxWidth: isMobile ? '100%' : 860,
+        background: 'var(--ink2)', border: isMobile ? 'none' : '1px solid var(--line)',
+        borderRadius: isMobile ? '20px 20px 0 0' : 'var(--r-lg)',
+        maxHeight: isMobile ? '94vh' : '90vh', overflow: 'hidden',
+        display: 'flex', flexDirection: 'column',
+        boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
+        animation: isMobile ? 'slideUp 0.3s cubic-bezier(.16,1,.3,1) both' : undefined,
+      }}>
+
+        {/* ── Header band ── */}
+        <div style={{ position: 'relative', background: 'linear-gradient(135deg, var(--ink3) 0%, var(--ink4) 100%)', borderBottom: '1px solid var(--line)', padding: isMobile ? '20px 20px 16px' : '24px 28px 20px', flexShrink: 0 }}>
+          {/* Gold accent line */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, var(--gold3), var(--gold), var(--gold2), var(--gold3))' }} />
+
+          <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start' }}>
+            {/* Photo */}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              {student.photo_url ? (
+                <img
+                  src={student.photo_url}
+                  alt={`${student.first_name} ${student.last_name}`}
+                  style={{ width: isMobile ? 72 : 88, height: isMobile ? 72 : 88, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', boxShadow: '0 0 24px rgba(232,184,75,0.25)' }}
+                />
+              ) : (
+                <div style={{ width: isMobile ? 72 : 88, height: isMobile ? 72 : 88, borderRadius: '50%', background: 'var(--ink5)', border: '3px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? 28 : 34, fontWeight: 700, color: 'var(--mist2)', fontFamily: "'Clash Display', sans-serif" }}>
+                  {student.first_name?.[0]}{student.last_name?.[0]}
+                </div>
+              )}
+              {/* Online-style status dot */}
+              <div style={{ position: 'absolute', bottom: 4, right: 4, width: 14, height: 14, borderRadius: '50%', background: student.archived ? 'var(--rose)' : 'var(--emerald)', border: '2px solid var(--ink3)', boxShadow: '0 0 8px rgba(45,212,160,0.5)' }} />
+            </div>
+
+            {/* Name + meta */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h2 className='d' style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 4, lineHeight: 1.1 }}>
+                {student.first_name} {student.last_name}
+              </h2>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+                <span className='mono' style={{ fontSize: 12, color: 'var(--gold)', background: 'rgba(232,184,75,0.1)', border: '1px solid rgba(232,184,75,0.2)', borderRadius: 4, padding: '2px 8px' }}>{student.student_id}</span>
+                {cls && <Badge color='var(--sky)' bg='rgba(91,168,245,0.1)'>{cls.name}</Badge>}
+                {student.gender && <Badge color={genderColor} bg={`${genderColor}15`}>{student.gender}</Badge>}
+                {student.archived && <Badge color='var(--rose)' bg='rgba(240,107,122,0.1)'>Archived</Badge>}
+              </div>
+              {/* Quick stats row */}
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                {attRate !== null && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: attRate >= 80 ? 'var(--emerald)' : attRate >= 60 ? 'var(--amber)' : 'var(--rose)' }} />
+                    <span style={{ fontSize: 11, color: 'var(--mist2)' }}>{attRate}% attendance</span>
+                  </div>
+                )}
+                {totalOwed > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: feeBalance <= 0 ? 'var(--emerald)' : 'var(--rose)' }} />
+                    <span style={{ fontSize: 11, color: 'var(--mist2)' }}>{feeBalance <= 0 ? 'Fees cleared' : `${fmtMoney(feeBalance, currency)} balance`}</span>
+                  </div>
+                )}
+                {studentBehaviour.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ fontSize: 11 }}>🏆</span>
+                    <span style={{ fontSize: 11, color: 'var(--mist2)' }}>{studentBehaviour.length} behaviour record{studentBehaviour.length !== 1 ? 's' : ''}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+              <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--ink4)', border: '1px solid var(--line)', color: 'var(--mist2)', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>×</button>
+              {canEdit && (
+                <button onClick={onEdit} style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(232,184,75,0.1)', border: '1px solid rgba(232,184,75,0.3)', color: 'var(--gold)', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title='Edit student'>✎</button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Scrollable body ── */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '20px' : '24px 28px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
+
+            {/* Left col */}
+            <div>
+              <Section title='Personal Details'>
+                <InfoRow label='Date of Birth' value={fmtDate(student.dob)} />
+                <InfoRow label='Gender' value={student.gender} />
+                <InfoRow label='Phone' value={student.phone} />
+                <InfoRow label='Email' value={student.email} />
+                <InfoRow label='Address' value={student.address} />
+                <InfoRow label='Entry Year' value={student.entry_year} />
+                {student.medical_info && student.medical_info !== 'None' && (
+                  <InfoRow label='Medical Info' value={student.medical_info} color='var(--rose)' />
+                )}
+              </Section>
+
+              <Section title='Parent / Guardian'>
+                <InfoRow label='Name' value={student.guardian_name} />
+                <InfoRow label='Relationship' value={student.guardian_relation} />
+                <InfoRow label='Phone' value={student.guardian_phone} />
+                <InfoRow label='Email' value={student.guardian_email} />
+              </Section>
+            </div>
+
+            {/* Right col */}
+            <div>
+              {/* Academic summary */}
+              <Section title='Academic Summary'>
+                {Object.keys(gradesBySubject).length === 0 ? (
+                  <div style={{ padding: '16px', textAlign: 'center', color: 'var(--mist3)', fontSize: 12, background: 'var(--ink3)', borderRadius: 'var(--r-sm)' }}>No grade records yet.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {Object.entries(gradesBySubject).map(([subId, sGrades]) => {
+                      const subj = subjects.find(s => s.id === subId)
+                      const latest = sGrades[sGrades.length - 1]
+                      const tot = calcTotal(latest, gradeComps)
+                      const let_ = getLetter(tot, scale)
+                      return (
+                        <div key={subId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--ink3)', borderRadius: 'var(--r-sm)', border: '1px solid var(--line)' }}>
+                          <span style={{ fontSize: 12, fontWeight: 500 }}>{subj?.name || '--'}</span>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <span className='mono' style={{ fontSize: 13, fontWeight: 700 }}>{tot}</span>
+                            <Badge color={LETTER_COLOR[let_] || 'var(--mist2)'}>{let_}</Badge>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </Section>
+
+              {/* Attendance summary */}
+              <Section title='Attendance'>
+                {studentAtt.length === 0 ? (
+                  <div style={{ padding: '16px', textAlign: 'center', color: 'var(--mist3)', fontSize: 12, background: 'var(--ink3)', borderRadius: 'var(--r-sm)' }}>No attendance records yet.</div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                    {['Present', 'Absent', 'Late', 'Excused'].map(s => (
+                      <div key={s} style={{ textAlign: 'center', padding: '10px 8px', background: STATUS_META[s].bg, border: `1px solid ${STATUS_META[s].color}30`, borderRadius: 'var(--r-sm)' }}>
+                        <div className='d' style={{ fontSize: 20, fontWeight: 700, color: STATUS_META[s].color }}>{studentAtt.filter(a => a.status === s).length}</div>
+                        <div style={{ fontSize: 10, color: 'var(--mist3)', marginTop: 2 }}>{s}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+
+              {/* Fee summary */}
+              {totalOwed > 0 && (
+                <Section title='Fee Status'>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                    {[['Owed', fmtMoney(totalOwed, currency), 'var(--mist)'], ['Paid', fmtMoney(totalPaid, currency), 'var(--emerald)'], ['Balance', fmtMoney(feeBalance, currency), feeBalance > 0 ? 'var(--rose)' : 'var(--emerald)']].map(([l, v, c]) => (
+                      <div key={l} style={{ textAlign: 'center', padding: '10px 8px', background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
+                        <div className='d' style={{ fontSize: 14, fontWeight: 700, color: c }}>{v}</div>
+                        <div style={{ fontSize: 10, color: 'var(--mist3)', marginTop: 2 }}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
 // ── STUDENTS ───────────────────────────────────────────────────
 function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   const {students=[],classes=[]} = data
@@ -788,25 +1020,49 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
   const [form,setForm]     = useState({})
   const [saving,setSaving] = useState(false)
   const [showArchived,setShowArchived] = useState(false)
+  // Profile view
+  const [profileStudent,setProfileStudent] = useState(null)
+  const [photoUploading,setPhotoUploading] = useState(false)
+
   const f = k => v => setForm(p=>({...p,[k]:v}))
   const canEdit = ['superadmin','admin'].includes(profile?.role) && !isViewingPast
   const activeStudents   = students.filter(s=>!s.archived)
   const archivedStudents = students.filter(s=>s.archived)
   const pool   = showArchived ? archivedStudents : (profile?.role==='classteacher' ? activeStudents.filter(s=>s.class_id===profile.class_id) : activeStudents)
-  const visible = pool
-  const filtered = visible.filter(s=>{
+  const filtered = pool.filter(s=>{
     const q=search.toLowerCase()
     return (`${s.first_name} ${s.last_name} ${s.student_id}`).toLowerCase().includes(q) && (!fc||s.class_id===fc)
   })
-  const openAdd = ()=>{setEdit(null);setForm({first_name:'',last_name:'',class_id:'',dob:'',gender:'',phone:'',email:'',address:'',medical_info:'',guardian_name:'',guardian_relation:'',guardian_phone:'',guardian_email:''});setModal(true)}
-  const openEdit = s=>{setEdit(s);setForm({...s});setModal(true)}
+
+  const openAdd = ()=>{setEdit(null);setForm({first_name:'',last_name:'',class_id:'',dob:'',gender:'',phone:'',email:'',address:'',medical_info:'',guardian_name:'',guardian_relation:'',guardian_phone:'',guardian_email:'',photo_url:''});setModal(true)}
+  const openEdit = s=>{setEdit(s);setForm({...s});setModal(true);setProfileStudent(null)}
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { toast('Please upload an image file', 'error'); return }
+    if (file.size > 2 * 1024 * 1024) { toast('Image must be under 2MB', 'error'); return }
+    setPhotoUploading(true)
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setForm(p => ({ ...p, photo_url: ev.target.result }))
+      setPhotoUploading(false)
+    }
+    reader.readAsDataURL(file)
+  }
+
   const save = async ()=>{
     if(!form.first_name||!form.last_name||!form.class_id)return
     if(!form.guardian_name||!form.guardian_phone){toast('Please add at least one parent or guardian with a name and phone number','error');return}
     setSaving(true)
     if(edit){
       const {error} = await supabase.from('students').update({...form,updated_at:new Date()}).eq('id',edit.id)
-      if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));toast('Student updated');setModal(false)}
+      if(error){toast(error.message,'error')}else{
+        setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}))
+        // Update profileStudent if viewing this student
+        if(profileStudent?.id === edit.id) setProfileStudent(prev => ({...prev, ...form}))
+        toast('Student updated');setModal(false)
+      }
     } else {
       const sid = genSID(students)
       const {data:row,error} = await supabase.from('students').insert({...form,student_id:sid,created_at:new Date(),entry_year:activeYear}).select().single()
@@ -814,12 +1070,14 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
     }
     setSaving(false)
   }
+
   const del = async id=>{
     if(!confirm('Remove this student?'))return
     const {error} = await supabase.from('students').delete().eq('id',id)
     if(error)toast(error.message,'error')
-    else{setData(p=>({...p,students:p.students.filter(s=>s.id!==id)}));toast('Student removed')}
+    else{setData(p=>({...p,students:p.students.filter(s=>s.id!==id)}));toast('Student removed');setProfileStudent(null)}
   }
+
   return (
     <div>
       <PageHeader title={showArchived?'Archived Students':'Students'} sub={showArchived?`${archivedStudents.length} archived`:`${filtered.length} of ${activeStudents.length} students`}>
@@ -843,28 +1101,78 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
         </div>
       </Card>
       <Card>
-        <DataTable onRow={canEdit&&!isViewingPast?openEdit:null} data={filtered} columns={[
-          {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
-          {key:'first_name',label:'Student',render:(v,r)=>(
-            <div style={{display:'flex',alignItems:'center',gap:10}}>
-              <Avatar name={`${r.first_name} ${r.last_name}`} size={30}/>
-              <div><div style={{fontWeight:600}}>{r.first_name} {r.last_name}</div><div style={{fontSize:11,color:'var(--mist3)'}}>{r.email||'--'}</div></div>
-            </div>
-          )},
-          {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
-          {key:'gender',label:'Gender'},
-          {key:'dob',label:'Date of Birth',render:v=>fmtDate(v)},
-          {key:'medical_info',label:'Medical',render:v=>v&&v!=='None'?<Badge color='var(--rose)'>{v}</Badge>:<span style={{color:'var(--mist3)'}}>None</span>},
-          canEdit&&!isViewingPast?{key:'id',label:'',render:(v,r)=>(
-            <div style={{display:'flex',gap:6}} onClick={e=>e.stopPropagation()}>
-              <Btn variant='ghost' size='sm' onClick={()=>openEdit(r)}>Edit</Btn>
-              <Btn variant='danger' size='sm' onClick={()=>del(r.id)}>Remove</Btn>
-            </div>
-          )}:{key:'id',label:'',render:()=>null},
-        ]}/>
+        <DataTable
+          onRow={s => setProfileStudent(s)}
+          data={filtered}
+          columns={[
+            {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
+            {key:'first_name',label:'Student',render:(v,r)=>(
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                {r.photo_url
+                  ? <img src={r.photo_url} alt='' style={{width:32,height:32,borderRadius:'50%',objectFit:'cover',border:'2px solid var(--line)',flexShrink:0}}/>
+                  : <Avatar name={`${r.first_name} ${r.last_name}`} size={32}/>
+                }
+                <div>
+                  <div style={{fontWeight:600}}>{r.first_name} {r.last_name}</div>
+                  <div style={{fontSize:11,color:'var(--mist3)'}}>{r.email||'--'}</div>
+                </div>
+              </div>
+            )},
+            {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
+            {key:'gender',label:'Gender'},
+            {key:'dob',label:'Date of Birth',render:v=>fmtDate(v)},
+            {key:'medical_info',label:'Medical',render:v=>v&&v!=='None'?<Badge color='var(--rose)'>{v}</Badge>:<span style={{color:'var(--mist3)'}}>None</span>},
+            canEdit&&!isViewingPast?{key:'id',label:'',render:(v,r)=>(
+              <div style={{display:'flex',gap:6}} onClick={e=>e.stopPropagation()}>
+                <Btn variant='ghost' size='sm' onClick={()=>openEdit(r)}>Edit</Btn>
+                <Btn variant='danger' size='sm' onClick={()=>del(r.id)}>Remove</Btn>
+              </div>
+            )}:{key:'id',label:'',render:()=>null},
+          ]}
+        />
       </Card>
+
+      {/* ── Student Profile View ── */}
+      {profileStudent && (
+        <StudentProfile
+          student={profileStudent}
+          classes={classes}
+          data={data}
+          settings={settings}
+          canEdit={canEdit}
+          onClose={()=>setProfileStudent(null)}
+          onEdit={()=>openEdit(profileStudent)}
+          onDelete={()=>del(profileStudent.id)}
+        />
+      )}
+
+      {/* ── Add/Edit Modal ── */}
       {modal && (
         <Modal title={edit?'Edit Student':'New Student'} subtitle={edit?`ID: ${edit.student_id}`:'A Student ID will be generated automatically.'} onClose={()=>setModal(false)} width={580}>
+
+          {/* ── Photo upload section ── */}
+          <div style={{marginBottom:20,padding:'16px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',display:'flex',alignItems:'center',gap:16}}>
+            {form.photo_url
+              ? <img src={form.photo_url} alt='Student' style={{width:64,height:64,borderRadius:'50%',objectFit:'cover',border:'3px solid var(--gold)',flexShrink:0}}/>
+              : <div style={{width:64,height:64,borderRadius:'50%',background:'var(--ink4)',border:'2px dashed var(--line)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--mist3)',fontSize:22,flexShrink:0}}>
+                  {form.first_name?.[0]||'?'}{form.last_name?.[0]||''}
+                </div>
+            }
+            <div>
+              <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Student Photo</div>
+              <div style={{fontSize:11,color:'var(--mist3)',marginBottom:8}}>JPG or PNG, max 2MB</div>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <label style={{display:'inline-flex',alignItems:'center',gap:6,padding:'6px 14px',background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',cursor:'pointer',fontSize:12,color:'var(--mist)',fontWeight:500}}>
+                  {photoUploading ? <><Spinner/> Uploading...</> : <>⬆ {form.photo_url ? 'Replace Photo' : 'Upload Photo'}</>}
+                  <input type='file' accept='image/*' onChange={handlePhotoUpload} style={{display:'none'}}/>
+                </label>
+                {form.photo_url && (
+                  <button onClick={()=>setForm(p=>({...p,photo_url:''}))} style={{padding:'6px 12px',background:'transparent',border:'1px solid rgba(240,107,122,0.3)',borderRadius:'var(--r-sm)',color:'var(--rose)',fontSize:12,cursor:'pointer'}}>Remove</button>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 20px'}}>
             <Field label='First Name' value={form.first_name} onChange={f('first_name')} required/>
             <Field label='Last Name'  value={form.last_name}  onChange={f('last_name')}  required/>
