@@ -3252,7 +3252,7 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
   const fs = k=>v=>setSf(p=>({...p,[k]:v}))
   useEffect(()=>{ supabase.from('profiles').select('*').then(({data})=>{ if(data) setAllUsers(data) }) },[])
   const teachers = allUsers.filter(u=>u.role==='classteacher')
-  const subjectTeachers = allUsers.filter(u=>u.role==='teacher')
+  const subjectTeachers = allUsers.filter(u=>['teacher','classteacher'].includes(u.role))
 
   const deleteClass = async cls=>{
     const hasStudents = students.some(s=>s.class_id===cls.id)
