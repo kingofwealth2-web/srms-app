@@ -4402,6 +4402,7 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
   const [bulkStep,setBulkStep]         = useState(1)
   const [bulkStudents,setBulkStudents] = useState([]) // [{student, fromClass, toClass, action}]
   const [dragging,setDragging]         = useState(null)
+  const [expandedBulkClass,setExpandedBulkClass] = useState(null)
   const [editC,setEditC] = useState(null)
   const [editS,setEditS] = useState(null)
   const [cf,setCf] = useState({})
@@ -4772,57 +4773,95 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
               </p>
 
               {/* Students grouped by class */}
-              <div style={{maxHeight:400,overflowY:'auto',display:'flex',flexDirection:'column',gap:12,marginBottom:16}}>
+              <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:16}}>
                 {orderedClasses.map((cls,ci)=>{
                   const clsStudents = bulkStudents.filter(p=>p.fromClass.id===cls.id)
                   if(!clsStudents.length) return null
                   const nextClass = !cls.is_terminal ? orderedClasses[ci+1] : null
+                  const isExpanded = expandedBulkClass===cls.id
+                  const repeatCount = clsStudents.filter(p=>p.action==='repeat').length
+                  const gradCount   = clsStudents.filter(p=>p.action==='graduate').length
+                  const hasOverrides = repeatCount>0 || gradCount>0
                   return (
-                    <div key={cls.id} style={{background:'var(--ink3)',borderRadius:'var(--r-sm)',overflow:'hidden',border:'1px solid var(--line)'}}>
-                      {/* Class header */}
-                      <div style={{padding:'10px 14px',background:'var(--ink4)',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid var(--line)'}}>
-                        <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <div key={cls.id} style={{background:'var(--ink3)',borderRadius:'var(--r-sm)',overflow:'hidden',border:`1px solid ${isExpanded?'var(--line2)':'var(--line)'}`}}>
+                      {/* Class header — click to expand */}
+                      <div onClick={()=>setExpandedBulkClass(isExpanded?null:cls.id)}
+                        style={{padding:'12px 16px',background:'var(--ink4)',display:'flex',alignItems:'center',gap:12,cursor:'pointer',userSelect:'none'}}>
+                        <div style={{flex:1,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
                           <span style={{fontSize:13,fontWeight:700,color:'var(--white)'}}>{cls.name}</span>
                           <Badge color='var(--mist3)'>{clsStudents.length} students</Badge>
                           {cls.is_terminal && <span style={{fontSize:10,fontWeight:700,color:'var(--rose)',background:'rgba(240,107,122,0.12)',padding:'2px 6px',borderRadius:4,textTransform:'uppercase'}}>Terminal</span>}
+                          {hasOverrides && (
+                            <span style={{fontSize:11,color:'var(--amber)'}}>
+                              {repeatCount>0 && `${repeatCount} repeating`}
+                              {repeatCount>0&&gradCount>0&&' · '}
+                              {gradCount>0 && `${gradCount} graduating`}
+                            </span>
+                          )}
                         </div>
-                        <div style={{fontSize:11,color:'var(--mist3)'}}>
-                          {cls.is_terminal || !nextClass
-                            ? <span style={{color:'var(--rose)'}}>→ Graduate</span>
-                            : <span style={{color:'var(--emerald)'}}>→ {nextClass.name}</span>
-                          }
+                        <div style={{display:'flex',alignItems:'center',gap:12}}>
+                          <span style={{fontSize:12,fontWeight:600}}>
+                            {cls.is_terminal || !nextClass
+                              ? <span style={{color:'var(--rose)'}}>→ Graduate</span>
+                              : <span style={{color:'var(--emerald)'}}>→ {nextClass.name}</span>
+                            }
+                          </span>
+                          <span style={{fontSize:11,color:'var(--mist3)',transform:isExpanded?'rotate(180deg)':'none',transition:'transform 0.2s',display:'inline-block'}}>▾</span>
                         </div>
                       </div>
-                      {/* Students */}
-                      <div style={{display:'flex',flexDirection:'column',gap:0}}>
-                        {clsStudents.map((p,i)=>{
-                          const globalIdx = bulkStudents.findIndex(x=>x.student.id===p.student.id)
-                          return (
-                            <div key={p.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 14px',borderBottom:i<clsStudents.length-1?'1px solid var(--line)':'none',background:p.action==='graduate'?'rgba(240,107,122,0.04)':p.action==='repeat'?'rgba(251,159,58,0.04)':'transparent'}}>
-                              <Avatar name={`${p.student.first_name} ${p.student.last_name}`} size={24}/>
-                              <span style={{flex:1,fontSize:13,fontWeight:500}}>{p.student.first_name} {p.student.last_name}</span>
-                              <div style={{display:'flex',gap:5}}>
-                                {['promote','repeat','graduate'].map(a=>(
-                                  <button key={a} onClick={()=>setBulkStudents(prev=>prev.map((x,j)=>j===globalIdx?{...x,action:a}:x))}
-                                    style={{padding:'3px 9px',fontSize:11,fontWeight:600,borderRadius:'var(--r-sm)',cursor:'pointer',border:'1px solid',
-                                      background:p.action===a?(a==='promote'?'rgba(45,212,160,0.15)':a==='repeat'?'rgba(251,159,58,0.15)':'rgba(240,107,122,0.15)'):'transparent',
-                                      color:p.action===a?(a==='promote'?'var(--emerald)':a==='repeat'?'var(--amber)':'var(--rose)'):'var(--mist3)',
-                                      borderColor:p.action===a?(a==='promote'?'var(--emerald)':a==='repeat'?'var(--amber)':'var(--rose)'):'var(--line)'}}>
-                                    {a.charAt(0).toUpperCase()+a.slice(1)}
-                                  </button>
-                                ))}
-                              </div>
-                              {p.action==='promote' && (
-                                <select value={p.destClassId}
-                                  onChange={e=>setBulkStudents(prev=>prev.map((x,j)=>j===globalIdx?{...x,destClassId:e.target.value}:x))}
-                                  style={{background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'4px 8px',color:'var(--mist)',fontSize:11,cursor:'pointer'}}>
-                                  {orderedClasses.filter(c=>c.id!==cls.id).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
+
+                      {/* Expanded students */}
+                      {isExpanded && (
+                        <div>
+                          {/* Class-level bulk actions */}
+                          <div style={{padding:'8px 16px',background:'var(--ink3)',borderBottom:'1px solid var(--line)',display:'flex',alignItems:'center',gap:8}}>
+                            <span style={{fontSize:11,color:'var(--mist3)',marginRight:4}}>Set all to:</span>
+                            {['promote','repeat','graduate'].map(a=>(
+                              <button key={a} onClick={e=>{
+                                e.stopPropagation()
+                                const defaultDest = nextClass?.id||''
+                                setBulkStudents(prev=>prev.map(x=>
+                                  x.fromClass.id===cls.id ? {...x,action:a,destClassId:a==='promote'?(x.destClassId||defaultDest):x.destClassId} : x
+                                ))
+                              }}
+                                style={{padding:'3px 10px',fontSize:11,fontWeight:600,borderRadius:'var(--r-sm)',cursor:'pointer',border:'1px solid var(--line)',
+                                  background:'var(--ink4)',color:a==='promote'?'var(--emerald)':a==='repeat'?'var(--amber)':'var(--rose)'}}>
+                                {a.charAt(0).toUpperCase()+a.slice(1)} All
+                              </button>
+                            ))}
+                          </div>
+                          {/* Individual students */}
+                          <div style={{display:'flex',flexDirection:'column'}}>
+                            {clsStudents.map((p,i)=>{
+                              const globalIdx = bulkStudents.findIndex(x=>x.student.id===p.student.id)
+                              return (
+                                <div key={p.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 16px',borderBottom:i<clsStudents.length-1?'1px solid var(--line)':'none',background:p.action==='graduate'?'rgba(240,107,122,0.04)':p.action==='repeat'?'rgba(251,159,58,0.04)':'transparent'}}>
+                                  <Avatar name={`${p.student.first_name} ${p.student.last_name}`} size={24}/>
+                                  <span style={{flex:1,fontSize:13,fontWeight:500}}>{p.student.first_name} {p.student.last_name}</span>
+                                  <div style={{display:'flex',gap:5}}>
+                                    {['promote','repeat','graduate'].map(a=>(
+                                      <button key={a} onClick={()=>setBulkStudents(prev=>prev.map((x,j)=>j===globalIdx?{...x,action:a}:x))}
+                                        style={{padding:'3px 9px',fontSize:11,fontWeight:600,borderRadius:'var(--r-sm)',cursor:'pointer',border:'1px solid',
+                                          background:p.action===a?(a==='promote'?'rgba(45,212,160,0.15)':a==='repeat'?'rgba(251,159,58,0.15)':'rgba(240,107,122,0.15)'):'transparent',
+                                          color:p.action===a?(a==='promote'?'var(--emerald)':a==='repeat'?'var(--amber)':'var(--rose)'):'var(--mist3)',
+                                          borderColor:p.action===a?(a==='promote'?'var(--emerald)':a==='repeat'?'var(--amber)':'var(--rose)'):'var(--line)'}}>
+                                        {a.charAt(0).toUpperCase()+a.slice(1)}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  {p.action==='promote' && (
+                                    <select value={p.destClassId}
+                                      onChange={e=>setBulkStudents(prev=>prev.map((x,j)=>j===globalIdx?{...x,destClassId:e.target.value}:x))}
+                                      style={{background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'4px 8px',color:'var(--mist)',fontSize:11,cursor:'pointer'}}>
+                                      {orderedClasses.filter(c=>c.id!==cls.id).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
