@@ -4054,7 +4054,7 @@ function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}
     reader.readAsDataURL(file)
   }
 
-  const updGrade = (i,k,v)=>{const g=[...form.grading_scale];g[i]={...g[i],[k]:k==='letter'?v:parseFloat(v)||0};setForm(p=>({...p,grading_scale:g}))}
+  const updGrade = (i,k,v)=>{const g=[...form.grading_scale];g[i]={...g[i],[k]:k==='letter'||k==='remark'?v:parseFloat(v)||0};setForm(p=>({...p,grading_scale:g}))}
 
   const updComponent = (i,k,v) => {
     const comps = [...gradeComponents]
