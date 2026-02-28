@@ -1679,8 +1679,8 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
               const otherPeriods = grades.filter(g=>
                 g.student_id===form.student_id &&
                 g.subject_id===form.subject_id &&
-                g.period !== form.period &&
                 g.year === activeYear &&
+                g.period !== form.period &&
                 (!edit || g.id !== edit.id)
               )
               if(!otherPeriods.length) return null
