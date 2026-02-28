@@ -2322,7 +2322,10 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
 
 // ── BEHAVIOUR ──────────────────────────────────────────────────
 function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
-  const {behaviour=[],students=[]} = data
+  const {behaviour=[],students=[],classes=[]} = data
+  const activeStudents = students.filter(s=>!s.archived)
+  const myClasses = profile?.role==='classteacher' ? classes.filter(c=>c.id===profile.class_id) : classes
+  const [fClassId,setFClassId] = useState(profile?.role==='classteacher' ? (profile?.class_id||'') : '')
   const [ftype,setFtype] = useState('')
   const [fsid,setFsid]   = useState('')
   const [modal,setModal] = useState(false)
@@ -2330,7 +2333,13 @@ function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast
   const [saving,setSaving] = useState(false)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
   const types = ['Discipline','Achievement','Club Activity','Notes']
-  const filtered = behaviour.filter(b=>(!ftype||b.type===ftype)&&(!fsid||b.student_id===fsid)).sort((a,b)=>b.created_at?.localeCompare(a.created_at))
+  const studentsInClass = fClassId ? activeStudents.filter(s=>s.class_id===fClassId) : activeStudents
+  const filtered = behaviour.filter(b=>{
+    if(ftype&&b.type!==ftype) return false
+    if(fsid&&b.student_id!==fsid) return false
+    if(fClassId){const s=activeStudents.find(x=>x.id===b.student_id); if(!s||s.class_id!==fClassId) return false}
+    return true
+  }).sort((a,b)=>b.created_at?.localeCompare(a.created_at))
   const counts   = types.reduce((acc,t)=>({...acc,[t]:behaviour.filter(b=>b.type===t).length}),{})
   const openAdd  = ()=>{setForm({student_id:'',type:'Achievement',title:'',description:'',date:new Date().toISOString().split('T')[0]});setModal(true)}
   const save = async ()=>{
@@ -2367,9 +2376,13 @@ function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast
       </div>
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+          <select value={fClassId} onChange={e=>{setFClassId(e.target.value);setFsid('')}} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:180}}>
+            <option value=''>All Classes</option>
+            {myClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
           <select value={fsid} onChange={e=>setFsid(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:200}}>
             <option value=''>All Students</option>
-            {students.map(s=><option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+            {studentsInClass.map(s=><option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
           </select>
           <select value={ftype} onChange={e=>setFtype(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Types</option>
@@ -2412,7 +2425,7 @@ function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast
       </div>
       {modal && (
         <Modal title='New Behaviour Record' onClose={()=>setModal(false)}>
-          <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={students.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name}`}))}/>
+          <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={studentsInClass.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name} · ${classes.find(c=>c.id===s.class_id)?.name||''}`}))}/>
           <Field label='Record Type' value={form.type} onChange={f('type')} options={types}/>
           <Field label='Title' value={form.title} onChange={f('title')} placeholder='Brief descriptive title' required/>
           <Field label='Description' value={form.description} onChange={f('description')} rows={3} placeholder='Provide full details...'/>
