@@ -1221,6 +1221,8 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
     : grades.filter(g=>viewSubjects.some(s=>s.id===g.subject_id))
 
   const filtered = myGrades.filter(g=>{
+    // Always scope to active year — promoted students' old grades belong to previous years
+    if(g.year && g.year !== activeYear) return false
     if(fc) { const sub=subjects.find(s=>s.id===g.subject_id); if(!sub||sub.class_id!==fc) return false }
     return (!fs||g.subject_id===fs)&&(!fp||g.period===fp)
   })
