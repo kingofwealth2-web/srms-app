@@ -2232,9 +2232,21 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
     const amt = Math.min(parseFloat(payForm.amount)||0, currentBalance)
     if(amt<=0){ toast('Amount must be greater than zero','error'); return }
     const newCumPaid = currentPaid + amt
-    const rcpt = genRCP([...fees, ...payments])
+    // Fetch global max receipt number across ALL years to avoid collisions
+    const {data:allReceipts} = await supabase
+      .from('payments')
+      .select('receipt_no')
+      .not('receipt_no','is',null)
+      .order('receipt_no',{ascending:false})
+      .limit(1)
+    const lastNum = allReceipts?.[0]?.receipt_no
+      ? parseInt(allReceipts[0].receipt_no.split('-')[1]||0)
+      : 0
+    const feeMaxNum = fees.filter(f=>f.receipt_no).reduce((m,f)=>Math.max(m,parseInt(f.receipt_no?.split('-')[1]||0)),0)
+    const rcpt = `RCP-${String(Math.max(lastNum, feeMaxNum)+1).padStart(4,'0')}`
     // Insert payment record
     const {data:payRow, error:payErr} = await supabase.from('payments').insert({
+      academic_year: activeYear,
       fee_id:          editFee.id,
       student_id:      editFee.student_id,
       amount:          amt,
@@ -2315,7 +2327,7 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
 
   // Filter payments — default to current academic year
   const phFiltered = enrichedPayments.filter(p => {
-    if(p.academic_year && p.academic_year!==activeYear) return false
+    if(p.academic_year !== activeYear) return false
     if(phClass   && p.class_id!==phClass) return false
     if(phStudent && p.fee_obj?.student_id!==phStudent) return false
     if(phFeeType && p.fee_type!==phFeeType) return false
@@ -5932,7 +5944,7 @@ export default function App() {
       supabase.from('grades').select('*').eq('year',year),
       supabase.from('attendance').select('*').eq('academic_year',year).order('date',{ascending:false}),
       supabase.from('fees').select('*').or(`academic_year.eq.${year},arrear_from_year.eq.${year}`),
-      supabase.from('payments').select('*').order('created_at',{ascending:false}),
+      supabase.from('payments').select('*').eq('academic_year',year).order('created_at',{ascending:false}),
       supabase.from('behaviour').select('*').eq('academic_year',year).order('created_at',{ascending:false}),
       supabase.from('announcements').select('*').eq('academic_year',year).order('created_at',{ascending:false}),
       supabase.from('student_year_enrolment').select('*').eq('academic_year',year),
