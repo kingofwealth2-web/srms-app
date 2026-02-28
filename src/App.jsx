@@ -809,7 +809,10 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
   const [edit,setEdit]     = useState(null)
   const [form,setForm]     = useState({})
   const [saving,setSaving] = useState(false)
-  const [showArchived,setShowArchived] = useState(false)
+  const [showArchived,setShowArchived]     = useState(false)
+  const [fyear,setFyear]                   = useState('')
+  const [unarchiveModal,setUnarchiveModal] = useState(null) // student to unarchive
+  const [unarchiveClass,setUnarchiveClass] = useState('')
   const f = k => v => setForm(p=>({...p,[k]:v}))
   const [viewStudent, setViewStudent] = useState(null)
   const canEdit = ['superadmin','admin'].includes(profile?.role) && !isViewingPast
@@ -825,6 +828,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
   }
   const activeStudents   = students.filter(s=>!s.archived)
   const archivedStudents = students.filter(s=>s.archived)
+  const graduationYears  = [...new Set(archivedStudents.map(s=>s.graduation_year).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
   // Subject teacher: view students in classes they teach
   const teacherSubjectClassIds = profile?.role==='teacher'
     ? [...new Set(data.subjects?.filter(s=>s.teacher_id===profile?.id).map(s=>s.class_id)||[])]
@@ -836,11 +840,25 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
       : profile?.role==='teacher'
         ? activeStudents.filter(s=>teacherSubjectClassIds.includes(s.class_id))
         : activeStudents
-  const visible = pool
-  const filtered = visible.filter(s=>{
+  const filtered = pool.filter(s=>{
     const q=search.toLowerCase()
-    return (`${s.first_name} ${s.last_name} ${s.student_id}`).toLowerCase().includes(q) && (!fc||s.class_id===fc)
+    if(!(`${s.first_name} ${s.last_name} ${s.student_id}`).toLowerCase().includes(q)) return false
+    if(showArchived && fyear && s.graduation_year!==fyear) return false
+    if(!showArchived && fc && s.class_id!==fc) return false
+    return true
   })
+  const unarchive = async (student, classId) => {
+    if(!classId){ toast('Please select a class to re-enrol the student into','error'); return }
+    setSaving(true)
+    const {error} = await supabase.from('students').update({archived:false, class_id:classId, graduation_year:null}).eq('id',student.id)
+    if(error){ toast(error.message,'error'); setSaving(false); return }
+    setData(p=>({...p, students:p.students.map(s=>s.id===student.id?{...s,archived:false,class_id:classId,graduation_year:null}:s)}))
+    auditLog(profile,'Students','Unarchived',`${student.first_name} ${student.last_name} → ${classes.find(c=>c.id===classId)?.name}`,{},{...student},{archived:false,class_id:classId})
+    toast(`${student.first_name} ${student.last_name} re-enrolled`)
+    setUnarchiveModal(null)
+    setUnarchiveClass('')
+    setSaving(false)
+  }
   const openAdd = ()=>{setEdit(null);setForm({first_name:'',last_name:'',class_id:'',dob:'',gender:'',phone:'',email:'',address:'',medical_info:'',guardian_name:'',guardian_relation:'',guardian_phone:'',guardian_email:''});setModal(true)}
   const openEdit = s=>{setEdit(s);setForm({...s});setModal(true)}
   const save = async ()=>{
@@ -865,11 +883,15 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
   }
   return (
     <div>
-      <PageHeader title={showArchived?'Archived Students':'Students'} sub={showArchived?`${archivedStudents.length} archived`:`${filtered.length} of ${activeStudents.length} students`}>
+      <PageHeader
+        title={showArchived?'Alumni Register':'Students'}
+        sub={showArchived
+          ? `${filtered.length} of ${archivedStudents.length} alumni${fyear?' · '+fyear:''}`
+          : `${filtered.length} of ${activeStudents.length} students`}>
         {canEdit && !showArchived && <Btn onClick={openAdd}>+ New Student</Btn>}
-        {profile?.role==='superadmin' && (
-          <Btn variant='ghost' onClick={()=>{setShowArchived(v=>!v);setSearch('');setFc('')}}>
-            {showArchived?'Back to Students':'⊡ Archives'}
+        {canEdit && (
+          <Btn variant='ghost' onClick={()=>{setShowArchived(v=>!v);setSearch('');setFc('');setFyear('')}}>
+            {showArchived?'← Back to Students':'⊡ Alumni Register'}
           </Btn>
         )}
       </PageHeader>
@@ -877,12 +899,25 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
           <div style={{position:'relative',flex:'1 1 240px'}}>
             <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:14}}>⌕</span>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search by name or ID...' style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
+            <input value={search} onChange={e=>setSearch(e.target.value)}
+              placeholder={showArchived?'Search alumni by name or ID...':'Search by name or ID...'}
+              style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
           </div>
-          {(canEdit || profile?.role==='teacher') && !showArchived && <select value={fc} onChange={e=>setFc(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
-            <option value=''>All Classes</option>
-            {(profile?.role==='teacher' ? classes.filter(c=>teacherSubjectClassIds.includes(c.id)) : classes).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>}
+          {showArchived ? (
+            <select value={fyear} onChange={e=>setFyear(e.target.value)}
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
+              <option value=''>All Years</option>
+              {graduationYears.map(y=><option key={y} value={y}>{y}</option>)}
+            </select>
+          ) : (
+            (canEdit || profile?.role==='teacher') && (
+              <select value={fc} onChange={e=>setFc(e.target.value)}
+                style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
+                <option value=''>All Classes</option>
+                {(profile?.role==='teacher' ? classes.filter(c=>teacherSubjectClassIds.includes(c.id)) : classes).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            )
+          )}
         </div>
       </Card>
       <Card>
@@ -891,19 +926,36 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
           {key:'first_name',label:'Student',render:(v,r)=>(
             <div style={{display:'flex',alignItems:'center',gap:10}}>
               <Avatar name={`${r.first_name} ${r.last_name}`} size={30} photo={r.photo}/>
-              <div><div style={{fontWeight:600}}>{r.first_name} {r.last_name}</div><div style={{fontSize:11,color:'var(--mist3)'}}>{r.email||'--'}</div></div>
+              <div>
+                <div style={{fontWeight:600}}>{r.first_name} {r.last_name}</div>
+                <div style={{fontSize:11,color:'var(--mist3)'}}>{r.email||'--'}</div>
+              </div>
             </div>
           )},
-          {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
+          showArchived
+            ? {key:'graduation_year',label:'Graduated',render:v=>v
+                ? <span style={{fontSize:12,fontWeight:600,color:'var(--sky)',background:'rgba(91,168,245,0.1)',border:'1px solid rgba(91,168,245,0.2)',borderRadius:4,padding:'2px 8px'}}>{v}</span>
+                : <span style={{color:'var(--mist3)'}}>--</span>}
+            : {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
           {key:'gender',label:'Gender'},
           {key:'dob',label:'Date of Birth',render:v=>fmtDate(v)},
           {key:'medical_info',label:'Medical',render:v=>v&&v!=='None'?<Badge color='var(--rose)'>{v}</Badge>:<span style={{color:'var(--mist3)'}}>None</span>},
-          canEdit&&!isViewingPast?{key:'id',label:'',render:(v,r)=>(
-            <div style={{display:'flex',gap:6}} onClick={e=>e.stopPropagation()}>
-              <Btn variant='ghost' size='sm' onClick={()=>openEdit(r)}>Edit</Btn>
-              <Btn variant='danger' size='sm' onClick={()=>del(r.id)}>Remove</Btn>
-            </div>
-          )}:{key:'id',label:'',render:()=>null},
+          showArchived
+            ? profile?.role==='superadmin'
+              ? {key:'id',label:'',render:(v,r)=>(
+                  <div style={{display:'flex',gap:6}} onClick={e=>e.stopPropagation()}>
+                    <Btn variant='ghost' size='sm' onClick={()=>{setUnarchiveModal(r);setUnarchiveClass('')}}>Re-enrol</Btn>
+                  </div>
+                )}
+              : {key:'id',label:'',render:()=>null}
+            : canEdit&&!isViewingPast
+              ? {key:'id',label:'',render:(v,r)=>(
+                  <div style={{display:'flex',gap:6}} onClick={e=>e.stopPropagation()}>
+                    <Btn variant='ghost' size='sm' onClick={()=>openEdit(r)}>Edit</Btn>
+                    <Btn variant='danger' size='sm' onClick={()=>del(r.id)}>Remove</Btn>
+                  </div>
+                )}
+              : {key:'id',label:'',render:()=>null},
         ]}/>
       </Card>
       {modal && (
@@ -956,6 +1008,30 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
         </Modal>
       )}
 
+      {/* Unarchive / Re-enrol Modal */}
+      {unarchiveModal && (
+        <Modal title='Re-enrol Student' onClose={()=>{setUnarchiveModal(null);setUnarchiveClass('')}} width={420}>
+          <div style={{display:'flex',alignItems:'center',gap:14,padding:'14px 16px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:20,border:'1px solid var(--line)'}}>
+            <Avatar name={`${unarchiveModal.first_name} ${unarchiveModal.last_name}`} size={44} photo={unarchiveModal.photo}/>
+            <div>
+              <div style={{fontWeight:600,fontSize:14}}>{unarchiveModal.first_name} {unarchiveModal.last_name}</div>
+              <div style={{fontSize:12,color:'var(--mist3)',marginTop:2}}>ID: {unarchiveModal.student_id} · Graduated {unarchiveModal.graduation_year||'--'}</div>
+            </div>
+          </div>
+          <p style={{fontSize:13,color:'var(--mist2)',marginBottom:16,lineHeight:1.6}}>
+            This will restore the student as active and assign them to a class. Their full history (grades, fees, attendance) is preserved.
+          </p>
+          <Field label='Assign to Class' value={unarchiveClass} onChange={setUnarchiveClass} required
+            options={[{value:'',label:'Select a class...'},...classes.map(c=>({value:c.id,label:c.name}))]}/>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:8}}>
+            <Btn variant='ghost' onClick={()=>{setUnarchiveModal(null);setUnarchiveClass('')}}>Cancel</Btn>
+            <Btn onClick={()=>unarchive(unarchiveModal,unarchiveClass)} disabled={!unarchiveClass||saving}>
+              {saving?<><Spinner/> Re-enrolling...</>:'Confirm Re-enrolment'}
+            </Btn>
+          </div>
+        </Modal>
+      )}
+
       {/* Student Profile View */}
       {viewStudent && (() => {
         const s = viewStudent
@@ -981,7 +1057,10 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
                 <h2 className='d' style={{fontSize:22,fontWeight:700,letterSpacing:'-0.02em',marginBottom:8}}>{s.first_name} {s.last_name}</h2>
                 <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
                   <span className='mono' style={{fontSize:12,color:'var(--gold)',background:'rgba(232,184,75,0.1)',border:'1px solid rgba(232,184,75,0.25)',borderRadius:4,padding:'2px 8px'}}>{s.student_id}</span>
-                  {cls && <span style={{fontSize:12,color:'var(--sky)',background:'rgba(91,168,245,0.1)',border:'1px solid rgba(91,168,245,0.2)',borderRadius:4,padding:'2px 8px'}}>{cls.name}</span>}
+                  {s.archived
+                    ? <span style={{fontSize:12,color:'var(--rose)',background:'rgba(240,107,122,0.1)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:4,padding:'2px 8px'}}>Alumni · {s.graduation_year||'--'}</span>
+                    : cls && <span style={{fontSize:12,color:'var(--sky)',background:'rgba(91,168,245,0.1)',border:'1px solid rgba(91,168,245,0.2)',borderRadius:4,padding:'2px 8px'}}>{cls.name}</span>
+                  }
                   {s.gender && <span style={{fontSize:12,color:'var(--mist2)'}}>{s.gender}</span>}
                 </div>
               </div>
@@ -1002,6 +1081,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
                   ['Email', s.email||'--'],
                   ['Address', s.address||'--'],
                   ['Entry Year', s.entry_year||'--'],
+                  ...(s.archived ? [['Graduation Year', s.graduation_year||'--']] : []),
                 ].map(([label,value])=>(
                   <div key={label} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--line)'}}>
                     <span style={{fontSize:12,color:'var(--mist3)'}}>{label}</span>
@@ -2967,122 +3047,102 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   const printBroadsheet = () => {
     if(!rcClass||!rcPeriod) return
     const cls = classes.find(c=>c.id===rcClass)
+    // class teacher name comes from rcClassTeacherName input
 
-    const subjectCols = classSubjects.map(s=>`
-      <th style="padding:10px 8px;text-align:center;font-size:8.5px;font-weight:700;color:#4a4a6a;text-transform:uppercase;letter-spacing:0.07em;border:1px solid #e0e0ef;background:#f4f4fc;max-width:70px;word-break:break-word;line-height:1.3;">${s.name}</th>`).join('')
+    const subjectCols = classSubjects.map(s=>`<th style="padding:8px 6px;text-align:center;font-size:9px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.06em;border:1px solid #ddd;background:#f8f8fc;max-width:60px;word-break:break-word;">${s.name}</th>`).join('')
 
     const rows = rankedStudents.map((s,i)=>{
       const subjectCells = classSubjects.map(sub=>{
         const t = getTotal(s.id, sub.id)
-        const color = t===null?'#bbb':t<50?'#c0392b':t>=75?'#166534':'#1a1a2e'
-        const bg    = t===null?'#fafafa':t<50?'#fff5f5':t>=75?'#f0fdf4':'#fff'
-        return `<td style="padding:8px 6px;text-align:center;font-size:12px;font-weight:700;border:1px solid #eeeef8;color:${color};background:${bg};">${t!==null?t:'—'}</td>`
+        const letter = t!==null ? getGradeLetter(t, scale) : '--'
+        const color = t!==null&&t<50?'#c0392b':t!==null&&t>=75?'#1a7a4a':'#1a1a2e'
+        return `<td style="padding:7px 6px;text-align:center;font-size:12px;font-weight:600;border:1px solid #eee;color:${color};">${t!==null?t:'--'}</td>`
       }).join('')
-      const total  = s.total
-      const avg    = classSubjects.length&&total!==null ? Math.round(total/classSubjects.length) : null
-      const letter = total!==null ? getGradeLetter(Math.round(total/Math.max(classSubjects.length,1)),scale) : '--'
-      const remark = total!==null ? getGradeRemark(Math.round(total/Math.max(classSubjects.length,1)),scale) : '--'
-      const posOrd = s.position!=='--' ? ordinal(s.position) : '--'
-      const rowBg  = i%2===0?'#ffffff':'#f9f9fd'
-      const posColor = s.position===1?'#b45309':s.position===2?'#6b7280':s.position===3?'#92400e':'#4a4a6a'
+      const total = s.total
+      const avg   = classSubjects.length ? (total!==null?Math.round(total/classSubjects.length):null) : null
+      const letter= total!==null ? getGradeLetter(Math.round(total/Math.max(classSubjects.length,1)),scale) : '--'
+      const remark= total!==null ? getGradeRemark(Math.round(total/Math.max(classSubjects.length,1)),scale) : '--'
+      const rowBg = i%2===0?'#fff':'#fafafa'
       return `<tr style="background:${rowBg};">
-        <td style="padding:8px 12px;font-size:11px;font-family:monospace;border:1px solid #eeeef8;color:#888;">${s.student_id}</td>
-        <td style="padding:8px 12px;font-size:13px;font-weight:600;border:1px solid #eeeef8;color:#1a1a2e;">${s.last_name}, ${s.first_name}</td>
+        <td style="padding:7px 10px;font-size:12px;font-weight:700;text-align:center;border:1px solid #eee;color:#e8b84b;">${s.position}</td>
+        <td style="padding:7px 10px;font-size:11px;font-family:monospace;border:1px solid #eee;color:#555;">${s.student_id}</td>
+        <td style="padding:7px 10px;font-size:13px;font-weight:600;border:1px solid #eee;">${s.last_name}, ${s.first_name}</td>
         ${subjectCells}
-        <td style="padding:8px 8px;text-align:center;font-size:13px;font-weight:800;border:1px solid #eeeef8;background:#eff6ff;color:#1e40af;">${total!==null?total:'—'}</td>
-        <td style="padding:8px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #eeeef8;background:#eff6ff;color:#1e40af;">${avg!==null?avg:'—'}</td>
-        <td style="padding:8px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #eeeef8;color:#d97706;">${letter}</td>
-        <td style="padding:8px 10px;font-size:11px;border:1px solid #eeeef8;color:#555;">${remark}</td>
-        <td style="padding:8px 10px;text-align:center;font-size:13px;font-weight:800;border:1px solid #eeeef8;color:${posColor};background:${s.position===1?'#fef3c7':s.position===2?'#f3f4f6':s.position===3?'#fef3c7':'#fff'};">${posOrd}</td>
+        <td style="padding:7px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #eee;background:#f0f8ff;">${total!==null?total:'--'}</td>
+        <td style="padding:7px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #eee;background:#f0f8ff;">${avg!==null?avg:'--'}</td>
+        <td style="padding:7px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #eee;color:#e8b84b;">${letter}</td>
+        <td style="padding:7px 10px;font-size:11px;border:1px solid #eee;color:#555;">${remark}</td>
       </tr>`
     }).join('')
 
-    const passCount = rankedStudents.filter(s=>s.total!==null&&classSubjects.length&&Math.round(s.total/classSubjects.length)>=50).length
-    const avgTotal  = rankedStudents.filter(s=>s.total!==null).reduce((a,s)=>a+(Math.round(s.total/Math.max(classSubjects.length,1))||0),0) / Math.max(rankedStudents.filter(s=>s.total!==null).length,1)
-
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
     <title>Broadsheet — ${cls?.name} — ${rcPeriod}</title>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap');
-      *{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:'Inter',sans-serif;background:#f0f0f5;color:#1a1a2e;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-      .card{background:#fff;border-radius:14px;overflow:hidden;margin:0 auto 24px;max-width:1100px;box-shadow:0 4px 32px rgba(0,0,0,0.10);}
-      table{border-collapse:collapse;width:100%;}
-      @media print{
-        @page{size:A4 landscape;margin:8mm}
-        body{background:#fff;padding:0}
-        .card{box-shadow:none;border-radius:0;max-width:100%;margin:0}
-        .no-print{display:none!important}
-        table{font-size:9px!important}
-        th,td{padding:5px 4px!important}
-      }
-      @media screen{body{padding:20px}}
+    <style>${printStyles}
+    body{font-size:12px}
+    @media print{
+      @page{size:A4 landscape;margin:8mm}
+      table{font-size:9px!important}
+      th,td{padding:4px 5px!important}
+      .card{box-shadow:none!important;border-radius:0!important}
+    }
+    @media screen{
+      .card{overflow-x:auto}
+    }
     </style></head><body>
-    <div class="card">
-      <!-- Top stripe -->
-      <div style="height:5px;background:linear-gradient(90deg,#1e3a8a,#3b82f6,#1e3a8a);"></div>
+    <div class="card" style="background:#fff;border-radius:12px;overflow:hidden;">
       <!-- Header -->
-      <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 60%,#1e40af 100%);padding:22px 28px;display:flex;align-items:center;gap:18px;">
+      <div style="background:linear-gradient(135deg,#1a1a2e 0%,#16213e 60%,#0f3460 100%);padding:20px 28px;display:flex;align-items:center;gap:16px;">
         ${logoTag}
         <div style="flex:1;">
-          <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#fff;letter-spacing:-0.01em;">${schoolName}</div>
-          ${schoolMotto?`<div style="font-size:10px;color:#93c5fd;margin-top:3px;font-style:italic;">"${schoolMotto}"</div>`:''}
+          <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#fff;letter-spacing:-0.01em;">${schoolName}</div>
+          ${schoolMotto?`<div style="font-size:10px;color:#e8b84b;margin-top:2px;font-style:italic;">"${schoolMotto}"</div>`:''}
         </div>
         <div style="text-align:right;">
-          <div style="font-size:9px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:4px;">Terminal Report — Broadsheet</div>
-          <div style="font-size:20px;font-weight:800;color:#fbbf24;">${cls?.name||'--'}</div>
-          <div style="font-size:11px;color:#bfdbfe;margin-top:3px;">${rcPeriod} &nbsp;·&nbsp; ${activeYear}</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.1em;">Class Broadsheet</div>
+          <div style="font-size:16px;font-weight:700;color:#e8b84b;margin-top:4px;">${cls?.name||'--'}</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:2px;">${rcPeriod} &nbsp;·&nbsp; ${activeYear}</div>
         </div>
       </div>
-      <!-- Stats bar -->
-      <div style="background:#f8f8fd;border-bottom:1px solid #e0e0ef;padding:12px 28px;display:flex;gap:28px;align-items:center;flex-wrap:wrap;">
-        <div style="font-size:12px;color:#555;"><span style="font-weight:700;color:#1a1a2e;">${rankedStudents.length}</span> Students</div>
-        <div style="font-size:12px;color:#555;"><span style="font-weight:700;color:#1a1a2e;">${classSubjects.length}</span> Subjects</div>
-        <div style="font-size:12px;color:#555;">Pass Rate: <span style="font-weight:700;color:${passCount/Math.max(rankedStudents.length,1)>=0.7?'#166534':'#c0392b'};">${rankedStudents.length?Math.round(passCount/rankedStudents.length*100):0}%</span></div>
-        <div style="font-size:12px;color:#555;">Class Avg: <span style="font-weight:700;color:#1e40af;">${Math.round(avgTotal)}</span></div>
-        <div style="margin-left:auto;font-size:10px;color:#aaa;">Generated: ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}</div>
-      </div>
       <!-- Table -->
-      <div style="padding:16px 16px;overflow-x:auto;">
-        <table>
+      <div style="padding:20px 16px;overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;min-width:600px;">
           <thead>
             <tr>
-              <th style="padding:10px 12px;text-align:left;font-size:8.5px;font-weight:700;color:#4a4a6a;text-transform:uppercase;letter-spacing:0.07em;border:1px solid #e0e0ef;background:#f4f4fc;white-space:nowrap;">Student ID</th>
-              <th style="padding:10px 12px;text-align:left;font-size:8.5px;font-weight:700;color:#4a4a6a;text-transform:uppercase;letter-spacing:0.07em;border:1px solid #e0e0ef;background:#f4f4fc;white-space:nowrap;">Student Name</th>
+              <th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.06em;border:1px solid #ddd;background:#f8f8fc;">Pos</th>
+              <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.06em;border:1px solid #ddd;background:#f8f8fc;">ID</th>
+              <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.06em;border:1px solid #ddd;background:#f8f8fc;">Student Name</th>
               ${subjectCols}
-              <th style="padding:10px 8px;text-align:center;font-size:8.5px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:0.07em;border:1px solid #e0e0ef;background:#dbeafe;">Total</th>
-              <th style="padding:10px 8px;text-align:center;font-size:8.5px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:0.07em;border:1px solid #e0e0ef;background:#dbeafe;">Avg</th>
-              <th style="padding:10px 8px;text-align:center;font-size:8.5px;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:0.07em;border:1px solid #e0e0ef;background:#fef9ec;">Grade</th>
-              <th style="padding:10px 10px;text-align:left;font-size:8.5px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.07em;border:1px solid #e0e0ef;background:#f4f4fc;">Remark</th>
-              <th style="padding:10px 10px;text-align:center;font-size:8.5px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.07em;border:1px solid #e0e0ef;background:#f5f3ff;white-space:nowrap;">Position</th>
+              <th style="padding:8px 8px;text-align:center;font-size:9px;font-weight:700;color:#0f3460;text-transform:uppercase;letter-spacing:0.06em;border:1px solid #ddd;background:#e8f0fe;">Total</th>
+              <th style="padding:8px 8px;text-align:center;font-size:9px;font-weight:700;color:#0f3460;text-transform:uppercase;letter-spacing:0.06em;border:1px solid #ddd;background:#e8f0fe;">Avg</th>
+              <th style="padding:8px 8px;text-align:center;font-size:9px;font-weight:700;color:#0f3460;text-transform:uppercase;letter-spacing:0.06em;border:1px solid #ddd;background:#e8f0fe;">Grade</th>
+              <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#0f3460;text-transform:uppercase;letter-spacing:0.06em;border:1px solid #ddd;background:#e8f0fe;">Remark</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
-      <!-- Footer -->
-      <div style="padding:18px 28px 24px;border-top:1px solid #eeeef8;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;">
-        <div style="font-size:10px;color:#aaa;">Total: ${rankedStudents.length} students &nbsp;·&nbsp; ${rcPeriod} &nbsp;·&nbsp; ${activeYear}</div>
-        <div style="display:flex;gap:48px;">
+      <!-- Signatures -->
+      <div style="padding:16px 28px 24px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;">
+        <div style="font-size:10px;color:#888;">Total Students: ${rankedStudents.length} &nbsp;·&nbsp; ${rcPeriod} &nbsp;·&nbsp; ${activeYear}</div>
+        <div style="display:flex;gap:40px;">
           <div style="text-align:center;">
-            <div style="width:180px;border-bottom:1.5px solid #aaa;height:36px;"></div>
-            <div style="font-size:10px;font-weight:600;color:#555;margin-top:5px;">Class Teacher</div>
-            <div style="font-size:10px;color:#888;margin-top:2px;">${rcClassTeacherName||'_______________________'}</div>
+            <div style="width:160px;border-bottom:1px solid #aaa;height:32px;"></div>
+            <div style="font-size:10px;color:#555;margin-top:4px;">Class Teacher</div>
+            <div style="font-size:10px;color:#888;margin-top:1px;">${rcClassTeacherName||'_________________________'}</div>
           </div>
           <div style="text-align:center;">
-            <div style="width:180px;border-bottom:1.5px solid #aaa;height:36px;"></div>
-            <div style="font-size:10px;font-weight:600;color:#555;margin-top:5px;">Head Teacher</div>
-            <div style="font-size:10px;color:#888;margin-top:2px;">${rcHeadTeacher||'_______________________'}</div>
+            <div style="width:160px;border-bottom:1px solid #aaa;height:32px;"></div>
+            <div style="font-size:10px;color:#555;margin-top:4px;">Head Teacher</div>
+            <div style="font-size:10px;color:#888;margin-top:1px;">${rcHeadTeacher||'_________________________'}</div>
           </div>
         </div>
       </div>
-      <div style="height:4px;background:linear-gradient(90deg,#1e3a8a,#3b82f6,#1e3a8a);"></div>
     </div>
-    <div class="no-print" style="max-width:1100px;margin:0 auto;text-align:center;padding:12px;">
-      <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print Broadsheet</button>
+    <div class="no-print" style="max-width:800px;margin:0 auto;text-align:center;padding:12px;">
+      <button onclick="window.print()" style="padding:12px 32px;background:#e8b84b;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#1a1a2e;cursor:pointer;">⎙ Print Broadsheet</button>
     </div>
     </body></html>`
-    const w = window.open('','_blank','width=1200,height=850')
+    const w = window.open('','_blank','width=1100,height=800')
     if(w){w.document.write(html);w.document.close()}
   }
 
@@ -3094,94 +3154,72 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     const subTeacher = sub?.teacher_id ? users.find(u=>u.id===sub.teacher_id) : null
 
     const rankedBySub = [...classStudents]
-      .map(s=>{ const t=getTotal(s.id,rcSubject); return {...s,score:t} })
+      .map(s=>{
+        const t = getTotal(s.id, rcSubject)
+        return {...s, score: t}
+      })
       .sort((a,b)=>(b.score||0)-(a.score||0))
-    // Proper tie handling
-    let rpos=1
-    const ranked = rankedBySub.map((s,i)=>{
-      if(s.score===null) return {...s,position:'—'}
-      if(i>0&&s.score===rankedBySub[i-1].score) return {...s,position:rankedBySub[i-1].position}
-      const p=rpos; rpos=i+2; return {...s,position:p}
-    })
+      .map((s,i)=>({...s, position: s.score!==null ? i+1 : '--'}))
 
-    const passCount = ranked.filter(s=>s.score!==null&&s.score>=50).length
-    const avgScore  = ranked.filter(s=>s.score!==null).reduce((a,s)=>a+s.score,0)/Math.max(ranked.filter(s=>s.score!==null).length,1)
-
-    const rows = ranked.map((s,i)=>{
-      const letter = s.score!==null ? getGradeLetter(s.score,scale) : '--'
-      const remark = s.score!==null ? getGradeRemark(s.score,scale) : '--'
-      const scoreColor = s.score===null?'#bbb':s.score<50?'#c0392b':s.score>=75?'#166534':'#1e40af'
-      const posOrd = typeof s.position==='number' ? ordinal(s.position) : '—'
-      const posColor = s.position===1?'#b45309':s.position===2?'#6b7280':s.position===3?'#92400e':'#4a4a6a'
-      return `<tr style="background:${i%2===0?'#fff':'#f9f9fd'};">
-        <td style="padding:10px 14px;font-size:11px;font-family:monospace;border-bottom:1px solid #eeeef8;color:#888;">${s.student_id}</td>
-        <td style="padding:10px 14px;font-size:14px;font-weight:600;border-bottom:1px solid #eeeef8;color:#1a1a2e;">${s.last_name}, ${s.first_name}</td>
-        <td style="padding:10px 14px;text-align:center;font-size:18px;font-weight:800;border-bottom:1px solid #eeeef8;color:${scoreColor};">${s.score!==null?s.score:'—'}</td>
-        <td style="padding:10px 14px;text-align:center;font-size:13px;font-weight:700;border-bottom:1px solid #eeeef8;color:#d97706;">${letter}</td>
-        <td style="padding:10px 14px;font-size:12px;border-bottom:1px solid #eeeef8;color:#555;">${remark}</td>
-        <td style="padding:10px 14px;text-align:center;font-size:14px;font-weight:800;border-bottom:1px solid #eeeef8;color:${posColor};background:${s.position===1?'#fef3c7':s.position===2?'#f3f4f6':s.position===3?'#fef3c7':'transparent'};">${posOrd}</td>
+    const rows = rankedBySub.map((s,i)=>{
+      const letter = s.score!==null ? getGradeLetter(s.score, scale) : '--'
+      const remark = s.score!==null ? getGradeRemark(s.score, scale) : '--'
+      const color  = s.score!==null&&s.score<50?'#c0392b':s.score!==null&&s.score>=75?'#1a7a4a':'#1a1a2e'
+      return `<tr style="background:${i%2===0?'#fff':'#fafafa'};">
+        <td style="padding:10px 14px;font-size:13px;font-weight:700;text-align:center;border-bottom:1px solid #f0f0f0;color:#e8b84b;">${s.position}</td>
+        <td style="padding:10px 14px;font-size:11px;font-family:monospace;border-bottom:1px solid #f0f0f0;color:#888;">${s.student_id}</td>
+        <td style="padding:10px 14px;font-size:14px;font-weight:600;border-bottom:1px solid #f0f0f0;">${s.last_name}, ${s.first_name}</td>
+        <td style="padding:10px 14px;text-align:center;font-size:16px;font-weight:700;border-bottom:1px solid #f0f0f0;color:${color};">${s.score!==null?s.score:'--'}</td>
+        <td style="padding:10px 14px;text-align:center;font-size:13px;font-weight:700;border-bottom:1px solid #f0f0f0;color:#e8b84b;">${letter}</td>
+        <td style="padding:10px 14px;font-size:12px;border-bottom:1px solid #f0f0f0;color:#555;">${remark}</td>
       </tr>`
     }).join('')
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
     <title>Subject Report — ${sub?.name}</title>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap');
-      *{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:'Inter',sans-serif;background:#f0f0f5;color:#1a1a2e;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-      .card{background:#fff;border-radius:14px;overflow:hidden;margin:0 auto 24px;max-width:700px;box-shadow:0 4px 32px rgba(0,0,0,0.10);}
-      table{border-collapse:collapse;width:100%;}
-      @media print{@page{size:A4 portrait;margin:12mm}body{background:#fff;padding:0}.card{box-shadow:none;border-radius:0;max-width:100%}.no-print{display:none!important}}
-      @media screen{body{padding:20px}}
+    <style>${printStyles}
+    @media print{@page{size:A4 portrait;margin:12mm}}
     </style></head><body>
-    <div class="card">
-      <div style="height:5px;background:linear-gradient(90deg,#1e3a8a,#3b82f6,#1e3a8a);"></div>
-      <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 60%,#1e40af 100%);padding:22px 28px;">
-        <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;">
+    <div class="card" style="background:#fff;border-radius:12px;overflow:hidden;">
+      <div style="background:linear-gradient(135deg,#1a1a2e 0%,#16213e 60%,#0f3460 100%);padding:20px 28px;">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;">
           ${logoTag}
           <div>
-            <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700;color:#fff;">${schoolName}</div>
-            ${schoolMotto?`<div style="font-size:10px;color:#93c5fd;font-style:italic;">"${schoolMotto}"</div>`:''}
+            <div style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:#fff;">${schoolName}</div>
+            ${schoolMotto?`<div style="font-size:10px;color:#e8b84b;font-style:italic;">"${schoolMotto}"</div>`:''}
           </div>
         </div>
-        <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:14px;display:flex;justify-content:space-between;align-items:flex-end;">
+        <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:12px;display:flex;justify-content:space-between;align-items:flex-end;">
           <div>
-            <div style="font-size:9px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:4px;">Subject Performance Report</div>
-            <div style="font-size:22px;font-weight:800;color:#fbbf24;">${sub?.name||'--'}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.1em;">Subject Performance Report</div>
+            <div style="font-size:20px;font-weight:700;color:#e8b84b;margin-top:4px;">${sub?.name||'--'}</div>
           </div>
           <div style="text-align:right;">
-            <div style="font-size:12px;color:#bfdbfe;">${cls?.name||'--'} &nbsp;·&nbsp; ${rcPeriod} &nbsp;·&nbsp; ${activeYear}</div>
-            ${subTeacher?`<div style="font-size:11px;color:#93c5fd;margin-top:3px;">Teacher: ${subTeacher.full_name}</div>`:''}
+            <div style="font-size:12px;color:rgba(255,255,255,0.7);">${cls?.name||'--'} &nbsp;·&nbsp; ${rcPeriod} &nbsp;·&nbsp; ${activeYear}</div>
+            ${subTeacher?`<div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:3px;">Teacher: ${subTeacher.full_name}</div>`:''}
           </div>
         </div>
       </div>
-      <div style="background:#f8f8fd;border-bottom:1px solid #e0e0ef;padding:10px 28px;display:flex;gap:24px;">
-        <div style="font-size:12px;color:#555;">Students: <span style="font-weight:700;color:#1a1a2e;">${ranked.length}</span></div>
-        <div style="font-size:12px;color:#555;">Pass Rate: <span style="font-weight:700;color:${passCount/Math.max(ranked.filter(s=>s.score!==null).length,1)>=0.7?'#166534':'#c0392b'};">${ranked.filter(s=>s.score!==null).length?Math.round(passCount/ranked.filter(s=>s.score!==null).length*100):0}%</span></div>
-        <div style="font-size:12px;color:#555;">Class Avg: <span style="font-weight:700;color:#1e40af;">${Math.round(avgScore)||'--'}</span></div>
-      </div>
-      <div style="padding:16px 16px;">
-        <table>
+      <div style="padding:20px;">
+        <table style="width:100%;border-collapse:collapse;">
           <thead>
-            <tr style="border-bottom:2px solid #1e3a8a;">
-              ${['ID','Student Name','Score','Grade','Remark','Position'].map((h,i)=>`<th style="padding:10px ${i<2?14:8}px;text-align:${i>=2&&i!==4?'center':'left'};font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;">${h}</th>`).join('')}
+            <tr style="border-bottom:2px solid #1a1a2e;">
+              ${['Pos','ID','Student Name','Score','Grade','Remark'].map(h=>`<th style="padding:10px 14px;text-align:${h==='Score'||h==='Grade'||h==='Pos'?'center':'left'};font-size:10px;font-weight:700;color:#1a1a2e;text-transform:uppercase;letter-spacing:0.08em;">${h}</th>`).join('')}
             </tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
-      <div style="padding:16px 28px 22px;border-top:1px solid #eeeef8;display:flex;justify-content:space-between;align-items:flex-end;">
-        <div style="font-size:10px;color:#aaa;">Generated ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}</div>
+      <div style="padding:16px 28px 24px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:flex-end;">
+        <div style="font-size:10px;color:#888;">Students: ${rankedBySub.length} &nbsp;·&nbsp; Pass rate: ${rankedBySub.length?Math.round(rankedBySub.filter(s=>s.score!==null&&s.score>=50).length/rankedBySub.filter(s=>s.score!==null).length*100||0):0}%</div>
         <div style="text-align:center;">
-          <div style="width:170px;border-bottom:1.5px solid #aaa;height:32px;"></div>
-          <div style="font-size:10px;font-weight:600;color:#555;margin-top:5px;">Subject Teacher</div>
-          <div style="font-size:10px;color:#888;margin-top:2px;">${subTeacher?.full_name||'_______________________'}</div>
+          <div style="width:160px;border-bottom:1px solid #aaa;height:32px;"></div>
+          <div style="font-size:10px;color:#555;margin-top:4px;">Subject Teacher</div>
         </div>
       </div>
-      <div style="height:4px;background:linear-gradient(90deg,#1e3a8a,#3b82f6,#1e3a8a);"></div>
     </div>
     <div class="no-print" style="max-width:700px;margin:0 auto;text-align:center;padding:12px;">
-      <button onclick="window.print()" style="padding:12px 32px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;">⎙ &nbsp;Print Subject Report</button>
+      <button onclick="window.print()" style="padding:12px 32px;background:#e8b84b;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#1a1a2e;cursor:pointer;">⎙ Print Subject Report</button>
     </div>
     </body></html>`
     const w = window.open('','_blank','width=800,height=900')
@@ -3190,246 +3228,195 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   // ── INDIVIDUAL REPORT CARD ─────────────────────────────────────
   const buildReportCard = (student) => {
-    const cls        = classes.find(c=>c.id===student.class_id)
-    const att        = getAttendance(student.id)
-    const beh        = getBehaviour(student.id)
-    const sPos       = rankedStudents.find(s=>s.id===student.id)?.position||'--'
+    const cls = classes.find(c=>c.id===student.class_id)
+    const att = getAttendance(student.id)
+    const beh = getBehaviour(student.id)
+    const sPos = rankedStudents.find(s=>s.id===student.id)?.position||'--'
     const teacherRemark = rcRemarks[student.id]||''
 
     const subjectRows = classSubjects.map(sub=>{
-      const g      = grades.find(gr=>gr.student_id===student.id&&gr.subject_id===sub.id&&(!rcPeriod||gr.period===rcPeriod))
-      const total  = g ? calcTotal(g,gradeComps) : null
-      const letter = total!==null ? getGradeLetter(total,scale) : '--'
-      const remark = total!==null ? getGradeRemark(total,scale) : '--'
-      const scoreColor = total===null?'#bbb':total<50?'#c0392b':total>=75?'#166534':'#1e40af'
+      const g = grades.find(gr=>gr.student_id===student.id&&gr.subject_id===sub.id&&(!rcPeriod||gr.period===rcPeriod))
+      const total  = g ? calcTotal(g, gradeComps) : null
+      const letter = total!==null ? getGradeLetter(total, scale) : '--'
+      const remark = total!==null ? getGradeRemark(total, scale) : '--'
+      const subTeacherUser = sub.teacher_id ? `<!-- teacher -->` : ''
+      const scoreColor = total!==null&&total<50?'#c0392b':total!==null&&total>=75?'#1a7a4a':'#1a1a2e'
       return `<tr>
-        <td style="padding:9px 14px;font-size:13px;border-bottom:1px solid #f0f0f8;">${sub.name}</td>
-        <td style="padding:9px 14px;font-size:14px;text-align:center;font-weight:800;border-bottom:1px solid #f0f0f8;color:${scoreColor};">${total!==null?total:'—'}</td>
-        <td style="padding:9px 12px;font-size:12px;text-align:center;font-weight:700;border-bottom:1px solid #f0f0f8;color:#d97706;">${letter}</td>
-        <td style="padding:9px 14px;font-size:11px;border-bottom:1px solid #f0f0f8;color:#555;">${remark}</td>
+        <td style="padding:9px 14px;font-size:13px;border-bottom:1px solid #f0f0f0;">${sub.name}</td>
+        <td style="padding:9px 14px;font-size:13px;text-align:center;font-weight:700;border-bottom:1px solid #f0f0f0;color:${scoreColor};">${total!==null?total:'--'}</td>
+        <td style="padding:9px 14px;font-size:13px;text-align:center;font-weight:700;border-bottom:1px solid #f0f0f0;color:#e8b84b;">${letter}</td>
+        <td style="padding:9px 14px;font-size:12px;border-bottom:1px solid #f0f0f0;color:#555;">${remark}</td>
       </tr>`
     }).join('')
 
-    // Summary stats
-    const subTotals = classSubjects.map(s=>{
-      const g=grades.find(gr=>gr.student_id===student.id&&gr.subject_id===s.id&&(!rcPeriod||gr.period===rcPeriod))
-      return g?calcTotal(g,gradeComps):null
-    }).filter(t=>t!==null)
-    const grandTotal = subTotals.length?subTotals.reduce((a,b)=>a+b,0):null
-    const grandAvg   = grandTotal!==null?Math.round(grandTotal/subTotals.length):null
-    const grandLetter= grandAvg!==null?getGradeLetter(grandAvg,scale):'--'
-    const grandRemark= grandAvg!==null?getGradeRemark(grandAvg,scale):'--'
+    const photoTag = student.photo
+      ? `<img src="${student.photo}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid #e8b84b;" />`
+      : `<div style="width:72px;height:72px;border-radius:50%;background:#e8b84b20;border:3px solid #e8b84b40;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#e8b84b;font-family:'Playfair Display',serif;">${student.first_name[0]}${student.last_name[0]}</div>`
 
-    const photoTag = student.photo_url
-      ? `<img src="${student.photo_url}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #fbbf24;" />`
-      : `<div style="width:80px;height:80px;border-radius:50%;background:rgba(251,191,36,0.15);border:3px solid rgba(251,191,36,0.3);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fbbf24;font-family:'Playfair Display',serif;">${student.first_name[0]}${student.last_name[0]}</div>`
+    const promotionLine = isLastPeriod
+      ? `<div style="margin-top:12px;padding:10px 16px;background:#f8f8fc;border-radius:8px;border-left:3px solid #e8b84b;font-size:12px;color:#555;">
+          <span style="font-weight:700;color:#1a1a2e;">Next Class:</span> _______________________________
+        </div>` : ''
 
     const stampBox = rcStamp
-      ? `<div style="width:88px;height:88px;border:2px dashed #ccc;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#bbb;text-align:center;line-height:1.4;">OFFICIAL<br>STAMP</div>`
+      ? `<div style="width:90px;height:90px;border:2px dashed #ccc;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#bbb;text-align:center;">OFFICIAL<br>STAMP</div>`
       : ''
 
-    const isLastPeriod = rcPeriod===Array.from({length:settings?.period_count||2},(_,i)=>`${settings?.period_type==='term'?'Term':'Semester'} ${i+1}`).at(-1)
-
     return `
-    <div style="background:#fff;border-radius:14px;overflow:hidden;page-break-after:always;max-width:780px;margin:0 auto 24px;box-shadow:0 4px 32px rgba(0,0,0,0.10);">
-      <!-- Top stripe -->
-      <div style="height:5px;background:linear-gradient(90deg,#1e3a8a,#3b82f6,#1e3a8a);"></div>
+    <div class="card" style="background:#fff;border-radius:12px;overflow:hidden;page-break-after:always;">
+      <!-- Top accent bar -->
+      <div style="height:5px;background:linear-gradient(90deg,#e8b84b,#f5d07a,#e8b84b);"></div>
 
       <!-- Header -->
-      <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 55%,#1e40af 100%);padding:22px 28px;display:flex;align-items:center;gap:20px;">
+      <div style="padding:20px 28px;display:flex;align-items:center;gap:16px;border-bottom:1px solid #f0f0f0;">
         ${logoTag}
         <div style="flex:1;text-align:center;">
-          <div style="font-family:'Playfair Display',serif;font-size:19px;font-weight:700;color:#fff;letter-spacing:-0.01em;">${schoolName}</div>
-          ${schoolMotto?`<div style="font-size:10px;color:#93c5fd;margin-top:3px;font-style:italic;">"${schoolMotto}"</div>`:''}
-          <div style="display:inline-block;margin-top:8px;padding:4px 16px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);border-radius:20px;">
-            <span style="font-size:10px;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:0.15em;">Student Terminal Report Card</span>
-          </div>
+          <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700;color:#1a1a2e;letter-spacing:-0.01em;">${schoolName}</div>
+          ${schoolMotto?`<div style="font-size:10px;color:#888;margin-top:2px;font-style:italic;">"${schoolMotto}"</div>`:''}
+          <div style="font-size:11px;font-weight:700;color:#e8b84b;text-transform:uppercase;letter-spacing:0.12em;margin-top:6px;">Student Report Card</div>
         </div>
         ${photoTag}
       </div>
 
       <!-- Student info bar -->
-      <div style="background:#f8f8fd;border-bottom:2px solid #e0e0ef;padding:14px 28px;display:flex;gap:0;align-items:stretch;flex-wrap:wrap;">
-        <div style="padding:0 20px 0 0;margin-right:20px;border-right:1px solid #e0e0ef;">
-          <div style="font-size:9px;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Student Name</div>
-          <div style="font-size:17px;font-weight:700;color:#1a1a2e;font-family:'Playfair Display',serif;">${student.first_name} ${student.last_name}</div>
+      <div style="background:#f8f8fc;padding:14px 28px;display:flex;gap:28px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #eee;">
+        <div>
+          <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.08em;">Student</div>
+          <div style="font-size:16px;font-weight:700;color:#1a1a2e;font-family:'Playfair Display',serif;">${student.first_name} ${student.last_name}</div>
         </div>
-        <div style="padding:0 20px;border-right:1px solid #e0e0ef;">
-          <div style="font-size:9px;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Student ID</div>
-          <div style="font-size:13px;font-weight:600;color:#555;font-family:monospace;">${student.student_id}</div>
-        </div>
-        <div style="padding:0 20px;border-right:1px solid #e0e0ef;">
-          <div style="font-size:9px;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Class</div>
-          <div style="font-size:13px;font-weight:600;color:#1a1a2e;">${cls?.name||'--'}</div>
-        </div>
-        <div style="padding:0 20px;border-right:1px solid #e0e0ef;">
-          <div style="font-size:9px;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Period</div>
-          <div style="font-size:13px;font-weight:600;color:#1a1a2e;">${rcPeriod}</div>
-        </div>
-        <div style="padding:0 20px;border-right:1px solid #e0e0ef;">
-          <div style="font-size:9px;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Acad. Year</div>
-          <div style="font-size:13px;font-weight:600;color:#1a1a2e;">${activeYear}</div>
-        </div>
-        <div style="margin-left:auto;display:flex;align-items:center;gap:16px;">
-          <!-- Grade badge -->
-          <div style="text-align:center;padding:8px 16px;background:#fff;border:2px solid ${grandAvg!==null&&grandAvg>=75?'#166534':grandAvg!==null&&grandAvg>=50?'#1e40af':'#c0392b'};border-radius:10px;">
-            <div style="font-size:9px;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Grade</div>
-            <div style="font-size:22px;font-weight:900;color:${grandAvg!==null&&grandAvg>=75?'#166534':grandAvg!==null&&grandAvg>=50?'#1e40af':'#c0392b'};">${grandLetter}</div>
-            <div style="font-size:9px;color:#888;margin-top:1px;">${grandRemark}</div>
-          </div>
-          <!-- Position badge -->
-          <div style="text-align:center;padding:8px 16px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border-radius:10px;">
-            <div style="font-size:9px;color:rgba(0,0,0,0.5);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Position</div>
-            <div style="font-size:22px;font-weight:900;color:#1a1a2e;">${sPos!=='--'?ordinal(sPos):'--'}</div>
-            <div style="font-size:9px;color:rgba(0,0,0,0.5);">of ${classStudents.length}</div>
-          </div>
+        <div style="width:1px;height:32px;background:#ddd;"></div>
+        <div><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.08em;">ID</div><div style="font-size:13px;font-weight:600;color:#555;font-family:monospace;">${student.student_id}</div></div>
+        <div style="width:1px;height:32px;background:#ddd;"></div>
+        <div><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.08em;">Class</div><div style="font-size:13px;font-weight:600;color:#1a1a2e;">${cls?.name||'--'}</div></div>
+        <div style="width:1px;height:32px;background:#ddd;"></div>
+        <div><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.08em;">Period</div><div style="font-size:13px;font-weight:600;color:#1a1a2e;">${rcPeriod}</div></div>
+        <div style="width:1px;height:32px;background:#ddd;"></div>
+        <div><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.08em;">Year</div><div style="font-size:13px;font-weight:600;color:#1a1a2e;">${activeYear}</div></div>
+        <div style="margin-left:auto;text-align:center;background:#e8b84b15;border:1px solid #e8b84b30;border-radius:8px;padding:8px 16px;">
+          <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.08em;">Position</div>
+          <div style="font-size:18px;font-weight:900;color:#e8b84b;">${sPos!=='--'?ordinal(sPos):'--'}</div>
+          <div style="font-size:10px;color:#888;">of ${classStudents.length}</div>
         </div>
       </div>
 
-      <!-- Body -->
-      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:0;">
+      <!-- Body: 2 cols -->
+      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:0;padding:0;">
 
-        <!-- Academic Performance -->
-        <div style="padding:20px 20px 20px 28px;border-right:1px solid #f0f0f8;">
-          <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
-            <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;"></div>
-            Academic Performance
-          </div>
+        <!-- Academics -->
+        <div style="padding:20px 20px 20px 28px;border-right:1px solid #f0f0f0;">
+          <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px;">Academic Performance</div>
           <table style="width:100%;border-collapse:collapse;">
             <thead>
-              <tr style="background:#f4f4fc;">
-                <th style="padding:8px 14px;text-align:left;font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Subject</th>
-                <th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Score</th>
-                <th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Grade</th>
-                <th style="padding:8px 14px;text-align:left;font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Remark</th>
+              <tr style="border-bottom:2px solid #1a1a2e;">
+                <th style="padding:7px 14px;text-align:left;font-size:9px;font-weight:700;color:#1a1a2e;text-transform:uppercase;letter-spacing:0.08em;">Subject</th>
+                <th style="padding:7px 10px;text-align:center;font-size:9px;font-weight:700;color:#1a1a2e;text-transform:uppercase;letter-spacing:0.08em;">Score</th>
+                <th style="padding:7px 10px;text-align:center;font-size:9px;font-weight:700;color:#1a1a2e;text-transform:uppercase;letter-spacing:0.08em;">Grade</th>
+                <th style="padding:7px 14px;text-align:left;font-size:9px;font-weight:700;color:#1a1a2e;text-transform:uppercase;letter-spacing:0.08em;">Remark</th>
               </tr>
             </thead>
             <tbody>${subjectRows}</tbody>
-            <tfoot>
-              <tr style="background:#eff6ff;border-top:2px solid #1e3a8a;">
-                <td style="padding:9px 14px;font-size:12px;font-weight:700;color:#1e3a8a;">Total / Average</td>
-                <td style="padding:9px 10px;text-align:center;font-size:14px;font-weight:900;color:#1e3a8a;">${grandAvg!==null?grandAvg:'—'}</td>
-                <td style="padding:9px 10px;text-align:center;font-size:12px;font-weight:700;color:#d97706;">${grandLetter}</td>
-                <td style="padding:9px 14px;font-size:11px;color:#555;">${grandRemark}</td>
-              </tr>
-            </tfoot>
           </table>
         </div>
 
-        <!-- Right column -->
+        <!-- Right col: attendance + behaviour + remarks -->
         <div style="padding:20px 28px 20px 20px;">
 
           <!-- Attendance -->
           <div style="margin-bottom:18px;">
-            <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-              <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;"></div>
-              Attendance
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-              <div style="flex:1;height:7px;background:#f0f0f0;border-radius:4px;overflow:hidden;">
-                <div style="width:${att.rate!==null?att.rate:0}%;height:100%;background:${att.rate!==null&&att.rate>=80?'#166534':att.rate!==null&&att.rate>=60?'#d97706':'#c0392b'};border-radius:4px;"></div>
+            <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">Attendance</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+              <div style="flex:1;height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden;">
+                <div style="width:${att.rate!==null?att.rate:0}%;height:100%;background:${att.rate!==null&&att.rate>=80?'#2dd4a0':att.rate!==null&&att.rate>=60?'#fb9f3a':'#f06b7a'};border-radius:3px;"></div>
               </div>
-              <span style="font-size:16px;font-weight:800;color:${att.rate!==null&&att.rate>=80?'#166534':att.rate!==null&&att.rate>=60?'#d97706':'#c0392b'};">${att.rate!==null?att.rate+'%':'—'}</span>
+              <span style="font-size:15px;font-weight:800;color:${att.rate!==null&&att.rate>=80?'#1a7a4a':att.rate!==null&&att.rate>=60?'#c05a00':'#c0392b'};">${att.rate!==null?att.rate+'%':'--'}</span>
             </div>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-              ${[['Present',att.present,'#166534','#f0fdf4'],['Absent',att.absent,'#c0392b','#fff5f5'],['Late',att.late,'#d97706','#fef9ec']].map(([l,v,c,bg])=>`
-              <div style="text-align:center;padding:7px 6px;background:${bg};border-radius:8px;border:1px solid ${c}20;">
-                <div style="font-size:17px;font-weight:900;color:${c};">${v}</div>
-                <div style="font-size:9px;color:#888;margin-top:2px;">${l}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              ${[['Present',att.present,'#2dd4a0'],['Absent',att.absent,'#f06b7a'],['Late',att.late,'#fb9f3a']].map(([l,v,c])=>`
+              <div style="flex:1;min-width:52px;text-align:center;padding:6px 8px;background:${c}15;border-radius:6px;border:1px solid ${c}30;">
+                <div style="font-size:15px;font-weight:800;color:${c};">${v}</div>
+                <div style="font-size:9px;color:#888;margin-top:1px;">${l}</div>
               </div>`).join('')}
             </div>
           </div>
 
-          <!-- Conduct -->
+          <!-- Behaviour -->
           <div style="margin-bottom:18px;">
-            <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-              <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;"></div>
-              Conduct
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <div style="padding:10px;background:#f0fdf4;border-radius:8px;border:1px solid #166534;text-align:center;">
-                <div style="font-size:17px;font-weight:900;color:#166534;">🏆 ${beh.achievements}</div>
-                <div style="font-size:9px;color:#888;margin-top:3px;">Achievement${beh.achievements!==1?'s':''}</div>
+            <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">Conduct</div>
+            <div style="display:flex;gap:8px;">
+              <div style="flex:1;padding:8px 10px;background:#2dd4a015;border-radius:6px;border:1px solid #2dd4a030;text-align:center;">
+                <div style="font-size:15px;font-weight:800;color:#2dd4a0;">🏆 ${beh.achievements}</div>
+                <div style="font-size:9px;color:#888;margin-top:1px;">Achievement${beh.achievements!==1?'s':''}</div>
               </div>
-              <div style="padding:10px;background:#fff5f5;border-radius:8px;border:1px solid #c0392b30;text-align:center;">
-                <div style="font-size:17px;font-weight:900;color:#c0392b;">⚡ ${beh.discipline}</div>
-                <div style="font-size:9px;color:#888;margin-top:3px;">Discipline note${beh.discipline!==1?'s':''}</div>
+              <div style="flex:1;padding:8px 10px;background:#f06b7a15;border-radius:6px;border:1px solid #f06b7a30;text-align:center;">
+                <div style="font-size:15px;font-weight:800;color:#f06b7a;">⚡ ${beh.discipline}</div>
+                <div style="font-size:9px;color:#888;margin-top:1px;">Discipline note${beh.discipline!==1?'s':''}</div>
               </div>
             </div>
           </div>
 
-          <!-- Teacher Remark -->
+          <!-- Class Teacher Remark -->
           <div style="margin-bottom:14px;">
-            <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
-              <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;"></div>
-              Class Teacher's Remark
-            </div>
-            <div style="padding:10px 14px;background:#f8f8fd;border-radius:8px;border-left:4px solid #1e3a8a;font-size:12px;color:#333;min-height:44px;line-height:1.6;font-style:italic;">${teacherRemark||'<span style="color:#bbb;">No remark entered</span>'}</div>
+            <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Class Teacher's Remark</div>
+            <div style="padding:10px 12px;background:#f8f8fc;border-radius:6px;border-left:3px solid #e8b84b;font-size:12px;color:#333;min-height:40px;line-height:1.5;">${teacherRemark||'<span style="color:#bbb;font-style:italic;">No remark entered</span>'}</div>
           </div>
 
+          <!-- Head Teacher Remark -->
           ${rcHeadRemark?`<div style="margin-bottom:14px;">
-            <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px;">Head Teacher's Remark</div>
-            <div style="padding:10px 14px;background:#f8f8fd;border-radius:8px;border-left:4px solid #fbbf24;font-size:12px;color:#333;line-height:1.6;font-style:italic;">${rcHeadRemark}</div>
+            <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Head Teacher's Remark</div>
+            <div style="padding:10px 12px;background:#f8f8fc;border-radius:6px;border-left:3px solid #0f3460;font-size:12px;color:#333;line-height:1.5;">${rcHeadRemark}</div>
           </div>`:''}
 
-          ${rcResumption?`<div style="padding:8px 14px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;font-size:11px;color:#1e3a8a;margin-bottom:10px;"><span style="font-weight:700;">Next Term Resumes:</span> ${rcResumption}</div>`:''}
+          ${promotionLine}
 
-          ${isLastPeriod?`<div style="padding:8px 14px;background:#f8f8fd;border-radius:8px;border:1px solid #e0e0ef;font-size:11px;color:#555;margin-bottom:10px;"><span style="font-weight:700;color:#1a1a2e;">Next Class:</span> _______________________________</div>`:''}
+          ${rcResumption?`<div style="margin-top:10px;font-size:11px;color:#555;"><span style="font-weight:700;">Next Term Resumes:</span> ${rcResumption}</div>`:''}
         </div>
       </div>
 
       <!-- Signatures -->
-      <div style="padding:16px 28px 20px;border-top:1px solid #f0f0f8;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;">
-        <div style="font-size:10px;color:#aaa;">Generated ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}</div>
-        <div style="display:flex;gap:36px;align-items:flex-end;">
+      <div style="padding:16px 28px 20px;border-top:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;">
+        <div style="font-size:10px;color:#aaa;">Generated ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
+        <div style="display:flex;gap:32px;align-items:flex-end;">
           <div style="text-align:center;">
-            <div style="width:150px;border-bottom:1.5px solid #aaa;height:32px;"></div>
-            <div style="font-size:10px;font-weight:600;color:#555;margin-top:5px;">Class Teacher</div>
-            <div style="font-size:10px;color:#888;margin-top:2px;">${rcClassTeacherName||'_________________'}</div>
+            <div style="width:140px;border-bottom:1px solid #aaa;height:28px;"></div>
+            <div style="font-size:10px;color:#555;margin-top:4px;">Class Teacher</div>
+            <div style="font-size:10px;color:#888;margin-top:1px;">${rcClassTeacherName||'_________________'}</div>
           </div>
           <div style="text-align:center;">
-            <div style="width:150px;border-bottom:1.5px solid #aaa;height:32px;"></div>
-            <div style="font-size:10px;font-weight:600;color:#555;margin-top:5px;">Head Teacher</div>
-            <div style="font-size:10px;color:#888;margin-top:2px;">${rcHeadTeacher||'_________________'}</div>
+            <div style="width:140px;border-bottom:1px solid #aaa;height:28px;"></div>
+            <div style="font-size:10px;color:#555;margin-top:4px;">Head Teacher</div>
+            <div style="font-size:10px;color:#888;margin-top:1px;">${rcHeadTeacher||'_________________'}</div>
           </div>
           ${stampBox}
         </div>
       </div>
-      <div style="height:4px;background:linear-gradient(90deg,#1e3a8a,#3b82f6,#1e3a8a);"></div>
+      <!-- Bottom accent -->
+      <div style="height:3px;background:linear-gradient(90deg,#e8b84b,#f5d07a,#e8b84b);"></div>
     </div>`
   }
-
-  const cardStyles = `
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap');
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Inter',sans-serif;background:#f0f0f5;color:#1a1a2e;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    @media print{@page{size:A4 portrait;margin:8mm}body{background:#fff;padding:0}.no-print{display:none!important}}
-    @media screen{body{padding:20px}}
-  `
 
   const printOneCard = () => {
     if(!rcStudent) return
     const student = classStudents.find(s=>s.id===rcStudent)
     if(!student) return
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Report Card — ${student.first_name} ${student.last_name}</title>
-    <style>${cardStyles}</style></head>
+    <style>${printStyles}@media print{@page{size:A4 portrait;margin:8mm}}</style></head>
     <body>${buildReportCard(student)}
-    <div class="no-print" style="max-width:800px;margin:0 auto;text-align:center;padding:16px;">
-      <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print Report Card</button>
+    <div class="no-print" style="max-width:700px;margin:0 auto;text-align:center;padding:12px;">
+      <button onclick="window.print()" style="padding:12px 32px;background:#e8b84b;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#1a1a2e;cursor:pointer;">⎙ Print Report Card</button>
     </div></body></html>`
-    const w = window.open('','_blank','width=860,height=960')
+    const w = window.open('','_blank','width=800,height=900')
     if(w){w.document.write(html);w.document.close()}
   }
 
   const printAllCards = () => {
     if(!rcClass) return
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Report Cards — ${classes.find(c=>c.id===rcClass)?.name}</title>
-    <style>${cardStyles}</style></head>
+    <style>${printStyles}@media print{@page{size:A4 portrait;margin:8mm}}</style></head>
     <body>${classStudents.map(s=>buildReportCard(s)).join('')}
-    <div class="no-print" style="max-width:800px;margin:0 auto;text-align:center;padding:16px;">
-      <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print All Cards (${classStudents.length})</button>
+    <div class="no-print" style="max-width:700px;margin:0 auto;text-align:center;padding:12px;">
+      <button onclick="window.print()" style="padding:12px 32px;background:#e8b84b;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#1a1a2e;cursor:pointer;">⎙ Print All Cards (${classStudents.length})</button>
     </div></body></html>`
-    const w = window.open('','_blank','width=860,height=960')
+    const w = window.open('','_blank','width=800,height=900')
     if(w){w.document.write(html);w.document.close()}
   }
 
@@ -3442,11 +3429,11 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     if(!sid) return
     const student = classStudents.find(s=>s.id===sid)
     if(!student) return
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Preview — ${student.first_name} ${student.last_name}</title>
-    <style>${cardStyles}</style></head>
-    <body>${buildReportCard(student)}
-    <div class="no-print" style="max-width:800px;margin:0 auto;text-align:center;padding:16px;">
-      <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print This Card</button>
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Preview</title>
+    <style>${printStyles}@media print{@page{size:A4 portrait;margin:8mm}}</style></head>
+    <body style="background:#f0f0f0;padding:20px;">${buildReportCard(student)}
+    <div class="no-print" style="max-width:700px;margin:0 auto;text-align:center;padding:12px;">
+      <button onclick="window.print()" style="padding:12px 32px;background:#e8b84b;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#1a1a2e;cursor:pointer;">⎙ Print This Card</button>
     </div></body></html>`
     const w = window.open('','_blank','width=860,height=960')
     if(w){w.document.write(html);w.document.close()}
