@@ -3571,7 +3571,7 @@ function Users({profile,toast}) {
       const {data:authData,error:authErr} = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
-        options: { data: { full_name: form.full_name } }
+        options: { data: { full_name: form.full_name, role: form.role } }
       })
       if(authErr){ toast(authErr.message,'error'); setSaving(false); return }
       const uid = authData?.user?.id
