@@ -1844,6 +1844,9 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   const isMobile = useIsMobile()
   const canBulk = ['superadmin','admin'].includes(profile?.role)
 
+  // ── Tab ──
+  const [feeActiveTab, setFeeActiveTab] = useState('fees')
+
   // ── Single add / pay state ──
   const [search,setSearch]     = useState('')
   const [fstatus,setFstatus]   = useState('')
@@ -2066,14 +2069,88 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   const step1Valid = bulk.fee_type && bulk.period && bulk.default_amount && bulk.selected_classes.length>0
   const step2Valid = step2Rows.every(r=>r.amount!==''&&parseFloat(r.amount)>0)
 
+  // ── Payment History derived data ──
+  const phClassId   = feeActiveTab==='history' ? fClassId : fClassId
+  const [phSearch,  setPhSearch]   = useState('')
+  const [phClass,   setPhClass]    = useState('')
+  const [phStudent, setPhStudent]  = useState('')
+  const [phFeeType, setPhFeeType]  = useState('')
+  const [phDateFrom,setPhDateFrom] = useState('')
+  const [phDateTo,  setPhDateTo]   = useState('')
+  const [phDetail,  setPhDetail]   = useState(null)  // payment row for detail modal
+
+  // Enrich payments with student/fee/class info
+  const enrichedPayments = payments.map(p => {
+    const fee     = fees.find(f=>f.id===p.fee_id)
+    const student = students.find(s=>s.id===fee?.student_id)
+    const cls     = classes.find(c=>c.id===student?.class_id)
+    return {
+      ...p,
+      fee_type:     fee?.fee_type||'--',
+      period:       fee?.period||'',
+      fee_amount:   fee?.amount||0,
+      student_name: student ? `${student.first_name} ${student.last_name}` : '--',
+      student_id_no:student?.student_id||'',
+      student_photo:student?.photo||null,
+      class_name:   cls?.name||'--',
+      class_id:     student?.class_id||null,
+      fee_obj:      fee,
+      student_obj:  student,
+      cls_obj:      cls,
+      academic_year:fee?.academic_year||'',
+    }
+  })
+
+  // Filter payments — default to current academic year
+  const phFiltered = enrichedPayments.filter(p => {
+    if(p.academic_year && p.academic_year!==activeYear) return false
+    if(phClass   && p.class_id!==phClass) return false
+    if(phStudent && p.fee_obj?.student_id!==phStudent) return false
+    if(phFeeType && p.fee_type!==phFeeType) return false
+    if(phDateFrom && p.created_at && p.created_at<phDateFrom) return false
+    if(phDateTo   && p.created_at && p.created_at.slice(0,10)>phDateTo) return false
+    if(phSearch) {
+      const q=phSearch.toLowerCase()
+      if(!(p.student_name.toLowerCase().includes(q)||
+           (p.receipt_no||'').toLowerCase().includes(q)||
+           (p.recorded_by_name||'').toLowerCase().includes(q)||
+           p.fee_type.toLowerCase().includes(q))) return false
+    }
+    return true
+  })
+
+  const phTotalCollected = phFiltered.reduce((a,p)=>a+Number(p.amount||0),0)
+  const phReceiptsIssued = phFiltered.filter(p=>p.receipt_no).length
+  const phFeeTypes = [...new Set(enrichedPayments.map(p=>p.fee_type).filter(Boolean))]
+  const phStudentsInClass = phClass
+    ? students.filter(s=>!s.archived&&s.class_id===phClass)
+    : students.filter(s=>!s.archived)
+
+  const tabStyle = (active) => ({
+    padding:'8px 22px',borderRadius:10,fontSize:13,fontWeight:600,
+    background:active?'var(--ink4)':'transparent',
+    color:active?'var(--white)':'var(--mist2)',
+    border:active?'1px solid var(--line)':'1px solid transparent',
+    transition:'all 0.15s',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"
+  })
+
   return (
     <div>
       <PageHeader title='Fee Management' sub='Track payments, balances and receipts'>
-        {!isViewingPast && canBulk && (
+        {feeActiveTab==='fees' && !isViewingPast && canBulk && (
           <Btn variant='secondary' onClick={()=>{setBulkModal(true);setBulkStep(1);setBulk(BULK_INIT)}}>⊞ Bulk Add Fee</Btn>
         )}
-        {!isViewingPast && <Btn onClick={openAdd}>+ Add Fee Record</Btn>}
+        {feeActiveTab==='fees' && !isViewingPast && <Btn onClick={openAdd}>+ Add Fee Record</Btn>}
       </PageHeader>
+
+      {/* ── Tab switcher ── */}
+      <div style={{display:'flex',gap:6,marginBottom:20,background:'var(--ink3)',borderRadius:12,padding:5,width:'fit-content',border:'1px solid var(--line)'}}>
+        <button style={tabStyle(feeActiveTab==='fees')}    onClick={()=>setFeeActiveTab('fees')}>💳 Fees</button>
+        <button style={tabStyle(feeActiveTab==='history')} onClick={()=>setFeeActiveTab('history')}>🧾 Payment History</button>
+      </div>
+
+      {/* ══════════════ FEES TAB ══════════════ */}
+      {feeActiveTab==='fees' && (<>
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16,marginBottom:24}}>
         <KPI label='Total Owed'      value={fmtMoney(totalOwed,currency)} color='var(--mist)'    sub='All fees' index={0}/>
@@ -2118,6 +2195,212 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
           )},
         ]}/>
       </Card>
+
+      </>)}
+
+      {/* ══════════════ PAYMENT HISTORY TAB ══════════════ */}
+      {feeActiveTab==='history' && (<>
+
+        {/* KPIs */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16,marginBottom:24}}>
+          <KPI label='Total Collected' value={fmtMoney(phTotalCollected,currency)} color='var(--emerald)' sub={`${phFiltered.length} payment${phFiltered.length!==1?'s':''}`} index={0}/>
+          <KPI label='Receipts Issued' value={phReceiptsIssued} color='var(--gold)' sub='With receipt number' index={1}/>
+          <KPI label='Students Paid'   value={[...new Set(phFiltered.map(p=>p.fee_obj?.student_id).filter(Boolean))].length} color='var(--sky)' sub='Unique students' index={2}/>
+          <KPI label='Classes'         value={[...new Set(phFiltered.map(p=>p.class_id).filter(Boolean))].length} color='var(--mist)' sub='Represented' index={3}/>
+        </div>
+
+        {/* Filters */}
+        <Card style={{marginBottom:16,padding:'14px 20px'}}>
+          <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+            <div style={{position:'relative',flex:'1 1 200px'}}>
+              <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:14}}>⌕</span>
+              <input value={phSearch} onChange={e=>setPhSearch(e.target.value)} placeholder='Search student, receipt, recorder...'
+                style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
+            </div>
+            <select value={phClass} onChange={e=>{setPhClass(e.target.value);setPhStudent('')}}
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
+              <option value=''>All Classes</option>
+              {myClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <select value={phStudent} onChange={e=>setPhStudent(e.target.value)}
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:180}}>
+              <option value=''>All Students</option>
+              {phStudentsInClass.sort((a,b)=>a.last_name.localeCompare(b.last_name)).map(s=><option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+            </select>
+            <select value={phFeeType} onChange={e=>setPhFeeType(e.target.value)}
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
+              <option value=''>All Fee Types</option>
+              {phFeeTypes.map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
+            <input type='date' value={phDateFrom} onChange={e=>setPhDateFrom(e.target.value)}
+              title='From date'
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist)',fontSize:13,minWidth:140}}/>
+            <input type='date' value={phDateTo} onChange={e=>setPhDateTo(e.target.value)}
+              title='To date'
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist)',fontSize:13,minWidth:140}}/>
+            {(phSearch||phClass||phStudent||phFeeType||phDateFrom||phDateTo) && (
+              <button onClick={()=>{setPhSearch('');setPhClass('');setPhStudent('');setPhFeeType('');setPhDateFrom('');setPhDateTo('')}}
+                style={{background:'transparent',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist3)',fontSize:12,cursor:'pointer'}}>
+                ✕ Clear
+              </button>
+            )}
+          </div>
+        </Card>
+
+        {/* Payment History Table */}
+        <Card>
+          {phFiltered.length===0
+            ? <div style={{padding:'40px 0',textAlign:'center',color:'var(--mist3)',fontSize:14}}>No payment records found.</div>
+            : (
+              <div style={{overflowX:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse'}}>
+                  <thead>
+                    <tr>
+                      {['Date / Time','Receipt No','Student','Fee Type','Amount','Recorded By',''].map(h=>(
+                        <th key={h} style={{padding:'10px 14px',textAlign:'left',fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',borderBottom:'1px solid var(--line)',whiteSpace:'nowrap'}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...phFiltered].sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map((p,i)=>{
+                      const dt = p.created_at ? new Date(p.created_at) : null
+                      const dateStr  = dt ? dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '--'
+                      const timeStr  = dt ? dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : ''
+                      return (
+                        <tr key={p.id} style={{borderBottom:'1px solid var(--line)',transition:'background 0.12s',cursor:'pointer'}}
+                          onMouseEnter={e=>e.currentTarget.style.background='var(--ink3)'}
+                          onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                          onClick={()=>setPhDetail(p)}>
+                          {/* Date */}
+                          <td style={{padding:'12px 14px',whiteSpace:'nowrap'}}>
+                            <div style={{fontSize:13,fontWeight:600,color:'var(--mist)'}}>{dateStr}</div>
+                            <div style={{fontSize:11,color:'var(--mist3)',marginTop:2}}>{timeStr}</div>
+                          </td>
+                          {/* Receipt */}
+                          <td style={{padding:'12px 14px'}}>
+                            {p.receipt_no
+                              ? <span style={{fontFamily:'monospace',fontSize:12,fontWeight:700,color:'var(--gold)',background:'rgba(232,184,75,0.1)',border:'1px solid rgba(232,184,75,0.25)',borderRadius:4,padding:'3px 8px'}}>{p.receipt_no}</span>
+                              : <span style={{color:'var(--mist3)',fontSize:12}}>—</span>}
+                          </td>
+                          {/* Student */}
+                          <td style={{padding:'12px 14px'}}>
+                            <div style={{display:'flex',alignItems:'center',gap:8}}>
+                              <Avatar name={p.student_name} size={26} photo={p.student_photo}/>
+                              <div>
+                                <div style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{p.student_name}</div>
+                                <Badge color='var(--sky)' bg='rgba(91,168,245,0.08)'>{p.class_name}</Badge>
+                              </div>
+                            </div>
+                          </td>
+                          {/* Fee Type */}
+                          <td style={{padding:'12px 14px'}}>
+                            <div style={{fontSize:13,color:'var(--mist)'}}>{p.fee_type}</div>
+                            {p.period && <Badge color='var(--mist2)' bg='rgba(255,255,255,0.05)'>{p.period}</Badge>}
+                          </td>
+                          {/* Amount */}
+                          <td style={{padding:'12px 14px'}}>
+                            <span style={{fontFamily:'monospace',fontSize:14,fontWeight:700,color:'var(--emerald)'}}>{fmtMoney(Number(p.amount||0),currency)}</span>
+                          </td>
+                          {/* Recorded By */}
+                          <td style={{padding:'12px 14px'}}>
+                            <div style={{fontSize:12,color:'var(--mist2)'}}>{p.recorded_by_name||'--'}</div>
+                          </td>
+                          {/* Actions */}
+                          <td style={{padding:'12px 14px'}} onClick={e=>e.stopPropagation()}>
+                            <div style={{display:'flex',gap:6}}>
+                              <Btn size='sm' variant='ghost' onClick={()=>setPhDetail(p)}>Details</Btn>
+                              {p.fee_obj && (
+                                <Btn size='sm' variant='ghost' onClick={()=>{
+                                  const feePayments=payments.filter(x=>x.fee_id===p.fee_id)
+                                  printReceipt({fee:p.fee_obj,feePayments,student:p.student_obj,cls:p.cls_obj,settings,currency})
+                                }}>⎙</Btn>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
+          }
+        </Card>
+
+        {/* ── Payment Detail Modal ── */}
+        {phDetail && (()=>{
+          const p      = phDetail
+          const feePs  = payments.filter(x=>x.fee_id===p.fee_id)
+          const totalFeeP = feePs.reduce((a,x)=>a+Number(x.amount||0),0)
+          const balance   = Math.max(0, Number(p.fee_obj?.amount||0) - Math.max(Number(p.fee_obj?.paid||0), totalFeeP))
+          const dt = p.created_at ? new Date(p.created_at) : null
+          return (
+            <Modal title='Payment Details' onClose={()=>setPhDetail(null)} width={500}>
+              {/* Student + class */}
+              <div style={{display:'flex',alignItems:'center',gap:14,padding:'14px 16px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',marginBottom:20}}>
+                <Avatar name={p.student_name} size={44} photo={p.student_photo}/>
+                <div>
+                  <div style={{fontSize:16,fontWeight:700,color:'var(--white)'}}>{p.student_name}</div>
+                  <div style={{display:'flex',gap:8,marginTop:4,flexWrap:'wrap',alignItems:'center'}}>
+                    <Badge color='var(--sky)' bg='rgba(91,168,245,0.08)'>{p.class_name}</Badge>
+                    {p.student_id_no && <span style={{fontFamily:'monospace',fontSize:11,color:'var(--gold)',background:'rgba(232,184,75,0.08)',border:'1px solid rgba(232,184,75,0.2)',borderRadius:4,padding:'2px 7px'}}>{p.student_id_no}</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Fee info */}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+                {[
+                  ['Fee Type',   p.fee_type,                                      'var(--mist)'],
+                  ['Period',     p.period||'--',                                  'var(--sky)'],
+                  ['Fee Amount', fmtMoney(Number(p.fee_obj?.amount||0),currency), 'var(--mist)'],
+                  ['Total Paid', fmtMoney(Math.max(Number(p.fee_obj?.paid||0),totalFeeP),currency), 'var(--emerald)'],
+                  ['Balance',    fmtMoney(balance,currency),                      balance>0?'var(--rose)':'var(--emerald)'],
+                  ['Payments',   feePs.length+' payment'+(feePs.length!==1?'s':''), 'var(--mist2)'],
+                ].map(([l,v,c])=>(
+                  <div key={l} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'10px 14px'}}>
+                    <div style={{fontSize:10,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>{l}</div>
+                    <div style={{fontSize:14,fontWeight:700,color:c,fontFamily:l==='Fee Type'||l==='Period'||l==='Payments'?'inherit':'monospace'}}>{v}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* This payment */}
+              <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:'14px 16px',marginBottom:16}}>
+                <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>This Payment</div>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                  <span style={{fontSize:13,color:'var(--mist2)'}}>Amount Paid</span>
+                  <span style={{fontFamily:'monospace',fontSize:20,fontWeight:800,color:'var(--emerald)'}}>{fmtMoney(Number(p.amount||0),currency)}</span>
+                </div>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                  <span style={{fontSize:12,color:'var(--mist3)'}}>Receipt No</span>
+                  {p.receipt_no
+                    ? <span style={{fontFamily:'monospace',fontSize:13,fontWeight:700,color:'var(--gold)',background:'rgba(232,184,75,0.1)',border:'1px solid rgba(232,184,75,0.25)',borderRadius:4,padding:'3px 10px'}}>{p.receipt_no}</span>
+                    : <span style={{color:'var(--mist3)',fontSize:12}}>Not issued</span>}
+                </div>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                  <span style={{fontSize:12,color:'var(--mist3)'}}>Recorded By</span>
+                  <span style={{fontSize:13,color:'var(--mist2)'}}>{p.recorded_by_name||'--'}</span>
+                </div>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{fontSize:12,color:'var(--mist3)'}}>Date & Time</span>
+                  <span style={{fontSize:12,color:'var(--mist2)'}}>{dt?dt.toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'--'}</span>
+                </div>
+              </div>
+
+              <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+                {p.fee_obj && (
+                  <Btn variant='ghost' onClick={()=>{
+                    printReceipt({fee:p.fee_obj,feePayments:feePs,student:p.student_obj,cls:p.cls_obj,settings,currency})
+                  }}>⎙ Print Receipt</Btn>
+                )}
+                <Btn onClick={()=>setPhDetail(null)}>Close</Btn>
+              </div>
+            </Modal>
+          )
+        })()}
+
+      </>)}
 
       {/* ── Single Add Fee Modal ── */}
       {modal && (
