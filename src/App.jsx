@@ -1023,8 +1023,11 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
   const [saving,setSaving] = useState(false)
   const [showArchived,setShowArchived]     = useState(false)
   const [fyear,setFyear]                   = useState('')
-  const [unarchiveModal,setUnarchiveModal] = useState(null) // student to unarchive
+  const [unarchiveModal,setUnarchiveModal] = useState(null)
   const [unarchiveClass,setUnarchiveClass] = useState('')
+  const [archiveModal,setArchiveModal]     = useState(null)
+  const [archiveForm,setArchiveForm]       = useState({reason:'Withdrawn',notes:''})
+  const [fReason,setFReason]               = useState('')
   const f = k => v => setForm(p=>({...p,[k]:v}))
   const [viewStudent, setViewStudent] = useState(null)
   const canEdit = ['superadmin','admin'].includes(profile?.role) && !isViewingPast
@@ -1041,6 +1044,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
   const activeStudents   = students.filter(s=>!s.archived)
   const archivedStudents = students.filter(s=>s.archived)
   const graduationYears  = [...new Set(archivedStudents.map(s=>s.graduation_year).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
+  const leavingReasons   = ['Graduated','Transferred','Withdrawn']
   // Subject teacher: view students in classes they teach
   const teacherSubjectClassIds = profile?.role==='teacher'
     ? [...new Set(data.subjects?.filter(s=>s.teacher_id===profile?.id).map(s=>s.class_id)||[])]
@@ -1056,19 +1060,44 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
     const q=search.toLowerCase()
     if(!(`${s.first_name} ${s.last_name} ${s.student_id}`).toLowerCase().includes(q)) return false
     if(showArchived && fyear && s.graduation_year!==fyear) return false
+    if(showArchived && fReason && s.leaving_reason!==fReason) return false
     if(!showArchived && fc && s.class_id!==fc) return false
     return true
   })
   const unarchive = async (student, classId) => {
     if(!classId){ toast('Please select a class to re-enrol the student into','error'); return }
     setSaving(true)
-    const {error} = await supabase.from('students').update({archived:false, class_id:classId, graduation_year:null}).eq('id',student.id)
+    const {error} = await supabase.from('students').update({archived:false, class_id:classId, graduation_year:null, leaving_reason:null, leaving_notes:null}).eq('id',student.id)
     if(error){ toast(error.message,'error'); setSaving(false); return }
-    setData(p=>({...p, students:p.students.map(s=>s.id===student.id?{...s,archived:false,class_id:classId,graduation_year:null}:s)}))
+    setData(p=>({...p, students:p.students.map(s=>s.id===student.id?{...s,archived:false,class_id:classId,graduation_year:null,leaving_reason:null,leaving_notes:null}:s)}))
     auditLog(profile,'Students','Unarchived',`${student.first_name} ${student.last_name} → ${classes.find(c=>c.id===classId)?.name}`,{},{...student},{archived:false,class_id:classId})
     toast(`${student.first_name} ${student.last_name} re-enrolled`)
     setUnarchiveModal(null)
     setUnarchiveClass('')
+    setSaving(false)
+  }
+  const archiveStudent = async () => {
+    const student = archiveModal
+    if(!student) return
+    if(!archiveForm.reason){ toast('Please select a reason','error'); return }
+    setSaving(true)
+    const {error} = await supabase.from('students').update({
+      archived: true,
+      class_id: null,
+      graduation_year: activeYear,
+      leaving_reason: archiveForm.reason,
+      leaving_notes: archiveForm.notes||null,
+    }).eq('id', student.id)
+    if(error){ toast(error.message,'error'); setSaving(false); return }
+    setData(p=>({...p, students:p.students.map(s=>s.id===student.id
+      ? {...s, archived:true, class_id:null, graduation_year:activeYear, leaving_reason:archiveForm.reason, leaving_notes:archiveForm.notes||null}
+      : s
+    )}))
+    auditLog(profile,'Students','Archived',`${student.first_name} ${student.last_name} · ${archiveForm.reason}`,{reason:archiveForm.reason},{...student},{archived:true,leaving_reason:archiveForm.reason})
+    toast(`${student.first_name} ${student.last_name} archived`)
+    setArchiveModal(null)
+    setArchiveForm({reason:'Withdrawn',notes:''})
+    setViewStudent(null)  // close profile modal if open
     setSaving(false)
   }
   const openAdd = ()=>{setEdit(null);setForm({first_name:'',last_name:'',class_id:'',dob:'',gender:'',phone:'',email:'',address:'',medical_info:'',guardian_name:'',guardian_relation:'',guardian_phone:'',guardian_email:''});setModal(true)}
@@ -1096,14 +1125,14 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
   return (
     <div>
       <PageHeader
-        title={showArchived?'Alumni Register':'Students'}
+        title={showArchived?'Archived Students':'Students'}
         sub={showArchived
-          ? `${filtered.length} of ${archivedStudents.length} alumni${fyear?' · '+fyear:''}`
+          ? `${filtered.length} of ${archivedStudents.length} archived${fyear?' · '+fyear:''}`
           : `${filtered.length} of ${activeStudents.length} students`}>
         {canEdit && !showArchived && <Btn onClick={openAdd}>+ New Student</Btn>}
         {canEdit && (
-          <Btn variant='ghost' onClick={()=>{setShowArchived(v=>!v);setSearch('');setFc('');setFyear('')}}>
-            {showArchived?'← Back to Students':'⊡ Alumni Register'}
+          <Btn variant='ghost' onClick={()=>{setShowArchived(v=>!v);setSearch('');setFc('');setFyear('');setFReason('')}}>
+            {showArchived?'← Back to Students':'⊡ Archived Students'}
           </Btn>
         )}
       </PageHeader>
@@ -1112,15 +1141,22 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
           <div style={{position:'relative',flex:'1 1 240px'}}>
             <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:14}}>⌕</span>
             <input value={search} onChange={e=>setSearch(e.target.value)}
-              placeholder={showArchived?'Search alumni by name or ID...':'Search by name or ID...'}
+              placeholder={showArchived?'Search archived students by name or ID...':'Search by name or ID...'}
               style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
           </div>
           {showArchived ? (
+            <>
             <select value={fyear} onChange={e=>setFyear(e.target.value)}
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:140}}>
               <option value=''>All Years</option>
               {graduationYears.map(y=><option key={y} value={y}>{y}</option>)}
             </select>
+            <select value={fReason} onChange={e=>setFReason(e.target.value)}
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:150}}>
+              <option value=''>All Reasons</option>
+              {leavingReasons.map(r=><option key={r} value={r}>{r}</option>)}
+            </select>
+            </>
           ) : (
             (canEdit || profile?.role==='teacher') && (
               <select value={fc} onChange={e=>setFc(e.target.value)}
@@ -1145,9 +1181,15 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
             </div>
           )},
           showArchived
-            ? {key:'graduation_year',label:'Graduated',render:v=>v
-                ? <span style={{fontSize:12,fontWeight:600,color:'var(--sky)',background:'rgba(91,168,245,0.1)',border:'1px solid rgba(91,168,245,0.2)',borderRadius:4,padding:'2px 8px'}}>{v}</span>
-                : <span style={{color:'var(--mist3)'}}>--</span>}
+            ? {key:'leaving_reason',label:'Reason',render:(v,r)=>{
+                const color = v==='Graduated'?'var(--sky)':v==='Transferred'?'var(--amber)':'var(--rose)'
+                const bg    = v==='Graduated'?'rgba(91,168,245,0.1)':v==='Transferred'?'rgba(251,159,58,0.1)':'rgba(240,107,122,0.1)'
+                const border= v==='Graduated'?'rgba(91,168,245,0.2)':v==='Transferred'?'rgba(251,159,58,0.2)':'rgba(240,107,122,0.2)'
+                return <div style={{display:'flex',flexDirection:'column',gap:3}}>
+                  <span style={{fontSize:12,fontWeight:600,color,background:bg,border:`1px solid ${border}`,borderRadius:4,padding:'2px 8px',width:'fit-content'}}>{v||'--'}</span>
+                  {r.graduation_year&&<span style={{fontSize:11,color:'var(--mist3)'}}>{r.graduation_year}</span>}
+                </div>
+              }}
             : {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
           {key:'gender',label:'Gender'},
           {key:'dob',label:'Date of Birth',render:v=>fmtDate(v)},
@@ -1164,6 +1206,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
               ? {key:'id',label:'',render:(v,r)=>(
                   <div style={{display:'flex',gap:6}} onClick={e=>e.stopPropagation()}>
                     <Btn variant='ghost' size='sm' onClick={()=>openEdit(r)}>Edit</Btn>
+                    <Btn variant='ghost' size='sm' onClick={()=>{setArchiveModal(r);setArchiveForm({reason:'Withdrawn',notes:''})}} style={{color:'var(--amber)',borderColor:'rgba(251,159,58,0.3)'}}>Archive</Btn>
                     <Btn variant='danger' size='sm' onClick={()=>del(r.id)}>Remove</Btn>
                   </div>
                 )}
@@ -1220,6 +1263,35 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
         </Modal>
       )}
 
+      {/* Archive Student Modal */}
+      {archiveModal && (
+        <Modal title='Archive Student' subtitle='This student will be moved to Archived Students.' onClose={()=>{setArchiveModal(null);setArchiveForm({reason:'Withdrawn',notes:''})}} width={440}>
+          <div style={{display:'flex',alignItems:'center',gap:14,padding:'14px 16px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:20,border:'1px solid var(--line)'}}>
+            <Avatar name={`${archiveModal.first_name} ${archiveModal.last_name}`} size={44} photo={archiveModal.photo}/>
+            <div>
+              <div style={{fontWeight:600,fontSize:14}}>{archiveModal.first_name} {archiveModal.last_name}</div>
+              <div style={{fontSize:12,color:'var(--mist3)',marginTop:2}}>ID: {archiveModal.student_id} · {classes.find(c=>c.id===archiveModal.class_id)?.name||'--'}</div>
+            </div>
+          </div>
+          <Field label='Reason for Leaving' value={archiveForm.reason} onChange={v=>setArchiveForm(p=>({...p,reason:v}))} required
+            options={[
+              {value:'Graduated',label:'Graduated — completed the programme'},
+              {value:'Transferred',label:'Transferred — moved to another school'},
+              {value:'Withdrawn',label:'Withdrawn — left before completing'},
+            ]}/>
+          <Field label='Notes (optional)' value={archiveForm.notes} onChange={v=>setArchiveForm(p=>({...p,notes:v}))} placeholder='Any additional context...' rows={2}/>
+          <div style={{background:'rgba(251,159,58,0.06)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r-sm)',padding:'10px 14px',marginBottom:16}}>
+            <div style={{fontSize:12,color:'var(--amber)',lineHeight:1.6}}>Their grades, attendance and fee records are fully preserved. You can re-enrol them at any time.</div>
+          </div>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
+            <Btn variant='ghost' onClick={()=>{setArchiveModal(null);setArchiveForm({reason:'Withdrawn',notes:''})}}>Cancel</Btn>
+            <Btn onClick={archiveStudent} disabled={saving||!archiveForm.reason} style={{background:'var(--amber)',borderColor:'var(--amber)',color:'var(--ink)'}}>
+              {saving?<><Spinner/> Archiving...</>:'Archive Student'}
+            </Btn>
+          </div>
+        </Modal>
+      )}
+
       {/* Unarchive / Re-enrol Modal */}
       {unarchiveModal && (
         <Modal title='Re-enrol Student' onClose={()=>{setUnarchiveModal(null);setUnarchiveClass('')}} width={420}>
@@ -1227,7 +1299,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
             <Avatar name={`${unarchiveModal.first_name} ${unarchiveModal.last_name}`} size={44} photo={unarchiveModal.photo}/>
             <div>
               <div style={{fontWeight:600,fontSize:14}}>{unarchiveModal.first_name} {unarchiveModal.last_name}</div>
-              <div style={{fontSize:12,color:'var(--mist3)',marginTop:2}}>ID: {unarchiveModal.student_id} · Graduated {unarchiveModal.graduation_year||'--'}</div>
+              <div style={{fontSize:12,color:'var(--mist3)',marginTop:2}}>ID: {unarchiveModal.student_id} · {unarchiveModal.leaving_reason||'Archived'} {unarchiveModal.graduation_year||'--'}</div>
             </div>
           </div>
           <p style={{fontSize:13,color:'var(--mist2)',marginBottom:16,lineHeight:1.6}}>
@@ -1269,9 +1341,14 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
                 <h2 className='d' style={{fontSize:22,fontWeight:700,letterSpacing:'-0.02em',marginBottom:8}}>{s.first_name} {s.last_name}</h2>
                 <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
                   <span className='mono' style={{fontSize:12,color:'var(--gold)',background:'rgba(232,184,75,0.1)',border:'1px solid rgba(232,184,75,0.25)',borderRadius:4,padding:'2px 8px'}}>{s.student_id}</span>
-                  {s.archived
-                    ? <span style={{fontSize:12,color:'var(--rose)',background:'rgba(240,107,122,0.1)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:4,padding:'2px 8px'}}>Alumni · {s.graduation_year||'--'}</span>
-                    : cls && <span style={{fontSize:12,color:'var(--sky)',background:'rgba(91,168,245,0.1)',border:'1px solid rgba(91,168,245,0.2)',borderRadius:4,padding:'2px 8px'}}>{cls.name}</span>
+                  {s.archived ? (() => {
+                    const rc = s.leaving_reason||'Archived'
+                    const color  = rc==='Graduated'?'var(--sky)':rc==='Transferred'?'var(--amber)':'var(--rose)'
+                    const bg     = rc==='Graduated'?'rgba(91,168,245,0.1)':rc==='Transferred'?'rgba(251,159,58,0.1)':'rgba(240,107,122,0.1)'
+                    const border = rc==='Graduated'?'rgba(91,168,245,0.2)':rc==='Transferred'?'rgba(251,159,58,0.2)':'rgba(240,107,122,0.2)'
+                    return <span style={{fontSize:12,color,background:bg,border:`1px solid ${border}`,borderRadius:4,padding:'2px 8px'}}>{rc} · {s.graduation_year||'--'}</span>
+                  })()
+                  : cls && <span style={{fontSize:12,color:'var(--sky)',background:'rgba(91,168,245,0.1)',border:'1px solid rgba(91,168,245,0.2)',borderRadius:4,padding:'2px 8px'}}>{cls.name}</span>
                   }
                   {s.gender && <span style={{fontSize:12,color:'var(--mist2)'}}>{s.gender}</span>}
                 </div>
@@ -1293,7 +1370,11 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
                   ['Email', s.email||'--'],
                   ['Address', s.address||'--'],
                   ['Entry Year', s.entry_year||'--'],
-                  ...(s.archived ? [['Graduation Year', s.graduation_year||'--']] : []),
+                  ...(s.archived ? [
+                    ['Left In', s.graduation_year||'--'],
+                    ['Reason', s.leaving_reason||'--'],
+                    ...(s.leaving_notes ? [['Notes', s.leaving_notes]] : []),
+                  ] : []),
                 ].map(([label,value])=>(
                   <div key={label} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--line)'}}>
                     <span style={{fontSize:12,color:'var(--mist3)'}}>{label}</span>
@@ -5202,7 +5283,7 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
     for(const p of toPromote)
       await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id)
     for(const p of toGraduate)
-      await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear}).eq('id',p.student.id)
+      await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id)
     const destMap     = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
     const gradIds     = toGraduate.map(p=>p.student.id)
     const promoteIds  = toPromote.map(p=>p.student.id)
@@ -5236,7 +5317,7 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
     for(const p of toPromote)
       await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id)
     for(const p of toGraduate)
-      await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear}).eq('id',p.student.id)
+      await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id)
     const promotedIds  = toPromote.map(p=>p.student.id)
     const graduatedIds = toGraduate.map(p=>p.student.id)
     const destMap      = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
