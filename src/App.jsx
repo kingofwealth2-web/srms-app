@@ -861,7 +861,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
     if(!confirm('Remove this student?'))return
     const {error} = await supabase.from('students').delete().eq('id',id)
     if(error)toast(error.message,'error')
-    else{const s=students.find(x=>x.id===id);setData(p=>({...p,students:p.students.filter(s=>s.id!==id)}));auditLog(profile,'Students','Deleted',`${s?.first_name} ${s?.last_name}`,{s},null);toast('Student removed')}
+    else{const s=students.find(x=>x.id===id);setData(p=>({...p,students:p.students.filter(s=>s.id!==id)}));auditLog(profile,'Students','Deleted',`${s?.first_name} ${s?.last_name}`,{},s||null,null);toast('Student removed')}
   }
   return (
     <div>
@@ -3896,7 +3896,24 @@ function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}
     const payload = {...form, grade_components: gradeComponents}
     const {error} = await supabase.from('settings').update(payload).eq('id',form.id)
     if(error) toast(error.message,'error')
-    else { setSettings(payload); toast('Settings saved') }
+    else {
+      // Build a human-readable summary of what changed
+      const changes = []
+      if(settings?.school_name !== payload.school_name) changes.push(`School name: ${settings?.school_name}→${payload.school_name}`)
+      if(settings?.academic_year !== payload.academic_year) changes.push(`Academic year: ${settings?.academic_year}→${payload.academic_year}`)
+      if(settings?.period_type !== payload.period_type) changes.push(`Period type: ${settings?.period_type}→${payload.period_type}`)
+      if(settings?.period_count !== payload.period_count) changes.push(`Period count: ${settings?.period_count}→${payload.period_count}`)
+      if(JSON.stringify(settings?.grading_scale) !== JSON.stringify(payload.grading_scale)) changes.push('Grading scale updated')
+      if(JSON.stringify(settings?.grade_components) !== JSON.stringify(payload.grade_components)) changes.push('Grade components updated')
+      if(settings?.school_logo !== payload.school_logo) changes.push('School logo updated')
+      const desc = changes.length ? changes.join(' · ') : 'No changes detected'
+      // Strip logo from diff — base64 strings are too large for audit storage
+      const {school_logo:_bl,...settingsBefore} = settings||{}
+      const {school_logo:_al,...settingsAfter}  = payload
+      auditLog(profile,'Settings','Updated',desc,{},settingsBefore,settingsAfter)
+      setSettings(payload)
+      toast('Settings saved')
+    }
     setSaving(false)
   }
 
@@ -3934,6 +3951,7 @@ function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}
     if(wasEnabled) {
       const key = comps[i].key
       await supabase.from('grades').update({[key]:0}).neq('id','00000000-0000-0000-0000-000000000000')
+      auditLog(profile,'Settings','Updated',`Grade component disabled & scores cleared: ${comps[i].label}`,{component:comps[i].label},null,null)
       toast(`${comps[i].label} disabled -- all scores cleared`)
     }
   }
