@@ -83,6 +83,22 @@ const getLetter = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) r
 const getGPA    = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.gpa;    return 0   }
 const getGradeLetter = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.letter||'--'; return '--' }
 const getGradeRemark = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.remark||''; return '' }
+
+// ── AUDIT LOGGING ──────────────────────────────────────────────
+const auditLog = async (profile, module, action, description, meta={}, before_data=null, after_data=null) => {
+  try {
+    await supabase.from('audit_logs').insert({
+      user_id:     profile?.id,
+      user_name:   profile?.full_name || profile?.email || 'Unknown',
+      module,
+      action,
+      description,
+      meta,
+      before_data,
+      after_data,
+    })
+  } catch(e) { console.warn('Audit log failed:', e) }
+}
 const fmtDate   = d => d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '--'
 const CURRENCIES = [
   {code:'GHS',symbol:'₵', name:'Ghanaian Cedi',    position:'before', decimals:2},
@@ -192,7 +208,7 @@ function currentYearFromSettings(settings) {
 }
 
 const NAV_ITEMS = {
-  superadmin:  ['dashboard','students','classes','grades','attendance','fees','behaviour','reports','announcements','users','settings'],
+  superadmin:  ['dashboard','students','classes','grades','attendance','fees','behaviour','reports','announcements','users','settings','auditlog'],
   admin:       ['dashboard','students','classes','grades','attendance','fees','behaviour','reports','announcements'],
   classteacher:['dashboard','students','grades','attendance','behaviour','reports','announcements'],
   teacher:     ['dashboard','students','grades','reports','announcements'],
@@ -209,6 +225,7 @@ const NAV_META = {
   announcements:{icon:'◯', label:'Announcements'},
   users:        {icon:'◈', label:'Users'},
   settings:     {icon:'◧', label:'Settings'},
+  auditlog:     {icon:'◫', label:'Audit Log'},
 }
 
 // ── BASE UI COMPONENTS ─────────────────────────────────────────
@@ -832,11 +849,11 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
     setSaving(true)
     if(edit){
       const {error} = await supabase.from('students').update({...form,updated_at:new Date()}).eq('id',edit.id)
-      if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));toast('Student updated');setModal(false)}
+      if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));auditLog(profile,'Students','Updated',`${form.first_name} ${form.last_name}`,{},{...edit},{...form});toast('Student updated');setModal(false)}
     } else {
       const sid = genSID(students)
       const {data:row,error} = await supabase.from('students').insert({...form,student_id:sid,created_at:new Date(),entry_year:activeYear}).select().single()
-      if(error){toast(error.message,'error')}else{setData(p=>({...p,students:[...p.students,row]}));toast('Student added');setModal(false)}
+      if(error){toast(error.message,'error')}else{setData(p=>({...p,students:[...p.students,row]}));auditLog(profile,'Students','Created',`${form.first_name} ${form.last_name}`,{},null,row);toast('Student added');setModal(false)}
     }
     setSaving(false)
   }
@@ -844,7 +861,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
     if(!confirm('Remove this student?'))return
     const {error} = await supabase.from('students').delete().eq('id',id)
     if(error)toast(error.message,'error')
-    else{setData(p=>({...p,students:p.students.filter(s=>s.id!==id)}));toast('Student removed')}
+    else{const s=students.find(x=>x.id===id);setData(p=>({...p,students:p.students.filter(s=>s.id!==id)}));auditLog(profile,'Students','Deleted',`${s?.first_name} ${s?.last_name}`,{s},null);toast('Student removed')}
   }
   return (
     <div>
@@ -1083,6 +1100,7 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
   // Students for grade entry dropdown — scoped to relevant classes
   const myClassIds  = ['superadmin','admin'].includes(profile?.role) ? null : [...new Set(mySubjects.map(s=>s.class_id))]
   const myStudents  = myClassIds===null ? students : students.filter(s=>myClassIds.includes(s.class_id))
+  const [fc,setFc] = useState('') // class filter (admin/superadmin)
   const [fs,setFs] = useState('')
   const [fp,setFp] = useState('')
   const [modal,setModal] = useState(false)
@@ -1090,10 +1108,18 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
   const [form,setForm]   = useState({})
   const [saving,setSaving] = useState(false)
   const f = k => v => setForm(p=>({...p,[k]:v}))
+  const isAdminGrades = ['superadmin','admin'].includes(profile?.role)
   const periods = settings?.period_type==='term'
     ? Array.from({length:settings.period_count||2},(_,i)=>`Term ${i+1}`)
     : Array.from({length:settings.period_count||2},(_,i)=>`Semester ${i+1}`)
-  const filtered = myGrades.filter(g=>(!fs||g.subject_id===fs)&&(!fp||g.period===fp))
+  // When admin selects a class, filter subjects to that class
+  const fcSubjects = fc ? viewSubjects.filter(s=>s.class_id===fc) : viewSubjects
+  const filtered = myGrades.filter(g=>{
+    if(fc) { const sub=subjects.find(s=>s.id===g.subject_id); if(!sub||sub.class_id!==fc) return false }
+    return (!fs||g.subject_id===fs)&&(!fp||g.period===fp)
+  })
+  // Score limit warnings: check active comps against max_score
+  const scoreWarnings = allComps.filter(c=>c.enabled && +form[c.key] > c.max_score && c.max_score>0)
 
   const openAdd = () => {
     const emptyScores = ALL_COMPONENTS.reduce((acc,k)=>({...acc,[k]:''}),{})
@@ -1115,11 +1141,23 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
     if(edit){
       const {error}=await supabase.from('grades').update(g).eq('id',edit.id)
       if(error)toast(error.message,'error')
-      else{setData(p=>({...p,grades:p.grades.map(x=>x.id===edit.id?{...x,...g}:x)}));toast('Grade updated');setModal(false)}
+      else{
+        setData(p=>({...p,grades:p.grades.map(x=>x.id===edit.id?{...x,...g}:x)}))
+        const student=students.find(s=>s.id===g.student_id)
+        const subject=subjects.find(s=>s.id===g.subject_id)
+        auditLog(profile,'Grades','Updated',`${student?.first_name} ${student?.last_name} · ${subject?.name} · ${g.period}`,{},{...edit},{...g})
+        toast('Grade updated');setModal(false)
+      }
     } else {
       const {data:row,error}=await supabase.from('grades').insert(g).select().single()
       if(error)toast(error.message,'error')
-      else{setData(p=>({...p,grades:[...p.grades,row]}));toast('Grade recorded');setModal(false)}
+      else{
+        setData(p=>({...p,grades:[...p.grades,row]}))
+        const student=students.find(s=>s.id===g.student_id)
+        const subject=subjects.find(s=>s.id===g.subject_id)
+        auditLog(profile,'Grades','Created',`${student?.first_name} ${student?.last_name} · ${subject?.name} · ${g.period}`,{},null,{...g})
+        toast('Grade recorded');setModal(false)
+      }
     }
     setSaving(false)
   }
@@ -1145,15 +1183,23 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
       </PageHeader>
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-          <select value={fs} onChange={e=>setFs(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
+          {isAdminGrades && (
+            <select value={fc} onChange={e=>{setFc(e.target.value);setFs('')}}
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
+              <option value=''>All Classes</option>
+              {data.classes?.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+          <select value={fs} onChange={e=>setFs(e.target.value)}
+            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
             <option value=''>All Subjects</option>
-            {viewSubjects.map(s=><option key={s.id} value={s.id}>{s.name}{!mySubjects.some(m=>m.id===s.id)?' (view only)':''}</option>)}
+            {fcSubjects.map(s=><option key={s.id} value={s.id}>{s.name}{!mySubjects.some(m=>m.id===s.id)?' (view only)':''}</option>)}
           </select>
-          <select value={fp} onChange={e=>setFp(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
+          <select value={fp} onChange={e=>setFp(e.target.value)}
+            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Periods</option>
             {periods.map(p=><option key={p}>{p}</option>)}
           </select>
-
         </div>
       </Card>
       <Card>
@@ -1188,11 +1234,63 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
             {/* Active components -- editable */}
             {activeComps.length>0 && (
               <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(activeComps.length,4)},1fr)`,gap:'8px 12px',marginBottom:12}}>
-                {activeComps.map(c=>(
-                  <Field key={c.key} label={`${c.label} /${c.max_score}`} value={form[c.key]||''} onChange={f(c.key)} type='number' style={{marginBottom:0}}/>
-                ))}
+                {activeComps.map(c=>{
+                  const over = c.max_score>0 && +form[c.key] > c.max_score
+                  return (
+                    <div key={c.key}>
+                      <Field label={`${c.label} /${c.max_score}`} value={form[c.key]||''} onChange={f(c.key)} type='number'
+                        style={{marginBottom:0,borderColor:over?'var(--rose)':undefined}}/>
+                      {over && <div style={{fontSize:10,color:'var(--rose)',marginTop:2,fontWeight:600}}>Max is {c.max_score}</div>}
+                    </div>
+                  )
+                })}
               </div>
             )}
+            {/* Score limit warning banner */}
+            {scoreWarnings.length>0 && (
+              <div style={{background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.3)',borderRadius:'var(--r-sm)',padding:'10px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
+                <span style={{fontSize:16}}>⚠</span>
+                <span style={{fontSize:12,color:'var(--rose)',fontWeight:600}}>
+                  {scoreWarnings.map(c=>`${c.label} exceeds max (${c.max_score})`).join(' · ')}
+                </span>
+              </div>
+            )}
+            {/* Cross-period reference -- show other periods' scores for same student+subject */}
+            {form.student_id && form.subject_id && (() => {
+              const otherPeriods = grades.filter(g=>
+                g.student_id===form.student_id &&
+                g.subject_id===form.subject_id &&
+                g.period !== form.period &&
+                (!edit || g.id !== edit.id)
+              )
+              if(!otherPeriods.length) return null
+              return (
+                <div style={{background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'10px 14px',marginBottom:12}}>
+                  <div style={{fontSize:10,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Previous period scores for reference</div>
+                  <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
+                    {otherPeriods.map(g=>{
+                      const tot=calcTotal(g,allComps), let_=getLetter(tot,scale)
+                      return (
+                        <div key={g.id} style={{background:'var(--ink3)',borderRadius:'var(--r-sm)',padding:'8px 12px',minWidth:100}}>
+                          <div style={{fontSize:10,color:'var(--mist3)',marginBottom:4,fontWeight:600}}>{g.period}</div>
+                          <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:6}}>
+                            <span className='mono' style={{fontSize:18,fontWeight:700,color:LETTER_COLOR[let_]||'var(--white)'}}>{tot}</span>
+                            <Badge color={LETTER_COLOR[let_]||'var(--mist2)'}>{let_}</Badge>
+                          </div>
+                          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                            {allComps.filter(c=>c.enabled).map(c=>(
+                              <div key={c.key} style={{fontSize:10,color:'var(--mist3)'}}>
+                                {c.label}: <span style={{color:'var(--mist)'}}>{g[c.key]||0}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
             {/* Disabled components with existing scores -- read-only */}
             {edit && allComps.filter(c=>!c.enabled&&+form[c.key]>0).length>0 && (
               <div style={{marginTop:8,padding:'10px 14px',background:'var(--ink4)',borderRadius:'var(--r-sm)',border:'1px solid var(--line)'}}>
@@ -1207,10 +1305,10 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
                 </div>
               </div>
             )}
-            <div style={{marginTop:14,display:'flex',alignItems:'center',gap:20,background:'var(--ink4)',borderRadius:'var(--r-sm)',padding:'14px 18px',border:`1px solid ${LETTER_COLOR[prevL]||'var(--line)'}20`}}>
+            <div style={{marginTop:14,display:'flex',alignItems:'center',gap:20,background:'var(--ink4)',borderRadius:'var(--r-sm)',padding:'14px 18px',border:`1px solid ${scoreWarnings.length?'var(--rose)':LETTER_COLOR[prevL]||'var(--line)'}20`}}>
               <div>
                 <div className='d' style={{fontSize:10,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Total Score</div>
-                <div className='d' style={{fontSize:28,fontWeight:700,color:LETTER_COLOR[prevL]||'var(--mist)',lineHeight:1}}>{prev}<span style={{fontSize:14,color:'var(--mist3)'}}>/100</span></div>
+                <div className='d' style={{fontSize:28,fontWeight:700,color:scoreWarnings.length?'var(--rose)':LETTER_COLOR[prevL]||'var(--mist)',lineHeight:1}}>{prev}<span style={{fontSize:14,color:'var(--mist3)'}}>/100</span></div>
               </div>
               <div style={{width:1,height:40,background:'var(--line)'}}/>
               <div>
@@ -1219,8 +1317,8 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
               </div>
               <div style={{width:1,height:40,background:'var(--line)'}}/>
               <div>
-                <div className='d' style={{fontSize:10,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>GPA</div>
-                <div className='d' style={{fontSize:22,fontWeight:700}}>{prevG.toFixed(1)}</div>
+                <div className='d' style={{fontSize:10,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Remark</div>
+                <div className='d' style={{fontSize:13,color:'var(--mist2)',fontWeight:600}}>{getGradeRemark(prev,scale)||'--'}</div>
               </div>
             </div>
           </div>
@@ -1300,6 +1398,7 @@ function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPas
       setData(p=>({...p,attendance:[...p.attendance.filter(a=>!(a.class_id===cid&&a.date===date)),...(rows||[])]}))
       setPendingMarks({})
       setHasUnsaved(false)
+      auditLog(profile,'Attendance','Marked',`${cls?.name} · ${date} · ${allMarks.length} students`,{class:cls?.name,date,count:allMarks.length},null,null)
       toast(`Attendance saved -- ${allMarks.length} student${allMarks.length!==1?'s':''} recorded done`)
     } catch(err) {
       toast(`Save failed: ${err.message}. Please try again.`,'error')
@@ -1767,7 +1866,7 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
     setSaving(true)
     const {data:row,error}=await supabase.from('fees').insert({student_id:form.student_id,fee_type:form.fee_type,amount:parseFloat(form.amount),paid:0,due_date:form.due_date,period:form.period||null,academic_year:activeYear}).select().single()
     if(error)toast(error.message,'error')
-    else{setData(p=>({...p,fees:[...p.fees,row]}));toast('Fee record added');setModal(false)}
+    else{setData(p=>({...p,fees:[...p.fees,row]}));const s=students.find(x=>x.id===form.student_id);auditLog(profile,'Fees','Created',`${s?.first_name} ${s?.last_name} · ${form.fee_type} · ${fmtMoney(parseFloat(form.amount),currency)}`,{},null,row);toast('Fee record added');setModal(false)}
     setSaving(false)
   }
 
@@ -1775,7 +1874,7 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
     if(!confirm('Remove this fee record? This cannot be undone.'))return
     const {error}=await supabase.from('fees').delete().eq('id',id)
     if(error)toast(error.message,'error')
-    else{setData(p=>({...p,fees:p.fees.filter(f=>f.id!==id),payments:p.payments.filter(p=>p.fee_id!==id)}));toast('Fee record removed')}
+    else{const fee=fees.find(x=>x.id===id);const s=students.find(x=>x.id===fee?.student_id);setData(p=>({...p,fees:p.fees.filter(f=>f.id!==id),payments:p.payments.filter(p=>p.fee_id!==id)}));auditLog(profile,'Fees','Deleted',`${s?.first_name} ${s?.last_name} · ${fee?.fee_type}`,{},fee,null);toast('Fee record removed')}
   }
 
   const recordPayment = async () => {
@@ -1808,6 +1907,7 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
       fees:     p.fees.map(f=>f.id===editFee.id ? updatedFee : f),
       payments: [payRow, ...p.payments],
     }))
+    const pStudent=students.find(s=>s.id===editFee.student_id);auditLog(profile,'Fees','Payment',`${pStudent?.first_name} ${pStudent?.last_name} · ${fmtMoney(amt,currency)} · ${editFee.fee_type}`,{amount:amt,receipt:rcpt},null,null)
     toast('Payment recorded')
     setPayModal(false)
     // Auto-open receipt
@@ -2119,14 +2219,14 @@ function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast
     setSaving(true)
     const {data:row,error}=await supabase.from('behaviour').insert({...form,recorded_by_id:profile?.id,recorded_by_name:profile?.full_name,academic_year:activeYear}).select().single()
     if(error)toast(error.message,'error')
-    else{setData(p=>({...p,behaviour:[row,...p.behaviour]}));toast('Record added');setModal(false)}
+    else{setData(p=>({...p,behaviour:[row,...p.behaviour]}));const s=students.find(x=>x.id===form.student_id);auditLog(profile,'Behaviour','Created',`${s?.first_name} ${s?.last_name} · ${form.type} · ${form.title}`,{},null,row);toast('Record added');setModal(false)}
     setSaving(false)
   }
   const del = async id=>{
     if(!confirm('Remove this record?'))return
     const {error}=await supabase.from('behaviour').delete().eq('id',id)
     if(error)toast(error.message,'error')
-    else{setData(p=>({...p,behaviour:p.behaviour.filter(b=>b.id!==id)}));toast('Record removed')}
+    else{const rec=behaviour.find(x=>x.id===id);const s=students.find(x=>x.id===rec?.student_id);setData(p=>({...p,behaviour:p.behaviour.filter(b=>b.id!==id)}));auditLog(profile,'Behaviour','Deleted',`${s?.first_name} ${s?.last_name} · ${rec?.type} · ${rec?.title}`,{},rec,null);toast('Record removed')}
   }
   return (
     <div>
@@ -3463,6 +3563,7 @@ function Users({profile,toast}) {
       if(refreshed){
         setUsers(p=>p.map(u=>u.id===edit.id?refreshed:u))
       }
+      auditLog(profile,'Users','Updated',`${form.full_name} · Role: ${edit.role}→${form.role}`,{},{...edit},{...form})
       toast('User updated')
       setModal(false)
     } else {
@@ -3478,6 +3579,7 @@ function Users({profile,toast}) {
       const {error:profErr} = await supabase.from('profiles').upsert({id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false})
       if(profErr){ toast(profErr.message,'error'); setSaving(false); return }
       setUsers(p=>[...p,{id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false}])
+      auditLog(profile,'Users','Created',`${form.full_name} · ${form.role}`,{},null,{id:uid,full_name:form.full_name,email:form.email,role:form.role})
       toast('User created successfully')
       setModal(false)
     }
@@ -3492,6 +3594,7 @@ function Users({profile,toast}) {
     const {error} = await supabase.from('profiles').update({locked:!u.locked}).eq('id',id)
     if(error){toast('Failed to update -- check Supabase RLS policies.','error');return}
     setUsers(p=>p.map(x=>x.id===id?{...x,locked:!x.locked}:x))
+    auditLog(profile,'Users',u.locked?'Unlocked':'Locked',`${u.full_name} · ${u.email}`,{},{...u},null)
     toast(u.locked ? 'Account unlocked.' : 'Account locked.')
   }
 
@@ -3549,6 +3652,227 @@ function Users({profile,toast}) {
     </div>
   )
 }
+
+// ── AUDIT LOG ──────────────────────────────────────────────────
+const MODULE_META = {
+  Grades:     { icon:'◎', color:'var(--sky)' },
+  Students:   { icon:'◈', color:'var(--emerald)' },
+  Fees:       { icon:'◈', color:'var(--gold)' },
+  Attendance: { icon:'◉', color:'var(--amber)' },
+  Behaviour:  { icon:'◐', color:'var(--rose)' },
+  Users:      { icon:'◈', color:'var(--sky)' },
+  Settings:   { icon:'◧', color:'var(--mist2)' },
+}
+const ACTION_COLOR = {
+  Created: 'var(--emerald)',
+  Updated: 'var(--amber)',
+  Deleted: 'var(--rose)',
+  Marked:  'var(--sky)',
+  Payment: 'var(--gold)',
+  Locked:  'var(--rose)',
+  Unlocked:'var(--emerald)',
+}
+
+function AuditLog({profile}) {
+  const [logs, setLogs]         = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [expanded, setExpanded] = useState(null)
+  const [fModule, setFModule]   = useState('')
+  const [fUser,   setFUser]     = useState('')
+  const [fSearch, setFSearch]   = useState('')
+  const [users,   setUsers]     = useState([])
+
+  useEffect(()=>{
+    // 50 days back
+    const cutoff = new Date(Date.now() - 50*24*60*60*1000).toISOString()
+    Promise.all([
+      supabase.from('audit_logs').select('*').gte('created_at',cutoff).order('created_at',{ascending:false}).limit(500),
+      supabase.from('profiles').select('id,full_name,email,role')
+    ]).then(([{data:logs,error},{data:users}])=>{
+      if(error) console.error(error)
+      setLogs(logs||[])
+      setUsers(users||[])
+      setLoading(false)
+    })
+  },[])
+
+  const modules = [...new Set(logs.map(l=>l.module))].sort()
+  const filtered = logs.filter(l=>{
+    if(fModule && l.module!==fModule) return false
+    if(fUser   && l.user_id!==fUser)  return false
+    if(fSearch) {
+      const q=fSearch.toLowerCase()
+      if(!l.description?.toLowerCase().includes(q) &&
+         !l.action?.toLowerCase().includes(q) &&
+         !l.user_name?.toLowerCase().includes(q)) return false
+    }
+    return true
+  })
+
+  const fmt = iso => {
+    const d = new Date(iso)
+    return d.toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})
+  }
+  const timeAgo = iso => {
+    const diff = Date.now() - new Date(iso).getTime()
+    const m = Math.floor(diff/60000), h = Math.floor(m/60), d = Math.floor(h/24)
+    if(d>0) return `${d}d ago`
+    if(h>0) return `${h}h ago`
+    if(m>0) return `${m}m ago`
+    return 'just now'
+  }
+
+  const renderDiff = (log) => {
+    if(!log.before_data && !log.after_data) return null
+    const before = log.before_data||{}
+    const after  = log.after_data||{}
+    const keys   = [...new Set([...Object.keys(before),...Object.keys(after)])]
+      .filter(k=>!['id','created_at','updated_at','password'].includes(k))
+      .filter(k=>JSON.stringify(before[k])!==JSON.stringify(after[k]))
+    if(!keys.length) return <div style={{fontSize:12,color:'var(--mist3)',fontStyle:'italic'}}>No field changes recorded.</div>
+    return (
+      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+        {keys.map(k=>(
+          <div key={k} style={{display:'grid',gridTemplateColumns:'120px 1fr 1fr',gap:8,fontSize:11,alignItems:'start'}}>
+            <div style={{color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',paddingTop:2}}>{k.replace(/_/g,' ')}</div>
+            {log.action==='Created' ? (
+              <>
+                <div style={{color:'var(--mist3)',fontStyle:'italic'}}>—</div>
+                <div style={{color:'var(--emerald)',background:'rgba(45,212,160,0.08)',padding:'3px 8px',borderRadius:4,wordBreak:'break-all'}}>{String(after[k]??'—')}</div>
+              </>
+            ) : log.action==='Deleted' ? (
+              <>
+                <div style={{color:'var(--rose)',background:'rgba(240,107,122,0.08)',padding:'3px 8px',borderRadius:4,wordBreak:'break-all',textDecoration:'line-through'}}>{String(before[k]??'—')}</div>
+                <div style={{color:'var(--mist3)',fontStyle:'italic'}}>—</div>
+              </>
+            ) : (
+              <>
+                <div style={{color:'var(--mist2)',background:'var(--ink3)',padding:'3px 8px',borderRadius:4,wordBreak:'break-all'}}>{String(before[k]??'—')}</div>
+                <div style={{color:'var(--emerald)',background:'rgba(45,212,160,0.08)',padding:'3px 8px',borderRadius:4,wordBreak:'break-all'}}>{String(after[k]??'—')}</div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if(profile?.role!=='superadmin') return <div style={{padding:48,textAlign:'center',color:'var(--mist3)'}}>Access restricted to superadmin.</div>
+  if(loading) return <LoadingScreen msg='Loading audit log...'/>
+
+  return (
+    <div>
+      <PageHeader title='Audit Log' sub={`${filtered.length} events · last 50 days`}/>
+
+      {/* Filters */}
+      <Card style={{marginBottom:16,padding:'14px 20px'}}>
+        <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
+          <div style={{position:'relative',flex:1,minWidth:200}}>
+            <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:13}}>⌕</span>
+            <input value={fSearch} onChange={e=>setFSearch(e.target.value)} placeholder='Search actions, users, descriptions...'
+              style={{width:'100%',paddingLeft:32,paddingRight:12,paddingTop:8,paddingBottom:8,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13,boxSizing:'border-box'}}/>
+          </div>
+          <select value={fModule} onChange={e=>setFModule(e.target.value)}
+            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:140}}>
+            <option value=''>All Modules</option>
+            {modules.map(m=><option key={m} value={m}>{m}</option>)}
+          </select>
+          <select value={fUser} onChange={e=>setFUser(e.target.value)}
+            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
+            <option value=''>All Users</option>
+            {users.map(u=><option key={u.id} value={u.id}>{u.full_name||u.email}</option>)}
+          </select>
+          {(fModule||fUser||fSearch) && (
+            <button onClick={()=>{setFModule('');setFUser('');setFSearch('')}}
+              style={{padding:'8px 14px',background:'transparent',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--mist3)',fontSize:12,cursor:'pointer'}}>
+              ✕ Clear
+            </button>
+          )}
+        </div>
+      </Card>
+
+      {/* Summary chips */}
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:16}}>
+        {Object.entries(MODULE_META).filter(([m])=>logs.some(l=>l.module===m)).map(([m,meta])=>{
+          const count = logs.filter(l=>l.module===m).length
+          return (
+            <button key={m} onClick={()=>setFModule(fModule===m?'':m)}
+              style={{padding:'5px 12px',background:fModule===m?'var(--ink3)':'transparent',border:`1px solid ${fModule===m?meta.color:'var(--line)'}`,borderRadius:20,color:fModule===m?meta.color:'var(--mist3)',fontSize:12,cursor:'pointer',display:'flex',alignItems:'center',gap:6,transition:'all 0.15s'}}>
+              <span>{meta.icon}</span>
+              <span>{m}</span>
+              <span style={{background:'var(--ink4)',borderRadius:10,padding:'1px 7px',fontSize:10,fontWeight:700}}>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Timeline */}
+      <div style={{display:'flex',flexDirection:'column',gap:4}}>
+        {filtered.length===0 ? (
+          <Card style={{padding:'48px 20px',textAlign:'center'}}>
+            <div style={{fontSize:32,marginBottom:12}}>◫</div>
+            <div style={{color:'var(--mist2)',fontWeight:600}}>No audit events found</div>
+            <div style={{color:'var(--mist3)',fontSize:12,marginTop:4}}>Try adjusting your filters</div>
+          </Card>
+        ) : filtered.map((log,i)=>{
+          const meta   = MODULE_META[log.module]||{icon:'◈',color:'var(--mist2)'}
+          const aColor = ACTION_COLOR[log.action]||'var(--mist2)'
+          const isOpen = expanded===log.id
+          const hasDiff = log.before_data||log.after_data
+          return (
+            <div key={log.id}
+              style={{background:'var(--ink2)',border:`1px solid ${isOpen?meta.color+'40':'var(--line)'}`,borderRadius:'var(--r)',overflow:'hidden',transition:'border-color 0.15s'}}>
+              {/* Main row */}
+              <div onClick={()=>setExpanded(isOpen?null:log.id)}
+                style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',cursor:hasDiff?'pointer':'default'}}>
+                {/* Module icon */}
+                <div style={{width:34,height:34,borderRadius:'50%',background:`${meta.color}15`,border:`1px solid ${meta.color}30`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,color:meta.color,flexShrink:0}}>
+                  {meta.icon}
+                </div>
+                {/* Content */}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2,flexWrap:'wrap'}}>
+                    <span style={{fontSize:12,fontWeight:700,color:aColor,background:`${aColor}15`,padding:'1px 8px',borderRadius:4}}>{log.action}</span>
+                    <span style={{fontSize:12,color:meta.color,fontWeight:600}}>{log.module}</span>
+                    <span style={{fontSize:12,color:'var(--mist)',fontWeight:500}}>{log.description}</span>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:6}}>
+                      <Avatar name={log.user_name||'?'} size={18}/>
+                      <span style={{fontSize:11,color:'var(--mist3)'}}>{log.user_name||'Unknown'}</span>
+                    </div>
+                    <span style={{fontSize:10,color:'var(--line2)'}}>·</span>
+                    <span style={{fontSize:11,color:'var(--mist3)'}} title={fmt(log.created_at)}>{timeAgo(log.created_at)}</span>
+                    <span style={{fontSize:10,color:'var(--line2)'}}>·</span>
+                    <span style={{fontSize:11,color:'var(--mist3)'}}>{fmt(log.created_at)}</span>
+                  </div>
+                </div>
+                {/* Expand indicator */}
+                {hasDiff && (
+                  <div style={{fontSize:12,color:'var(--mist3)',transform:isOpen?'rotate(180deg)':'none',transition:'transform 0.2s',flexShrink:0}}>▾</div>
+                )}
+              </div>
+              {/* Expanded diff */}
+              {isOpen && hasDiff && (
+                <div style={{borderTop:'1px solid var(--line)',padding:'14px 16px',background:'var(--ink)'}}>
+                  {log.action!=='Created'&&log.action!=='Deleted' && (
+                    <div style={{display:'grid',gridTemplateColumns:'120px 1fr 1fr',gap:8,marginBottom:8}}>
+                      <div/>
+                      <div style={{fontSize:10,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em'}}>Before</div>
+                      <div style={{fontSize:10,color:'var(--emerald)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em'}}>After</div>
+                    </div>
+                  )}
+                  {renderDiff(log)}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 
 // ── SETTINGS ───────────────────────────────────────────────────
 function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}) {
@@ -4685,11 +5009,12 @@ export default function App() {
       case 'announcements':return <Announcements {...props}/>
       case 'users':        return <Users        {...props}/>
       case 'settings':     return <Settings     profile={profile} settings={settings} setSettings={setSettings} toast={showToast} activeYear={activeYear} onStartNewYear={()=>setNewYearModal(true)}/>
+      case 'auditlog':     return <AuditLog     profile={profile}/>
       default:             return <Dashboard    {...props} onNav={setPage}/>
     }
   }
 
-  const pageTitles = {dashboard:'Dashboard',students:'Students',classes:'Classes & Subjects',grades:'Grades',attendance:'Attendance',fees:'Fees',behaviour:'Behaviour',reports:'Reports',announcements:'Announcements',users:'Users',settings:'Settings'}
+  const pageTitles = {dashboard:'Dashboard',students:'Students',classes:'Classes & Subjects',grades:'Grades',attendance:'Attendance',fees:'Fees',behaviour:'Behaviour',reports:'Reports',announcements:'Announcements',users:'Users',settings:'Settings',auditlog:'Audit Log'}
 
   return (
     <>
