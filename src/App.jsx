@@ -5820,6 +5820,175 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
 // Paste it just above the main `export default function App()`
 // ─────────────────────────────────────────────────────────────
 
+// ── PROFILE MENU ───────────────────────────────────────────────
+function ProfileMenu({profile, setProfile, onLogout}) {
+  const [open, setOpen]         = useState(false)
+  const [modal, setModal]       = useState(false)
+  const [form, setForm]         = useState({full_name:''})
+  const [pwForm, setPwForm]     = useState({current:'',next:'',confirm:''})
+  const [saving, setSaving]     = useState(false)
+  const [pwSaving, setPwSaving] = useState(false)
+  const [tab, setTab]           = useState('profile')
+  const [error, setError]       = useState('')
+  const [pwError, setPwError]   = useState('')
+  const [pwSuccess, setPwSuccess] = useState(false)
+  const ref = useRef(null)
+  const pwTimer = useRef(null)
+
+  useEffect(()=>{
+    const handler = e => { if(ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return ()=>document.removeEventListener('mousedown', handler)
+  },[])
+  useEffect(()=>()=>{ if(pwTimer.current) clearTimeout(pwTimer.current) },[])
+
+  const openModal = () => {
+    setForm({full_name: profile?.full_name||''})
+    setPwForm({current:'',next:'',confirm:''})
+    setError(''); setPwError(''); setTab('profile')
+    setOpen(false); setModal(true)
+  }
+
+  const saveName = async () => {
+    if(!form.full_name.trim()){setError('Name cannot be empty.');return}
+    setSaving(true); setError('')
+    const {error:err} = await supabase.from('profiles').update({full_name:form.full_name.trim()}).eq('id',profile.id)
+    if(err){setError(err.message);setSaving(false);return}
+    setProfile(p=>({...p,full_name:form.full_name.trim()}))
+    setSaving(false)
+    setModal(false)
+  }
+
+  const savePassword = async () => {
+    setPwError('')
+    if(!pwForm.current){setPwError('Please enter your current password.');return}
+    if(pwForm.next.length<8){setPwError('New password must be at least 8 characters.');return}
+    if(pwForm.next!==pwForm.confirm){setPwError('New passwords do not match.');return}
+    setPwSaving(true)
+    // Use session email as fallback in case profile.email is null
+    const {data:{session:currentSession}} = await supabase.auth.getSession()
+    const emailToUse = profile?.email || currentSession?.user?.email
+    if(!emailToUse){setPwError('Unable to verify identity. Please sign out and back in.');setPwSaving(false);return}
+    const {error:signInErr} = await supabase.auth.signInWithPassword({
+      email: emailToUse,
+      password: pwForm.current
+    })
+    if(signInErr){setPwError('Current password is incorrect.');setPwSaving(false);return}
+    const {error:updateErr} = await supabase.auth.updateUser({password:pwForm.next})
+    if(updateErr){setPwError(updateErr.message);setPwSaving(false);return}
+    setPwSaving(false)
+    setPwForm({current:'',next:'',confirm:''})
+    setPwError('')
+    // Stay on password tab so user sees the success message
+    setPwSuccess(true)
+    if(pwTimer.current) clearTimeout(pwTimer.current)
+    pwTimer.current = setTimeout(()=>{setPwSuccess(false);setModal(false)},2000)
+  }
+
+  const roleLabel = ROLE_META[profile?.role]?.label || profile?.role || 'User'
+  const roleBg    = ROLE_META[profile?.role]?.bg    || 'var(--mist3)'
+
+  return (
+    <div ref={ref} style={{position:'relative'}}>
+      <button onClick={()=>setOpen(o=>!o)}
+        style={{display:'flex',alignItems:'center',gap:10,background:'transparent',border:'none',cursor:'pointer',padding:'4px 8px',borderRadius:'var(--r-sm)',transition:'background 0.15s'}}
+        onMouseEnter={e=>e.currentTarget.style.background='var(--ink3)'}
+        onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+        <Avatar name={profile?.full_name} size={30} color={roleBg}/>
+        <div style={{textAlign:'left'}}>
+          <div style={{fontSize:12,fontWeight:600,lineHeight:1.2,color:'var(--white)'}}>{profile?.full_name}</div>
+          <div style={{fontSize:10,color:'var(--mist3)'}}>{roleLabel}</div>
+        </div>
+        <svg width={10} height={10} viewBox='0 0 10 10' fill='none' style={{transform:open?'rotate(180deg)':'none',transition:'transform 0.2s',marginLeft:2}}>
+          <path d='M2 3.5L5 6.5L8 3.5' stroke='var(--mist3)' strokeWidth='1.4' strokeLinecap='round' strokeLinejoin='round'/>
+        </svg>
+      </button>
+
+      {open && (
+        <div className='fi' style={{position:'absolute',top:'calc(100% + 8px)',right:0,width:220,background:'var(--ink3)',border:'1px solid var(--line2)',borderRadius:'var(--r)',boxShadow:'var(--sh)',zIndex:1000,overflow:'hidden'}}>
+          <div style={{padding:'14px 16px',borderBottom:'1px solid var(--line)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <Avatar name={profile?.full_name} size={36} color={roleBg}/>
+              <div>
+                <div style={{fontSize:13,fontWeight:600,color:'var(--white)',lineHeight:1.2}}>{profile?.full_name}</div>
+                <div style={{fontSize:11,color:'var(--mist3)',marginTop:2}}>{profile?.email}</div>
+              </div>
+            </div>
+            <div style={{marginTop:10}}>
+              <span style={{fontSize:10,fontWeight:700,color:roleBg,background:`${roleBg}18`,border:`1px solid ${roleBg}35`,borderRadius:4,padding:'2px 8px',textTransform:'uppercase',letterSpacing:'0.06em'}}>{roleLabel}</span>
+            </div>
+          </div>
+          <div style={{padding:'6px'}}>
+            <button onClick={openModal}
+              style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:'transparent',border:'none',borderRadius:'var(--r-sm)',cursor:'pointer',color:'var(--mist)',fontSize:13,fontWeight:500,transition:'background 0.12s'}}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--ink4)'}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              <span style={{fontSize:15}}>✎</span> Edit Profile
+            </button>
+            <button onClick={()=>{setOpen(false);onLogout()}}
+              style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:'transparent',border:'none',borderRadius:'var(--r-sm)',cursor:'pointer',color:'var(--rose)',fontSize:13,fontWeight:500,transition:'background 0.12s'}}
+              onMouseEnter={e=>e.currentTarget.style.background='rgba(240,107,122,0.06)'}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              <span style={{fontSize:15}}>⏻</span> Sign Out
+            </button>
+          </div>
+        </div>
+      )}
+
+      {modal && (
+        <Modal title='My Profile' onClose={()=>setModal(false)} width={460}>
+          <div style={{display:'flex',gap:4,background:'var(--ink4)',borderRadius:'var(--r-sm)',padding:4,marginBottom:20}}>
+            {[['profile','Profile'],['password','Change Password']].map(([key,label])=>(
+              <button key={key} onClick={()=>{setTab(key);setError('');setPwError('')}}
+                style={{flex:1,padding:'7px 0',fontSize:12,fontWeight:600,borderRadius:6,border:'none',cursor:'pointer',transition:'all 0.15s',
+                  background:tab===key?'var(--ink2)':'transparent',
+                  color:tab===key?'var(--white)':'var(--mist3)'}}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {tab==='profile' && (
+            <div>
+              <div style={{display:'flex',justifyContent:'center',marginBottom:20}}>
+                <Avatar name={form.full_name||profile?.full_name} size={64} color={roleBg}/>
+              </div>
+              <Field label='Display Name' value={form.full_name} onChange={v=>setForm(p=>({...p,full_name:v}))} required/>
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Email</div>
+                <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>{profile?.email}</div>
+              </div>
+              <div style={{marginBottom:20}}>
+                <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Role</div>
+                <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>{roleLabel}</div>
+              </div>
+              {error && <div style={{padding:'10px 14px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--rose)',marginBottom:14}}>{error}</div>}
+              <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
+                <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
+                <Btn onClick={saveName} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save Changes'}</Btn>
+              </div>
+            </div>
+          )}
+
+          {tab==='password' && (
+            <div>
+              <Field label='Current Password' value={pwForm.current} onChange={v=>setPwForm(p=>({...p,current:v}))} type='password'/>
+              <Field label='New Password' value={pwForm.next} onChange={v=>setPwForm(p=>({...p,next:v}))} type='password'/>
+              <Field label='Confirm New Password' value={pwForm.confirm} onChange={v=>setPwForm(p=>({...p,confirm:v}))} type='password'/>
+              {pwError && <div style={{padding:'10px 14px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--rose)',marginBottom:14}}>{pwError}</div>}
+              {pwSuccess && <div style={{padding:'10px 14px',background:'rgba(45,212,160,0.08)',border:'1px solid rgba(45,212,160,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--emerald)',marginBottom:14}}>Password updated successfully!</div>}
+              <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
+                <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
+                <Btn onClick={savePassword} disabled={pwSaving||pwSuccess}>{pwSaving?<><Spinner/> Saving...</>:'Update Password'}</Btn>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
+    </div>
+  )
+}
+
 function YearSwitcher({ activeYear, currentYear, selectedYear, setSelectedYear, isMobile }) {
   const [open, setOpen] = useState(false)
   const years = generateYears(currentYear)
@@ -6210,7 +6379,7 @@ export default function App() {
                   <div style={{width:18,height:1.5,background:'var(--mist2)',borderRadius:1}}/>
                 </button>
                 <span className='d' style={{fontSize:15,fontWeight:700,letterSpacing:'-0.01em'}}>{pageTitles[page]||'SRMS'}</span>
-                <Avatar name={profile?.full_name} size={34} color={ROLE_META[profile?.role]?.bg}/>
+                <ProfileMenu profile={profile} setProfile={setProfile} onLogout={logout}/>
               </div>
               {/* Mobile year bar — only superadmin sees switcher */}
               <div style={{height:28,display:'flex',alignItems:'center',justifyContent:'center',gap:8,borderTop:'1px solid var(--line)',background:isViewingPast?'rgba(251,159,58,0.06)':'transparent'}}>
@@ -6236,15 +6405,8 @@ export default function App() {
                 )}
                 {isViewingPast && <span style={{fontSize:10,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:4,padding:'2px 8px',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>READ ONLY</span>}
               </div>
-              <div style={{display:'flex',alignItems:'center',gap:16}}>
-                <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  <Avatar name={profile?.full_name} size={30} color={ROLE_META[profile?.role]?.bg}/>
-                  <div>
-                    <div style={{fontSize:12,fontWeight:600,lineHeight:1.2}}>{profile?.full_name}</div>
-                    <div style={{fontSize:10,color:'var(--mist3)'}}>{ROLE_META[profile?.role]?.label}</div>
-                  </div>
-                </div>
-                <Btn variant='ghost' size='sm' onClick={logout}>Sign Out</Btn>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <ProfileMenu profile={profile} setProfile={setProfile} onLogout={logout}/>
               </div>
             </div>
           )}
