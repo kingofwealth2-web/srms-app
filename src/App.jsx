@@ -1847,6 +1847,7 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   // ── Single add / pay state ──
   const [search,setSearch]     = useState('')
   const [fstatus,setFstatus]   = useState('')
+  const [fClassId,setFClassId] = useState(profile?.role==='classteacher' ? (profile?.class_id||'') : '')
   const [modal,setModal]       = useState(false)
   const [payModal,setPayModal] = useState(false)
   const [editFee,setEditFee]   = useState(null)
@@ -1870,6 +1871,8 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   const activeStudents = students.filter(s=>!s.archived)
   const classesWithStudents = classes.filter(c=>activeStudents.some(s=>s.class_id===c.id))
   const hiddenClassCount = classes.length - classesWithStudents.length
+  const myClasses = profile?.role==='classteacher' ? classes.filter(c=>c.id===profile.class_id) : classesWithStudents
+  const studentsInClass = fClassId ? activeStudents.filter(s=>s.class_id===fClassId) : activeStudents
 
   // ── Toggle class pill ──
   const toggleClass = cid => {
@@ -1974,7 +1977,15 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
     const status=bal<=0?'Paid':effectivePaid>0?'Partial':'Outstanding'
     return{...fee,student_name:s?`${s.first_name} ${s.last_name}`:'--',balance:bal,effectivePaid,status,hasPayments:feePayments.length>0||effectivePaid>0}
   })
-  const filtered = enriched.filter(r=>r.student_name.toLowerCase().includes(search.toLowerCase())&&(!fstatus||r.status===fstatus))
+  const filtered = enriched.filter(r=>{
+    if(fClassId){
+      const s = activeStudents.find(x=>x.id===r.student_id)
+      if(!s || s.class_id!==fClassId) return false
+    }
+    if(!r.student_name.toLowerCase().includes(search.toLowerCase())) return false
+    if(fstatus && r.status!==fstatus) return false
+    return true
+  })
   const totalOwed = fees.reduce((s,f)=>s+Number(f.amount||0),0)
   const totalPaid = fees.reduce((s,f)=>s+Number(f.paid||0),0)
   const openAdd = ()=>{setForm({student_id:'',fee_type:'',amount:'',due_date:'',period:''});setModal(true)}
@@ -2077,6 +2088,10 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
             <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:14}}>⌕</span>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search student...' style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
           </div>
+          <select value={fClassId} onChange={e=>setFClassId(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:180}}>
+            <option value=''>All Classes</option>
+            {myClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
           <select value={fstatus} onChange={e=>setFstatus(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Status</option>
             <option>Paid</option><option>Partial</option><option>Outstanding</option>
@@ -2107,7 +2122,7 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
       {/* ── Single Add Fee Modal ── */}
       {modal && (
         <Modal title='Add Fee Record' onClose={()=>setModal(false)}>
-          <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={students.filter(s=>!s.archived).map(s=>({value:s.id,label:`${s.first_name} ${s.last_name}`}))}/>
+          <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={studentsInClass.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name} · ${classes.find(c=>c.id===s.class_id)?.name||''}`}))}/>
           <Field label='Fee Type' value={form.fee_type} onChange={f('fee_type')} placeholder='e.g. Tuition, Activity Fee' required/>
           <Field label='Period' value={form.period} onChange={f('period')} options={[{value:'Semester 1',label:'Semester 1'},{value:'Semester 2',label:'Semester 2'}]}/>
           <Field label='Amount' value={form.amount} onChange={f('amount')} type='number' required/>
