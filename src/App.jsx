@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './supabase.js'
 
 /* ═══════════════════════════════════════════════════════════════
@@ -436,6 +436,11 @@ function Login({onLogin}) {
   const [password,setPassword] = useState('')
   const [error,setError]       = useState('')
   const [loading,setLoading]   = useState(false)
+  // 'login' | 'forgot' | 'forgot-sent'
+  const [view,setView]         = useState('login')
+  const [resetEmail,setResetEmail] = useState('')
+  const [resetLoading,setResetLoading] = useState(false)
+  const [resetError,setResetError]     = useState('')
 
   const [schoolName,setSchoolName] = useState('Kandit Standard School')
   const [schoolLogo,setSchoolLogo] = useState(null)
@@ -467,6 +472,16 @@ function Login({onLogin}) {
     setLoading(false)
   }
 
+  const sendReset = async () => {
+    if(!resetEmail){setResetError('Please enter your email address.');return}
+    setResetLoading(true);setResetError('')
+    const redirectTo = window.location.origin + window.location.pathname
+    const {error:err} = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {redirectTo})
+    setResetLoading(false)
+    if(err){setResetError(err.message);return}
+    setView('forgot-sent')
+  }
+
 
   const isMobile = useIsMobile()
   const features = [
@@ -481,7 +496,7 @@ function Login({onLogin}) {
       {/* Left -- login form */}
       <div
         style={{flex: isMobile ? '1' : '0 0 520px',display:'flex',flexDirection:'column',justifyContent:'center',padding: isMobile ? '40px 28px' : '60px',position:'relative',zIndex:1,minHeight:'100vh'}}
-        onKeyDown={e=>{if(e.key==='Enter')attempt()}}
+        onKeyDown={e=>{if(e.key!=='Enter')return; if(view==='login')attempt(); else if(view==='forgot')sendReset()}}
       >
         <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'40px 40px',opacity:0.3,maskImage:'radial-gradient(ellipse at center,black 40%,transparent 80%)'}}/>
         <div className='fu' style={{position:'relative'}}>
@@ -494,15 +509,81 @@ function Login({onLogin}) {
               <div style={{fontSize:11,color:'var(--mist3)',marginTop:1}}>Student Record Management System</div>
             </div>
           </div>
-          <h1 className='d' style={{fontSize:38,fontWeight:700,letterSpacing:'-0.03em',lineHeight:1.1,marginBottom:12}}>Welcome<br/>back.</h1>
-          <p style={{color:'var(--mist2)',fontSize:14,marginBottom:40,lineHeight:1.6}}>Sign in to access your dashboard<br/>and manage student records.</p>
-          <Field label='Email Address' value={email} onChange={setEmail} type='email' placeholder='you@school.edu' required/>
-          <Field label='Password' value={password} onChange={setPassword} type='password' placeholder='********' required/>
-          {error && <div className='fi' style={{background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r-sm)',padding:'11px 14px',fontSize:13,color:'var(--rose)',marginBottom:16}}>{error}</div>}
+          <h1 className='d' style={{fontSize:38,fontWeight:700,letterSpacing:'-0.03em',lineHeight:1.1,marginBottom:12}}>
+            {view==='login'?<>Welcome<br/>back.</>:view==='forgot-sent'?'Link sent.':<>Reset<br/>password.</>}
+          </h1>
+          <p style={{color:'var(--mist2)',fontSize:14,marginBottom:40,lineHeight:1.6}}>
+            {view==='login'?<>Sign in to access your dashboard<br/>and manage student records.</>
+            :view==='forgot'?'Enter your email and we’ll send a reset link.'
+            :'Check your email for the reset link.'}
+          </p>
+          {view==='login'&&<Field label='Email Address' value={email} onChange={setEmail} type='email' placeholder='you@school.edu' required/>}
+          {view==='login'&&<Field label='Password' value={password} onChange={setPassword} type='password' placeholder='********' required/>}
+          {view==='login'&&error && <div className='fi' style={{background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r-sm)',padding:'11px 14px',fontSize:13,color:'var(--rose)',marginBottom:16}}>{error}</div>}
+          {view==='login' && (<>
           <Btn onClick={attempt} disabled={loading} style={{width:'100%',justifyContent:'center',padding:13,fontSize:14,boxShadow:loading?'none':'0 4px 20px rgba(232,184,75,0.25)'}}>
-            {loading ? <><Spinner/> Signing in...</> : 'Sign In >'}
+            {loading ? <><Spinner/> Signing in...</> : 'Sign In →'}
           </Btn>
-          <p style={{fontSize:12,color:'var(--mist3)',marginTop:20,textAlign:'center'}}>Contact your administrator if you cannot access your account.</p>
+          <div style={{marginTop:20,textAlign:'center'}}>
+            <button onClick={()=>{setView('forgot');setResetEmail(email);setResetError('');}}
+              style={{background:'none',border:'none',color:'var(--mist3)',fontSize:12,cursor:'pointer',textDecoration:'underline',textDecorationColor:'transparent',transition:'all 0.15s',padding:0}}
+              onMouseEnter={e=>{e.target.style.color='var(--gold)';e.target.style.textDecorationColor='var(--gold)'}}
+              onMouseLeave={e=>{e.target.style.color='var(--mist3)';e.target.style.textDecorationColor='transparent'}}>
+              Forgot your password?
+            </button>
+          </div>
+          </>)}
+
+          {view==='forgot' && (<>
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Email Address</div>
+              <input
+                value={resetEmail}
+                onChange={e=>setResetEmail(e.target.value)}
+                onKeyDown={e=>e.key==='Enter'&&sendReset()}
+                type='email'
+                placeholder='you@school.edu'
+                autoFocus
+                style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'10px 14px',color:'var(--white)',fontSize:13,boxSizing:'border-box',outline:'none'}}
+                onFocus={e=>{e.target.style.borderColor='var(--gold)';e.target.style.boxShadow='0 0 0 3px rgba(232,184,75,0.08)'}}
+                onBlur={e=>{e.target.style.borderColor='var(--line)';e.target.style.boxShadow='none'}}
+              />
+            </div>
+            {resetError && <div style={{background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r-sm)',padding:'10px 14px',fontSize:13,color:'var(--rose)',marginBottom:16}}>{resetError}</div>}
+            <Btn onClick={sendReset} disabled={resetLoading} style={{width:'100%',justifyContent:'center',padding:13,fontSize:14}}>
+              {resetLoading ? <><Spinner/> Sending...</> : 'Send Reset Link →'}
+            </Btn>
+            <div style={{marginTop:16,textAlign:'center'}}>
+              <button onClick={()=>{setView('login');setResetError('')}}
+                style={{background:'none',border:'none',color:'var(--mist3)',fontSize:12,cursor:'pointer',padding:0}}
+                onMouseEnter={e=>e.target.style.color='var(--mist)'}
+                onMouseLeave={e=>e.target.style.color='var(--mist3)'}>
+                ← Back to sign in
+              </button>
+            </div>
+          </>)}
+
+          {view==='forgot-sent' && (<>
+            <div style={{textAlign:'center',padding:'8px 0'}}>
+              <div style={{width:56,height:56,borderRadius:'50%',background:'rgba(45,212,160,0.1)',border:'1px solid rgba(45,212,160,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,margin:'0 auto 20px'}}>✓</div>
+              <div style={{fontSize:17,fontWeight:700,color:'var(--white)',marginBottom:10}}>Check your inbox</div>
+              <p style={{fontSize:13,color:'var(--mist2)',lineHeight:1.7,marginBottom:24}}>
+                A password reset link has been sent to<br/>
+                <strong style={{color:'var(--gold)'}}>{resetEmail}</strong>.<br/>
+                Click the link in the email to set a new password.
+              </p>
+              <p style={{fontSize:11,color:'var(--mist3)',marginBottom:24,lineHeight:1.6}}>
+                Didn't receive it? Check your spam folder or{' '}
+                <button onClick={()=>setView('forgot')} style={{background:'none',border:'none',color:'var(--mist2)',fontSize:11,cursor:'pointer',padding:0,textDecoration:'underline'}}>try again</button>.
+              </p>
+              <button onClick={()=>{setView('login');setResetEmail('');setResetError('')}}
+                style={{background:'none',border:'none',color:'var(--mist3)',fontSize:12,cursor:'pointer',padding:0}}
+                onMouseEnter={e=>e.target.style.color='var(--mist)'}
+                onMouseLeave={e=>e.target.style.color='var(--mist3)'}>
+                ← Back to sign in
+              </button>
+            </div>
+          </>)}
         </div>
       </div>
 
@@ -563,6 +644,137 @@ function Login({onLogin}) {
           <div style={{marginTop:10,fontSize:11,color:'var(--mist3)',letterSpacing:'0.06em'}}>Built by <span style={{color:'var(--gold)',fontWeight:600,letterSpacing:'0.12em'}}>ZELVA STUDIOS</span></div>
         </div>
       </div>}
+    </div>
+  )
+}
+
+// ── RESET PASSWORD ─────────────────────────────────────────────
+function ResetPassword({onDone}) {
+  const [newPass,setNewPass]     = useState('')
+  const [confirm,setConfirm]     = useState('')
+  const [saving,setSaving]       = useState(false)
+  const [error,setError]         = useState('')
+  const [success,setSuccess]     = useState(false)
+  const isMobile = useIsMobile()
+
+  const [schoolName,setSchoolName] = useState('Kandit Standard School')
+  const [schoolLogo,setSchoolLogo] = useState(null)
+  useEffect(()=>{
+    supabase.from('settings').select('school_name,school_logo').limit(1).single()
+      .then(({data})=>{
+        if(data?.school_name) setSchoolName(data.school_name)
+        if(data?.school_logo) setSchoolLogo(data.school_logo)
+      })
+  },[])
+
+  const timerRef = useRef(null)
+  useEffect(()=>()=>{ if(timerRef.current) clearTimeout(timerRef.current) },[])
+
+  const submit = async () => {
+    setError('')
+    if(!newPass||!confirm){setError('Please fill in both fields.');return}
+    if(newPass.length<8){setError('Password must be at least 8 characters.');return}
+    if(newPass!==confirm){setError('Passwords do not match.');return}
+    setSaving(true)
+    const {error:err} = await supabase.auth.updateUser({password:newPass})
+    setSaving(false)
+    if(err){setError(err.message);return}
+    setSuccess(true)
+    // Clean URL, then sign out and redirect to login after short delay
+    window.history.replaceState(null,'',window.location.pathname)
+    timerRef.current = setTimeout(()=>{
+      supabase.auth.signOut().then(()=>onDone())
+    },2200)
+  }
+
+  return (
+    <div style={{minHeight:'100vh',display:'flex',background:'var(--ink)',position:'relative',overflow:'hidden'}}>
+      <div style={{flex: isMobile?'1':'0 0 520px',display:'flex',flexDirection:'column',justifyContent:'center',padding:isMobile?'40px 28px':'60px',position:'relative',zIndex:1,minHeight:'100vh'}}
+        onKeyDown={e=>{if(e.key==='Enter'&&!success)submit()}}>
+        <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'40px 40px',opacity:0.3,maskImage:'radial-gradient(ellipse at center,black 40%,transparent 80%)'}}/>
+        <div className='fu' style={{position:'relative'}}>
+          {/* Logo */}
+          <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:56}}>
+            <div style={{width:44,height:44,borderRadius:12,background:'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 24px rgba(232,184,75,0.4)'}}>
+              <span className='d' style={{fontSize:20,fontWeight:700,color:'var(--ink)'}}>S</span>
+            </div>
+            <div>
+              <div className='d' style={{fontSize:20,fontWeight:700}}>SRMS</div>
+              <div style={{fontSize:11,color:'var(--mist3)',marginTop:1}}>Student Record Management System</div>
+            </div>
+          </div>
+
+          {!success ? (<>
+            <h1 className='d' style={{fontSize:38,fontWeight:700,letterSpacing:'-0.03em',lineHeight:1.1,marginBottom:12}}>Set new<br/>password.</h1>
+            <p style={{color:'var(--mist2)',fontSize:14,marginBottom:40,lineHeight:1.6}}>Choose a strong password — at least 8 characters.</p>
+
+            {/* New password */}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>New Password</div>
+              <input value={newPass} onChange={e=>setNewPass(e.target.value)} type='password' placeholder='Min. 8 characters'
+                style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'10px 14px',color:'var(--white)',fontSize:13,boxSizing:'border-box',outline:'none'}}
+                onFocus={e=>{e.target.style.borderColor='var(--gold)';e.target.style.boxShadow='0 0 0 3px rgba(232,184,75,0.08)'}}
+                onBlur={e=>{e.target.style.borderColor='var(--line)';e.target.style.boxShadow='none'}}/>
+            </div>
+
+            {/* Confirm password */}
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Confirm Password</div>
+              <input value={confirm} onChange={e=>setConfirm(e.target.value)} type='password' placeholder='Repeat your new password'
+                style={{width:'100%',background:'var(--ink3)',border:`1px solid ${confirm&&confirm!==newPass?'var(--rose)':'var(--line)'}`,borderRadius:'var(--r-sm)',padding:'10px 14px',color:'var(--white)',fontSize:13,boxSizing:'border-box',outline:'none'}}
+                onFocus={e=>{e.target.style.borderColor=confirm&&confirm!==newPass?'var(--rose)':'var(--gold)';e.target.style.boxShadow='0 0 0 3px rgba(232,184,75,0.08)'}}
+                onBlur={e=>{e.target.style.borderColor=confirm&&confirm!==newPass?'var(--rose)':'var(--line)';e.target.style.boxShadow='none'}}/>
+              {confirm&&confirm!==newPass&&<div style={{fontSize:11,color:'var(--rose)',marginTop:5}}>Passwords do not match</div>}
+            </div>
+
+            {/* Strength indicator */}
+            {newPass && (
+              <div style={{marginBottom:20}}>
+                <div style={{display:'flex',gap:4,marginBottom:5}}>
+                  {[1,2,3,4].map(i=>{
+                    const strength = newPass.length>=12&&/[A-Z]/.test(newPass)&&/[0-9]/.test(newPass)&&/[^A-Za-z0-9]/.test(newPass)?4
+                      :newPass.length>=10&&(/[A-Z]/.test(newPass)||/[0-9]/.test(newPass))?3
+                      :newPass.length>=8?2:1
+                    const c = strength>=4?'var(--emerald)':strength>=3?'var(--sky)':strength>=2?'var(--amber)':'var(--rose)'
+                    return <div key={i} style={{flex:1,height:3,borderRadius:2,background:i<=strength?c:'var(--ink4)',transition:'background 0.2s'}}/>
+                  })}
+                </div>
+                <div style={{fontSize:11,color:'var(--mist3)'}}>
+                  {newPass.length<8?'Too short':newPass.length>=12&&/[A-Z]/.test(newPass)&&/[0-9]/.test(newPass)&&/[^A-Za-z0-9]/.test(newPass)?'Strong password 💪':newPass.length>=10?'Good — try adding numbers or symbols':'Acceptable'}
+                </div>
+              </div>
+            )}
+
+            {error && <div style={{background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r-sm)',padding:'11px 14px',fontSize:13,color:'var(--rose)',marginBottom:16}}>{error}</div>}
+
+            <Btn onClick={submit} disabled={saving||!newPass||newPass!==confirm} style={{width:'100%',justifyContent:'center',padding:13,fontSize:14,boxShadow:saving?'none':'0 4px 20px rgba(232,184,75,0.25)'}}>
+              {saving?<><Spinner/> Saving...</>:'Set New Password →'}
+            </Btn>
+          </>) : (
+            <div style={{textAlign:'center',paddingTop:8}}>
+              <div style={{width:64,height:64,borderRadius:'50%',background:'rgba(45,212,160,0.1)',border:'1px solid rgba(45,212,160,0.35)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,margin:'0 auto 24px',boxShadow:'0 0 32px rgba(45,212,160,0.15)'}}>✓</div>
+              <div style={{fontSize:22,fontWeight:700,color:'var(--white)',marginBottom:10}}>Password updated!</div>
+              <p style={{fontSize:13,color:'var(--mist2)',lineHeight:1.7}}>You will be redirected to the sign-in page in a moment…</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Right branding panel */}
+      {!isMobile && (
+        <div style={{flex:1,background:'var(--ink2)',borderLeft:'1px solid var(--line)',display:'flex',alignItems:'center',justifyContent:'center',padding:'40px 80px',position:'relative',overflow:'hidden',minHeight:'100vh'}}>
+          <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)',backgroundSize:'60px 60px',opacity:0.35}}/>
+          <div className='fu fu2' style={{position:'relative',textAlign:'center',maxWidth:360}}>
+            {schoolLogo&&<div style={{display:'flex',justifyContent:'center',marginBottom:24}}><div style={{width:80,height:80,borderRadius:'50%',border:'2px solid rgba(232,184,75,0.4)',overflow:'hidden',background:'var(--ink)'}}><img src={schoolLogo} alt='Logo' style={{width:'100%',height:'100%',objectFit:'cover'}}/></div></div>}
+            <div style={{width:72,height:72,borderRadius:'50%',background:'rgba(232,184,75,0.06)',border:'1.5px solid rgba(232,184,75,0.55)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',boxShadow:'0 0 0 5px rgba(232,184,75,0.05),0 0 24px rgba(232,184,75,0.35)'}}>
+              <svg width='38' height='38' viewBox='0 0 64 64' fill='none'><path d='M32 10L4 24L32 38L60 24L32 10Z' fill='rgba(232,184,75,0.9)' stroke='rgba(232,184,75,1)' strokeWidth='1.5' strokeLinejoin='round'/><path d='M16 31V46C16 46 22 52 32 52C42 52 48 46 48 46V31' stroke='rgba(232,184,75,0.8)' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'/></svg>
+            </div>
+            <div className='d' style={{fontSize:11,fontWeight:600,color:'var(--gold)',textTransform:'uppercase',letterSpacing:'0.18em',marginBottom:10}}>{schoolName}</div>
+            <h2 className='d' style={{fontSize:26,fontWeight:700,letterSpacing:'-0.02em',lineHeight:1.2,marginBottom:12}}>Secure account<br/>recovery</h2>
+            <p style={{fontSize:13,color:'var(--mist3)',lineHeight:1.7}}>Choose a strong password you haven't used before. You'll be signed in automatically after saving.</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -5663,6 +5875,7 @@ function YearSwitcher({ activeYear, currentYear, selectedYear, setSelectedYear, 
 export default function App() {
   const [session,setSession]   = useState(null)
   const [profile,setProfile]   = useState(null)
+  const [isRecovery,setIsRecovery] = useState(false)
 
   const [settings,setSettings] = useState(null)
   const [data,setData]         = useState({students:[],classes:[],subjects:[],grades:[],attendance:[],fees:[],payments:[],behaviour:[],announcements:[],enrolments:[],users:[]})
@@ -5682,10 +5895,23 @@ export default function App() {
     setTimeout(()=>setToast(null),3000)
   },[])
 
-  // Auth listener
+  // Auth listener — also detect password-recovery flow from email link
   useEffect(()=>{
-    supabase.auth.getSession().then(({data:{session}})=>{ setSession(session) })
-    const {data:{subscription}} = supabase.auth.onAuthStateChange((_,session)=>{ setSession(session) })
+    supabase.auth.getSession().then(({data:{session}})=>{
+      setSession(session)
+      // Supabase fires PASSWORD_RECOVERY event when user clicks the reset link.
+      // Also check the hash directly in case the event fires before our listener registers.
+      const hash = window.location.hash
+      if(hash.includes('type=recovery') && session){
+        setIsRecovery(true)
+      }
+    })
+    const {data:{subscription}} = supabase.auth.onAuthStateChange((event,session)=>{
+      setSession(session)
+      if(event==='PASSWORD_RECOVERY'){
+        setIsRecovery(true)
+      }
+    })
     return ()=>subscription.unsubscribe()
   },[])
 
@@ -5838,6 +6064,7 @@ export default function App() {
     setNewYearWorking(false)
   }
 
+  if(isRecovery) return <><style>{G}</style><ResetPassword onDone={()=>{setIsRecovery(false);setSession(null)}}/></>
   if(loading) return <><style>{G}</style><LoadingScreen msg={session?'Loading your workspace...':'Initialising...'}/></>
   if(!session||!profile) return <><style>{G}</style><Login onLogin={p=>setProfile(p)}/></>
 
