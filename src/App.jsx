@@ -1085,22 +1085,32 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
   const scale = settings?.grading_scale || []
   const allComps = getGradeComponents(settings)
   const activeComps = allComps.filter(c=>c.enabled)
-  // Subjects this user can EDIT grades for (assigned to them)
-  const mySubjects  = ['superadmin','admin'].includes(profile?.role)
+  const isAdminGrades      = ['superadmin','admin'].includes(profile?.role)
+  const isClassTeacherGrades = profile?.role==='classteacher'
+  // Subjects this user can EDIT grades for
+  const mySubjects = isAdminGrades
     ? subjects
     : subjects.filter(s=>s.teacher_id===profile?.id)
-  // Class Teacher: view ALL subjects in their class; others: only assigned
-  const viewSubjects = profile?.role==='classteacher'
-    ? subjects.filter(s=>s.class_id===profile?.class_id)
+
+  // All class IDs this user can access in grades
+  // Class teacher: their own class + any other class where they're a subject teacher
+  // Subject teacher: all classes where they teach a subject
+  const myClassIds = isAdminGrades
+    ? null
+    : [...new Set(mySubjects.map(s=>s.class_id))]
+
+  // Class teacher also views all subjects in their own class (read-only for others)
+  const viewSubjects = isClassTeacherGrades
+    ? subjects.filter(s=>s.class_id===profile?.class_id || s.teacher_id===profile?.id)
     : mySubjects
-  // Grades visible in table
-  const myGrades    = ['superadmin','admin'].includes(profile?.role)
-    ? grades
-    : grades.filter(g=>viewSubjects.some(s=>s.id===g.subject_id))
-  // Students for grade entry dropdown — scoped to relevant classes
-  const myClassIds  = ['superadmin','admin'].includes(profile?.role) ? null : [...new Set(mySubjects.map(s=>s.class_id))]
-  const myStudents  = myClassIds===null ? students : students.filter(s=>myClassIds.includes(s.class_id))
-  const [fc,setFc] = useState('') // class filter (admin/superadmin)
+
+  // Classes available in the filter for non-admins
+  const teacherClasses = myClassIds
+    ? data.classes?.filter(c=>myClassIds.includes(c.id))||[]
+    : data.classes||[]
+
+  // Default fc to class teacher's own class
+  const [fc,setFc] = useState(isClassTeacherGrades ? (profile?.class_id||'') : '')
   const [fs,setFs] = useState('')
   const [fp,setFp] = useState('')
   const [modal,setModal] = useState(false)
@@ -1108,23 +1118,43 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
   const [form,setForm]   = useState({})
   const [saving,setSaving] = useState(false)
   const f = k => v => setForm(p=>({...p,[k]:v}))
-  const isAdminGrades = ['superadmin','admin'].includes(profile?.role)
+
   const periods = settings?.period_type==='term'
     ? Array.from({length:settings.period_count||2},(_,i)=>`Term ${i+1}`)
     : Array.from({length:settings.period_count||2},(_,i)=>`Semester ${i+1}`)
-  // When admin selects a class, filter subjects to that class
-  const fcSubjects = fc ? viewSubjects.filter(s=>s.class_id===fc) : viewSubjects
+
+  // Subjects scoped to selected class in filter
+  const fcSubjects = fc
+    ? viewSubjects.filter(s=>s.class_id===fc)
+    : viewSubjects
+
+  // Students scoped to selected class (or all teaching classes if no class selected)
+  const myStudents = fc
+    ? students.filter(s=>s.class_id===fc)
+    : myClassIds===null
+      ? students
+      : students.filter(s=>myClassIds.includes(s.class_id))
+
+  // Grades visible in table
+  const myGrades = isAdminGrades
+    ? grades
+    : grades.filter(g=>viewSubjects.some(s=>s.id===g.subject_id))
+
   const filtered = myGrades.filter(g=>{
     if(fc) { const sub=subjects.find(s=>s.id===g.subject_id); if(!sub||sub.class_id!==fc) return false }
     return (!fs||g.subject_id===fs)&&(!fp||g.period===fp)
   })
-  // Score limit warnings: check active comps against max_score
+
+  // Score limit warnings
   const scoreWarnings = allComps.filter(c=>c.enabled && +form[c.key] > c.max_score && c.max_score>0)
 
   const openAdd = () => {
     const emptyScores = ALL_COMPONENTS.reduce((acc,k)=>({...acc,[k]:''}),{})
+    const defaultSubject = fc
+      ? fcSubjects[0]?.id||''
+      : mySubjects[0]?.id||''
     setEdit(null)
-    setForm({student_id:'',subject_id:mySubjects[0]?.id||'',...emptyScores,period:periods[0],year:activeYear})
+    setForm({student_id:'',subject_id:defaultSubject,...emptyScores,period:periods[0],year:activeYear})
     setModal(true)
   }
   const openEdit = g => { setEdit(g); setForm({...g}); setModal(true) }
@@ -1183,13 +1213,15 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
       </PageHeader>
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-          {isAdminGrades && (
-            <select value={fc} onChange={e=>{setFc(e.target.value);setFs('')}}
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
-              <option value=''>All Classes</option>
-              {data.classes?.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          )}
+          {/* Class filter — admin sees all classes, teachers see only their teaching classes */}
+          <select value={fc} onChange={e=>{setFc(e.target.value);setFs('')}}
+            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
+            {isAdminGrades
+              ? <option value=''>All Classes</option>
+              : <option value=''>All My Classes</option>
+            }
+            {teacherClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
           <select value={fs} onChange={e=>setFs(e.target.value)}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
             <option value=''>All Subjects</option>
@@ -1224,8 +1256,8 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
       {modal && (
         <Modal title={edit?'Edit Grade':'Record Grades'} onClose={()=>setModal(false)} width={600}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 20px'}}>
-            <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={myStudents.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name}`}))}/>
-            <Field label='Subject' value={form.subject_id} onChange={f('subject_id')} required options={mySubjects.map(s=>({value:s.id,label:s.name}))}/>
+            <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={myStudents.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name} · ${data.classes?.find(c=>c.id===s.class_id)?.name||''}`}))}/>
+            <Field label='Subject' value={form.subject_id} onChange={f('subject_id')} required options={fcSubjects.length>0?fcSubjects.map(s=>({value:s.id,label:s.name})):mySubjects.map(s=>({value:s.id,label:s.name}))}/>
             <Field label='Period'        value={form.period} onChange={f('period')} options={periods}/>
             <div style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Academic Year</div><div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>{form.year||settings?.academic_year||'--'}</div></div>
           </div>
