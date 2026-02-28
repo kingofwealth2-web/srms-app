@@ -2236,6 +2236,7 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
   // Role-based scoping
   const isClassTeacher = profile?.role === 'classteacher'
   const isTeacher      = profile?.role === 'teacher'
+  const isAdmin        = ['superadmin','admin'].includes(profile?.role)
   // Allowed report tabs
   const allowedTabs = isClassTeacher
     ? ['academic','attendance','reportcards']
@@ -2435,8 +2436,8 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
         ))}
       </div>
 
-      {/* Filters */}
-      <Card style={{marginBottom:16,padding:'14px 20px'}}>
+      {/* Filters + Tables — hidden on report cards tab */}
+      {rtype!=='reportcards' && <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
           {/* Student search with autofill */}
           <div style={{position:'relative',flex:'1 1 220px'}}>
@@ -2502,10 +2503,10 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
             )}
           </div>
         )}
-      </Card>
+      </Card>}
 
       {/* Prompt if nothing selected */}
-      {!selectedStudent && !fc && (
+      {rtype!=='reportcards' && !selectedStudent && !fc && (
         <div style={{background:'rgba(232,184,75,0.04)',border:'1px solid rgba(232,184,75,0.15)',borderRadius:'var(--r)',padding:'14px 20px',marginBottom:16,fontSize:13,color:'var(--mist2)',display:'flex',alignItems:'center',gap:10}}>
           <span style={{fontSize:16}}>💡</span>
           Select a class or search for a student to generate a focused report. Showing all students.
@@ -2513,7 +2514,7 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
       )}
 
       {/* Tables */}
-      <Card>
+      {rtype!=='reportcards' && <Card>
         {rtype==='academic' && (
           <>
             {!selectedStudent && (fc || academicData.length>0) && (
@@ -2610,7 +2611,7 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
             {key:'feeStatus',label:'Status',render:v=>v!=='--'?<Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>:'--'},
           ]}/>
         )}
-      </Card>
+      </Card>}
 
       {/* ── REPORT CARDS TAB ── */}
       {rtype==='reportcards' && (
@@ -2641,7 +2642,7 @@ const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlig
 
 // ── REPORT CARDS ───────────────────────────────────────────────
 function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName}) {
-  const {students=[],grades=[],attendance=[],behaviour=[],classes=[],subjects=[]} = data
+  const {students=[],grades=[],attendance=[],behaviour=[],classes=[],subjects=[],users=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
   const schoolLogo = settings?.school_logo||null
@@ -2736,7 +2737,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   const printBroadsheet = () => {
     if(!rcClass||!rcPeriod) return
     const cls = classes.find(c=>c.id===rcClass)
-    const ctUser = cls?.class_teacher_id ? data.profile : null
+    // class teacher name comes from rcClassTeacherName input
 
     const subjectCols = classSubjects.map(s=>`<th style="padding:8px 6px;text-align:center;font-size:9px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.06em;border:1px solid #ddd;background:#f8f8fc;max-width:60px;word-break:break-word;">${s.name}</th>`).join('')
 
@@ -2832,7 +2833,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     if(!rcClass||!rcPeriod||!rcSubject) return
     const cls = classes.find(c=>c.id===rcClass)
     const sub = subjects.find(s=>s.id===rcSubject)
-    const subTeacher = sub?.teacher_id ? data.users?.find(u=>u.id===sub.teacher_id) : null
+    const subTeacher = sub?.teacher_id ? users.find(u=>u.id===sub.teacher_id) : null
 
     const rankedBySub = [...classStudents]
       .map(s=>{
@@ -2975,7 +2976,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         <div><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.08em;">Year</div><div style="font-size:13px;font-weight:600;color:#1a1a2e;">${activeYear}</div></div>
         <div style="margin-left:auto;text-align:center;background:#e8b84b15;border:1px solid #e8b84b30;border-radius:8px;padding:8px 16px;">
           <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.08em;">Position</div>
-          <div style="font-size:18px;font-weight:900;color:#e8b84b;">${ordinal(sPos)}</div>
+          <div style="font-size:18px;font-weight:900;color:#e8b84b;">${sPos!=='--'?ordinal(sPos):'--'}</div>
           <div style="font-size:10px;color:#888;">of ${classStudents.length}</div>
         </div>
       </div>
@@ -4346,7 +4347,7 @@ export default function App() {
   const [profile,setProfile]   = useState(null)
 
   const [settings,setSettings] = useState(null)
-  const [data,setData]         = useState({students:[],classes:[],subjects:[],grades:[],attendance:[],fees:[],payments:[],behaviour:[],announcements:[],enrolments:[]})
+  const [data,setData]         = useState({students:[],classes:[],subjects:[],grades:[],attendance:[],fees:[],payments:[],behaviour:[],announcements:[],enrolments:[],users:[]})
   const [page,setPage]         = useState('dashboard')
   const [collapsed,setCollapsed] = useState(false)
   const [loading,setLoading]   = useState(true)
@@ -4379,7 +4380,7 @@ export default function App() {
     const [
       {data:students},{data:classes},{data:subjects},
       {data:grades},{data:attendance},{data:fees},
-      {data:payments},{data:behaviour},{data:announcements},{data:enrolments}
+      {data:payments},{data:behaviour},{data:announcements},{data:enrolments},{data:users}
     ] = await Promise.all([
       supabase.from('students').select('*').order('student_id'),
       supabase.from('classes').select('*').order('name'),
@@ -4391,11 +4392,13 @@ export default function App() {
       supabase.from('behaviour').select('*').eq('academic_year',year).order('created_at',{ascending:false}),
       supabase.from('announcements').select('*').eq('academic_year',year).order('created_at',{ascending:false}),
       supabase.from('student_year_enrolment').select('*').eq('academic_year',year),
+      supabase.from('profiles').select('*'),
     ])
     setData({
       students:students||[], classes:classes||[], subjects:subjects||[],
       grades:grades||[], attendance:attendance||[], fees:fees||[],
-      payments:payments||[], behaviour:behaviour||[], announcements:announcements||[], enrolments:enrolments||[]
+      payments:payments||[], behaviour:behaviour||[], announcements:announcements||[], enrolments:enrolments||[],
+      users:users||[]
     })
   },[])
 
