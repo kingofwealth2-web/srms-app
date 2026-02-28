@@ -4470,6 +4470,23 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
     }
     setSaving(false)
   }
+  const deleteSubject = async (sub) => {
+    if(!confirm(`Delete "${sub.name}"? This will also remove all grade records for this subject.`)) return
+    setSaving(true)
+    // Delete associated grades first
+    await supabase.from('grades').delete().eq('subject_id', sub.id)
+    const {error} = await supabase.from('subjects').delete().eq('id', sub.id)
+    if(error) toast(error.message,'error')
+    else {
+      setData(p=>({...p,
+        subjects: p.subjects.filter(s=>s.id!==sub.id),
+        grades:   p.grades.filter(g=>g.subject_id!==sub.id)
+      }))
+      auditLog(profile,'Classes','Deleted',`Subject: ${sub.name} · ${selected?.name}`,{},sub,null)
+      toast(`"${sub.name}" deleted`)
+    }
+    setSaving(false)
+  }
   const classSubjects = selected ? subjects.filter(s=>s.class_id===selected.id) : []
   const classStudents = selected ? students.filter(s=>s.class_id===selected.id) : []
   return (
@@ -4541,7 +4558,12 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
               <DataTable data={classSubjects} columns={[
                 {key:'name',label:'Subject',render:(v,r)=><div><div style={{fontWeight:600}}>{v}</div><span className='mono' style={{fontSize:11,color:'var(--mist3)'}}>{r.code}</span></div>},
                 {key:'teacher_id',label:'Teacher',render:v=>v?allUsers.find(u=>u.id===v)?.full_name||'--':<span style={{color:'var(--mist3)'}}>Unassigned</span>},
-                {key:'id',label:'',render:(v,r)=><Btn variant='ghost' size='sm' onClick={()=>{setEditS(r);setSf({...r,teacher_id:r.teacher_id||''});setSubjectModal(true)}}>Edit</Btn>},
+                {key:'id',label:'',render:(v,r)=>(
+                  <div style={{display:'flex',gap:6}}>
+                    <Btn variant='ghost' size='sm' onClick={()=>{setEditS(r);setSf({...r,teacher_id:r.teacher_id||''});setSubjectModal(true)}}>Edit</Btn>
+                    {profile?.role==='superadmin' && <Btn variant='danger' size='sm' onClick={()=>deleteSubject(r)}>Delete</Btn>}
+                  </div>
+                )},
               ]}/>
             </Card>
           </div>
