@@ -1454,7 +1454,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
 
 // ── GRADES ─────────────────────────────────────────────────────
 function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
-  const {grades=[],students=[],subjects=[]} = data
+  const {grades=[],students=[],subjects=[],enrolments=[]} = data
   const scale = settings?.grading_scale || []
   const allComps = getGradeComponents(settings)
   const activeComps = allComps.filter(c=>c.enabled)
@@ -1503,24 +1503,31 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
 
   // Students scoped to selected class (or all teaching classes if no class selected)
   const myStudents = fc
-    ? students.filter(s=>s.class_id===fc)
+    ? students.filter(s=>s.class_id===fc && !s.archived)
     : myClassIds===null
-      ? students
-      : students.filter(s=>myClassIds.includes(s.class_id))
+      ? students.filter(s=>!s.archived)
+      : students.filter(s=>myClassIds.includes(s.class_id) && !s.archived)
 
   // Grades visible in table
   const myGrades = isAdminGrades
     ? grades
     : grades.filter(g=>viewSubjects.some(s=>s.id===g.subject_id))
 
+  // When viewing a past year, use enrolment records to know which class
+  // each student was in that year — same approach as Reports
+  const enrolmentMap = enrolments.reduce((acc,e)=>{acc[e.student_id]=e.class_id;return acc},{})
+  const getStudentClassId = (studentId) => {
+    if(isViewingPast && enrolments.length>0) return enrolmentMap[studentId]||null
+    return students.find(s=>s.id===studentId)?.class_id||null
+  }
+
   const filtered = myGrades.filter(g=>{
     // Scope to active year — skip only if year is explicitly set to a different year
     if(g.year && g.year !== activeYear) return false
-    // Filter by class: match the student's CURRENT class, not the subject's class
-    // This ensures promoted students don't appear under their old class
+    // Filter by class: use enrolment records for past years, current class for present
     if(fc) {
-      const student = students.find(s=>s.id===g.student_id)
-      if(!student || student.class_id !== fc) return false
+      const classId = getStudentClassId(g.student_id)
+      if(!classId || classId !== fc) return false
     }
     return (!fs||g.subject_id===fs)&&(!fp||g.period===fp)
   })
@@ -1673,6 +1680,7 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
                 g.student_id===form.student_id &&
                 g.subject_id===form.subject_id &&
                 g.period !== form.period &&
+                g.year === activeYear &&
                 (!edit || g.id !== edit.id)
               )
               if(!otherPeriods.length) return null
