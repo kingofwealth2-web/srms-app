@@ -2213,6 +2213,13 @@ const ordinal = n => {
   const s=['th','st','nd','rd'], v=n%100
   return n+(s[(v-20)%10]||s[v]||s[0])
 }
+// Auto-abbreviate subject names: multi-word → initials, single-word → first 4 chars
+const abbrSubject = name => {
+  if(!name) return '?'
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if(words.length>=2) return words.map(w=>w[0].toUpperCase()).join('')
+  return name.slice(0,4).toUpperCase()
+}
 
 // ── REPORTS ────────────────────────────────────────────────────
 function Reports({profile,data,settings,activeYear,isViewingPast}) {
@@ -2291,6 +2298,21 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
     : studentsWithYearClass.filter(s=>!fc||s.class_id===fc)
 
   // ── Academic data ──
+  // For trend: compute totals per period per student
+  const allPeriods = Array.from({length:settings?.period_count||2},(_,i)=>`${periodLabel} ${i+1}`)
+  const getTrendArrow = (studentId) => {
+    if(allPeriods.length < 2) return null
+    const p1 = allPeriods[0], p2 = allPeriods[1]
+    const g1 = grades.filter(g=>g.student_id===studentId&&g.period===p1)
+    const g2 = grades.filter(g=>g.student_id===studentId&&g.period===p2)
+    if(!g1.length||!g2.length) return null
+    const t1 = g1.map(g=>calcTotal(g,gradeComps)).reduce((a,b)=>a+b,0)
+    const t2 = g2.map(g=>calcTotal(g,gradeComps)).reduce((a,b)=>a+b,0)
+    const diff = t2 - t1
+    if(diff > 0) return {arrow:'↑', color:'var(--emerald)', diff:'+'+diff}
+    if(diff < 0) return {arrow:'↓', color:'var(--rose)', diff:String(diff)}
+    return {arrow:'→', color:'var(--mist3)', diff:'0'}
+  }
   const academicData = scopedStudents.map(s=>{
     const sg = grades.filter(g=>g.student_id===s.id&&(!fp||g.period===fp))
     // Per-subject scores
@@ -2299,7 +2321,9 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
     const tots = Object.values(subjectScores)
     const total = tots.length ? tots.reduce((a,b)=>a+b,0) : null
     const avg   = tots.length ? Math.round(total/tots.length) : null
-    return {...s, subjectScores, total: total||0, avg, gpa: avg!==null?getGPA(avg,scale):null, count:sg.length, letter:avg!==null?getLetter(avg,scale):'--', pass:avg!==null?avg>=50:null}
+    const remark= avg!==null ? getGradeRemark(avg,scale) : '--'
+    const trend = !fp ? getTrendArrow(s.id) : null
+    return {...s, subjectScores, total: total||0, avg, remark, trend, count:sg.length, letter:avg!==null?getLetter(avg,scale):'--', pass:avg!==null?avg>=50:null}
   })
   // Sort by total descending for ranking
   const sortedAcademic = [...academicData].sort((a,b)=>(b.total||0)-(a.total||0))
@@ -2366,17 +2390,28 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
 
       if(rtype==='academic'){
         if(selectedStudent){
-          csv='Subject,'+gradeComps.filter(c=>c.enabled).map(c=>c.label).join(',')+',Total,Grade,GPA,Status\n'
+          csv='Subject,'+gradeComps.filter(c=>c.enabled).map(c=>c.label).join(',')+',Total,Grade,Remark,Status\n'
           grades.filter(g=>g.student_id===selectedStudent.id&&(!fp||g.period===fp)).forEach(g=>{
             const subj=subjects.find(s=>s.id===g.subject_id)
-            const tot=calcTotal(g,gradeComps), let_=getLetter(tot,scale)
-            csv+=`"${subj?.name||'--'}",${gradeComps.filter(c=>c.enabled).map(c=>g[c.key]||0).join(',')},${tot},${let_},${getGPA(tot,scale).toFixed(1)},${tot>=50?'Pass':'Fail'}\n`
+            const tot=calcTotal(g,gradeComps), let_=getLetter(tot,scale), rem=getGradeRemark(tot,scale)
+            csv+=`"${subj?.name||'--'}",${gradeComps.filter(c=>c.enabled).map(c=>g[c.key]||0).join(',')},${tot},${let_},"${rem}",${tot>=50?'Pass':'Fail'}\n`
           })
         } else {
           const visSubjects=classSubjects.length>0?classSubjects:subjects
-          csv='Position,Student ID,Student,'+visSubjects.map(s=>`"${s.name}"`).join(',')+',Total,Average,Grade,GPA,Status\n'
+          csv='Position,Student ID,Student,'+visSubjects.map(s=>`"${s.name}"`).join(',')
+          // Add component columns per subject
+          visSubjects.forEach(sub=>{
+            gradeComps.filter(c=>c.enabled).forEach(c=>{ csv+=`,"${sub.name} - ${c.label}"` })
+          })
+          csv+=',Total,Average,Grade,Remark,Status\n'
           rankedAcademic.forEach(s=>{
-            csv+=`${ordinal(s.position)},"${s.student_id}","${s.first_name} ${s.last_name}",${visSubjects.map(sub=>s.subjectScores[sub.id]??0).join(',')},${s.total||0},${s.avg??0},${s.letter},${s.gpa!==null?s.gpa.toFixed(1):''},${s.pass===null?'--':s.pass?'Pass':'Fail'}\n`
+            let row=`${ordinal(s.position)},"${s.student_id}","${s.first_name} ${s.last_name}"`
+            visSubjects.forEach(sub=>{
+              const g=grades.find(gr=>gr.student_id===s.id&&gr.subject_id===sub.id&&(!fp||gr.period===fp))
+              gradeComps.filter(c=>c.enabled).forEach(c=>{ row+=`,${g?g[c.key]||0:'--'}` })
+            })
+            row+=`,${s.total||0},${s.avg??0},${s.letter},"${s.remark||''}",${s.pass===null?'--':s.pass?'Pass':'Fail'}\n`
+            csv+=row
           })
         }
         filename=`SRMS_Academic_${scope}_${fp||'AllPeriods'}.csv`
@@ -2505,11 +2540,18 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
         )}
       </Card>}
 
-      {/* Prompt if nothing selected */}
-      {rtype!=='reportcards' && !selectedStudent && !fc && (
+      {/* Prompt if no class selected on academic tab */}
+      {rtype!=='reportcards' && rtype==='academic' && !selectedStudent && !fc && (
+        <div style={{background:'rgba(232,184,75,0.04)',border:'1px solid rgba(232,184,75,0.15)',borderRadius:'var(--r)',padding:'32px 20px',marginBottom:16,fontSize:13,color:'var(--mist2)',display:'flex',flexDirection:'column',alignItems:'center',gap:8,textAlign:'center'}}>
+          <span style={{fontSize:28}}>📊</span>
+          <span style={{fontWeight:600,color:'var(--mist)'}}>Select a class to view the academic report</span>
+          <span style={{fontSize:12,color:'var(--mist3)'}}>Use the class filter above, or search for a specific student</span>
+        </div>
+      )}
+      {rtype!=='reportcards' && rtype!=='academic' && !selectedStudent && !fc && (
         <div style={{background:'rgba(232,184,75,0.04)',border:'1px solid rgba(232,184,75,0.15)',borderRadius:'var(--r)',padding:'14px 20px',marginBottom:16,fontSize:13,color:'var(--mist2)',display:'flex',alignItems:'center',gap:10}}>
           <span style={{fontSize:16}}>💡</span>
-          Select a class or search for a student to generate a focused report. Showing all students.
+          Select a class or search for a student to filter. Showing all students.
         </div>
       )}
 
@@ -2533,12 +2575,17 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
                     {!selectedStudent && <th style={thStyle}>Class</th>}
                     {selectedStudent
                       ? <><th style={thStyle}>Subject</th>{gradeComps.filter(c=>c.enabled).map(c=><th key={c.key} style={thStyle}>{c.label}</th>)}</>
-                      : classSubjects.map(s=><th key={s.id} style={{...thStyle,maxWidth:90}}>{s.name.length>12?s.name.slice(0,12)+'...':s.name}</th>)
+                      : classSubjects.map(s=>(
+                          <th key={s.id} style={{...thStyle,maxWidth:70,textAlign:'center'}} title={s.name}>
+                            {abbrSubject(s.name)}
+                          </th>
+                        ))
                     }
                     <th style={thStyle}>Total</th>
                     {!selectedStudent && <th style={thStyle}>Avg</th>}
                     <th style={thStyle}>Grade</th>
-                    <th style={thStyle}>GPA</th>
+                    <th style={thStyle}>Remark</th>
+                    {!selectedStudent && !fp && <th style={thStyle}>Trend</th>}
                     <th style={thStyle}>Status</th>
                   </tr>
                 </thead>
@@ -2552,35 +2599,42 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
                           return (
                             <tr key={g.id} style={{borderBottom:'1px solid var(--line)',background:i%2===0?'transparent':'var(--ink3)'}}>
                               <td style={tdStyle}><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{selectedStudent.student_id}</span></td>
-                              <td style={tdStyle}><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={`${selectedStudent.first_name} ${selectedStudent.last_name}`} size={24}/><span style={{fontWeight:600}}>{selectedStudent.first_name} {selectedStudent.last_name}</span></div></td>
+                              <td style={tdStyle}><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={`${selectedStudent.first_name} ${selectedStudent.last_name}`} size={24} photo={selectedStudent.photo}/><span style={{fontWeight:600}}>{selectedStudent.first_name} {selectedStudent.last_name}</span></div></td>
                               <td style={tdStyle}>{subj?.name||'--'}</td>
                               {gradeComps.filter(c=>c.enabled).map(c=><td key={c.key} style={tdStyle}><span className='mono'>{g[c.key]||0}</span></td>)}
                               <td style={tdStyle}><span className='mono' style={{fontWeight:700,fontSize:14}}>{tot}</span></td>
                               <td style={tdStyle}><Badge color={LETTER_COLOR[let_]||'var(--mist2)'}>{let_}</Badge></td>
-                              <td style={tdStyle}><span className='mono'>{getGPA(tot,scale).toFixed(1)}</span></td>
+                              <td style={tdStyle}><span style={{fontSize:12,color:'var(--mist2)'}}>{getGradeRemark(tot,scale)||'--'}</span></td>
                               <td style={tdStyle}>{tot>=50?<Badge color='var(--emerald)'>Pass</Badge>:<Badge color='var(--rose)'>Fail</Badge>}</td>
                             </tr>
                           )
                         })
                   ) : (
-                    rankedAcademic.length===0
-                      ? <tr><td colSpan={20} style={{padding:48,textAlign:'center',color:'var(--mist3)',fontSize:13}}>No records found.</td></tr>
-                      : rankedAcademic.map((s,i)=>(
-                          <tr key={s.id} style={{borderBottom:'1px solid var(--line)',background:i%2===0?'transparent':'rgba(255,255,255,0.01)'}}>
-                            <td style={tdStyle}>
-                              <span style={{fontWeight:700,color:s.position<=3?'var(--gold)':'var(--mist2)',fontSize:13}}>{ordinal(s.position)}</span>
-                            </td>
-                            <td style={tdStyle}><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{s.student_id}</span></td>
-                            <td style={tdStyle}><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={`${s.first_name} ${s.last_name}`} size={26}/><span style={{fontWeight:600}}>{s.first_name} {s.last_name}</span></div></td>
-                            <td style={tdStyle}>{classes.find(c=>c.id===s.class_id)?.name||'--'}</td>
-                            {classSubjects.map(sub=><td key={sub.id} style={tdStyle}><span className='mono'>{s.subjectScores[sub.id]??'--'}</span></td>)}
-                            <td style={tdStyle}><span className='mono' style={{fontWeight:700}}>{s.total||'--'}</span></td>
-                            <td style={tdStyle}><span className='mono'>{s.avg??'--'}</span></td>
-                            <td style={tdStyle}>{s.letter!=='--'?<Badge color={LETTER_COLOR[s.letter]||'var(--mist2)'}>{s.letter}</Badge>:'--'}</td>
-                            <td style={tdStyle}>{s.gpa!==null?<span className='mono'>{s.gpa.toFixed(1)}</span>:'--'}</td>
-                            <td style={tdStyle}>{s.pass===null?'--':s.pass?<Badge color='var(--emerald)'>Pass</Badge>:<Badge color='var(--rose)'>Fail</Badge>}</td>
-                          </tr>
-                        ))
+                    !fc && !selectedStudent
+                      ? <tr><td colSpan={20} style={{padding:48,textAlign:'center',color:'var(--mist3)',fontSize:13}}>Select a class to view the academic report.</td></tr>
+                      : rankedAcademic.length===0
+                        ? <tr><td colSpan={20} style={{padding:48,textAlign:'center',color:'var(--mist3)',fontSize:13}}>No grade records found for this class.</td></tr>
+                        : rankedAcademic.map((s,i)=>(
+                            <tr key={s.id} style={{borderBottom:'1px solid var(--line)',background:i%2===0?'transparent':'rgba(255,255,255,0.01)'}}>
+                              <td style={tdStyle}>
+                                <span style={{fontWeight:700,color:s.position<=3?'var(--gold)':'var(--mist2)',fontSize:13}}>{ordinal(s.position)}</span>
+                              </td>
+                              <td style={tdStyle}><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{s.student_id}</span></td>
+                              <td style={tdStyle}><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={`${s.first_name} ${s.last_name}`} size={26} photo={s.photo}/><span style={{fontWeight:600}}>{s.first_name} {s.last_name}</span></div></td>
+                              <td style={tdStyle}>{classes.find(c=>c.id===s.class_id)?.name||'--'}</td>
+                              {classSubjects.map(sub=>{
+                                const score=s.subjectScores[sub.id]
+                                const scoreColor=score!==undefined?(score<50?'var(--rose)':score>=75?'var(--emerald)':'var(--white)'):'var(--mist3)'
+                                return <td key={sub.id} style={{...tdStyle,textAlign:'center'}}><span className='mono' style={{color:scoreColor,fontWeight:score!==undefined?600:400}}>{score??'--'}</span></td>
+                              })}
+                              <td style={tdStyle}><span className='mono' style={{fontWeight:700}}>{s.total||'--'}</span></td>
+                              <td style={tdStyle}><span className='mono'>{s.avg??'--'}</span></td>
+                              <td style={tdStyle}>{s.letter!=='--'?<Badge color={LETTER_COLOR[s.letter]||'var(--mist2)'}>{s.letter}</Badge>:'--'}</td>
+                              <td style={tdStyle}><span style={{fontSize:12,color:'var(--mist2)'}}>{s.remark||'--'}</span></td>
+                              {!fp && <td style={tdStyle}>{s.trend ? <span style={{fontWeight:700,color:s.trend.color,fontSize:14}} title={s.trend.diff}>{s.trend.arrow}</span> : <span style={{color:'var(--mist3)'}}>--</span>}</td>}
+                              <td style={tdStyle}>{s.pass===null?'--':s.pass?<Badge color='var(--emerald)'>Pass</Badge>:<Badge color='var(--rose)'>Fail</Badge>}</td>
+                            </tr>
+                          ))
                   )}
                 </tbody>
               </table>
