@@ -2541,7 +2541,7 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
       </Card>}
 
       {/* Prompt if no class selected on academic tab */}
-      {rtype!=='reportcards' && rtype==='academic' && !selectedStudent && !fc && (
+      {rtype!=='reportcards' && rtype==='academic' && !selectedStudent && !fc && !isClassTeacher && (
         <div style={{background:'rgba(232,184,75,0.04)',border:'1px solid rgba(232,184,75,0.15)',borderRadius:'var(--r)',padding:'32px 20px',marginBottom:16,fontSize:13,color:'var(--mist2)',display:'flex',flexDirection:'column',alignItems:'center',gap:8,textAlign:'center'}}>
           <span style={{fontSize:28}}>📊</span>
           <span style={{fontWeight:600,color:'var(--mist)'}}>Select a class to view the academic report</span>
@@ -2610,7 +2610,7 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
                           )
                         })
                   ) : (
-                    !fc && !selectedStudent
+                    !fc && !selectedStudent && !isClassTeacher
                       ? <tr><td colSpan={20} style={{padding:48,textAlign:'center',color:'var(--mist3)',fontSize:13}}>Select a class to view the academic report.</td></tr>
                       : rankedAcademic.length===0
                         ? <tr><td colSpan={20} style={{padding:48,textAlign:'center',color:'var(--mist3)',fontSize:13}}>No grade records found for this class.</td></tr>
