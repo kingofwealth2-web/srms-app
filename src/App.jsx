@@ -1818,15 +1818,13 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
   const filtered = myGrades.filter(g=>{
     // Scope to active year — skip only if year is explicitly set to a different year
     if(g.year && g.year !== activeYear) return false
-    // Filter by class: match the student's CURRENT class, not the subject's class
-    // This ensures promoted students don't appear under their old class
+    // Use subject's class_id (not student's current class_id) so that records remain
+    // anchored to the class they were recorded for — correct for re-enrolled and promoted students
+    const student = students.find(s=>s.id===g.student_id)
+    if(!student || student.archived) return false
     if(fc) {
-      const student = students.find(s=>s.id===g.student_id)
-      if(!student || student.archived) return false
-      if(student.class_id !== fc) return false
-    } else {
-      const student = students.find(s=>s.id===g.student_id)
-      if(!student || student.archived) return false
+      const subject = subjects.find(s=>s.id===g.subject_id)
+      if(!subject || subject.class_id !== fc) return false
     }
     return (!fs||g.subject_id===fs)&&(!fp||g.period===fp)
   })
