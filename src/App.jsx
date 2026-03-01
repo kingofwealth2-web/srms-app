@@ -1841,7 +1841,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
 
 // ── GRADES ─────────────────────────────────────────────────────
 function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
-  const {grades=[],students=[],subjects=[]} = data
+  const {grades=[],students=[],subjects=[],classes=[]} = data
   const scale = settings?.grading_scale || []
   const allComps = getGradeComponents(settings)
   const activeComps = allComps.filter(c=>c.enabled)
