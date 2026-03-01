@@ -996,7 +996,9 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
 
   // ── Top Performers ──
   const periodOrder = Array.from({length:settings?.period_count||2},(_,i)=>`${settings?.period_type==='term'?'Term':'Semester'} ${i+1}`)
-  const latestPeriod = periodOrder[periodOrder.length-1]
+  // Use the latest period that actually has grade data, not just the last in the list
+  const periodsWithData = periodOrder.filter(p=>grades.some(g=>g.period===p))
+  const latestPeriod = periodsWithData.length>0 ? periodsWithData[periodsWithData.length-1] : periodOrder[periodOrder.length-1]
 
   // Teacher: top 3 per subject (latest period)
   const topPerSubject = profile?.role==='teacher'
