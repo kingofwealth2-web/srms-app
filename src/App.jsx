@@ -1001,7 +1001,7 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
   const latestPeriod = periodsWithData.length>0 ? periodsWithData[periodsWithData.length-1] : periodOrder[periodOrder.length-1]
 
   // Teacher: top 3 per subject (latest period)
-  const topPerSubject = profile?.role==='teacher'
+  const topPerSubject = (profile?.role==='teacher' || profile?.role==='classteacher')
     ? subjects.filter(s=>s.teacher_id===profile.id).map(sub=>{
         const subGrades = grades.filter(g=>g.subject_id===sub.id && g.period===latestPeriod)
         const ranked = subGrades
@@ -1021,9 +1021,9 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
         const ranked = clsStudents.map(s=>{
           const sg = grades.filter(g=>g.student_id===s.id && clsSubjectIds.includes(g.subject_id) && g.period===latestPeriod)
           if(!sg.length) return null
-          const avg = Math.round(sg.reduce((sum,g)=>sum+calcTotal(g,gradeComps),0)/sg.length)
-          return {student:s, avg}
-        }).filter(Boolean).sort((a,b)=>b.avg-a.avg).slice(0,3)
+          const total = sg.reduce((sum,g)=>sum+calcTotal(g,gradeComps),0)
+          return {student:s, total}
+        }).filter(Boolean).sort((a,b)=>b.total-a.total).slice(0,3)
         return {cls, top:ranked}
       }).filter(x=>x.top.length>0)
     : []
@@ -1104,7 +1104,7 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
         </>}
       </div>
       {/* ── Teacher: Top Performers per Subject ── */}
-      {profile?.role==='teacher' && topPerSubject.length>0 && (
+      {(profile?.role==='teacher' || profile?.role==='classteacher') && topPerSubject.length>0 && (
         <Card style={{marginBottom:16}}>
           <SectionTitle>Top Performers · {latestPeriod}</SectionTitle>
           <div style={{display:'flex',flexDirection:'column',gap:16,marginTop:4}}>
@@ -1120,7 +1120,7 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
                         <div style={{fontSize:13,fontWeight:600,color:'var(--white)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{student.first_name} {student.last_name}</div>
                         <div style={{fontSize:11,color:'var(--mist3)'}}>{getLetter(total,scale)} · {classes.find(c=>c.id===student.class_id)?.name||'--'}</div>
                       </div>
-                      <div style={{fontSize:16,fontWeight:700,color:['var(--gold)','var(--mist)','var(--amber)'][i],flexShrink:0}}>{total}%</div>
+                      <div style={{fontSize:16,fontWeight:700,color:['var(--gold)','var(--mist)','var(--amber)'][i],flexShrink:0}}>{total}</div>
                     </div>
                   ))}
                 </div>
@@ -1146,9 +1146,9 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
                       <Avatar name={`${student.first_name} ${student.last_name}`} size={26} photo={student.photo}/>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontSize:13,fontWeight:600,color:'var(--white)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{student.first_name} {student.last_name}</div>
-                        <div style={{fontSize:11,color:'var(--mist3)'}}>{getLetter(avg,scale)} · avg across subjects</div>
+                        <div style={{fontSize:11,color:'var(--mist3)'}}>total across subjects</div>
                       </div>
-                      <div style={{fontSize:16,fontWeight:700,color:['var(--gold)','var(--mist)','var(--amber)'][i],flexShrink:0}}>{avg}%</div>
+                      <div style={{fontSize:16,fontWeight:700,color:['var(--gold)','var(--mist)','var(--amber)'][i],flexShrink:0}}>{total}</div>
                     </div>
                   ))}
                 </div>
