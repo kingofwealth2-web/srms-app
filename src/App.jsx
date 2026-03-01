@@ -442,6 +442,8 @@ function Login({onLogin}) {
   const [resetLoading,setResetLoading] = useState(false)
   const [resetError,setResetError]     = useState('')
 
+  const [showPassword,setShowPassword] = useState(false)
+
   const [schoolName,setSchoolName] = useState('Kandit Standard School')
   const [schoolLogo,setSchoolLogo] = useState(null)
   const [acadYear,setAcadYear]     = useState('2026–2027')
@@ -518,7 +520,23 @@ function Login({onLogin}) {
             :'Check your email for the reset link.'}
           </p>
           {view==='login'&&<Field label='Email Address' value={email} onChange={setEmail} type='email' placeholder='you@school.edu' required/>}
-          {view==='login'&&<Field label='Password' value={password} onChange={setPassword} type='password' placeholder='********' required/>}
+          {view==='login'&&(
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Password <span style={{color:'var(--rose)'}}>*</span></div>
+              <div style={{position:'relative'}}>
+                <input value={password} onChange={e=>setPassword(e.target.value)} type={showPassword?'text':'password'} placeholder='••••••••'
+                  style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'10px 40px 10px 14px',color:'var(--white)',fontSize:13,boxSizing:'border-box',outline:'none'}}
+                  onFocus={e=>{e.target.style.borderColor='var(--gold)';e.target.style.boxShadow='0 0 0 3px rgba(232,184,75,0.08)'}}
+                  onBlur={e=>{e.target.style.borderColor='var(--line)';e.target.style.boxShadow='none'}}/>
+                <button onClick={()=>setShowPassword(v=>!v)} tabIndex={-1}
+                  style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',color:'var(--mist3)',cursor:'pointer',fontSize:14,padding:0,display:'flex',alignItems:'center'}}
+                  onMouseEnter={e=>e.currentTarget.style.color='var(--mist)'}
+                  onMouseLeave={e=>e.currentTarget.style.color='var(--mist3)'}>
+                  {showPassword ? '🙈' : '👁'}
+                </button>
+              </div>
+            </div>
+          )}
           {view==='login'&&error && <div className='fi' style={{background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r-sm)',padding:'11px 14px',fontSize:13,color:'var(--rose)',marginBottom:16}}>{error}</div>}
           {view==='login' && (<>
           <Btn onClick={attempt} disabled={loading} style={{width:'100%',justifyContent:'center',padding:13,fontSize:14,boxShadow:loading?'none':'0 4px 20px rgba(232,184,75,0.25)'}}>
@@ -6237,187 +6255,6 @@ function YearSwitcher({ activeYear, currentYear, selectedYear, setSelectedYear, 
 }
 
 
-// ── MY PROFILE MODAL ───────────────────────────────────────────
-function MyProfileModal({profile, onClose, onProfileUpdated, toast}) {
-  const [tab, setTab]         = useState('profile') // 'profile' | 'password'
-  const [form, setForm]       = useState({full_name: profile?.full_name||'', email: profile?.email||''})
-  const [pwForm, setPwForm]   = useState({current:'', newPass:'', confirm:''})
-  const [saving, setSaving]   = useState(false)
-  const [pwSaving, setPwSaving] = useState(false)
-  const [showCurrent, setShowCurrent] = useState(false)
-  const [showNew,     setShowNew]     = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
-  const f  = k => v => setForm(p=>({...p,[k]:v}))
-  const pf = k => v => setPwForm(p=>({...p,[k]:v}))
-
-  const saveProfile = async () => {
-    if(!form.full_name.trim()) { toast('Name cannot be empty.','error'); return }
-    if(!form.email.trim())     { toast('Email cannot be empty.','error'); return }
-    setSaving(true)
-    const {error} = await supabase.from('profiles').update({
-      full_name: form.full_name.trim(),
-      email:     form.email.trim(),
-    }).eq('id', profile.id)
-    if(error) { toast(error.message,'error'); setSaving(false); return }
-    // If email changed, sync to auth.users so login still works
-    if(form.email.trim() !== profile.email) {
-      const {error:authErr} = await supabase.auth.updateUser({email: form.email.trim()})
-      if(authErr) { toast('Profile saved but email update failed: ' + authErr.message,'error'); setSaving(false); return }
-    }
-    auditLog(profile,'Users','Updated',`${profile.full_name} updated their profile`,{},{full_name:profile.full_name,email:profile.email},{full_name:form.full_name.trim(),email:form.email.trim()})
-    onProfileUpdated({...profile, full_name:form.full_name.trim(), email:form.email.trim()})
-    toast('Profile updated')
-    setSaving(false)
-  }
-
-  const savePassword = async () => {
-    if(!pwForm.current)              { toast('Please enter your current password.','error'); return }
-    if(pwForm.newPass.length < 8)    { toast('New password must be at least 8 characters.','error'); return }
-    if(pwForm.newPass !== pwForm.confirm) { toast('Passwords do not match.','error'); return }
-    setPwSaving(true)
-    // Re-auth using actual auth email (not display email, in case they differ)
-    const {data:{session}} = await supabase.auth.getSession()
-    const authEmail = session?.user?.email || profile.email
-    const {error:signInErr} = await supabase.auth.signInWithPassword({
-      email: authEmail,
-      password: pwForm.current,
-    })
-    if(signInErr) { toast('Current password is incorrect.','error'); setPwSaving(false); return }
-    const {error} = await supabase.auth.updateUser({password: pwForm.newPass})
-    if(error) { toast(error.message,'error'); setPwSaving(false); return }
-    auditLog(profile,'Users','Updated',`${profile.full_name} changed their password`,{},null,null)
-    toast('Password changed successfully')
-    setPwForm({current:'', newPass:'', confirm:''})
-    setPwSaving(false)
-  }
-
-  const rm = ROLE_META[profile?.role] || {}
-  const pwStrength = p => {
-    if(!p) return null
-    let score = 0
-    if(p.length >= 8)  score++
-    if(p.length >= 12) score++
-    if(/[A-Z]/.test(p)) score++
-    if(/[0-9]/.test(p)) score++
-    if(/[^A-Za-z0-9]/.test(p)) score++
-    if(score <= 1) return {label:'Weak',   color:'var(--rose)',  w:'25%'}
-    if(score <= 3) return {label:'Fair',   color:'var(--amber)', w:'60%'}
-    return              {label:'Strong', color:'var(--emerald)',w:'100%'}
-  }
-  const strength = pwStrength(pwForm.newPass)
-
-  const eyeBtn = (show, setShow) => (
-    <button onClick={()=>setShow(v=>!v)} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',color:'var(--mist3)',cursor:'pointer',fontSize:14,padding:0,display:'flex',alignItems:'center'}}
-      onMouseEnter={e=>e.currentTarget.style.color='var(--mist)'}
-      onMouseLeave={e=>e.currentTarget.style.color='var(--mist3)'}>
-      {show ? '🙈' : '👁'}
-    </button>
-  )
-
-  return (
-    <Modal title='My Profile' subtitle='Manage your account details' onClose={onClose} width={480}>
-      {/* Avatar + identity */}
-      <div style={{display:'flex',alignItems:'center',gap:16,padding:'4px 0 20px',borderBottom:'1px solid var(--line)',marginBottom:20}}>
-        <Avatar name={profile?.full_name} size={56} color={rm.bg}/>
-        <div>
-          <div style={{fontSize:16,fontWeight:700,letterSpacing:'-0.01em'}}>{profile?.full_name}</div>
-          <div style={{fontSize:12,color:'var(--mist3)',marginTop:2}}>{profile?.email}</div>
-          <div style={{marginTop:6}}>
-            <span style={{display:'inline-block',padding:'2px 10px',borderRadius:20,fontSize:11,fontWeight:600,color:rm.color,background:rm.bg,border:`1px solid ${rm.color}30`}}>{rm.label||profile?.role}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={{display:'flex',gap:4,marginBottom:20,background:'var(--ink3)',borderRadius:'var(--r-sm)',padding:4}}>
-        {[['profile','✎  Details'],['password','🔒  Password']].map(([key,label])=>(
-          <button key={key} onClick={()=>setTab(key)}
-            style={{flex:1,padding:'7px 0',borderRadius:'calc(var(--r-sm) - 2px)',fontSize:12,fontWeight:600,cursor:'pointer',transition:'all 0.15s',
-              background: tab===key ? 'var(--ink2)' : 'transparent',
-              color:      tab===key ? 'var(--white)' : 'var(--mist3)',
-              border:     tab===key ? '1px solid var(--line)' : '1px solid transparent',
-              boxShadow:  tab===key ? '0 1px 4px rgba(0,0,0,0.2)' : 'none',
-            }}>{label}</button>
-        ))}
-      </div>
-
-      {/* Profile tab */}
-      {tab==='profile' && (
-        <div>
-          <Field label='Full Name'      value={form.full_name} onChange={f('full_name')} required placeholder='Your display name'/>
-          <Field label='Email Address'  value={form.email}     onChange={f('email')}     required placeholder='your@email.com' type='email'/>
-          <div style={{marginBottom:16}}>
-            <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Role</div>
-            <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-              <span style={{color:'var(--mist)'}}>{rm.label||profile?.role}</span>
-              <span style={{fontSize:11}}>Contact Super Admin to change</span>
-            </div>
-          </div>
-          <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:4}}>
-            <Btn variant='ghost' onClick={onClose}>Cancel</Btn>
-            <Btn onClick={saveProfile} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save Changes'}</Btn>
-          </div>
-        </div>
-      )}
-
-      {/* Password tab */}
-      {tab==='password' && (
-        <div>
-          {/* Current password */}
-          <div style={{marginBottom:16}}>
-            <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Current Password</div>
-            <div style={{position:'relative'}}>
-              <input value={pwForm.current} onChange={e=>pf('current')(e.target.value)} type={showCurrent?'text':'password'} placeholder='Enter current password'
-                style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 40px 9px 14px',color:'var(--white)',fontSize:13,boxSizing:'border-box',outline:'none'}}
-                onFocus={e=>{e.target.style.borderColor='var(--gold)';e.target.style.boxShadow='0 0 0 3px rgba(232,184,75,0.08)'}}
-                onBlur={e=>{e.target.style.borderColor='var(--line)';e.target.style.boxShadow='none'}}/>
-              {eyeBtn(showCurrent, setShowCurrent)}
-            </div>
-          </div>
-          {/* New password */}
-          <div style={{marginBottom:8}}>
-            <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>New Password</div>
-            <div style={{position:'relative'}}>
-              <input value={pwForm.newPass} onChange={e=>pf('newPass')(e.target.value)} type={showNew?'text':'password'} placeholder='Min. 8 characters'
-                style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 40px 9px 14px',color:'var(--white)',fontSize:13,boxSizing:'border-box',outline:'none'}}
-                onFocus={e=>{e.target.style.borderColor='var(--gold)';e.target.style.boxShadow='0 0 0 3px rgba(232,184,75,0.08)'}}
-                onBlur={e=>{e.target.style.borderColor='var(--line)';e.target.style.boxShadow='none'}}/>
-              {eyeBtn(showNew, setShowNew)}
-            </div>
-            {/* Strength bar */}
-            {pwForm.newPass && strength && (
-              <div style={{marginTop:8}}>
-                <div style={{height:3,background:'var(--line)',borderRadius:2,overflow:'hidden'}}>
-                  <div style={{height:'100%',width:strength.w,background:strength.color,borderRadius:2,transition:'width 0.3s'}}/>
-                </div>
-                <div style={{fontSize:10,color:strength.color,marginTop:4,fontWeight:600}}>{strength.label}</div>
-              </div>
-            )}
-          </div>
-          {/* Confirm password */}
-          <div style={{marginBottom:20}}>
-            <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Confirm New Password</div>
-            <div style={{position:'relative'}}>
-              <input value={pwForm.confirm} onChange={e=>pf('confirm')(e.target.value)} type={showConfirm?'text':'password'} placeholder='Repeat new password'
-                style={{width:'100%',background:'var(--ink3)',border:`1px solid ${pwForm.confirm&&pwForm.confirm!==pwForm.newPass?'var(--rose)':'var(--line)'}`,borderRadius:'var(--r-sm)',padding:'9px 40px 9px 14px',color:'var(--white)',fontSize:13,boxSizing:'border-box',outline:'none'}}
-                onFocus={e=>{e.target.style.borderColor=pwForm.confirm&&pwForm.confirm!==pwForm.newPass?'var(--rose)':'var(--gold)';e.target.style.boxShadow='0 0 0 3px rgba(232,184,75,0.08)'}}
-                onBlur={e=>{e.target.style.borderColor=pwForm.confirm&&pwForm.confirm!==pwForm.newPass?'var(--rose)':'var(--line)';e.target.style.boxShadow='none'}}/>
-              {eyeBtn(showConfirm, setShowConfirm)}
-            </div>
-            {pwForm.confirm && pwForm.confirm!==pwForm.newPass && (
-              <div style={{fontSize:11,color:'var(--rose)',marginTop:5}}>Passwords do not match</div>
-            )}
-          </div>
-          <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
-            <Btn variant='ghost' onClick={onClose}>Cancel</Btn>
-            <Btn onClick={savePassword} disabled={pwSaving}>{pwSaving?<><Spinner/> Saving...</>:'Change Password'}</Btn>
-          </div>
-        </div>
-      )}
-    </Modal>
-  )
-}
-
 // ── ROOT APP ───────────────────────────────────────────────────
 export default function App() {
   const [session,setSession]   = useState(null)
@@ -6435,7 +6272,6 @@ export default function App() {
   const [newYearModal,setNewYearModal] = useState(false)
   const [newYearStep,setNewYearStep]   = useState(1)
   const [newYearWorking,setNewYearWorking] = useState(false)
-  const [showProfileModal,setShowProfileModal] = useState(false)
   const isMobile = useIsMobile()
 
   const showToast = useCallback((msg,type='success')=>{
@@ -6657,9 +6493,7 @@ export default function App() {
                   <div style={{width:18,height:1.5,background:'var(--mist2)',borderRadius:1}}/>
                 </button>
                 <span className='d' style={{fontSize:15,fontWeight:700,letterSpacing:'-0.01em'}}>{pageTitles[page]||'SRMS'}</span>
-                <button onClick={()=>setShowProfileModal(true)} style={{background:'none',border:'none',cursor:'pointer',padding:0,borderRadius:'50%'}}>
-                  <Avatar name={profile?.full_name} size={34} color={ROLE_META[profile?.role]?.bg}/>
-                </button>
+                <Avatar name={profile?.full_name} size={34} color={ROLE_META[profile?.role]?.bg}/>
               </div>
               {/* Mobile year bar — only superadmin sees switcher */}
               <div style={{height:28,display:'flex',alignItems:'center',justifyContent:'center',gap:8,borderTop:'1px solid var(--line)',background:isViewingPast?'rgba(251,159,58,0.06)':'transparent'}}>
@@ -6686,16 +6520,13 @@ export default function App() {
                 {isViewingPast && <span style={{fontSize:10,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:4,padding:'2px 8px',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>READ ONLY</span>}
               </div>
               <div style={{display:'flex',alignItems:'center',gap:16}}>
-                <button onClick={()=>setShowProfileModal(true)}
-                  style={{display:'flex',alignItems:'center',gap:10,background:'none',border:'none',cursor:'pointer',padding:'4px 8px',borderRadius:'var(--r-sm)',transition:'background 0.15s'}}
-                  onMouseEnter={e=>e.currentTarget.style.background='var(--ink3)'}
-                  onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
                   <Avatar name={profile?.full_name} size={30} color={ROLE_META[profile?.role]?.bg}/>
-                  <div style={{textAlign:'left'}}>
-                    <div style={{fontSize:12,fontWeight:600,lineHeight:1.2,color:'var(--white)'}}>{profile?.full_name}</div>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:600,lineHeight:1.2}}>{profile?.full_name}</div>
                     <div style={{fontSize:10,color:'var(--mist3)'}}>{ROLE_META[profile?.role]?.label}</div>
                   </div>
-                </button>
+                </div>
                 <Btn variant='ghost' size='sm' onClick={logout}>Sign Out</Btn>
               </div>
             </div>
@@ -6707,15 +6538,6 @@ export default function App() {
         </div>
       </div>
       {toast && <Toast msg={toast.msg} type={toast.type} isMobile={isMobile}/>}
-
-      {showProfileModal && (
-        <MyProfileModal
-          profile={profile}
-          onClose={()=>setShowProfileModal(false)}
-          onProfileUpdated={updatedProfile=>{ setProfile(updatedProfile); setShowProfileModal(false) }}
-          toast={showToast}
-        />
-      )}
 
       {newYearModal && (
         <Modal title='Start New Academic Year' subtitle={`Closing ${activeYear}`} onClose={()=>!newYearWorking&&setNewYearModal(false)} width={560}>
