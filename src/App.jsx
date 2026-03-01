@@ -2168,7 +2168,7 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
           <select value={fs} onChange={e=>{setFs(e.target.value);setBulkMode(false)}}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
             <option value=''>All Subjects</option>
-            {fcSubjects.map(s=><option key={s.id} value={s.id}>{s.name}{!mySubjects.some(m=>m.id===s.id)?' (view only)':''}</option>)}
+            {fcSubjects.map(s=><option key={s.id} value={s.id}>{s.name}{!fc ? ` — ${data.classes?.find(c=>c.id===s.class_id)?.name||''}` : ''}{!mySubjects.some(m=>m.id===s.id)?' (view only)':''}</option>)}
           </select>
           <select value={fp} onChange={e=>{setFp(e.target.value);setBulkMode(false)}}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
@@ -2352,7 +2352,7 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
         <Modal title={edit?'Edit Grade':'Record Grades'} onClose={()=>setModal(false)} width={600}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 20px'}}>
             <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={myStudents.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name} · ${data.classes?.find(c=>c.id===s.class_id)?.name||''}`}))}/>
-            <Field label='Subject' value={form.subject_id} onChange={f('subject_id')} required options={mySubjects.map(s=>({value:s.id,label:s.name}))}/>
+            <Field label='Subject' value={form.subject_id} onChange={f('subject_id')} required options={(fc ? mySubjects.filter(s=>s.class_id===fc) : mySubjects).map(s=>({value:s.id,label:fc ? s.name : `${s.name} — ${classes.find(c=>c.id===s.class_id)?.name||''}`}))}/>
             <Field label='Period'        value={form.period} onChange={f('period')} options={periods}/>
             <div style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Academic Year</div><div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>{form.year||settings?.academic_year||'--'}</div></div>
           </div>
@@ -4887,7 +4887,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             ]}/>
           {rcType==='subject' && rcClass && (
             <Field label='Subject' value={rcSubject} onChange={setRcSubject}
-              options={[{value:'',label:'Select subject'},...(isTeacher?mySubjects:classSubjects).map(s=>({value:s.id,label:s.name}))]}/>
+              options={[{value:'',label:'Select subject'},...(isTeacher?mySubjects.filter(s=>s.class_id===rcClass):classSubjects).map(s=>({value:s.id,label:s.name}))]}/>
           )}
           {rcType==='individual' && rcClass && (
             <Field label='Student' value={rcStudent} onChange={setRcStudent}
