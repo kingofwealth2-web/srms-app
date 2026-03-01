@@ -913,10 +913,37 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
   const todayMarked = myClass ? attendance.some(a=>a.class_id===myClass.id&&a.date===today) : true
   const totalFees = fees.reduce((s,f)=>s+Number(f.amount||0),0)
   const totalPaid = fees.reduce((s,f)=>s+Number(f.paid||0),0)
-  const allTotals = grades.map(g=>calcTotal(g,gradeComps))
-  const avgScore  = allTotals.length ? Math.round(allTotals.reduce((a,b)=>a+b,0)/allTotals.length) : 0
-  const passRate  = allTotals.length ? Math.round(allTotals.filter(s=>s>=50).length/allTotals.length*100) : 0
   const myClassStudents = myClass ? students.filter(s=>s.class_id===myClass.id) : []
+
+  // Helper: average of per-student averages (correct school-wide or scoped avg)
+  const calcStats = (studentIds, subjectIds) => {
+    const sidSet = subjectIds ? new Set(subjectIds) : null
+    const perStudent = studentIds.map(sid => {
+      const sg = grades.filter(g => g.student_id===sid && (!sidSet || sidSet.has(g.subject_id)))
+      if(!sg.length) return null
+      const totals = sg.map(g=>calcTotal(g,gradeComps))
+      return totals.reduce((a,b)=>a+b,0)/totals.length
+    }).filter(v=>v!==null)
+    if(!perStudent.length) return {avg:0, passRate:0}
+    const avg      = Math.round(perStudent.reduce((a,b)=>a+b,0)/perStudent.length)
+    const passRate = Math.round(perStudent.filter(v=>v>=50).length/perStudent.length*100)
+    return {avg, passRate}
+  }
+
+  // Admin/superadmin: school-wide average of per-student averages
+  const schoolStats     = calcStats(yearStudents.map(s=>s.id), null)
+  const avgScore        = schoolStats.avg
+  const passRate        = schoolStats.passRate
+
+  // Class teacher: scoped to their class students only
+  const myClassStats    = myClass ? calcStats(myClassStudents.map(s=>s.id), null) : {avg:0, passRate:0}
+  const myClassPassRate = myClassStats.passRate
+
+  // Subject teacher: scoped to their subjects and the students in those subjects
+  const mySubjectIds        = subjects.filter(s=>s.teacher_id===profile?.id).map(s=>s.id)
+  const mySubjectStudentIds = [...new Set(grades.filter(g=>mySubjectIds.includes(g.subject_id)).map(g=>g.student_id))]
+  const mySubjectStats      = calcStats(mySubjectStudentIds, mySubjectIds)
+  const mySubjectAvg        = mySubjectStats.avg
   const activeAnn = announcements.filter(a=>a.active).slice(0,4)
   const isAdmin   = ['superadmin','admin'].includes(profile?.role)
 
@@ -976,12 +1003,12 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
           <KPI label='My Class'         value={myClass?.name||'--'}   color='var(--gold)'    sub='Your assigned class' index={0}/>
           <KPI label='Students'         value={myClassStudents.length} color='var(--sky)'   sub='In your class' index={1}/>
           <KPI label='Attendance Rate'  value={myClassAtt.length?`${myClassAttRate}%`:'--'} color='var(--emerald)' sub={todayMarked?'Today marked':'Not marked today'} index={2}/>
-          <KPI label='Pass Rate'        value={`${passRate}%`}       color='var(--amber)'   sub='This semester' index={3}/>
+          <KPI label='Pass Rate'        value={`${myClassPassRate}%`} color='var(--amber)'   sub='This semester' index={3}/>
         </>}
         {profile?.role==='teacher' && <>
           <KPI label='Subjects'        value={subjects.filter(s=>s.teacher_id===profile.id).length} color='var(--gold)'  sub='Assigned to you' index={0}/>
           <KPI label='Grades Entered'  value={grades.filter(g=>subjects.some(s=>s.id===g.subject_id&&s.teacher_id===profile.id)).length} color='var(--sky)' sub='Total records' index={1}/>
-          <KPI label='Avg Score'       value={avgScore}             color='var(--emerald)' sub='Your subjects' index={2}/>
+          <KPI label='Avg Score'       value={mySubjectAvg}         color='var(--emerald)' sub='Your subjects' index={2}/>
           <KPI label='Announcements'   value={activeAnn.length}     color='var(--amber)'   sub='Active' index={3}/>
         </>}
       </div>
@@ -1153,7 +1180,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
 
     const photoTag = s.photo
       ? `<img src="${s.photo}" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:3px solid #e8b84b;flex-shrink:0;" />`
-      : `<div style="width:84px;height:84px;border-radius:50%;background:rgba(232,184,75,0.12);border:3px solid rgba(232,184,75,0.3);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#e8b84b;flex-shrink:0;">${s.first_name[0]}${s.last_name[0]}</div>`
+      : `<div style="width:84px;height:84px;border-radius:50%;background:rgba(232,184,75,0.12);border:3px solid rgba(232,184,75,0.3);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#e8b84b;flex-shrink:0;">${(s.first_name||'?')[0]}${(s.last_name||'?')[0]}</div>`
 
     const subjectRows = subjectsForCls.map(sub => {
       const g      = studentGrades.find(g => g.subject_id === sub.id)
@@ -1161,7 +1188,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
       const letter = total !== null ? (scale.find(sc => total >= sc.min && total <= sc.max)?.letter || '--') : '--'
       const remark = total !== null ? (scale.find(sc => total >= sc.min && total <= sc.max)?.remark || '')  : ''
       const scoreC = total === null ? '#9ca3af' : total < 50 ? '#dc2626' : total >= 75 ? '#16a34a' : '#1d4ed8'
-      const ltC    = letter==='A+'||letter==='A' ? '#16a34a' : letter==='B' ? '#1d4ed8' : letter==='C'||letter==='D' ? '#d97706' : '#dc2626'
+      const ltC    = letter==='--' ? '#9ca3af' : letter==='A+'||letter==='A' ? '#16a34a' : letter==='B' ? '#1d4ed8' : letter==='C'||letter==='D' ? '#d97706' : '#dc2626'
       return `<tr>
         <td style="padding:9px 14px;font-size:13px;border-bottom:1px solid #f3f4f6;color:#111827;">${sub.name}</td>
         <td style="padding:9px 10px;text-align:center;font-size:16px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${scoreC};">${total !== null ? total : '\u2014'}</td>
@@ -1177,7 +1204,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
     const gradeC      = grandAvg===null?'#6b7280':grandAvg>=75?'#16a34a':grandAvg>=50?'#1d4ed8':'#dc2626'
 
     const recentBeh = [...behRecs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,6)
-    const behTC = t => t==='Incident'?'#dc2626':t==='Suspension'?'#7c3aed':t==='Commendation'?'#16a34a':t==='Award'?'#d97706':'#6b7280'
+    const behTC = t => t==='Discipline'?'#f06b7a':t==='Achievement'?'#2dd4a0':t==='Club Activity'?'#5ba8f5':t==='Notes'?'#a0a0ac':'#6b7280'
     const behRows = recentBeh.map(b => `<tr>
         <td style="padding:8px 12px;font-size:11px;border-bottom:1px solid #f3f4f6;color:#6b7280;white-space:nowrap;">${fmtD(b.date||b.created_at)}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;"><span style="display:inline-block;padding:1px 7px;background:${behTC(b.type)}15;border:1px solid ${behTC(b.type)}35;border-radius:4px;font-size:10px;font-weight:700;color:${behTC(b.type)};text-transform:uppercase;letter-spacing:0.06em;">${b.type}</span></td>
