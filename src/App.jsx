@@ -1935,7 +1935,7 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
         <Modal title={edit?'Edit Grade':'Record Grades'} onClose={()=>setModal(false)} width={600}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 20px'}}>
             <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={myStudents.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name} · ${data.classes?.find(c=>c.id===s.class_id)?.name||''}`}))}/>
-            <Field label='Subject' value={form.subject_id} onChange={f('subject_id')} required options={fcSubjects.length>0?fcSubjects.map(s=>({value:s.id,label:s.name})):mySubjects.map(s=>({value:s.id,label:s.name}))}/>
+            <Field label='Subject' value={form.subject_id} onChange={f('subject_id')} required options={mySubjects.map(s=>({value:s.id,label:s.name}))}/>
             <Field label='Period'        value={form.period} onChange={f('period')} options={periods}/>
             <div style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Academic Year</div><div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>{form.year||settings?.academic_year||'--'}</div></div>
           </div>
