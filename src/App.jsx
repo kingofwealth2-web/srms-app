@@ -842,7 +842,7 @@ function Sidebar({profile,active,onNav,collapsed,onToggle,onLogout,isMobile,draw
             onMouseLeave={e=>e.currentTarget.style.background='none'}>
             <Avatar name={profile?.full_name} size={34} color={rm.bg}/>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{profile?.full_name}</div>
+              <div style={{fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',color:'var(--white)'}}>{profile?.full_name}</div>
               <Badge color={rm.color} bg={rm.bg}>{rm.label}</Badge>
             </div>
           </button>
@@ -905,7 +905,7 @@ function Sidebar({profile,active,onNav,collapsed,onToggle,onLogout,isMobile,draw
               onMouseLeave={e=>e.currentTarget.style.background='none'}>
               <Avatar name={profile?.full_name} size={34} color={rm.bg}/>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{profile?.full_name}</div>
+                <div style={{fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',color:'var(--white)'}}>{profile?.full_name}</div>
                 <Badge color={rm.color} bg={rm.bg}>{rm.label}</Badge>
               </div>
             </button>
@@ -6714,7 +6714,7 @@ export default function App() {
                   onMouseLeave={e=>e.currentTarget.style.background='none'}>
                   <Avatar name={profile?.full_name} size={30} color={ROLE_META[profile?.role]?.bg}/>
                   <div style={{textAlign:'left'}}>
-                    <div style={{fontSize:12,fontWeight:600,lineHeight:1.2}}>{profile?.full_name}</div>
+                    <div style={{fontSize:12,fontWeight:600,lineHeight:1.2,color:'var(--white)'}}>{profile?.full_name}</div>
                     <div style={{fontSize:10,color:'var(--mist3)'}}>{ROLE_META[profile?.role]?.label}</div>
                   </div>
                 </button>
