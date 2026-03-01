@@ -197,8 +197,7 @@ function getVacationOnDate(dateStr, vacations=[], academicYear) {
 // ── YEAR HELPERS ───────────────────────────────────────────────
 function generateYears(centerYear) {
   // centerYear like "2026/2027" or "2026-2027"
-  const norm = (y) => y ? y.replace('-','/') : ''
-  const base = centerYear ? parseInt(centerYear.replace(/[^0-9]/,'').slice(0,4)) : new Date().getFullYear()
+  const base = centerYear ? parseInt(centerYear.replace(/[^0-9]/g,'').slice(0,4)) : new Date().getFullYear()
   const years = []
   for(let y = base-3; y <= base+3; y++) years.push(`${y}/${y+1}`)
   return years
@@ -5126,15 +5125,31 @@ function MyProfile({profile, setProfile, toast}) {
   }
 
   const savePass = async () => {
+    if(!passForm.current) return toast('Please enter your current password.', 'error')
     if(!passForm.next) return toast('New password cannot be empty.', 'error')
     if(passForm.next.length < 8) return toast('Password must be at least 8 characters.', 'error')
     if(passForm.next !== passForm.confirm) return toast('Passwords do not match.', 'error')
+    if(passForm.next === passForm.current) return toast('New password must differ from your current password.', 'error')
     setSavingPass(true)
-    const {error} = await supabase.auth.updateUser({password: passForm.next})
-    if(error) { toast(error.message, 'error') }
-    else {
-      setPassForm({current:'', next:'', confirm:''})
-      toast('Password changed successfully.')
+    try {
+      // Re-authenticate to verify current password before allowing change
+      const {error: reAuthError} = await supabase.auth.signInWithPassword({
+        email: profile.email,
+        password: passForm.current,
+      })
+      if(reAuthError) {
+        toast('Current password is incorrect.', 'error')
+        setSavingPass(false)
+        return
+      }
+      const {error} = await supabase.auth.updateUser({password: passForm.next})
+      if(error) { toast(error.message, 'error') }
+      else {
+        setPassForm({current:'', next:'', confirm:''})
+        toast('Password changed successfully.')
+      }
+    } catch(err) {
+      toast('An unexpected error occurred. Please try again.', 'error')
     }
     setSavingPass(false)
   }
@@ -5213,6 +5228,19 @@ function MyProfile({profile, setProfile, toast}) {
             Choose a strong password of at least 8 characters. You will stay signed in after changing it.
           </p>
           <div style={{marginBottom:14}}>
+            <label style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6}}>Current Password</label>
+            <div style={{position:'relative'}}>
+              <input
+                type={showCurrent?'text':'password'}
+                value={passForm.current}
+                onChange={e=>pf('current')(e.target.value)}
+                style={{...inputStyle,paddingRight:36}}
+                placeholder='Your current password'
+              />
+              {eyeBtn(showCurrent,()=>setShowCurrent(v=>!v))}
+            </div>
+          </div>
+          <div style={{marginBottom:14}}>
             <label style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6}}>New Password</label>
             <div style={{position:'relative'}}>
               <input
@@ -5263,7 +5291,7 @@ function MyProfile({profile, setProfile, toast}) {
             )
           })()}
           <div style={{display:'flex',justifyContent:'flex-end'}}>
-            <Btn onClick={savePass} disabled={savingPass||!passForm.next||passForm.next!==passForm.confirm||passForm.next.length<8}>
+            <Btn onClick={savePass} disabled={savingPass||!passForm.current||!passForm.next||passForm.next!==passForm.confirm||passForm.next.length<8}>
               {savingPass?<><Spinner/> Changing...</>:'Change Password'}
             </Btn>
           </div>
@@ -6828,7 +6856,7 @@ export default function App() {
       supabase.from('subjects').select('*').order('name'),
       supabase.from('grades').select('*').eq('year',year),
       supabase.from('attendance').select('*').eq('academic_year',year).order('date',{ascending:false}),
-      supabase.from('fees').select('*').or(`academic_year.eq.${year},arrear_from_year.eq.${year}`),
+      supabase.from('fees').select('*').eq('academic_year',year),
       supabase.from('payments').select('*').eq('academic_year',year).order('created_at',{ascending:false}),
       supabase.from('behaviour').select('*').eq('academic_year',year).order('created_at',{ascending:false}),
       supabase.from('announcements').select('*').eq('academic_year',year).order('created_at',{ascending:false}),
@@ -6872,9 +6900,9 @@ export default function App() {
 
   // Reload data when year changes
   useEffect(()=>{
-    if(!session||!settings) return
+    if(!session||!settings||!profile) return
     loadData(selectedYear, profile, settings)
-  },[selectedYear])
+  },[selectedYear, profile, settings])
 
   const [newYearTarget,setNewYearTarget] = useState('')
 
@@ -7092,7 +7120,7 @@ export default function App() {
             <div>
               <p style={{fontSize:13,color:'var(--mist2)',marginBottom:16,lineHeight:1.6}}>Select the new academic year to open:</p>
               <Field label='New Academic Year' value={newYearTarget||''} onChange={v=>setNewYearTarget(v)}
-                options={generateYears(currentYear).filter(y=>y>currentYear).map(y=>({value:y,label:y}))}/>
+                options={generateYears(currentYear).filter(y=>parseInt(y)>parseInt(currentYear)).map(y=>({value:y,label:y}))}/>
               <p style={{fontSize:12,color:'var(--mist3)',marginBottom:20}}>All existing data will be saved under <strong style={{color:'var(--gold)'}}>{activeYear}</strong>.</p>
               <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
                 <Btn variant='ghost' onClick={()=>setNewYearStep(1)}>&larr; Back</Btn>
