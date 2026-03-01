@@ -994,6 +994,38 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
   const mySubjectAvg        = mySubjectStats.avg
   const activeAnn = announcements.filter(a=>canSeeAnnouncement(profile?.role,a)).slice(0,4)
 
+  // ── Top Performers ──
+  const periodOrder = Array.from({length:settings?.period_count||2},(_,i)=>`${settings?.period_type==='term'?'Term':'Semester'} ${i+1}`)
+  const latestPeriod = periodOrder[periodOrder.length-1]
+
+  // Teacher: top 3 per subject (latest period)
+  const topPerSubject = profile?.role==='teacher'
+    ? subjects.filter(s=>s.teacher_id===profile.id).map(sub=>{
+        const subGrades = grades.filter(g=>g.subject_id===sub.id && g.period===latestPeriod)
+        const ranked = subGrades
+          .map(g=>({g, student:students.find(s=>s.id===g.student_id), total:calcTotal(g,gradeComps)}))
+          .filter(x=>x.student&&!x.student.archived)
+          .sort((a,b)=>b.total-a.total)
+          .slice(0,3)
+        return {subject:sub, top:ranked}
+      }).filter(x=>x.top.length>0)
+    : []
+
+  // Admin: top 3 per class (latest period, average across subjects)
+  const topPerClass = isAdmin
+    ? classes.map(cls=>{
+        const clsStudents = students.filter(s=>s.class_id===cls.id&&!s.archived)
+        const clsSubjectIds = subjects.filter(s=>s.class_id===cls.id).map(s=>s.id)
+        const ranked = clsStudents.map(s=>{
+          const sg = grades.filter(g=>g.student_id===s.id && clsSubjectIds.includes(g.subject_id) && g.period===latestPeriod)
+          if(!sg.length) return null
+          const avg = Math.round(sg.reduce((sum,g)=>sum+calcTotal(g,gradeComps),0)/sg.length)
+          return {student:s, avg}
+        }).filter(Boolean).sort((a,b)=>b.avg-a.avg).slice(0,3)
+        return {cls, top:ranked}
+      }).filter(x=>x.top.length>0)
+    : []
+
   // Attendance rate calculations
   const schoolAttTotal   = attendance.length
   const schoolAttPresent = attendance.filter(a=>a.status==='Present').length
@@ -1069,6 +1101,62 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
           <KPI label='Announcements'   value={activeAnn.length}     color='var(--amber)'   sub='Active' index={3}/>
         </>}
       </div>
+      {/* ── Teacher: Top Performers per Subject ── */}
+      {profile?.role==='teacher' && topPerSubject.length>0 && (
+        <Card style={{marginBottom:16}}>
+          <SectionTitle>Top Performers · {latestPeriod}</SectionTitle>
+          <div style={{display:'flex',flexDirection:'column',gap:16,marginTop:4}}>
+            {topPerSubject.map(({subject,top})=>(
+              <div key={subject.id}>
+                <div style={{fontSize:11,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>{subject.name}</div>
+                <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                  {top.map(({student,total},i)=>(
+                    <div key={student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',borderLeft:`3px solid ${['var(--gold)','var(--mist2)','var(--amber)'][i]}`}}>
+                      <div style={{width:20,height:20,borderRadius:'50%',background:['rgba(232,184,75,0.15)','rgba(255,255,255,0.06)','rgba(251,159,58,0.12)'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:['var(--gold)','var(--mist2)','var(--amber)'][i],flexShrink:0}}>{i+1}</div>
+                      <Avatar name={`${student.first_name} ${student.last_name}`} size={26} photo={student.photo}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'var(--white)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{student.first_name} {student.last_name}</div>
+                        <div style={{fontSize:11,color:'var(--mist3)'}}>{getLetter(total,scale)} · {classes.find(c=>c.id===student.class_id)?.name||'--'}</div>
+                      </div>
+                      <div style={{fontSize:16,fontWeight:700,color:['var(--gold)','var(--mist)','var(--amber)'][i],flexShrink:0}}>{total}%</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <Btn variant='ghost' size='sm' onClick={()=>onNav('grades')} style={{marginTop:12}}>View Grades &rarr;</Btn>
+        </Card>
+      )}
+
+      {/* ── Admin: Top Performers per Class ── */}
+      {isAdmin && topPerClass.length>0 && (
+        <Card style={{marginBottom:16}}>
+          <SectionTitle>Top Performers · {latestPeriod}</SectionTitle>
+          <div style={{display:'flex',flexDirection:'column',gap:16,marginTop:4}}>
+            {topPerClass.map(({cls,top})=>(
+              <div key={cls.id}>
+                <div style={{fontSize:11,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>{cls.name}</div>
+                <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                  {top.map(({student,avg},i)=>(
+                    <div key={student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',borderLeft:`3px solid ${['var(--gold)','var(--mist2)','var(--amber)'][i]}`}}>
+                      <div style={{width:20,height:20,borderRadius:'50%',background:['rgba(232,184,75,0.15)','rgba(255,255,255,0.06)','rgba(251,159,58,0.12)'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:['var(--gold)','var(--mist2)','var(--amber)'][i],flexShrink:0}}>{i+1}</div>
+                      <Avatar name={`${student.first_name} ${student.last_name}`} size={26} photo={student.photo}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'var(--white)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{student.first_name} {student.last_name}</div>
+                        <div style={{fontSize:11,color:'var(--mist3)'}}>{getLetter(avg,scale)} · avg across subjects</div>
+                      </div>
+                      <div style={{fontSize:16,fontWeight:700,color:['var(--gold)','var(--mist)','var(--amber)'][i],flexShrink:0}}>{avg}%</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <Btn variant='ghost' size='sm' onClick={()=>onNav('grades')} style={{marginTop:12}}>View Grades &rarr;</Btn>
+        </Card>
+      )}
+
       <Card>
         <SectionTitle>Recent Announcements</SectionTitle>
         {activeAnn.length===0 && <div style={{padding:32,textAlign:'center',color:'var(--mist3)',fontSize:13}}>No announcements posted yet.</div>}
