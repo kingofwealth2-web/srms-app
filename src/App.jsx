@@ -4836,7 +4836,7 @@ function MyProfile({profile, setProfile, toast}) {
         <div style={{display:'flex',alignItems:'center',gap:16,padding:'4px 0 8px'}}>
           <Avatar name={profile?.full_name} size={56} color={rm.bg}/>
           <div>
-            <div style={{fontSize:18,fontWeight:700,letterSpacing:'-0.01em'}}>{profile?.full_name}</div>
+            <div style={{fontSize:18,fontWeight:700,letterSpacing:'-0.01em',color:'var(--white)'}}>{profile?.full_name}</div>
             <div style={{display:'flex',gap:8,marginTop:6,alignItems:'center'}}>
               <Badge color={rm.color} bg={rm.bg}>{rm.label}</Badge>
               <span style={{fontSize:12,color:'var(--mist3)'}}>{profile?.email}</span>
