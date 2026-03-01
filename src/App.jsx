@@ -1805,10 +1805,10 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
 
   // Students scoped to selected class (or all teaching classes if no class selected)
   const myStudents = fc
-    ? students.filter(s=>s.class_id===fc)
+    ? students.filter(s=>s.class_id===fc&&!s.archived)
     : myClassIds===null
-      ? students
-      : students.filter(s=>myClassIds.includes(s.class_id))
+      ? students.filter(s=>!s.archived)
+      : students.filter(s=>myClassIds.includes(s.class_id)&&!s.archived)
 
   // Grades visible in table
   const myGrades = isAdminGrades
@@ -1822,7 +1822,11 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
     // This ensures promoted students don't appear under their old class
     if(fc) {
       const student = students.find(s=>s.id===g.student_id)
-      if(!student || student.class_id !== fc) return false
+      if(!student || student.archived) return false
+      if(student.class_id !== fc) return false
+    } else {
+      const student = students.find(s=>s.id===g.student_id)
+      if(!student || student.archived) return false
     }
     return (!fs||g.subject_id===fs)&&(!fp||g.period===fp)
   })
@@ -1887,7 +1891,7 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
   const canBulk = !isViewingPast && fc && fs && fp && activeComps.length > 0 && mySubjects.some(s=>s.id===fs)
 
   const initBulkRows = () => {
-    const classStudents = students.filter(s=>s.class_id===fc)
+    const classStudents = students.filter(s=>s.class_id===fc&&!s.archived)
     const rows = {}
     classStudents.forEach(s=>{
       const existing = grades.find(g=>
@@ -1932,7 +1936,7 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
     })
   }
 
-  const bulkStudents = students.filter(s=>s.class_id===fc)
+  const bulkStudents = students.filter(s=>s.class_id===fc&&!s.archived)
   const dirtyCount = Object.values(bulkRows).filter(r=>r.dirty).length
 
   // Keyboard nav: Tab/Enter moves to next cell across rows
@@ -3734,10 +3738,10 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
 
   // Student autofill -- restrict pool by role
   const roleBasePool = isClassTeacher
-    ? students.filter(s=>s.class_id===profile?.class_id)
+    ? students.filter(s=>s.class_id===profile?.class_id&&!s.archived)
     : isTeacher && teacherClassIds
-      ? students.filter(s=>teacherClassIds.includes(s.class_id))
-      : students
+      ? students.filter(s=>teacherClassIds.includes(s.class_id)&&!s.archived)
+      : students.filter(s=>!s.archived)
   const searchPool = fc ? roleBasePool.filter(s=>s.class_id===fc) : roleBasePool
   const matchedStudents = studentSearch.length>0
     ? searchPool.filter(s=>`${s.first_name} ${s.last_name}`.toLowerCase().includes(studentSearch.toLowerCase())).slice(0,8)
