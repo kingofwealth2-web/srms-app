@@ -6270,7 +6270,6 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast,onPromotio
     if(toGraduate.length) parts.push(toGraduate.length+' graduated')
     if(toRepeat.length)   parts.push(toRepeat.length+' staying back')
     toast(''+parts.join(', ')+'.')
-    if(onPromotionComplete) onPromotionComplete()
   }
   const saveClass = async ()=>{
     if(!cf.name)return; setSaving(true)
@@ -6630,12 +6629,16 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast,onPromotio
                   )
                 })}
               </div>
-              <div style={{padding:'10px 14px',background:'rgba(232,184,75,0.06)',border:'1px solid rgba(232,184,75,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--mist2)',marginBottom:16}}>
+              <div style={{padding:'10px 14px',background:'rgba(232,184,75,0.06)',border:'1px solid rgba(232,184,75,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--mist2)',marginBottom:10}}>
                 ⚠ Outstanding fee balances carry over automatically. Archived students' full history is preserved.
+              </div>
+              <div style={{padding:'10px 14px',background:'rgba(91,168,245,0.06)',border:'1px solid rgba(91,168,245,0.25)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--mist2)',marginBottom:16,display:'flex',gap:10,alignItems:'flex-start'}}>
+                <span style={{fontSize:14,flexShrink:0}}>🗓</span>
+                <span>Once confirmed, you will be prompted to <strong style={{color:'var(--sky)'}}>start the new academic year</strong>. Make sure all classes are ready before proceeding.</span>
               </div>
               <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
                 <Btn variant='ghost' onClick={()=>setBulkStep(1)}>← Back</Btn>
-                <Btn onClick={confirmBulkPromo} disabled={promoting}>{promoting?<><Spinner/> Promoting...</>:'Confirm Bulk Promotion'}</Btn>
+                <Btn onClick={confirmBulkPromo} disabled={promoting}>{promoting?<><Spinner/> Promoting...</>:'Confirm & Start New Year'}</Btn>
               </div>
             </div>
           )}
