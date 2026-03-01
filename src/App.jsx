@@ -836,12 +836,17 @@ function Sidebar({profile,active,onNav,collapsed,onToggle,onLogout,isMobile,draw
       </nav>
       <div style={{borderTop:'1px solid var(--line)',padding:'14px 12px'}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <Avatar name={profile?.full_name} size={34} color={rm.bg}/>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{profile?.full_name}</div>
-            <Badge color={rm.color} bg={rm.bg}>{rm.label}</Badge>
-          </div>
-          <button onClick={onLogout} title='Sign out' style={{background:'none',color:'var(--mist3)',fontSize:14,padding:4,borderRadius:4,transition:'color 0.15s'}}
+          <button onClick={()=>{onNav('myprofile');onDrawerClose()}} title='My Profile'
+            style={{display:'flex',alignItems:'center',gap:10,flex:1,minWidth:0,background:'none',padding:'4px 6px',borderRadius:'var(--r-sm)',transition:'background 0.15s',cursor:'pointer',textAlign:'left'}}
+            onMouseEnter={e=>e.currentTarget.style.background='var(--ink4)'}
+            onMouseLeave={e=>e.currentTarget.style.background='none'}>
+            <Avatar name={profile?.full_name} size={34} color={rm.bg}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{profile?.full_name}</div>
+              <Badge color={rm.color} bg={rm.bg}>{rm.label}</Badge>
+            </div>
+          </button>
+          <button onClick={onLogout} title='Sign out' style={{background:'none',color:'var(--mist3)',fontSize:14,padding:4,borderRadius:4,transition:'color 0.15s',flexShrink:0}}
             onMouseEnter={e=>e.currentTarget.style.color='var(--rose)'}
             onMouseLeave={e=>e.currentTarget.style.color='var(--mist3)'}>⏻</button>
         </div>
@@ -894,18 +899,25 @@ function Sidebar({profile,active,onNav,collapsed,onToggle,onLogout,isMobile,draw
       <div style={{borderTop:'1px solid var(--line)',padding:collapsed?'12px 8px':'14px 12px'}}>
         {!collapsed ? (
           <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <Avatar name={profile?.full_name} size={34} color={rm.bg}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{profile?.full_name}</div>
-              <Badge color={rm.color} bg={rm.bg}>{rm.label}</Badge>
-            </div>
-            <button onClick={onLogout} title='Sign out' style={{background:'none',color:'var(--mist3)',fontSize:14,padding:4,borderRadius:4,transition:'color 0.15s'}}
+            <button onClick={()=>onNav('myprofile')} title='My Profile'
+              style={{display:'flex',alignItems:'center',gap:10,flex:1,minWidth:0,background:'none',padding:'4px 6px',borderRadius:'var(--r-sm)',transition:'background 0.15s',cursor:'pointer',textAlign:'left'}}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--ink4)'}
+              onMouseLeave={e=>e.currentTarget.style.background='none'}>
+              <Avatar name={profile?.full_name} size={34} color={rm.bg}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{profile?.full_name}</div>
+                <Badge color={rm.color} bg={rm.bg}>{rm.label}</Badge>
+              </div>
+            </button>
+            <button onClick={onLogout} title='Sign out' style={{background:'none',color:'var(--mist3)',fontSize:14,padding:4,borderRadius:4,transition:'color 0.15s',flexShrink:0}}
               onMouseEnter={e=>e.currentTarget.style.color='var(--rose)'}
               onMouseLeave={e=>e.currentTarget.style.color='var(--mist3)'}>⏻</button>
           </div>
         ) : (
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
-            <Avatar name={profile?.full_name} size={34} color={rm.bg}/>
+            <button onClick={()=>onNav('myprofile')} title='My Profile' style={{background:'none',borderRadius:'50%',padding:0,cursor:'pointer',lineHeight:0}}>
+              <Avatar name={profile?.full_name} size={34} color={rm.bg}/>
+            </button>
             <button onClick={onToggle} style={{background:'none',color:'var(--mist3)',fontSize:16}}>›</button>
           </div>
         )}
@@ -4761,6 +4773,181 @@ function Users({profile,toast}) {
   )
 }
 
+
+// ── MY PROFILE ─────────────────────────────────────────────────
+function MyProfile({profile, setProfile, toast}) {
+  const rm = ROLE_META[profile?.role] || {}
+  const [nameForm,  setNameForm]  = useState(profile?.full_name || '')
+  const [passForm,  setPassForm]  = useState({current:'', next:'', confirm:''})
+  const [savingName, setSavingName] = useState(false)
+  const [savingPass, setSavingPass] = useState(false)
+  const [showCurrent, setShowCurrent] = useState(false)
+  const [showNext,    setShowNext]    = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+
+  const saveName = async () => {
+    const trimmed = nameForm.trim()
+    if(!trimmed) return toast('Name cannot be empty.', 'error')
+    if(trimmed === profile?.full_name) return toast('No changes to save.', 'error')
+    setSavingName(true)
+    const {error} = await supabase.from('profiles').update({full_name: trimmed}).eq('id', profile.id)
+    if(error) { toast(error.message, 'error') }
+    else {
+      setProfile(p => ({...p, full_name: trimmed}))
+      toast('Display name updated.')
+    }
+    setSavingName(false)
+  }
+
+  const savePass = async () => {
+    if(!passForm.next) return toast('New password cannot be empty.', 'error')
+    if(passForm.next.length < 8) return toast('Password must be at least 8 characters.', 'error')
+    if(passForm.next !== passForm.confirm) return toast('Passwords do not match.', 'error')
+    setSavingPass(true)
+    const {error} = await supabase.auth.updateUser({password: passForm.next})
+    if(error) { toast(error.message, 'error') }
+    else {
+      setPassForm({current:'', next:'', confirm:''})
+      toast('Password changed successfully.')
+    }
+    setSavingPass(false)
+  }
+
+  const pf = k => v => setPassForm(p => ({...p, [k]: v}))
+
+  const eyeBtn = (show, toggle) => (
+    <button onClick={toggle} type='button'
+      style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',color:'var(--mist3)',fontSize:14,padding:2,lineHeight:1}}>
+      {show ? '◡' : '○'}
+    </button>
+  )
+
+  const inputStyle = {
+    width:'100%', background:'var(--ink3)', border:'1px solid var(--line)',
+    borderRadius:'var(--r-sm)', padding:'9px 14px', color:'var(--white)', fontSize:13
+  }
+
+  return (
+    <div>
+      <PageHeader title='My Profile' sub='Manage your display name and password'/>
+
+      {/* Identity card */}
+      <Card style={{marginBottom:20}}>
+        <div style={{display:'flex',alignItems:'center',gap:16,padding:'4px 0 8px'}}>
+          <Avatar name={profile?.full_name} size={56} color={rm.bg}/>
+          <div>
+            <div style={{fontSize:18,fontWeight:700,letterSpacing:'-0.01em'}}>{profile?.full_name}</div>
+            <div style={{display:'flex',gap:8,marginTop:6,alignItems:'center'}}>
+              <Badge color={rm.color} bg={rm.bg}>{rm.label}</Badge>
+              <span style={{fontSize:12,color:'var(--mist3)'}}>{profile?.email}</span>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+
+        {/* ── Change Name ── */}
+        <Card>
+          <SectionTitle>Display Name</SectionTitle>
+          <p style={{fontSize:12,color:'var(--mist3)',marginBottom:16,lineHeight:1.6}}>
+            This is how your name appears across the system — on report cards, announcements, and records you create.
+          </p>
+          <div style={{marginBottom:16}}>
+            <label style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6}}>Full Name</label>
+            <input
+              value={nameForm}
+              onChange={e=>setNameForm(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&saveName()}
+              style={inputStyle}
+              placeholder='Your full name'
+            />
+          </div>
+          <div style={{marginBottom:16}}>
+            <label style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6}}>Email</label>
+            <input value={profile?.email||''} disabled style={{...inputStyle,opacity:0.5,cursor:'not-allowed'}}/>
+            <div style={{fontSize:11,color:'var(--mist3)',marginTop:5}}>Email cannot be changed here. Contact your administrator.</div>
+          </div>
+          <div style={{marginBottom:16}}>
+            <label style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6}}>Role</label>
+            <input value={rm.label||profile?.role||''} disabled style={{...inputStyle,opacity:0.5,cursor:'not-allowed'}}/>
+            <div style={{fontSize:11,color:'var(--mist3)',marginTop:5}}>Role is assigned by an administrator.</div>
+          </div>
+          <div style={{display:'flex',justifyContent:'flex-end'}}>
+            <Btn onClick={saveName} disabled={savingName||!nameForm.trim()||nameForm.trim()===profile?.full_name}>
+              {savingName?<><Spinner/> Saving...</>:'Save Name'}
+            </Btn>
+          </div>
+        </Card>
+
+        {/* ── Change Password ── */}
+        <Card>
+          <SectionTitle>Change Password</SectionTitle>
+          <p style={{fontSize:12,color:'var(--mist3)',marginBottom:16,lineHeight:1.6}}>
+            Choose a strong password of at least 8 characters. You will stay signed in after changing it.
+          </p>
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6}}>New Password</label>
+            <div style={{position:'relative'}}>
+              <input
+                type={showNext?'text':'password'}
+                value={passForm.next}
+                onChange={e=>pf('next')(e.target.value)}
+                style={{...inputStyle,paddingRight:36}}
+                placeholder='At least 8 characters'
+              />
+              {eyeBtn(showNext,()=>setShowNext(v=>!v))}
+            </div>
+          </div>
+          <div style={{marginBottom:20}}>
+            <label style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6}}>Confirm New Password</label>
+            <div style={{position:'relative'}}>
+              <input
+                type={showConfirm?'text':'password'}
+                value={passForm.confirm}
+                onChange={e=>pf('confirm')(e.target.value)}
+                onKeyDown={e=>e.key==='Enter'&&savePass()}
+                style={{
+                  ...inputStyle, paddingRight:36,
+                  borderColor: passForm.confirm && passForm.next !== passForm.confirm ? 'var(--rose)' : undefined
+                }}
+                placeholder='Repeat new password'
+              />
+              {eyeBtn(showConfirm,()=>setShowConfirm(v=>!v))}
+            </div>
+            {passForm.confirm && passForm.next !== passForm.confirm && (
+              <div style={{fontSize:11,color:'var(--rose)',marginTop:5}}>Passwords do not match.</div>
+            )}
+          </div>
+          {/* Strength indicator */}
+          {passForm.next && (() => {
+            const len = passForm.next.length
+            const strength = len < 8 ? 0 : len < 12 ? 1 : len < 16 ? 2 : 3
+            const labels = ['Too short','Fair','Good','Strong']
+            const colors = ['var(--rose)','var(--amber)','var(--sky)','var(--emerald)']
+            return (
+              <div style={{marginBottom:16}}>
+                <div style={{display:'flex',gap:4,marginBottom:5}}>
+                  {[0,1,2,3].map(i=>(
+                    <div key={i} style={{flex:1,height:3,borderRadius:2,background:i<=strength?colors[strength]:'var(--line)',transition:'background 0.2s'}}/>
+                  ))}
+                </div>
+                <div style={{fontSize:11,color:colors[strength]}}>{labels[strength]}</div>
+              </div>
+            )
+          })()}
+          <div style={{display:'flex',justifyContent:'flex-end'}}>
+            <Btn onClick={savePass} disabled={savingPass||!passForm.next||passForm.next!==passForm.confirm||passForm.next.length<8}>
+              {savingPass?<><Spinner/> Changing...</>:'Change Password'}
+            </Btn>
+          </div>
+        </Card>
+
+      </div>
+    </div>
+  )
+}
+
 // ── AUDIT LOG ──────────────────────────────────────────────────
 const MODULE_META = {
   Grades:     { icon:'◎', color:'var(--sky)' },
@@ -6470,12 +6657,13 @@ export default function App() {
       case 'announcements':return <Announcements {...props}/>
       case 'users':        return <Users        {...props}/>
       case 'settings':     return <Settings     profile={profile} settings={settings} setSettings={setSettings} toast={showToast} activeYear={activeYear} onStartNewYear={()=>setNewYearModal(true)}/>
+      case 'myprofile':    return <MyProfile    profile={profile} setProfile={setProfile} toast={showToast}/>
       case 'auditlog':     return <AuditLog     profile={profile}/>
       default:             return <Dashboard    {...props} onNav={setPage}/>
     }
   }
 
-  const pageTitles = {dashboard:'Dashboard',students:'Students',classes:'Classes & Subjects',grades:'Grades',attendance:'Attendance',fees:'Fees',behaviour:'Behaviour',reports:'Reports',announcements:'Announcements',users:'Users',settings:'Settings',auditlog:'Audit Log'}
+  const pageTitles = {dashboard:'Dashboard',students:'Students',classes:'Classes & Subjects',grades:'Grades',attendance:'Attendance',fees:'Fees',behaviour:'Behaviour',reports:'Reports',announcements:'Announcements',users:'Users',settings:'Settings',auditlog:'Audit Log',myprofile:'My Profile'}
 
   return (
     <>
@@ -6493,7 +6681,7 @@ export default function App() {
                   <div style={{width:18,height:1.5,background:'var(--mist2)',borderRadius:1}}/>
                 </button>
                 <span className='d' style={{fontSize:15,fontWeight:700,letterSpacing:'-0.01em'}}>{pageTitles[page]||'SRMS'}</span>
-                <Avatar name={profile?.full_name} size={34} color={ROLE_META[profile?.role]?.bg}/>
+                <button onClick={()=>setPage('myprofile')} title='My Profile' style={{background:'none',borderRadius:'50%',padding:0,cursor:'pointer',lineHeight:0}}><Avatar name={profile?.full_name} size={34} color={ROLE_META[profile?.role]?.bg}/></button>
               </div>
               {/* Mobile year bar — only superadmin sees switcher */}
               <div style={{height:28,display:'flex',alignItems:'center',justifyContent:'center',gap:8,borderTop:'1px solid var(--line)',background:isViewingPast?'rgba(251,159,58,0.06)':'transparent'}}>
@@ -6520,13 +6708,16 @@ export default function App() {
                 {isViewingPast && <span style={{fontSize:10,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:4,padding:'2px 8px',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>READ ONLY</span>}
               </div>
               <div style={{display:'flex',alignItems:'center',gap:16}}>
-                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <button onClick={()=>setPage('myprofile')} title='My Profile'
+                  style={{display:'flex',alignItems:'center',gap:10,background:'none',borderRadius:'var(--r-sm)',padding:'4px 8px',transition:'background 0.15s',cursor:'pointer'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='var(--ink4)'}
+                  onMouseLeave={e=>e.currentTarget.style.background='none'}>
                   <Avatar name={profile?.full_name} size={30} color={ROLE_META[profile?.role]?.bg}/>
-                  <div>
+                  <div style={{textAlign:'left'}}>
                     <div style={{fontSize:12,fontWeight:600,lineHeight:1.2}}>{profile?.full_name}</div>
                     <div style={{fontSize:10,color:'var(--mist3)'}}>{ROLE_META[profile?.role]?.label}</div>
                   </div>
-                </div>
+                </button>
                 <Btn variant='ghost' size='sm' onClick={logout}>Sign Out</Btn>
               </div>
             </div>
