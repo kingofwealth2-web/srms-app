@@ -19,6 +19,11 @@ const G = `
   --r-sm:8px;--r:14px;--r-lg:20px;
   --sh:0 8px 32px rgba(0,0,0,0.5);--sh-gold:0 0 24px rgba(232,184,75,0.12);
 }
+body.light{
+  --ink:#f4f4f8;--ink2:#ffffff;--ink3:#eeeef4;--ink4:#e4e4ec;--ink5:#d8d8e4;
+  --line:#d0d0de;--line2:#c0c0d0;
+  --mist:#2a2a3a;--mist2:#555568;--mist3:#888898;--white:#0f0f1a;
+}
 html,body,#root{height:100%;background:var(--ink);color:var(--white);font-family:'Cabinet Grotesk',sans-serif;-webkit-font-smoothing:antialiased}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -2872,7 +2877,10 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   const [bulkModal,setBulkModal]   = useState(false)
   const [bulkStep,setBulkStep]     = useState(1)
   const [bulkSaving,setBulkSaving] = useState(false)
-  const BULK_INIT = {fee_type:'',period:'Semester 1',default_amount:'',selected_classes:[]}
+  const feePeriods = settings?.period_type==='term'
+    ? Array.from({length:settings?.period_count||2},(_,i)=>`Term ${i+1}`)
+    : Array.from({length:settings?.period_count||2},(_,i)=>`Semester ${i+1}`)
+  const BULK_INIT = {fee_type:'',period:feePeriods[0]||'Semester 1',default_amount:'',due_date:'',selected_classes:[]}
   const [bulk,setBulk]             = useState(BULK_INIT)
   // Per-class amounts: { classId: amount string }
   const [classAmounts,setClassAmounts] = useState({})
@@ -2951,6 +2959,7 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
             paid:       0,
             period:     bulk.period,
             academic_year: activeYear,
+            ...(bulk.due_date ? {due_date: bulk.due_date} : {}),
           })
         })
       })
@@ -3432,7 +3441,7 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
         <Modal title='Add Fee Record' onClose={()=>setModal(false)}>
           <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={studentsInClass.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name} · ${classes.find(c=>c.id===s.class_id)?.name||''}`}))}/>
           <Field label='Fee Type' value={form.fee_type} onChange={f('fee_type')} placeholder='e.g. Tuition, Activity Fee' required/>
-          <Field label='Period' value={form.period} onChange={f('period')} options={[{value:'Semester 1',label:'Semester 1'},{value:'Semester 2',label:'Semester 2'}]}/>
+          <Field label='Period' value={form.period} onChange={f('period')} options={feePeriods.map(p=>({value:p,label:p}))}/>
           <Field label='Amount' value={form.amount} onChange={f('amount')} type='number' required/>
           <Field label='Due Date' value={form.due_date} onChange={f('due_date')} type='date'/>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
@@ -3468,9 +3477,12 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
             <div>
               <Field label='Fee Type' value={bulk.fee_type} onChange={bf('fee_type')} placeholder='e.g. Tuition, Feeding Fee, Books' required/>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 16px'}}>
-                <Field label='Semester' value={bulk.period} onChange={bf('period')}
-                  options={[{value:'Semester 1',label:'Semester 1'},{value:'Semester 2',label:'Semester 2'}]}/>
+                <Field label='Period' value={bulk.period} onChange={bf('period')} options={feePeriods.map(p=>({value:p,label:p}))}/>
                 <Field label='Default Amount' value={bulk.default_amount} onChange={bf('default_amount')} type='number' placeholder='0.00' required/>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 16px'}}>
+                <Field label='Due Date (optional)' value={bulk.due_date} onChange={bf('due_date')} type='date'/>
+                <div/>
               </div>
               <div style={{marginBottom:16}}>
                 <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10,fontFamily:"'Clash Display',sans-serif"}}>
@@ -3579,8 +3591,9 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 20px'}}>
                   {[
                     ['Fee Type',   bulk.fee_type],
-                    ['Semester',   bulk.period],
+                    ['Period',     bulk.period],
                     ['Year',       activeYear],
+                    ['Due Date',   bulk.due_date || 'Not set'],
                     ['Classes',    `${bulk.selected_classes.length} selected`],
                   ].map(([l,v])=>(
                     <div key={l}>
@@ -6903,6 +6916,16 @@ export default function App() {
   const [loading,setLoading]   = useState(true)
   const [toast,setToast]       = useState(null)
   const [drawerOpen,setDrawerOpen] = useState(false)
+  const [isDark,setIsDark] = useState(()=>{
+    try {
+      const saved = localStorage.getItem('srms-theme')
+      return saved ? saved === 'dark' : true
+    } catch(e) { return true }
+  })
+  useEffect(()=>{
+    document.body.classList.toggle('light', !isDark)
+    try { localStorage.setItem('srms-theme', isDark ? 'dark' : 'light') } catch(e) {}
+  },[isDark])
   const [selectedYear,setSelectedYear] = useState(null) // null = current year
   const [newYearModal,setNewYearModal] = useState(false)
   const [newYearStep,setNewYearStep]   = useState(1)
@@ -7129,7 +7152,13 @@ export default function App() {
                   <div style={{width:18,height:1.5,background:'var(--mist2)',borderRadius:1}}/>
                 </button>
                 <span className='d' style={{fontSize:15,fontWeight:700,letterSpacing:'-0.01em'}}>{pageTitles[page]||'SRMS'}</span>
-                <button onClick={()=>setPage('myprofile')} title='My Profile' style={{background:'none',borderRadius:'50%',padding:0,cursor:'pointer',lineHeight:0}}><Avatar name={profile?.full_name} size={34} color={ROLE_META[profile?.role]?.bg}/></button>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <button onClick={()=>setIsDark(d=>!d)} title={isDark?'Switch to Light Mode':'Switch to Dark Mode'}
+                    style={{width:34,height:34,borderRadius:'var(--r-sm)',background:'var(--ink4)',border:'1px solid var(--line)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>
+                    <span style={{fontSize:14,lineHeight:1}}>{isDark?'☀':'🌙'}</span>
+                  </button>
+                  <button onClick={()=>setPage('myprofile')} title='My Profile' style={{background:'none',borderRadius:'50%',padding:0,cursor:'pointer',lineHeight:0}}><Avatar name={profile?.full_name} size={34} color={ROLE_META[profile?.role]?.bg}/></button>
+                </div>
               </div>
               {/* Mobile year bar — only superadmin sees switcher */}
               <div style={{height:28,display:'flex',alignItems:'center',justifyContent:'center',gap:8,borderTop:'1px solid var(--line)',background:isViewingPast?'rgba(251,159,58,0.06)':'transparent'}}>
@@ -7165,6 +7194,12 @@ export default function App() {
                     <div style={{fontSize:12,fontWeight:600,lineHeight:1.2,color:'var(--white)'}}>{profile?.full_name}</div>
                     <div style={{fontSize:10,color:'var(--mist3)'}}>{ROLE_META[profile?.role]?.label}</div>
                   </div>
+                </button>
+                <button onClick={()=>setIsDark(d=>!d)} title={isDark?'Switch to Light Mode':'Switch to Dark Mode'}
+                  style={{width:36,height:36,borderRadius:'var(--r-sm)',background:'var(--ink4)',border:'1px solid var(--line)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',transition:'all 0.2s',flexShrink:0}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--gold)';e.currentTarget.style.background='var(--gold-dim)'}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--line)';e.currentTarget.style.background='var(--ink4)'}}>
+                  <span style={{fontSize:15,lineHeight:1}}>{isDark?'☀':'🌙'}</span>
                 </button>
                 <Btn variant='ghost' size='sm' onClick={logout}>Sign Out</Btn>
               </div>
