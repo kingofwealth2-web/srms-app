@@ -896,6 +896,18 @@ function Sidebar({profile,active,onNav,collapsed,onToggle,onLogout,isMobile,draw
   )
 }
 
+// ── ANNOUNCEMENT VISIBILITY HELPER ────────────────────────────
+// Returns true if a user with the given role should see this announcement.
+// target_role values: 'all' | 'teacher' | 'admin'
+// Role values:        'superadmin' | 'admin' | 'classteacher' | 'teacher'
+function canSeeAnnouncement(role, ann) {
+  if(!ann.active) return false           // inactive = nobody sees it (except managers, handled separately)
+  if(ann.target_role === 'all') return true
+  if(ann.target_role === 'admin')   return role === 'superadmin' || role === 'admin'
+  if(ann.target_role === 'teacher') return role === 'classteacher' || role === 'teacher'
+  return false
+}
+
 // ── DASHBOARD ──────────────────────────────────────────────────
 function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
   const isMobile = useIsMobile()
@@ -944,7 +956,7 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
   const mySubjectStudentIds = [...new Set(grades.filter(g=>mySubjectIds.includes(g.subject_id)).map(g=>g.student_id))]
   const mySubjectStats      = calcStats(mySubjectStudentIds, mySubjectIds)
   const mySubjectAvg        = mySubjectStats.avg
-  const activeAnn = announcements.filter(a=>a.active).slice(0,4)
+  const activeAnn = announcements.filter(a=>canSeeAnnouncement(profile?.role,a)).slice(0,4)
   const isAdmin   = ['superadmin','admin'].includes(profile?.role)
 
   // Attendance rate calculations
@@ -4494,7 +4506,7 @@ function Announcements({profile,data,setData,toast,activeYear,isViewingPast}) {
   const [form,setForm]   = useState({})
   const [saving,setSaving] = useState(false)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
-  const visible = announcements.filter(a=>a.active||canManage).sort((a,b)=>b.created_at?.localeCompare(a.created_at))
+  const visible = announcements.filter(a=>canManage ? true : canSeeAnnouncement(profile?.role,a)).sort((a,b)=>b.created_at?.localeCompare(a.created_at))
   const openAdd = ()=>{setForm({title:'',body:'',target_role:'all'});setModal(true)}
   const save = async ()=>{
     if(!form.title||!form.body)return
