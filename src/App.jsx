@@ -1122,6 +1122,195 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
     if(error)toast(error.message,'error')
     else{const s=students.find(x=>x.id===id);setData(p=>({...p,students:p.students.filter(s=>s.id!==id)}));auditLog(profile,'Students','Deleted',`${s?.first_name} ${s?.last_name}`,{},s||null,null);toast('Student removed')}
   }
+
+  // ── PRINT STUDENT PROFILE ──────────────────────────────────────
+  const printStudentProfile = (s) => {
+    const cls            = classes.find(c => c.id === s.class_id)
+    const subjectsForCls = data.subjects?.filter(sub => sub.class_id === s.class_id) || []
+    const studentGrades  = data.grades?.filter(g => g.student_id === s.id) || []
+    const gradeComps     = getGradeComponents(settings)
+    const scale          = settings?.grading_scale || []
+    const attRecs        = data.attendance?.filter(a => a.student_id === s.id) || []
+    const behRecs        = data.behaviour?.filter(b => b.student_id === s.id) || []
+
+    const present = attRecs.filter(a => a.status === 'Present').length
+    const absent  = attRecs.filter(a => a.status === 'Absent').length
+    const late    = attRecs.filter(a => a.status === 'Late').length
+    const excused = attRecs.filter(a => a.status === 'Excused').length
+    const attRate = attRecs.length ? Math.round(present / attRecs.length * 100) : null
+
+    const schoolName  = settings?.school_name  || 'SRMS'
+    const schoolMotto = settings?.motto         || ''
+    const schoolLogo  = settings?.school_logo   || null
+    const yearLabel   = activeYear || ''
+    const ptLabel     = settings?.period_type === 'term' ? 'Terms' : 'Semesters'
+
+    const fmtD = d => d ? new Date(d).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'}) : '\u2014'
+
+    const logoTag = schoolLogo
+      ? `<img src="${schoolLogo}" style="width:56px;height:56px;object-fit:contain;border-radius:8px;flex-shrink:0;" />`
+      : `<div style="width:56px;height:56px;border-radius:10px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#e8b84b;flex-shrink:0;">${schoolName.charAt(0)}</div>`
+
+    const photoTag = s.photo
+      ? `<img src="${s.photo}" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:3px solid #e8b84b;flex-shrink:0;" />`
+      : `<div style="width:84px;height:84px;border-radius:50%;background:rgba(232,184,75,0.12);border:3px solid rgba(232,184,75,0.3);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#e8b84b;flex-shrink:0;">${s.first_name[0]}${s.last_name[0]}</div>`
+
+    const subjectRows = subjectsForCls.map(sub => {
+      const g      = studentGrades.find(g => g.subject_id === sub.id)
+      const total  = g ? calcTotal(g, gradeComps) : null
+      const letter = total !== null ? (scale.find(sc => total >= sc.min && total <= sc.max)?.letter || '--') : '--'
+      const remark = total !== null ? (scale.find(sc => total >= sc.min && total <= sc.max)?.remark || '')  : ''
+      const scoreC = total === null ? '#9ca3af' : total < 50 ? '#dc2626' : total >= 75 ? '#16a34a' : '#1d4ed8'
+      const ltC    = letter==='A+'||letter==='A' ? '#16a34a' : letter==='B' ? '#1d4ed8' : letter==='C'||letter==='D' ? '#d97706' : '#dc2626'
+      return `<tr>
+        <td style="padding:9px 14px;font-size:13px;border-bottom:1px solid #f3f4f6;color:#111827;">${sub.name}</td>
+        <td style="padding:9px 10px;text-align:center;font-size:16px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${scoreC};">${total !== null ? total : '\u2014'}</td>
+        <td style="padding:9px 10px;text-align:center;border-bottom:1px solid #f3f4f6;"><span style="display:inline-block;padding:2px 8px;background:${ltC}18;border:1px solid ${ltC}40;border-radius:5px;font-size:12px;font-weight:700;color:${ltC};">${letter}</span></td>
+        <td style="padding:9px 14px;font-size:11px;border-bottom:1px solid #f3f4f6;color:#6b7280;">${remark}</td>
+      </tr>`
+    }).join('')
+
+    const scored      = subjectsForCls.map(sub => { const g = studentGrades.find(g => g.subject_id===sub.id); return g ? calcTotal(g, gradeComps) : null }).filter(t => t !== null)
+    const grandAvg    = scored.length ? Math.round(scored.reduce((a,b)=>a+b,0) / scored.length) : null
+    const grandLetter = grandAvg !== null ? (scale.find(sc=>grandAvg>=sc.min&&grandAvg<=sc.max)?.letter||'--') : '--'
+    const grandRemark = grandAvg !== null ? (scale.find(sc=>grandAvg>=sc.min&&grandAvg<=sc.max)?.remark||'')  : ''
+    const gradeC      = grandAvg===null?'#6b7280':grandAvg>=75?'#16a34a':grandAvg>=50?'#1d4ed8':'#dc2626'
+
+    const recentBeh = [...behRecs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,6)
+    const behTC = t => t==='Incident'?'#dc2626':t==='Suspension'?'#7c3aed':t==='Commendation'?'#16a34a':t==='Award'?'#d97706':'#6b7280'
+    const behRows = recentBeh.map(b => `<tr>
+        <td style="padding:8px 12px;font-size:11px;border-bottom:1px solid #f3f4f6;color:#6b7280;white-space:nowrap;">${fmtD(b.date||b.created_at)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;"><span style="display:inline-block;padding:1px 7px;background:${behTC(b.type)}15;border:1px solid ${behTC(b.type)}35;border-radius:4px;font-size:10px;font-weight:700;color:${behTC(b.type)};text-transform:uppercase;letter-spacing:0.06em;">${b.type}</span></td>
+        <td style="padding:8px 12px;font-size:12px;font-weight:600;border-bottom:1px solid #f3f4f6;color:#111827;">${b.title||'\u2014'}</td>
+        <td style="padding:8px 12px;font-size:11px;border-bottom:1px solid #f3f4f6;color:#6b7280;">${b.recorded_by_name||'\u2014'}</td>
+      </tr>`).join('')
+
+    const statusBadge = s.archived
+      ? (() => {
+          const rc = s.leaving_reason||'Archived'
+          const c  = rc==='Graduated'?'#1d4ed8':rc==='Transferred'?'#d97706':'#dc2626'
+          const bg = rc==='Graduated'?'#dbeafe':rc==='Transferred'?'#fef3c7':'#fee2e2'
+          return `<span style="display:inline-block;padding:3px 10px;background:${bg};border-radius:20px;font-size:10px;font-weight:700;color:${c};">${rc} \u00b7 ${s.graduation_year||'\u2014'}</span>`
+        })()
+      : cls ? `<span style="display:inline-block;padding:3px 10px;background:#dbeafe;border-radius:20px;font-size:10px;font-weight:700;color:#1d4ed8;">${cls.name}</span>` : ''
+
+    const row = (label, val) => val
+      ? `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px solid #f3f4f6;gap:10px;"><span style="font-size:11px;color:#9ca3af;white-space:nowrap;">${label}</span><span style="font-size:12px;color:#374151;font-weight:600;text-align:right;">${val}</span></div>`
+      : ''
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Student Profile \u2014 ${s.first_name} ${s.last_name}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@600;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:#f0f2f5;color:#1a1a2e;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  table{border-collapse:collapse;width:100%}
+  .wrap{background:#fff;border-radius:14px;overflow:hidden;max-width:820px;margin:0 auto 24px;box-shadow:0 4px 32px rgba(0,0,0,0.10);}
+  .sec{font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:12px;display:flex;align-items:center;gap:7px;}
+  .sec::before{content:'';width:3px;height:11px;background:#1e3a8a;border-radius:2px;flex-shrink:0;display:inline-block;}
+  .no-print{display:block}
+  @media print{@page{size:A4 portrait;margin:10mm}.no-print{display:none!important}body{background:#fff}.wrap{box-shadow:none;border-radius:0;max-width:100%;margin:0}}
+  @media screen{body{padding:20px}}
+</style></head><body>
+<div class="wrap">
+  <div style="height:5px;background:linear-gradient(90deg,#1e3a8a,#3b82f6,#1e3a8a);"></div>
+  <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 55%,#1e40af 100%);padding:20px 28px;display:flex;align-items:center;gap:18px;">
+    ${logoTag}
+    <div style="flex:1;text-align:center;">
+      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#fff;">${schoolName}</div>
+      ${schoolMotto ? `<div style="font-size:10px;color:#93c5fd;margin-top:3px;font-style:italic;">"${schoolMotto}"</div>` : ''}
+      <div style="display:inline-block;margin-top:8px;padding:3px 16px;background:rgba(232,184,75,0.15);border:1px solid rgba(232,184,75,0.3);border-radius:20px;"><span style="font-size:9px;font-weight:700;color:#e8b84b;text-transform:uppercase;letter-spacing:0.14em;">Student Profile</span></div>
+    </div>
+    ${photoTag}
+  </div>
+  <div style="background:#f8fafc;border-bottom:2px solid #e5e7eb;padding:14px 28px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:180px;">
+      <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#111827;">${s.first_name} ${s.last_name}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;">
+        <span style="font-family:monospace;font-size:11px;color:#d97706;background:#fef3c7;border:1px solid #fde68a;border-radius:4px;padding:2px 8px;font-weight:600;">${s.student_id}</span>
+        ${statusBadge}
+        ${s.gender ? `<span style="font-size:11px;color:#6b7280;">${s.gender}</span>` : ''}
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      ${grandAvg !== null ? `<div style="text-align:center;padding:8px 14px;background:#fff;border:1.5px solid ${gradeC};border-radius:10px;min-width:72px;"><div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Avg Score</div><div style="font-size:22px;font-weight:900;color:${gradeC};line-height:1;">${grandAvg}</div><div style="font-size:9px;font-weight:700;color:${gradeC};margin-top:1px;">${grandLetter}${grandRemark ? ' \u00b7 '+grandRemark : ''}</div></div>` : ''}
+      ${attRate !== null ? `<div style="text-align:center;padding:8px 14px;background:#fff;border:1.5px solid #0ea5e9;border-radius:10px;min-width:72px;"><div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Attendance</div><div style="font-size:22px;font-weight:900;color:#0ea5e9;line-height:1;">${attRate}%</div><div style="font-size:9px;color:#0ea5e9;margin-top:1px;">${present} present</div></div>` : ''}
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #f3f4f6;">
+    <div style="padding:20px 18px 20px 28px;border-right:1px solid #f3f4f6;">
+      <div class="sec">Personal Details</div>
+      ${row('Date of Birth', fmtD(s.dob))}
+      ${row('Gender',     s.gender)}
+      ${row('Phone',      s.phone)}
+      ${row('Email',      s.email)}
+      ${row('Address',    s.address)}
+      ${row('Entry Year', s.entry_year ? String(s.entry_year) : null)}
+      ${s.archived ? row('Left In',  s.graduation_year ? String(s.graduation_year) : null) : ''}
+      ${s.archived && s.leaving_reason ? row('Reason', s.leaving_reason) : ''}
+      ${s.archived && s.leaving_notes  ? row('Notes',  s.leaving_notes)  : ''}
+      ${(s.guardian_name || s.guardian_phone) ? `
+        <div class="sec" style="margin-top:18px;">Parent / Guardian</div>
+        ${row('Name', s.guardian_name)}
+        ${row('Relationship', s.guardian_relation)}
+        ${row('Phone', s.guardian_phone)}
+        ${row('Email', s.guardian_email)}` : ''}
+      ${s.medical_info && s.medical_info !== 'None' ? `
+        <div style="margin-top:14px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
+          <div style="font-size:8px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:5px;">\u2695 Medical Information</div>
+          <div style="font-size:12px;color:#374151;line-height:1.5;">${s.medical_info}</div>
+        </div>` : ''}
+    </div>
+    <div style="padding:20px 28px 20px 18px;">
+      <div class="sec">Academic Summary <span style="font-size:9px;font-weight:400;color:#9ca3af;text-transform:none;letter-spacing:0;margin-left:4px;">All ${ptLabel} \u00b7 ${yearLabel}</span></div>
+      ${subjectsForCls.length === 0
+        ? `<div style="font-size:13px;color:#9ca3af;padding:10px 0;">No subjects assigned to this class.</div>`
+        : `<table style="margin-bottom:4px;">
+            <thead><tr style="background:#f8fafc;">
+              <th style="padding:7px 14px;text-align:left;font-size:8px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Subject</th>
+              <th style="padding:7px 8px;text-align:center;font-size:8px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Score</th>
+              <th style="padding:7px 8px;text-align:center;font-size:8px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Grade</th>
+              <th style="padding:7px 14px;text-align:left;font-size:8px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Remark</th>
+            </tr></thead>
+            <tbody>${subjectRows}</tbody>
+          </table>`}
+      <div class="sec" style="margin-top:18px;">Attendance</div>
+      ${attRecs.length === 0
+        ? `<div style="font-size:13px;color:#9ca3af;">No attendance records yet.</div>`
+        : `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;">
+            ${[['Present',present,'#16a34a'],['Absent',absent,'#dc2626'],['Late',late,'#d97706'],['Excused',excused,'#0ea5e9']].map(([l,n,c])=>
+              `<div style="text-align:center;padding:8px 4px;background:${c}0d;border:1px solid ${c}28;border-radius:8px;"><div style="font-size:19px;font-weight:800;color:${c};">${n}</div><div style="font-size:9px;color:#9ca3af;margin-top:2px;">${l}</div></div>`
+            ).join('')}
+          </div>`}
+    </div>
+  </div>
+  ${behRecs.length > 0 ? `
+  <div style="padding:18px 28px;border-bottom:1px solid #f3f4f6;">
+    <div class="sec">Behaviour Records <span style="font-size:9px;font-weight:400;color:#9ca3af;text-transform:none;letter-spacing:0;margin-left:4px;">${behRecs.length} total \u00b7 showing ${recentBeh.length} most recent</span></div>
+    <table>
+      <thead><tr style="background:#f8fafc;">
+        <th style="padding:7px 12px;text-align:left;font-size:8px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.08em;border-bottom:1.5px solid #e5e7eb;">Date</th>
+        <th style="padding:7px 12px;text-align:left;font-size:8px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.08em;border-bottom:1.5px solid #e5e7eb;">Type</th>
+        <th style="padding:7px 12px;text-align:left;font-size:8px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.08em;border-bottom:1.5px solid #e5e7eb;">Title</th>
+        <th style="padding:7px 12px;text-align:left;font-size:8px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.08em;border-bottom:1.5px solid #e5e7eb;">Recorded By</th>
+      </tr></thead>
+      <tbody>${behRows}</tbody>
+    </table>
+  </div>` : ''}
+  <div style="padding:12px 28px;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;">
+    <div style="font-size:10px;color:#9ca3af;">Generated ${fmtD(new Date())}</div>
+    <div style="font-size:10px;color:#9ca3af;">${schoolName} \u00b7 SRMS</div>
+  </div>
+  <div style="height:4px;background:linear-gradient(90deg,#1e3a8a,#3b82f6,#1e3a8a);"></div>
+</div>
+<div class="no-print" style="max-width:820px;margin:0 auto;text-align:center;padding:14px 0 20px;">
+  <button onclick="window.print()" style="padding:12px 36px;background:linear-gradient(135deg,#1e3a8a,#3b82f6);border:none;border-radius:10px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;box-shadow:0 4px 12px rgba(30,58,138,0.3);">\u2389\u00a0 Print Student Profile</button>
+</div>
+</body></html>`
+
+    const w = window.open('', '_blank', 'width=860,height=960')
+    if (w) { w.document.write(html); w.document.close() }
+  }
+
   return (
     <div>
       <PageHeader
@@ -1357,6 +1546,8 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
                 <button onClick={()=>{setViewStudent(null);openEdit(s)}}
                   style={{width:34,height:34,borderRadius:'50%',background:'rgba(232,184,75,0.12)',border:'1px solid rgba(232,184,75,0.3)',color:'var(--gold)',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}>✎</button>
               )}
+              <button onClick={()=>printStudentProfile(s)} title='Print Student Profile'
+                style={{width:34,height:34,borderRadius:'50%',background:'rgba(91,168,245,0.12)',border:'1px solid rgba(91,168,245,0.3)',color:'var(--sky)',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}>⎙</button>
             </div>
 
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
@@ -1454,7 +1645,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
 
 // ── GRADES ─────────────────────────────────────────────────────
 function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
-  const {grades=[],students=[],subjects=[],enrolments=[]} = data
+  const {grades=[],students=[],subjects=[]} = data
   const scale = settings?.grading_scale || []
   const allComps = getGradeComponents(settings)
   const activeComps = allComps.filter(c=>c.enabled)
@@ -1489,11 +1680,7 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
   const [modal,setModal] = useState(false)
   const [edit,setEdit]   = useState(null)
   const [form,setForm]   = useState({})
-  const [saving,setSaving]     = useState(false)
-  const [viewMode,setViewMode] = useState('list') // 'list' | 'class'
-  const [bulkRows,setBulkRows] = useState({})     // studentId -> {comp scores}
-  const [dirtyIds,setDirtyIds] = useState(new Set())
-  const [bulkSaving,setBulkSaving] = useState(false)
+  const [saving,setSaving] = useState(false)
   const f = k => v => setForm(p=>({...p,[k]:v}))
 
   const periods = settings?.period_type==='term'
@@ -1507,31 +1694,24 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
 
   // Students scoped to selected class (or all teaching classes if no class selected)
   const myStudents = fc
-    ? students.filter(s=>s.class_id===fc && !s.archived)
+    ? students.filter(s=>s.class_id===fc)
     : myClassIds===null
-      ? students.filter(s=>!s.archived)
-      : students.filter(s=>myClassIds.includes(s.class_id) && !s.archived)
+      ? students
+      : students.filter(s=>myClassIds.includes(s.class_id))
 
   // Grades visible in table
   const myGrades = isAdminGrades
     ? grades
     : grades.filter(g=>viewSubjects.some(s=>s.id===g.subject_id))
 
-  // When viewing a past year, use enrolment records to know which class
-  // each student was in that year — same approach as Reports
-  const enrolmentMap = enrolments.reduce((acc,e)=>{acc[e.student_id]=e.class_id;return acc},{})
-  const getStudentClassId = (studentId) => {
-    if(isViewingPast && enrolments.length>0) return enrolmentMap[studentId]||null
-    return students.find(s=>s.id===studentId)?.class_id||null
-  }
-
   const filtered = myGrades.filter(g=>{
     // Scope to active year — skip only if year is explicitly set to a different year
     if(g.year && g.year !== activeYear) return false
-    // Filter by class: use enrolment records for past years, current class for present
+    // Filter by class: match the student's CURRENT class, not the subject's class
+    // This ensures promoted students don't appear under their old class
     if(fc) {
-      const classId = getStudentClassId(g.student_id)
-      if(!classId || classId !== fc) return false
+      const student = students.find(s=>s.id===g.student_id)
+      if(!student || student.class_id !== fc) return false
     }
     return (!fs||g.subject_id===fs)&&(!fp||g.period===fp)
   })
@@ -1583,117 +1763,6 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
     setSaving(false)
   }
 
-  // ── Bulk / class view helpers ──
-
-  // Switch to class view — warn if dirty
-  const switchToClassView = () => {
-    if(dirtyIds.size > 0) {
-      if(!window.confirm('You have unsaved changes. Switch to Class View and discard them?')) return
-    }
-    setBulkRows({})
-    setDirtyIds(new Set())
-    setViewMode('class')
-  }
-
-  const switchToListView = () => {
-    if(dirtyIds.size > 0) {
-      if(!window.confirm('You have unsaved changes. Switch to List View and discard them?')) return
-    }
-    setBulkRows({})
-    setDirtyIds(new Set())
-    setViewMode('list')
-  }
-
-  // When class/subject/period context changes in class view, reset bulk rows
-  // (called via useEffect watching fc/fs/fp)
-  const resetBulkOnContextChange = (newFc, newFs, newFp, force=false) => {
-    if(!force && dirtyIds.size > 0) {
-      if(!window.confirm('You have unsaved changes. Changing the filter will discard them. Continue?')) return false
-    }
-    setBulkRows({})
-    setDirtyIds(new Set())
-    return true
-  }
-
-  // Initialise bulk rows for a given context (class/subject/period)
-  // Pre-fills existing grades
-  const getBulkStudents = () => {
-    if(!fc || !fs || !fp) return []
-    return myStudents.filter(s=>s.class_id===fc).sort((a,b)=>a.last_name.localeCompare(b.last_name))
-  }
-
-  const getBulkRow = (studentId) => {
-    if(bulkRows[studentId]) return bulkRows[studentId]
-    // Pre-fill from existing grade record
-    const existing = grades.find(g=>g.student_id===studentId&&g.subject_id===fs&&g.period===fp&&(!g.year||g.year===activeYear))
-    if(existing) {
-      return ALL_COMPONENTS.reduce((acc,k)=>({...acc,[k]:existing[k]??''}),{})
-    }
-    return ALL_COMPONENTS.reduce((acc,k)=>({...acc,[k]:''}),{})
-  }
-
-  const updateBulkCell = (studentId, compKey, value) => {
-    // Clamp to non-negative
-    const clamped = value==='' ? '' : Math.max(0, +value).toString()
-    setBulkRows(prev=>({...prev,[studentId]:{...getBulkRow(studentId),[compKey]:clamped}}))
-    setDirtyIds(prev=>new Set([...prev,studentId]))
-  }
-
-  const saveAllBulk = async () => {
-    if(!fc||!fs||!fp){toast('Please select a class, subject, and period first','error');return}
-    if(dirtyIds.size===0){toast('No changes to save','error');return}
-    // Validate — check no score exceeds max
-    const dirtyStudents = [...dirtyIds]
-    for(const sid of dirtyStudents){
-      const row = getBulkRow(sid)
-      for(const comp of activeComps){
-        const val = +row[comp.key]||0
-        if(val < 0){
-          const s=students.find(x=>x.id===sid)
-          toast(`${s?.first_name} ${s?.last_name}: ${comp.label} cannot be negative`,'error')
-          return
-        }
-        if(comp.max_score>0 && val>comp.max_score){
-          const s=students.find(x=>x.id===sid)
-          toast(`${s?.first_name} ${s?.last_name}: ${comp.label} exceeds max (${comp.max_score})`,'error')
-          return
-        }
-      }
-    }
-    setBulkSaving(true)
-    let saved=0, failed=0
-    for(const sid of dirtyStudents){
-      const row = getBulkRow(sid)
-      const scores = ALL_COMPONENTS.reduce((acc,k)=>{
-        const comp = allComps.find(c=>c.key===k)
-        return {...acc,[k]:comp?.enabled?(+row[k]||0):0}
-      },{})
-      const existing = grades.find(g=>g.student_id===sid&&g.subject_id===fs&&g.period===fp&&(!g.year||g.year===activeYear))
-      const payload = {...scores, student_id:sid, subject_id:fs, period:fp, year:activeYear}
-      if(existing){
-        const {error} = await supabase.from('grades').update(payload).eq('id',existing.id)
-        if(error){failed++;continue}
-        setData(p=>({...p,grades:p.grades.map(g=>g.id===existing.id?{...g,...payload}:g)}))
-        const student=students.find(s=>s.id===sid), subject=subjects.find(s=>s.id===fs)
-        auditLog(profile,'Grades','Updated',`${student?.first_name} ${student?.last_name} · ${subject?.name} · ${fp}`,{},{...existing},{...payload})
-      } else {
-        const {data:row2,error} = await supabase.from('grades').insert(payload).select().single()
-        if(error){failed++;continue}
-        setData(p=>({...p,grades:[...p.grades,row2]}))
-        const student=students.find(s=>s.id===sid), subject=subjects.find(s=>s.id===fs)
-        auditLog(profile,'Grades','Created',`${student?.first_name} ${student?.last_name} · ${subject?.name} · ${fp}`,{},null,payload)
-      }
-      saved++
-    }
-    setBulkSaving(false)
-    setDirtyIds(new Set())
-    setBulkRows({})
-    if(failed>0) toast(`Saved ${saved}, failed ${failed}`,'error')
-    else toast(`Saved grades for ${saved} student${saved!==1?'s':''}`)
-  }
-
-  // ── End bulk helpers ──
-
   // Live preview total using only active components
   const previewG = ALL_COMPONENTS.reduce((acc,k)=>({...acc,[k]:+form[k]||0}),{})
   const prev  = calcTotal(previewG, allComps)
@@ -1703,249 +1772,58 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
   // For table: show all components that have any data OR are active
   const tableComps = allComps.filter(c=>c.enabled || grades.some(g=>+g[c.key]>0))
 
-  // ── Class view: students for current fc/fs/fp context ──
-  const bulkStudents = getBulkStudents()
-  const canEditBulk = !isViewingPast && activeComps.length>0 && mySubjects.some(s=>s.id===fs)
-
-  // Filter change handlers that warn when dirty
-  const handleFcChange = e => {
-    if(viewMode==='class' && dirtyIds.size>0){
-      if(!resetBulkOnContextChange()) return
-    } else { setBulkRows({}); setDirtyIds(new Set()) }
-    setFc(e.target.value); setFs('')
-  }
-  const handleFsChange = e => {
-    if(viewMode==='class' && dirtyIds.size>0){
-      if(!resetBulkOnContextChange()) return
-    } else { setBulkRows({}); setDirtyIds(new Set()) }
-    setFs(e.target.value)
-  }
-  const handleFpChange = e => {
-    if(viewMode==='class' && dirtyIds.size>0){
-      if(!resetBulkOnContextChange()) return
-    } else { setBulkRows({}); setDirtyIds(new Set()) }
-    setFp(e.target.value)
-  }
-
   return (
     <div>
-      <PageHeader
-        title='Grades & Records'
-        sub={viewMode==='list'
-          ? `${filtered.length} grade records`
-          : fc&&fs&&fp ? `${bulkStudents.length} students · ${subjects.find(s=>s.id===fs)?.name||''} · ${fp}` : 'Select class, subject and period'}>
-        <div style={{display:'flex',gap:8,alignItems:'center'}}>
-          {/* View mode toggle */}
-          {!isViewingPast && (
-            <div style={{display:'flex',background:'var(--ink4)',borderRadius:'var(--r-sm)',padding:3,border:'1px solid var(--line)'}}>
-              {[['list','≡ List'],['class','⊞ Class View']].map(([mode,label])=>(
-                <button key={mode}
-                  onClick={()=>mode==='class'?switchToClassView():switchToListView()}
-                  style={{padding:'5px 14px',fontSize:12,fontWeight:600,borderRadius:6,border:'none',cursor:'pointer',transition:'all 0.15s',
-                    background:viewMode===mode?'var(--ink2)':'transparent',
-                    color:viewMode===mode?'var(--white)':'var(--mist3)'}}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-          {/* Action buttons */}
-          {isViewingPast
-            ? <span style={{fontSize:12,color:'var(--amber)',padding:'8px 16px',background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r-sm)'}}>Read only -- viewing {activeYear}</span>
-            : activeComps.length===0
-              ? <span style={{fontSize:12,color:'var(--rose)',padding:'8px 16px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)'}}>(!) No grade components active.</span>
-              : viewMode==='list'
-                ? <Btn onClick={openAdd}>+ Record Grades</Btn>
-                : dirtyIds.size>0
-                  ? <Btn onClick={saveAllBulk} disabled={bulkSaving}>
-                      {bulkSaving?<><Spinner/> Saving...</>:`Save ${dirtyIds.size} Student${dirtyIds.size!==1?'s':''}`}
-                    </Btn>
-                  : null
-          }
-        </div>
+      <PageHeader title='Grades & Records' sub={`${filtered.length} grade records`}>
+        {isViewingPast
+          ? <span style={{fontSize:12,color:'var(--amber)',padding:'8px 16px',background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r-sm)'}}>Read only -- viewing {activeYear}</span>
+          : activeComps.length===0
+            ? <span style={{fontSize:12,color:'var(--rose)',padding:'8px 16px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)'}}>(!) No grade components active. Configure in Settings.</span>
+            : <Btn onClick={openAdd}>+ Record Grades</Btn>
+        }
       </PageHeader>
-
-      {/* Filter bar */}
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
-        <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
-          <select value={fc} onChange={handleFcChange}
+        <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+          {/* Class filter — admin sees all classes, teachers see only their teaching classes */}
+          <select value={fc} onChange={e=>{setFc(e.target.value);setFs('')}}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
-            {isAdminGrades ? <option value=''>All Classes</option> : <option value=''>All My Classes</option>}
+            {isAdminGrades
+              ? <option value=''>All Classes</option>
+              : <option value=''>All My Classes</option>
+            }
             {teacherClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <select value={fs} onChange={handleFsChange}
+          <select value={fs} onChange={e=>setFs(e.target.value)}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
             <option value=''>All Subjects</option>
             {fcSubjects.map(s=><option key={s.id} value={s.id}>{s.name}{!mySubjects.some(m=>m.id===s.id)?' (view only)':''}</option>)}
           </select>
-          <select value={fp} onChange={handleFpChange}
+          <select value={fp} onChange={e=>setFp(e.target.value)}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Periods</option>
             {periods.map(p=><option key={p}>{p}</option>)}
           </select>
-          {viewMode==='class' && dirtyIds.size>0 && (
-            <span style={{fontSize:12,color:'var(--gold)',fontWeight:600}}>
-              {dirtyIds.size} unsaved change{dirtyIds.size!==1?'s':''}
-            </span>
-          )}
         </div>
       </Card>
-
-      {/* ── LIST VIEW ── */}
-      {viewMode==='list' && (
-        <Card>
-          <DataTable onRow={isViewingPast?null:(g=>mySubjects.some(s=>s.id===g.subject_id)?openEdit(g):null)} data={filtered} columns={[
-            {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?(<div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${s.first_name} ${s.last_name}`} size={28}/><span style={{fontWeight:600}}>{s.first_name} {s.last_name}</span></div>):'--'}},
-            {key:'subject_id',label:'Subject',render:v=>subjects.find(s=>s.id===v)?.name||'--'},
-            {key:'period',label:'Period'},
-            ...tableComps.map(c=>({
-              key:c.key,
-              label:`${c.label} /${c.max_score}`,
-              render:v=><span className='mono' style={{color:c.enabled?'var(--white)':'var(--mist3)'}}>{v||0}</span>
-            })),
-            {key:'id',label:'Total',render:(_,r)=>{const t=calcTotal(r,allComps);const l=getLetter(t,scale);return(
-              <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                <span className='mono' style={{fontWeight:700,fontSize:14}}>{t}</span>
-                <Badge color={LETTER_COLOR[l]||'var(--mist2)'}>{l}</Badge>
-                <span style={{fontSize:11,color:'var(--mist3)'}}>GPA {getGPA(t,scale).toFixed(1)}</span>
-              </div>
-            )}},
-          ]}/>
-        </Card>
-      )}
-
-      {/* ── CLASS VIEW ── */}
-      {viewMode==='class' && (
-        <Card>
-          {(!fc||!fs||!fp) ? (
-            <div style={{padding:'60px 0',textAlign:'center'}}>
-              <div style={{fontSize:32,marginBottom:12}}>⊞</div>
-              <div style={{fontSize:15,fontWeight:600,color:'var(--mist)',marginBottom:8}}>Select class, subject and period to begin</div>
-              <div style={{fontSize:13,color:'var(--mist3)'}}>Use the filters above to set the context, then enter scores for all students at once.</div>
+      <Card>
+        <DataTable onRow={isViewingPast?null:(g=>mySubjects.some(s=>s.id===g.subject_id)?openEdit(g):null)} data={filtered} columns={[
+          {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?(<div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${s.first_name} ${s.last_name}`} size={28}/><span style={{fontWeight:600}}>{s.first_name} {s.last_name}</span></div>):'--'}},
+          {key:'subject_id',label:'Subject',render:v=>subjects.find(s=>s.id===v)?.name||'--'},
+          {key:'period',label:'Period'},
+          ...tableComps.map(c=>({
+            key:c.key,
+            label:`${c.label} /${c.max_score}`,
+            render:v=><span className='mono' style={{color:c.enabled?'var(--white)':'var(--mist3)'}}>{v||0}</span>
+          })),
+          {key:'id',label:'Total',render:(_,r)=>{const t=calcTotal(r,allComps);const l=getLetter(t,scale);return(
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              <span className='mono' style={{fontWeight:700,fontSize:14}}>{t}</span>
+              <Badge color={LETTER_COLOR[l]||'var(--mist2)'}>{l}</Badge>
+              <span style={{fontSize:11,color:'var(--mist3)'}}>GPA {getGPA(t,scale).toFixed(1)}</span>
             </div>
-          ) : bulkStudents.length===0 ? (
-            <div style={{padding:'60px 0',textAlign:'center',color:'var(--mist3)',fontSize:14}}>No students in this class.</div>
-          ) : (
-            <div style={{overflowX:'auto'}}>
-              <table style={{width:'100%',borderCollapse:'collapse'}}>
-                <thead>
-                  <tr style={{borderBottom:'2px solid var(--line2)'}}>
-                    <th style={{padding:'10px 16px',textAlign:'left',fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',whiteSpace:'nowrap',minWidth:180}}>Student</th>
-                    {activeComps.map(c=>(
-                      <th key={c.key} style={{padding:'10px 12px',textAlign:'center',fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',whiteSpace:'nowrap',minWidth:90}}>
-                        {c.label}<br/><span style={{fontSize:9,fontWeight:400,color:'var(--mist3)',opacity:0.7}}>/{c.max_score}</span>
-                      </th>
-                    ))}
-                    <th style={{padding:'10px 12px',textAlign:'center',fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',whiteSpace:'nowrap',minWidth:100}}>Total</th>
-                    <th style={{padding:'10px 12px',textAlign:'center',fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',whiteSpace:'nowrap',minWidth:60}}>Grade</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bulkStudents.map((s,si)=>{
-                    const row = getBulkRow(s.id)
-                    const isDirty = dirtyIds.has(s.id)
-                    const hasExisting = grades.some(g=>g.student_id===s.id&&g.subject_id===fs&&g.period===fp&&(!g.year||g.year===activeYear))
-                    // Live total using current row values
-                    const rowForCalc = ALL_COMPONENTS.reduce((acc,k)=>({...acc,[k]:+row[k]||0}),{})
-                    const total = calcTotal(rowForCalc, allComps)
-                    const letter = getLetter(total, scale)
-                    const letterColor = LETTER_COLOR[letter]||'var(--mist3)'
-                    // Any value exceeds max?
-                    const hasError = activeComps.some(c=>c.max_score>0 && (+row[c.key]||0)>c.max_score)
-                    return (
-                      <tr key={s.id} style={{
-                        borderBottom:'1px solid var(--line)',
-                        borderLeft: isDirty ? '3px solid var(--gold)' : '3px solid transparent',
-                        background: hasError ? 'rgba(240,107,122,0.04)' : isDirty ? 'rgba(232,184,75,0.03)' : 'transparent',
-                        transition:'background 0.15s'
-                      }}>
-                        {/* Student name */}
-                        <td style={{padding:'8px 16px',whiteSpace:'nowrap'}}>
-                          <div style={{display:'flex',alignItems:'center',gap:8}}>
-                            <Avatar name={`${s.first_name} ${s.last_name}`} size={26}/>
-                            <div>
-                              <div style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{s.first_name} {s.last_name}</div>
-                              {hasExisting && !isDirty && <div style={{fontSize:10,color:'var(--emerald)'}}>✓ saved</div>}
-                              {hasExisting && isDirty && <div style={{fontSize:10,color:'var(--gold)'}}>● editing</div>}
-                              {!hasExisting && isDirty && <div style={{fontSize:10,color:'var(--sky)'}}>+ new</div>}
-                            </div>
-                          </div>
-                        </td>
-                        {/* Score inputs */}
-                        {activeComps.map((c,ci)=>{
-                          const val = row[c.key]??''
-                          const over = c.max_score>0 && +val>c.max_score
-                          const isLast = ci===activeComps.length-1
-                          return (
-                            <td key={c.key} style={{padding:'6px 8px',textAlign:'center'}}>
-                              <input
-                                type='number'
-                                min={0}
-                                max={c.max_score||undefined}
-                                value={val}
-                                disabled={!canEditBulk}
-                                onChange={e=>updateBulkCell(s.id,c.key,e.target.value)}
-                                onKeyDown={e=>{
-                                  if(e.key==='Tab' && !e.shiftKey && isLast && si<bulkStudents.length-1){
-                                    e.preventDefault()
-                                    // Focus first input of next row
-                                    const nextRow = document.querySelector(`[data-bulk-row="${bulkStudents[si+1].id}"]`)
-                                    if(nextRow) nextRow.focus()
-                                  }
-                                }}
-                                {...(ci===0?{'data-bulk-row':s.id}:{})}
-                                style={{
-                                  width:72,height:34,textAlign:'center',fontSize:13,fontWeight:600,
-                                  fontFamily:"'JetBrains Mono','Fira Code',monospace",
-                                  background: over?'rgba(240,107,122,0.12)':'var(--ink3)',
-                                  border:`1px solid ${over?'var(--rose)':isDirty?'rgba(232,184,75,0.3)':'var(--line)'}`,
-                                  borderRadius:'var(--r-sm)',
-                                  color: over?'var(--rose)':'var(--white)',
-                                  outline:'none',
-                                  cursor: canEditBulk?'text':'default',
-                                  opacity: canEditBulk?1:0.6,
-                                }}
-                                onFocus={e=>{e.target.style.borderColor='var(--gold)';e.target.style.boxShadow='0 0 0 3px rgba(232,184,75,0.1)'}}
-                                onBlur={e=>{e.target.style.borderColor=over?'var(--rose)':isDirty?'rgba(232,184,75,0.3)':'var(--line)';e.target.style.boxShadow='none'}}
-                              />
-                              {over && <div style={{fontSize:9,color:'var(--rose)',marginTop:2,fontWeight:600}}>max {c.max_score}</div>}
-                            </td>
-                          )
-                        })}
-                        {/* Live total */}
-                        <td style={{padding:'8px 12px',textAlign:'center'}}>
-                          <span className='mono' style={{fontSize:14,fontWeight:700,color:hasError?'var(--rose)':total>0?'var(--white)':'var(--mist3)'}}>{total||'--'}</span>
-                        </td>
-                        {/* Live grade */}
-                        <td style={{padding:'8px 12px',textAlign:'center'}}>
-                          {total>0
-                            ? <span style={{fontSize:11,fontWeight:700,color:letterColor,background:`${letterColor}20`,border:`1px solid ${letterColor}40`,borderRadius:4,padding:'2px 8px'}}>{letter}</span>
-                            : <span style={{color:'var(--mist3)',fontSize:12}}>--</span>
-                          }
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-              {/* Bottom save bar */}
-              {canEditBulk && dirtyIds.size>0 && (
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderTop:'1px solid var(--line)',background:'var(--ink2)'}}>
-                  <span style={{fontSize:13,color:'var(--gold)',fontWeight:600}}>
-                    {dirtyIds.size} student{dirtyIds.size!==1?'s':''} with unsaved changes
-                  </span>
-                  <div style={{display:'flex',gap:10}}>
-                    <Btn variant='ghost' onClick={()=>{setBulkRows({});setDirtyIds(new Set())}}>Discard</Btn>
-                    <Btn onClick={saveAllBulk} disabled={bulkSaving}>
-                      {bulkSaving?<><Spinner/> Saving...</>:`Save All (${dirtyIds.size})`}
-                    </Btn>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </Card>
-      )}
+          )}},
+        ]}/>
+      </Card>
       {modal && (
         <Modal title={edit?'Edit Grade':'Record Grades'} onClose={()=>setModal(false)} width={600}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 20px'}}>
@@ -1985,7 +1863,6 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
               const otherPeriods = grades.filter(g=>
                 g.student_id===form.student_id &&
                 g.subject_id===form.subject_id &&
-                g.year === activeYear &&
                 g.period !== form.period &&
                 (!edit || g.id !== edit.id)
               )
@@ -6126,175 +6003,6 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
 // Paste it just above the main `export default function App()`
 // ─────────────────────────────────────────────────────────────
 
-// ── PROFILE MENU ───────────────────────────────────────────────
-function ProfileMenu({profile, setProfile, onLogout}) {
-  const [open, setOpen]         = useState(false)
-  const [modal, setModal]       = useState(false)
-  const [form, setForm]         = useState({full_name:''})
-  const [pwForm, setPwForm]     = useState({current:'',next:'',confirm:''})
-  const [saving, setSaving]     = useState(false)
-  const [pwSaving, setPwSaving] = useState(false)
-  const [tab, setTab]           = useState('profile')
-  const [error, setError]       = useState('')
-  const [pwError, setPwError]   = useState('')
-  const [pwSuccess, setPwSuccess] = useState(false)
-  const ref = useRef(null)
-  const pwTimer = useRef(null)
-
-  useEffect(()=>{
-    const handler = e => { if(ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', handler)
-    return ()=>document.removeEventListener('mousedown', handler)
-  },[])
-  useEffect(()=>()=>{ if(pwTimer.current) clearTimeout(pwTimer.current) },[])
-
-  const openModal = () => {
-    setForm({full_name: profile?.full_name||''})
-    setPwForm({current:'',next:'',confirm:''})
-    setError(''); setPwError(''); setTab('profile')
-    setOpen(false); setModal(true)
-  }
-
-  const saveName = async () => {
-    if(!form.full_name.trim()){setError('Name cannot be empty.');return}
-    setSaving(true); setError('')
-    const {error:err} = await supabase.from('profiles').update({full_name:form.full_name.trim()}).eq('id',profile.id)
-    if(err){setError(err.message);setSaving(false);return}
-    setProfile(p=>({...p,full_name:form.full_name.trim()}))
-    setSaving(false)
-    setModal(false)
-  }
-
-  const savePassword = async () => {
-    setPwError('')
-    if(!pwForm.current){setPwError('Please enter your current password.');return}
-    if(pwForm.next.length<8){setPwError('New password must be at least 8 characters.');return}
-    if(pwForm.next!==pwForm.confirm){setPwError('New passwords do not match.');return}
-    setPwSaving(true)
-    // Use session email as fallback in case profile.email is null
-    const {data:{session:currentSession}} = await supabase.auth.getSession()
-    const emailToUse = profile?.email || currentSession?.user?.email
-    if(!emailToUse){setPwError('Unable to verify identity. Please sign out and back in.');setPwSaving(false);return}
-    const {error:signInErr} = await supabase.auth.signInWithPassword({
-      email: emailToUse,
-      password: pwForm.current
-    })
-    if(signInErr){setPwError('Current password is incorrect.');setPwSaving(false);return}
-    const {error:updateErr} = await supabase.auth.updateUser({password:pwForm.next})
-    if(updateErr){setPwError(updateErr.message);setPwSaving(false);return}
-    setPwSaving(false)
-    setPwForm({current:'',next:'',confirm:''})
-    setPwError('')
-    // Stay on password tab so user sees the success message
-    setPwSuccess(true)
-    if(pwTimer.current) clearTimeout(pwTimer.current)
-    pwTimer.current = setTimeout(()=>{setPwSuccess(false);setModal(false)},2000)
-  }
-
-  const roleLabel = ROLE_META[profile?.role]?.label || profile?.role || 'User'
-  const roleBg    = ROLE_META[profile?.role]?.bg    || 'var(--mist3)'
-
-  return (
-    <div ref={ref} style={{position:'relative'}}>
-      <button onClick={()=>setOpen(o=>!o)}
-        style={{display:'flex',alignItems:'center',gap:10,background:'transparent',border:'none',cursor:'pointer',padding:'4px 8px',borderRadius:'var(--r-sm)',transition:'background 0.15s'}}
-        onMouseEnter={e=>e.currentTarget.style.background='var(--ink3)'}
-        onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-        <Avatar name={profile?.full_name} size={30} color={roleBg}/>
-        <div style={{textAlign:'left'}}>
-          <div style={{fontSize:12,fontWeight:600,lineHeight:1.2,color:'var(--white)'}}>{profile?.full_name}</div>
-          <div style={{fontSize:10,color:'var(--mist3)'}}>{roleLabel}</div>
-        </div>
-        <svg width={10} height={10} viewBox='0 0 10 10' fill='none' style={{transform:open?'rotate(180deg)':'none',transition:'transform 0.2s',marginLeft:2}}>
-          <path d='M2 3.5L5 6.5L8 3.5' stroke='var(--mist3)' strokeWidth='1.4' strokeLinecap='round' strokeLinejoin='round'/>
-        </svg>
-      </button>
-
-      {open && (
-        <div className='fi' style={{position:'absolute',top:'calc(100% + 8px)',right:0,width:220,background:'var(--ink3)',border:'1px solid var(--line2)',borderRadius:'var(--r)',boxShadow:'var(--sh)',zIndex:1000,overflow:'hidden'}}>
-          <div style={{padding:'14px 16px',borderBottom:'1px solid var(--line)'}}>
-            <div style={{display:'flex',alignItems:'center',gap:10}}>
-              <Avatar name={profile?.full_name} size={36} color={roleBg}/>
-              <div>
-                <div style={{fontSize:13,fontWeight:600,color:'var(--white)',lineHeight:1.2}}>{profile?.full_name}</div>
-                <div style={{fontSize:11,color:'var(--mist3)',marginTop:2}}>{profile?.email}</div>
-              </div>
-            </div>
-            <div style={{marginTop:10}}>
-              <span style={{fontSize:10,fontWeight:700,color:roleBg,background:`${roleBg}18`,border:`1px solid ${roleBg}35`,borderRadius:4,padding:'2px 8px',textTransform:'uppercase',letterSpacing:'0.06em'}}>{roleLabel}</span>
-            </div>
-          </div>
-          <div style={{padding:'6px'}}>
-            <button onClick={openModal}
-              style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:'transparent',border:'none',borderRadius:'var(--r-sm)',cursor:'pointer',color:'var(--mist)',fontSize:13,fontWeight:500,transition:'background 0.12s'}}
-              onMouseEnter={e=>e.currentTarget.style.background='var(--ink4)'}
-              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-              <span style={{fontSize:15}}>✎</span> Edit Profile
-            </button>
-            <button onClick={()=>{setOpen(false);onLogout()}}
-              style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:'transparent',border:'none',borderRadius:'var(--r-sm)',cursor:'pointer',color:'var(--rose)',fontSize:13,fontWeight:500,transition:'background 0.12s'}}
-              onMouseEnter={e=>e.currentTarget.style.background='rgba(240,107,122,0.06)'}
-              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-              <span style={{fontSize:15}}>⏻</span> Sign Out
-            </button>
-          </div>
-        </div>
-      )}
-
-      {modal && (
-        <Modal title='My Profile' onClose={()=>setModal(false)} width={460}>
-          <div style={{display:'flex',gap:4,background:'var(--ink4)',borderRadius:'var(--r-sm)',padding:4,marginBottom:20}}>
-            {[['profile','Profile'],['password','Change Password']].map(([key,label])=>(
-              <button key={key} onClick={()=>{setTab(key);setError('');setPwError('')}}
-                style={{flex:1,padding:'7px 0',fontSize:12,fontWeight:600,borderRadius:6,border:'none',cursor:'pointer',transition:'all 0.15s',
-                  background:tab===key?'var(--ink2)':'transparent',
-                  color:tab===key?'var(--white)':'var(--mist3)'}}>
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {tab==='profile' && (
-            <div>
-              <div style={{display:'flex',justifyContent:'center',marginBottom:20}}>
-                <Avatar name={form.full_name||profile?.full_name} size={64} color={roleBg}/>
-              </div>
-              <Field label='Display Name' value={form.full_name} onChange={v=>setForm(p=>({...p,full_name:v}))} required/>
-              <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Email</div>
-                <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>{profile?.email}</div>
-              </div>
-              <div style={{marginBottom:20}}>
-                <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Role</div>
-                <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>{roleLabel}</div>
-              </div>
-              {error && <div style={{padding:'10px 14px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--rose)',marginBottom:14}}>{error}</div>}
-              <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
-                <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
-                <Btn onClick={saveName} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save Changes'}</Btn>
-              </div>
-            </div>
-          )}
-
-          {tab==='password' && (
-            <div>
-              <Field label='Current Password' value={pwForm.current} onChange={v=>setPwForm(p=>({...p,current:v}))} type='password'/>
-              <Field label='New Password' value={pwForm.next} onChange={v=>setPwForm(p=>({...p,next:v}))} type='password'/>
-              <Field label='Confirm New Password' value={pwForm.confirm} onChange={v=>setPwForm(p=>({...p,confirm:v}))} type='password'/>
-              {pwError && <div style={{padding:'10px 14px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--rose)',marginBottom:14}}>{pwError}</div>}
-              {pwSuccess && <div style={{padding:'10px 14px',background:'rgba(45,212,160,0.08)',border:'1px solid rgba(45,212,160,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--emerald)',marginBottom:14}}>Password updated successfully!</div>}
-              <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
-                <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
-                <Btn onClick={savePassword} disabled={pwSaving||pwSuccess}>{pwSaving?<><Spinner/> Saving...</>:'Update Password'}</Btn>
-              </div>
-            </div>
-          )}
-        </Modal>
-      )}
-    </div>
-  )
-}
-
 function YearSwitcher({ activeYear, currentYear, selectedYear, setSelectedYear, isMobile }) {
   const [open, setOpen] = useState(false)
   const years = generateYears(currentYear)
@@ -6685,7 +6393,7 @@ export default function App() {
                   <div style={{width:18,height:1.5,background:'var(--mist2)',borderRadius:1}}/>
                 </button>
                 <span className='d' style={{fontSize:15,fontWeight:700,letterSpacing:'-0.01em'}}>{pageTitles[page]||'SRMS'}</span>
-                <ProfileMenu profile={profile} setProfile={setProfile} onLogout={logout}/>
+                <Avatar name={profile?.full_name} size={34} color={ROLE_META[profile?.role]?.bg}/>
               </div>
               {/* Mobile year bar — only superadmin sees switcher */}
               <div style={{height:28,display:'flex',alignItems:'center',justifyContent:'center',gap:8,borderTop:'1px solid var(--line)',background:isViewingPast?'rgba(251,159,58,0.06)':'transparent'}}>
@@ -6711,8 +6419,15 @@ export default function App() {
                 )}
                 {isViewingPast && <span style={{fontSize:10,fontWeight:700,color:'var(--amber)',background:'rgba(251,159,58,0.12)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:4,padding:'2px 8px',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>READ ONLY</span>}
               </div>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <ProfileMenu profile={profile} setProfile={setProfile} onLogout={logout}/>
+              <div style={{display:'flex',alignItems:'center',gap:16}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <Avatar name={profile?.full_name} size={30} color={ROLE_META[profile?.role]?.bg}/>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:600,lineHeight:1.2}}>{profile?.full_name}</div>
+                    <div style={{fontSize:10,color:'var(--mist3)'}}>{ROLE_META[profile?.role]?.label}</div>
+                  </div>
+                </div>
+                <Btn variant='ghost' size='sm' onClick={logout}>Sign Out</Btn>
               </div>
             </div>
           )}
