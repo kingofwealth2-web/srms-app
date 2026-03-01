@@ -925,6 +925,11 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
   const todayMarked = myClass ? attendance.some(a=>a.class_id===myClass.id&&a.date===today) : true
   const totalFees = fees.reduce((s,f)=>s+Number(f.amount||0),0)
   const totalPaid = fees.reduce((s,f)=>s+Number(f.paid||0),0)
+  const dashToday = new Date().toISOString().split('T')[0]
+  const overdueFeesCount = isAdmin ? fees.filter(f=>{
+    const bal = Number(f.amount||0) - Math.max(Number(f.paid||0), payments.filter(p=>p.fee_id===f.id).reduce((a,p)=>a+Number(p.amount||0),0))
+    return f.due_date && f.due_date < dashToday && bal > 0
+  }).length : 0
   const myClassStudents = myClass ? students.filter(s=>s.class_id===myClass.id) : []
 
   // Helper: average of per-student averages (correct school-wide or scoped avg)
@@ -997,6 +1002,16 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
           <Btn size='sm' onClick={()=>onNav('attendance')}>Mark Now &rarr;</Btn>
         </div>
       )}
+      {isAdmin && !isViewingPast && overdueFeesCount>0 && (
+        <div style={{background:'rgba(240,107,122,0.06)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r)',padding:'14px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:14}}>
+          <div style={{width:36,height:36,borderRadius:'50%',background:'rgba(240,107,122,0.12)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>⚠</div>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:600,fontSize:14,color:'var(--rose)'}}>{overdueFeesCount} Fee{overdueFeesCount!==1?'s':''} Overdue</div>
+            <div style={{fontSize:12,color:'var(--mist2)',marginTop:2}}>Past their due date and still unpaid. Review and follow up.</div>
+          </div>
+          <Btn size='sm' onClick={()=>onNav('fees')}>View Fees &rarr;</Btn>
+        </div>
+      )}
       {isViewingPast && (
         <div style={{background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:12}}>
           <span style={{fontSize:16}}>(!)</span>
@@ -1009,7 +1024,7 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
           <KPI label='Total Students'   value={yearStudents.length}      color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
           <KPI label='Attendance Rate'  value={`${schoolAttRate}%`}  color='var(--emerald)' sub={`${schoolAttPresent} of ${schoolAttTotal} records`} index={1}/>
           <KPI label='Average Score'    value={avgScore}             color='var(--sky)'     sub={`Pass rate: ${passRate}%`} index={2}/>
-          <KPI label='Fee Collection'   value={`${totalFees?Math.round(totalPaid/totalFees*100):0}%`} color='var(--amber)' sub={`${fmtMoney(totalPaid,currency)} collected`} index={3}/>
+          <KPI label='Fee Collection'   value={`${totalFees?Math.round(totalPaid/totalFees*100):0}%`} color='var(--amber)' sub={overdueFeesCount>0?`${fmtMoney(totalPaid,currency)} collected · ${overdueFeesCount} overdue`:`${fmtMoney(totalPaid,currency)} collected`} index={3}/>
         </>}
         {profile?.role==='classteacher' && <>
           <KPI label='My Class'         value={myClass?.name||'--'}   color='var(--gold)'    sub='Your assigned class' index={0}/>
@@ -2493,6 +2508,7 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   const closeBulk = () => { setBulkModal(false); setBulkStep(1); setBulk(BULK_INIT); setClassAmounts({}) }
 
   // ── Existing fee helpers ──
+  const today = new Date().toISOString().split('T')[0]
   const enriched = fees.map(fee=>{
     const s=students.find(x=>x.id===fee.student_id)
     const feePayments = payments.filter(p=>p.fee_id===fee.id)
@@ -2501,7 +2517,8 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
     const effectivePaid = Math.max(Number(fee.paid||0), paymentsPaid)
     const bal=Number(fee.amount||0)-effectivePaid
     const status=bal<=0?'Paid':effectivePaid>0?'Partial':'Outstanding'
-    return{...fee,student_name:s?`${s.first_name} ${s.last_name}`:'--',balance:bal,effectivePaid,status,hasPayments:feePayments.length>0||effectivePaid>0}
+    const isOverdue = !!(fee.due_date && fee.due_date < today && bal > 0)
+    return{...fee,student_name:s?`${s.first_name} ${s.last_name}`:'--',balance:bal,effectivePaid,status,isOverdue,hasPayments:feePayments.length>0||effectivePaid>0}
   })
   const filtered = enriched.filter(r=>{
     if(fClassId){
@@ -2509,9 +2526,11 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
       if(!s || s.class_id!==fClassId) return false
     }
     if(!r.student_name.toLowerCase().includes(search.toLowerCase())) return false
-    if(fstatus && r.status!==fstatus) return false
+    if(fstatus==='Overdue' && !r.isOverdue) return false
+    else if(fstatus && fstatus!=='Overdue' && r.status!==fstatus) return false
     return true
   })
+  const overdueCount = enriched.filter(r=>r.isOverdue).length
   const totalOwed = fees.reduce((s,f)=>s+Number(f.amount||0),0)
   const totalPaid = fees.reduce((s,f)=>s+Number(f.paid||0),0)
   const openAdd = ()=>{setForm({student_id:'',fee_type:'',amount:'',due_date:'',period:''});setModal(true)}
@@ -2692,6 +2711,7 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
         <KPI label='Collected'       value={fmtMoney(totalPaid,currency)} color='var(--emerald)' sub='Payments received' index={1}/>
         <KPI label='Outstanding'     value={fmtMoney(totalOwed-totalPaid,currency)} color='var(--rose)' sub='Awaiting payment' index={2}/>
         <KPI label='Collection Rate' value={`${totalOwed?Math.round(totalPaid/totalOwed*100):0}%`} color='var(--gold)' sub='Of total owed' index={3}/>
+        {overdueCount>0 && <KPI label='Overdue' value={overdueCount} color='var(--rose)' sub='Past due date, unpaid' index={4}/>}
       </div>
 
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
@@ -2706,7 +2726,7 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
           </select>
           <select value={fstatus} onChange={e=>setFstatus(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Status</option>
-            <option>Paid</option><option>Partial</option><option>Outstanding</option>
+            <option>Paid</option><option>Partial</option><option>Outstanding</option><option value='Overdue'>Overdue</option>
           </select>
         </div>
       </Card>
@@ -2714,7 +2734,7 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
       <Card>
         <DataTable data={filtered} columns={[
           {key:'student_name',label:'Student',render:(v,r)=>{const s=students.find(x=>x.id===r.student_id);return(<div style={{display:'flex',alignItems:'center',gap:10}}>{s&&<Avatar name={v} size={28}/>}<span style={{fontWeight:600}}>{v}</span></div>)}},
-          {key:'fee_type',label:'Fee Type',render:(v,r)=>(<div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><span>{v}</span>{r.period&&<Badge color='var(--sky)' bg='rgba(91,168,245,0.08)'>{r.period}</Badge>}{r.is_arrear&&<Badge color='var(--amber)' bg='rgba(251,159,58,0.1)'>Arrear from {r.arrear_from_year}</Badge>}</div>)},
+          {key:'fee_type',label:'Fee Type',render:(v,r)=>(<div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><span>{v}</span>{r.period&&<Badge color='var(--sky)' bg='rgba(91,168,245,0.08)'>{r.period}</Badge>}{r.is_arrear&&<Badge color='var(--amber)' bg='rgba(251,159,58,0.1)'>Arrear from {r.arrear_from_year}</Badge>}{r.isOverdue&&<Badge color='var(--rose)' bg='rgba(240,107,122,0.1)'>Overdue</Badge>}</div>)},
           {key:'amount', label:'Amount',  render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
           {key:'paid',   label:'Paid',    render:(_,r)=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(r.effectivePaid,currency)}</span>},
           {key:'balance',label:'Balance', render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
