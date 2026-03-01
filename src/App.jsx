@@ -6095,7 +6095,7 @@ function AcademicCalendar({form, setForm, activeYear}) {
 }
 
 // ── CLASSES ────────────────────────────────────────────────────
-function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
+function Classes({profile,data,setData,toast,activeYear,isViewingPast,onPromotionComplete}) {
   const {classes=[],subjects=[],students=[]} = data
   const [allUsers,setAllUsers] = useState([])
   const [selected,setSelected] = useState(null)
@@ -6223,6 +6223,7 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
     if(toGraduate.length) parts.push(toGraduate.length+' graduated')
     if(toRepeat.length)   parts.push(toRepeat.length+' staying back')
     toast(parts.join(', ')+'.')
+    if(onPromotionComplete) onPromotionComplete()
   }
 
   const confirmPromo = async ()=>{
@@ -6256,6 +6257,7 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast}) {
     if(toGraduate.length) parts.push(toGraduate.length+' graduated')
     if(toRepeat.length)   parts.push(toRepeat.length+' staying back')
     toast(''+parts.join(', ')+'.')
+    if(onPromotionComplete) onPromotionComplete()
   }
   const saveClass = async ()=>{
     if(!cf.name)return; setSaving(true)
@@ -7094,7 +7096,7 @@ export default function App() {
     switch(page){
       case 'dashboard':    return <Dashboard    {...props} onNav={setPage}/>
       case 'students':     return <Students     {...props}/>
-      case 'classes':      return <Classes      {...props}/>
+      case 'classes':      return <Classes      {...props} onPromotionComplete={()=>{setNewYearStep(2);setNewYearModal(true)}}/>
       case 'grades':       return <Grades       {...props}/>
       case 'attendance':   return <Attendance   {...props}/>
       case 'fees':         return <Fees         {...props}/>
@@ -7200,7 +7202,7 @@ export default function App() {
                 ))}
               </div>
               <div style={{padding:'12px 16px',background:'rgba(240,107,122,0.06)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--mist2)',marginBottom:20}}>
-                (!) Make sure all promotions are complete before starting a new year. This cannot be undone.
+                (!) Make sure all promotions are complete before starting a new year. This cannot be undone. If you just completed a promotion, you were already prompted — use this only if advancing the year independently.
               </div>
               <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
                 <Btn variant='ghost' onClick={()=>setNewYearModal(false)}>Cancel</Btn>
