@@ -1140,7 +1140,7 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
               <div key={cls.id}>
                 <div style={{fontSize:11,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>{cls.name}</div>
                 <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                  {top.map(({student,avg},i)=>(
+                  {top.map(({student,total},i)=>(
                     <div key={student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',borderLeft:`3px solid ${['var(--gold)','var(--mist2)','var(--amber)'][i]}`}}>
                       <div style={{width:20,height:20,borderRadius:'50%',background:['rgba(232,184,75,0.15)','rgba(255,255,255,0.06)','rgba(251,159,58,0.12)'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:['var(--gold)','var(--mist2)','var(--amber)'][i],flexShrink:0}}>{i+1}</div>
                       <Avatar name={`${student.first_name} ${student.last_name}`} size={26} photo={student.photo}/>
