@@ -911,7 +911,7 @@ function canSeeAnnouncement(role, ann) {
 // ── DASHBOARD ──────────────────────────────────────────────────
 function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
   const isMobile = useIsMobile()
-  const {students=[],classes=[],fees=[],attendance=[],grades=[],announcements=[],subjects=[],enrolments=[]} = data
+  const {students=[],classes=[],fees=[],attendance=[],grades=[],announcements=[],subjects=[],enrolments=[],payments=[]} = data
   // When viewing past year, use enrolment records to know which students were enrolled
   const enrolledStudentIds = enrolments.length>0 ? new Set(enrolments.map(e=>e.student_id)) : null
   const yearStudents = enrolledStudentIds
@@ -926,10 +926,11 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
   const totalFees = fees.reduce((s,f)=>s+Number(f.amount||0),0)
   const totalPaid = fees.reduce((s,f)=>s+Number(f.paid||0),0)
   const isAdmin   = ['superadmin','admin'].includes(profile?.role)
-  const dashToday = new Date().toISOString().split('T')[0]
-  const overdueFeesCount = isAdmin ? fees.filter(f=>{
-    const bal = Number(f.amount||0) - Math.max(Number(f.paid||0), payments.filter(p=>p.fee_id===f.id).reduce((a,p)=>a+Number(p.amount||0),0))
-    return f.due_date && f.due_date < dashToday && bal > 0
+  const overdueFeesCount = isAdmin ? fees.filter(fee2=>{
+    const feePs = payments.filter(pmt=>pmt.fee_id===fee2.id)
+    const pmtTotal = feePs.reduce((sum,pmt)=>sum+Number(pmt.amount||0),0)
+    const bal = Number(fee2.amount||0) - Math.max(Number(fee2.paid||0), pmtTotal)
+    return fee2.due_date && fee2.due_date < today && bal > 0
   }).length : 0
   const myClassStudents = myClass ? students.filter(s=>s.class_id===myClass.id) : []
 
