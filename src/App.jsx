@@ -1210,8 +1210,19 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
       ? `<img src="${s.photo}" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:3px solid #e8b84b;flex-shrink:0;" />`
       : `<div style="width:84px;height:84px;border-radius:50%;background:rgba(232,184,75,0.12);border:3px solid rgba(232,184,75,0.3);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#e8b84b;flex-shrink:0;">${(s.first_name||'?')[0]}${(s.last_name||'?')[0]}</div>`
 
+    const periodOrder = Array.from({length:settings?.period_count||2},(_,i)=>`${settings?.period_type==='term'?'Term':'Semester'} ${i+1}`)
+    const latestGrade = subjectId => {
+      const matches = studentGrades.filter(g => g.subject_id === subjectId)
+      if (!matches.length) return null
+      return matches.reduce((best, g) => {
+        const bi = periodOrder.indexOf(best.period)
+        const gi = periodOrder.indexOf(g.period)
+        return gi > bi ? g : best
+      })
+    }
+
     const subjectRows = subjectsForCls.map(sub => {
-      const g      = studentGrades.find(g => g.subject_id === sub.id)
+      const g      = latestGrade(sub.id)
       const total  = g ? calcTotal(g, gradeComps) : null
       const letter = total !== null ? (scale.find(sc => total >= sc.min && total <= sc.max)?.letter || '--') : '--'
       const remark = total !== null ? (scale.find(sc => total >= sc.min && total <= sc.max)?.remark || '')  : ''
@@ -1225,7 +1236,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
       </tr>`
     }).join('')
 
-    const scored      = subjectsForCls.map(sub => { const g = studentGrades.find(g => g.subject_id===sub.id); return g ? calcTotal(g, gradeComps) : null }).filter(t => t !== null)
+    const scored      = subjectsForCls.map(sub => { const g = latestGrade(sub.id); return g ? calcTotal(g, gradeComps) : null }).filter(t => t !== null)
     const grandAvg    = scored.length ? Math.round(scored.reduce((a,b)=>a+b,0) / scored.length) : null
     const grandLetter = grandAvg !== null ? (scale.find(sc=>grandAvg>=sc.min&&grandAvg<=sc.max)?.letter||'--') : '--'
     const grandRemark = grandAvg !== null ? (scale.find(sc=>grandAvg>=sc.min&&grandAvg<=sc.max)?.remark||'')  : ''
@@ -1316,7 +1327,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
         </div>` : ''}
     </div>
     <div style="padding:20px 28px 20px 18px;">
-      <div class="sec">Academic Summary <span style="font-size:9px;font-weight:400;color:#9ca3af;text-transform:none;letter-spacing:0;margin-left:4px;">All ${ptLabel} \u00b7 ${yearLabel}</span></div>
+      <div class="sec">Academic Summary <span style="font-size:9px;font-weight:400;color:#9ca3af;text-transform:none;letter-spacing:0;margin-left:4px;">Latest period \u00b7 ${yearLabel}</span></div>
       ${subjectsForCls.length === 0
         ? `<div style="font-size:13px;color:#9ca3af;padding:10px 0;">No subjects assigned to this class.</div>`
         : `<table style="margin-bottom:4px;">
@@ -1573,6 +1584,17 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
         const absent  = attRecs.filter(a=>a.status==='Absent').length
         const late    = attRecs.filter(a=>a.status==='Late').length
         const attRate = attRecs.length ? Math.round(present/attRecs.length*100) : null
+        // Pick the latest-period grade for a given subject
+        const periodOrder = Array.from({length:settings?.period_count||2},(_,i)=>`${settings?.period_type==='term'?'Term':'Semester'} ${i+1}`)
+        const latestGrade = subjectId => {
+          const matches = studentGrades.filter(g=>g.subject_id===subjectId)
+          if(!matches.length) return null
+          return matches.reduce((best,g)=>{
+            const bi = periodOrder.indexOf(best.period)
+            const gi = periodOrder.indexOf(g.period)
+            return gi > bi ? g : best
+          })
+        }
         return (
           <Modal title='' onClose={()=>setViewStudent(null)} width={780}>
             {/* Header */}
@@ -1651,11 +1673,11 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
 
               {/* Right col */}
               <div>
-                <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Academic Summary</div>
+                <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Academic Summary <span style={{fontWeight:400,color:'var(--mist3)',textTransform:'none',letterSpacing:0,fontSize:10}}>(latest period)</span></div>
                 {subjectsForClass.length===0
                   ? <div style={{fontSize:13,color:'var(--mist3)',padding:'12px 0'}}>No subjects for this class.</div>
                   : subjectsForClass.map(sub=>{
-                      const g = studentGrades.find(g=>g.subject_id===sub.id)
+                      const g = latestGrade(sub.id)
                       const total = g ? calcTotal(g, gradeComps) : null
                       const grade = total!==null ? (scale.find(s=>total>=s.min&&total<=s.max)?.letter||'--') : '--'
                       const gradeColor = LETTER_COLOR[grade]||'var(--mist3)'
