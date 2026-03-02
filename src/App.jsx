@@ -4667,7 +4667,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       const scoreC = total===null?'#9ca3af':total<50?'#dc2626':total>=75?'#16a34a':'#1d4ed8'
       return `<tr>
         <td style="padding:9px 14px;font-size:13px;border-bottom:1px solid #f3f4f6;color:#111827;">${sub.name}</td>
-        <td style="padding:9px 12px;text-align:center;font-size:15px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${scoreC};">${total!==null?total:'—'}</td>
+        <td style="padding:9px 12px;text-align:center;font-size:15px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${scoreC};">${total!==null?formatScore(total, settings):'—'}</td>
         <td style="padding:9px 10px;text-align:center;font-size:12px;font-weight:700;border-bottom:1px solid #f3f4f6;color:#d97706;">${letter}</td>
         <td style="padding:9px 14px;font-size:11px;border-bottom:1px solid #f3f4f6;color:#4b5563;">${remark}</td>
       </tr>`
@@ -4678,7 +4678,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       return g?calcTotal(g,gradeComps):null
     }).filter(t=>t!==null)
     const grandTotal  = subTotals.length ? subTotals.reduce((a,b)=>a+b,0) : null
-    const grandAvg    = grandTotal!==null ? Math.round(grandTotal/subTotals.length) : null
+    const grandAvg    = grandTotal!==null ? grandTotal/subTotals.length : null
     const grandLetter = grandAvg!==null ? getGradeLetter(grandAvg,scale) : '--'
     const grandRemark = grandAvg!==null ? getGradeRemark(grandAvg,scale) : '--'
     const gradeC      = grandAvg===null?'#6b7280':grandAvg>=75?'#16a34a':grandAvg>=50?'#1d4ed8':'#dc2626'
@@ -4769,7 +4769,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             <tfoot>
               <tr style="background:#eff6ff;border-top:2px solid #1e3a8a;">
                 <td style="padding:9px 14px;font-size:12px;font-weight:700;color:#1e3a8a;">Total / Average</td>
-                <td style="padding:9px 10px;text-align:center;font-size:15px;font-weight:900;color:#1e3a8a;">${grandAvg!==null?grandAvg:'—'}</td>
+                <td style="padding:9px 10px;text-align:center;font-size:15px;font-weight:900;color:#1e3a8a;">${grandAvg!==null?formatScore(grandAvg, settings):'—'}</td>
                 <td style="padding:9px 10px;text-align:center;font-size:12px;font-weight:700;color:#d97706;">${grandLetter}</td>
                 <td style="padding:9px 14px;font-size:11px;color:#4b5563;">${grandRemark}</td>
               </tr>
