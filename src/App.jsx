@@ -106,6 +106,13 @@ const auditLog = async (profile, module, action, description, meta={}, before_da
   } catch(e) { console.warn('Audit log failed:', e) }
 }
 const fmtDate   = d => d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '--'
+const csvEscape = v => {
+  if(v===null || v===undefined) return ''
+  let s = String(v)
+  // Prevent CSV injection in Excel/Sheets
+  if(/^[=+\-@]/.test(s)) s = "'" + s
+  return s.replace(/"/g,'""')
+}
 const CURRENCIES = [
   {code:'GHS',symbol:'₵', name:'Ghanaian Cedi',    position:'before', decimals:2},
   {code:'USD',symbol:'$', name:'US Dollar',         position:'before', decimals:2},
@@ -4123,37 +4130,37 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
           })
           .sort((a,b)=>(b.total||0)-(a.total||0))
           .map((s,i)=>({...s,position:i+1}))
-        csv='Position,Student ID,Student,'+rcClassSubjects.map(s=>`"${s.name}"`).join(',')+',Total,Average,Grade,Remark,Status\n'
+        csv='Position,Student ID,Student,'+rcClassSubjects.map(s=>`"${csvEscape(s.name)}"`).join(',')+',Total,Average,Grade,Remark,Status\n'
         rcRanked.forEach(s=>{
-          csv+=`${ordinal(s.position)},"${s.student_id}","${s.first_name} ${s.last_name}",`
+          csv+=`${ordinal(s.position)},"${csvEscape(s.student_id)}","${csvEscape(s.first_name)} ${csvEscape(s.last_name)}",`
           csv+=rcClassSubjects.map(sub=>s.scores[sub.id]??'--').join(',')
-          csv+=`,${s.total||0},${s.avg??0},${s.letter},"${s.remark}",${s.pass===null?'--':s.pass?'Pass':'Fail'}\n`
+          csv+=`,${s.total||0},${s.avg??0},${csvEscape(s.letter)},"${csvEscape(s.remark)}",${s.pass===null?'--':s.pass?'Pass':'Fail'}\n`
         })
         const cls=classes.find(c=>c.id===rcClass)
         filename=`SRMS_Broadsheet_${cls?.name?.replace(/\s+/g,'_')||'Class'}_${rcPeriod||'AllPeriods'}.csv`
       } else if(rtype==='academic'){
         if(selectedStudent){
-          csv='Subject,'+gradeComps.filter(c=>c.enabled).map(c=>c.label).join(',')+',Total,Grade,Remark,Status\n'
+          csv='Subject,'+gradeComps.filter(c=>c.enabled).map(c=>csvEscape(c.label)).join(',')+',Total,Grade,Remark,Status\n'
           grades.filter(g=>g.student_id===selectedStudent.id&&(!fp||g.period===fp)).forEach(g=>{
             const subj=subjects.find(s=>s.id===g.subject_id)
             const tot=calcTotal(g,gradeComps), let_=getLetter(tot,scale), rem=getGradeRemark(tot,scale)
-            csv+=`"${subj?.name||'--'}",${gradeComps.filter(c=>c.enabled).map(c=>g[c.key]||0).join(',')},${tot},${let_},"${rem}",${tot>=50?'Pass':'Fail'}\n`
+            csv+=`"${csvEscape(subj?.name||'--')}",${gradeComps.filter(c=>c.enabled).map(c=>g[c.key]||0).join(',')},${tot},${csvEscape(let_)},"${csvEscape(rem)}",${tot>=50?'Pass':'Fail'}\n`
           })
         } else {
           const visSubjects=classSubjects.length>0?classSubjects:subjects
-          csv='Position,Student ID,Student,'+visSubjects.map(s=>`"${s.name}"`).join(',')
+          csv='Position,Student ID,Student,'+visSubjects.map(s=>`"${csvEscape(s.name)}"`).join(',')
           // Add component columns per subject
           visSubjects.forEach(sub=>{
-            gradeComps.filter(c=>c.enabled).forEach(c=>{ csv+=`,"${sub.name} - ${c.label}"` })
+            gradeComps.filter(c=>c.enabled).forEach(c=>{ csv+=`,"${csvEscape(sub.name)} - ${csvEscape(c.label)}"` })
           })
           csv+=',Total,Average,Grade,Remark,Status\n'
           rankedAcademic.forEach(s=>{
-            let row=`${ordinal(s.position)},"${s.student_id}","${s.first_name} ${s.last_name}"`
+            let row=`${ordinal(s.position)},"${csvEscape(s.student_id)}","${csvEscape(s.first_name)} ${csvEscape(s.last_name)}"`
             visSubjects.forEach(sub=>{
               const g=grades.find(gr=>gr.student_id===s.id&&gr.subject_id===sub.id&&(!fp||gr.period===fp))
               gradeComps.filter(c=>c.enabled).forEach(c=>{ row+=`,${g?g[c.key]||0:'--'}` })
             })
-            row+=`,${s.total||0},${s.avg??0},${s.letter},"${s.remark||''}",${s.pass===null?'--':s.pass?'Pass':'Fail'}\n`
+            row+=`,${s.total||0},${s.avg??0},${csvEscape(s.letter)},"${csvEscape(s.remark||'')}",${s.pass===null?'--':s.pass?'Pass':'Fail'}\n`
             csv+=row
           })
         }
