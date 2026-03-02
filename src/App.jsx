@@ -4658,17 +4658,36 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     const sPos          = rankedStudents.find(s=>s.id===student.id)?.position||'--'
     const teacherRemark = rcRemarks[student.id]||''
 
-    const subjectRows = classSubjects.map(sub=>{
+    const activeComps = gradeComps.filter(c=>c.enabled)
+    const subjectRows = classSubjects.map((sub,si)=>{
       const g      = grades.find(gr=>gr.student_id===student.id&&gr.subject_id===sub.id&&(!rcPeriod||gr.period===rcPeriod))
       const total  = g ? calcTotal(g,gradeComps) : null
       const letter = total!==null ? getGradeLetter(total,scale) : '--'
       const remark = total!==null ? getGradeRemark(total,scale) : '--'
       const scoreC = total===null?'#9ca3af':total<50?'#dc2626':total>=75?'#16a34a':'#1d4ed8'
-      return `<tr>
-        <td style="padding:9px 14px;font-size:13px;border-bottom:1px solid #f3f4f6;color:#111827;">${sub.name}</td>
-        <td style="padding:9px 12px;text-align:center;font-size:15px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${scoreC};">${total!==null?total:'—'}</td>
-        <td style="padding:9px 10px;text-align:center;font-size:12px;font-weight:700;border-bottom:1px solid #f3f4f6;color:#d97706;">${letter}</td>
-        <td style="padding:9px 14px;font-size:11px;border-bottom:1px solid #f3f4f6;color:#4b5563;">${remark}</td>
+      const rowBg  = si%2===0 ? '#ffffff' : '#f9fafb'
+      const compCells = activeComps.map(c=>{
+        const raw  = g ? (+g[c.key]||0) : null
+        const pct  = raw!==null ? Math.round((raw/c.max_score)*100) : null
+        const barC = pct===null?'#e5e7eb':pct<50?'#fecaca':pct>=75?'#bbf7d0':'#bfdbfe'
+        const barFill = pct===null?'#d1d5db':pct<50?'#ef4444':pct>=75?'#16a34a':'#3b82f6'
+        return `<td style="padding:7px 6px;text-align:center;border-bottom:1px solid #f3f4f6;background:${rowBg};">
+          ${raw!==null ? `<div style="font-size:12px;font-weight:700;color:#111827;line-height:1;">${raw}<span style="font-size:9px;font-weight:400;color:#9ca3af;">/${c.max_score}</span></div>
+          <div style="margin-top:4px;height:4px;border-radius:2px;background:${barC};overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:${barFill};border-radius:2px;"></div>
+          </div>` : '<span style="color:#d1d5db;font-size:11px;">—</span>'}
+        </td>`
+      }).join('')
+      return `<tr style="background:${rowBg};">
+        <td style="padding:8px 12px;font-size:12px;font-weight:600;border-bottom:1px solid #f3f4f6;color:#111827;white-space:nowrap;">${sub.name}</td>
+        ${compCells}
+        <td style="padding:8px 8px;text-align:center;border-bottom:1px solid #f3f4f6;background:${rowBg};">
+          <span style="font-size:15px;font-weight:900;color:${scoreC};">${total!==null?total:'—'}</span>
+        </td>
+        <td style="padding:8px 8px;text-align:center;border-bottom:1px solid #f3f4f6;background:${rowBg};">
+          <span style="display:inline-block;padding:2px 8px;background:${scoreC}18;border:1px solid ${scoreC}40;border-radius:20px;font-size:10px;font-weight:800;color:${scoreC};">${letter}</span>
+        </td>
+        <td style="padding:8px 10px;font-size:10px;border-bottom:1px solid #f3f4f6;color:#4b5563;background:${rowBg};">${remark}</td>
       </tr>`
     }).join('')
 
@@ -4747,40 +4766,42 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       </div>
 
       <!-- Body -->
-      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:0;">
+      <div style="display:block;">
 
-        <!-- Left: Academic -->
-        <div style="padding:20px 20px 20px 28px;border-right:1px solid #f3f4f6;">
+        <!-- Academic: full width -->
+        <div style="padding:20px 28px 0 28px;border-bottom:1px solid #f3f4f6;">
           <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
             <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;flex-shrink:0;"></div>
             Academic Performance
           </div>
           <table style="width:100%;">
             <thead>
-              <tr style="background:#f8fafc;">
-                <th style="padding:8px 14px;text-align:left;font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Subject</th>
-                <th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Score</th>
-                <th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Grade</th>
-                <th style="padding:8px 14px;text-align:left;font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Remark</th>
+              <tr style="background:linear-gradient(135deg,#eff6ff,#f8fafc);">
+                <th style="padding:8px 12px;text-align:left;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;white-space:nowrap;">Subject</th>
+                ${activeComps.map(c=>`<th style="padding:8px 6px;text-align:center;font-size:8px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.06em;border-bottom:2px solid #1e3a8a;white-space:nowrap;">${c.label}<br><span style="font-size:8px;font-weight:400;color:#6b7280;text-transform:none;letter-spacing:0;">(/${c.max_score})</span></th>`).join('')}
+                <th style="padding:8px 8px;text-align:center;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;white-space:nowrap;">Total<br><span style="font-size:8px;font-weight:400;color:#6b7280;text-transform:none;">/100</span></th>
+                <th style="padding:8px 8px;text-align:center;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Grade</th>
+                <th style="padding:8px 10px;text-align:left;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Remark</th>
               </tr>
             </thead>
             <tbody>${subjectRows}</tbody>
             <tfoot>
-              <tr style="background:#eff6ff;border-top:2px solid #1e3a8a;">
-                <td style="padding:9px 14px;font-size:12px;font-weight:700;color:#1e3a8a;">Total / Average</td>
-                <td style="padding:9px 10px;text-align:center;font-size:15px;font-weight:900;color:#1e3a8a;">${grandAvg!==null?grandAvg:'—'}</td>
-                <td style="padding:9px 10px;text-align:center;font-size:12px;font-weight:700;color:#d97706;">${grandLetter}</td>
-                <td style="padding:9px 14px;font-size:11px;color:#4b5563;">${grandRemark}</td>
+              <tr style="background:linear-gradient(135deg,#eff6ff,#e0f2fe);border-top:2px solid #1e3a8a;">
+                <td style="padding:9px 12px;font-size:11px;font-weight:700;color:#1e3a8a;">Average</td>
+                ${activeComps.map(()=>'<td style="border-top:2px solid #1e3a8a;"></td>').join('')}
+                <td style="padding:9px 8px;text-align:center;font-size:16px;font-weight:900;color:#1e3a8a;">${grandAvg!==null?Math.round(grandAvg):'—'}</td>
+                <td style="padding:9px 8px;text-align:center;"><span style="display:inline-block;padding:3px 10px;background:#1e3a8a;border-radius:20px;font-size:11px;font-weight:800;color:#fff;">${grandLetter}</span></td>
+                <td style="padding:9px 10px;font-size:10px;color:#4b5563;">${grandRemark}</td>
               </tr>
             </tfoot>
           </table>
         </div>
 
-        <!-- Right: Attendance, Conduct, Remarks -->
-        <div style="padding:20px 28px 20px 20px;">
+        <!-- Bottom: Attendance, Conduct, Remarks -->
+        <div style="padding:20px 28px 20px 28px;display:grid;grid-template-columns:repeat(3,1fr);gap:24px;">
 
           <!-- Attendance -->
-          <div style="margin-bottom:18px;">
+          <div>
             <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
               <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;flex-shrink:0;"></div>
               Attendance
@@ -4801,7 +4822,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           </div>
 
           <!-- Conduct -->
-          <div style="margin-bottom:18px;">
+          <div>
             <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
               <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;flex-shrink:0;"></div>
               Conduct
@@ -4819,7 +4840,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           </div>
 
           <!-- Teacher Remark -->
-          <div style="margin-bottom:14px;">
+          <div>
             <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
               <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;flex-shrink:0;"></div>
               Class Teacher's Remark
