@@ -4366,9 +4366,10 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     const withoutGrades = [...classStudents].map(s=>({...s, total: null})).filter(s=>getStudentTotal(s.id)===null)
     withGrades.sort((a,b)=>b.total-a.total)
     let pos=1
-    const ranked = withGrades.map((s,i)=>{
-      if(i>0&&s.total===withGrades[i-1].total) return {...s,position:withGrades[i-1].position}
-      const p=pos; pos=i+2; return {...s,position:p}
+    const ranked = []
+    withGrades.forEach((s,i)=>{
+      if(i>0&&s.total===withGrades[i-1].total) ranked.push({...s,position:ranked[i-1].position})
+      else { ranked.push({...s,position:pos}); pos=i+2 }
     })
     return [...ranked, ...withoutGrades.map(s=>({...s,position:null}))]
   })()
