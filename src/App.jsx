@@ -943,7 +943,7 @@ function canSeeAnnouncement(role, ann) {
 }
 
 // ── DASHBOARD ──────────────────────────────────────────────────
-function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
+function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,isViewingPast}) {
   const isMobile = useIsMobile()
   const {students=[],classes=[],fees=[],attendance=[],grades=[],announcements=[],subjects=[],enrolments=[],payments=[]} = data
   // When viewing past year, use enrolment records to know which students were enrolled
@@ -1078,7 +1078,7 @@ function Dashboard({profile,data,settings,onNav,activeYear,isViewingPast}) {
             <div style={{fontWeight:600,fontSize:14,color:'var(--rose)'}}>{overdueFeesCount} Fee{overdueFeesCount!==1?'s':''} Overdue</div>
             <div style={{fontSize:12,color:'var(--mist2)',marginTop:2}}>Past their due date and still unpaid. Review and follow up.</div>
           </div>
-          <Btn size='sm' onClick={()=>onNav('fees')}>View Fees &rarr;</Btn>
+          <Btn size='sm' onClick={()=>onNavFees('Overdue')}>View Fees &rarr;</Btn>
         </div>
       )}
       {isViewingPast && (
@@ -2851,7 +2851,7 @@ function printReceipt({fee, feePayments, student, cls, settings, currency}) {
 }
 
 // ── FEES ───────────────────────────────────────────────────────
-function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
+function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,initialFeeFilter,onFilterConsumed}) {
   const {fees=[],students=[],classes=[],payments=[]} = data
   const currency = getCurrency(settings)
   const isMobile = useIsMobile()
@@ -2862,7 +2862,8 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
 
   // ── Single add / pay state ──
   const [search,setSearch]     = useState('')
-  const [fstatus,setFstatus]   = useState('')
+  const [fstatus,setFstatus]   = useState(initialFeeFilter||'')
+  useEffect(()=>{ if(initialFeeFilter){setFstatus(initialFeeFilter);if(onFilterConsumed)onFilterConsumed()} },[])
   const [fClassId,setFClassId] = useState(profile?.role==='classteacher' ? (profile?.class_id||'') : '')
   const [modal,setModal]       = useState(false)
   const [payModal,setPayModal] = useState(false)
@@ -6915,6 +6916,7 @@ export default function App() {
   const [settings,setSettings] = useState(null)
   const [data,setData]         = useState({students:[],classes:[],subjects:[],grades:[],attendance:[],fees:[],payments:[],behaviour:[],announcements:[],enrolments:[],users:[]})
   const [page,setPage]         = useState('dashboard')
+  const [feeFilter,setFeeFilter] = useState('')
   const [collapsed,setCollapsed] = useState(false)
   const [loading,setLoading]   = useState(true)
   const [toast,setToast]       = useState(null)
@@ -7120,12 +7122,12 @@ export default function App() {
 
   const renderPage = ()=>{
     switch(page){
-      case 'dashboard':    return <Dashboard    {...props} onNav={setPage}/>
+      case 'dashboard':    return <Dashboard    {...props} onNav={setPage} onNavFees={(filter)=>{setFeeFilter(filter);setPage('fees')}}/>
       case 'students':     return <Students     {...props}/>
       case 'classes':      return <Classes      {...props} onPromotionComplete={()=>{setNewYearStep(2);setNewYearModal(true)}}/>
       case 'grades':       return <Grades       {...props}/>
       case 'attendance':   return <Attendance   {...props}/>
-      case 'fees':         return <Fees         {...props}/>
+      case 'fees':         return <Fees         {...props} initialFeeFilter={feeFilter} onFilterConsumed={()=>setFeeFilter('')}/>
       case 'behaviour':    return <Behaviour    {...props}/>
       case 'reports':      return <Reports      {...props}/>
       case 'announcements':return <Announcements {...props}/>
