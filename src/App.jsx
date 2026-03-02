@@ -4413,6 +4413,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   const fmtScore = (v) => {
     if(v===null || v===undefined || Number.isNaN(v)) return '--'
+    if(settings?.score_decimals) return Number(v).toFixed(1)
     return Math.round(v)
   }
 
@@ -5682,13 +5683,8 @@ function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}
       setTimeout(()=>setWeightWarning(false),4000)
     }
     setSaving(true)
-    const {score_decimals, ...formWithoutDecimals} = form
-    const payload = {...formWithoutDecimals, grade_components: gradeComponents}
+    const payload = {...form, grade_components: gradeComponents}
     const {error} = await supabase.from('settings').update(payload).eq('id',form.id)
-    // Save score_decimals separately (requires the column to exist in DB)
-    if(!error && profile?.role==='superadmin') {
-      await supabase.from('settings').update({score_decimals: score_decimals||false}).eq('id',form.id)
-    }
     if(error) toast(error.message,'error')
     else {
       // Build a human-readable summary of what changed
