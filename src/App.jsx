@@ -78,16 +78,21 @@ const calcTotal = (g, gradeComponents) => {
   const comps = gradeComponents || DEFAULT_GRADE_COMPONENTS
   const active = comps.filter(c=>c.enabled)
   if(!active.length) return 0
-  return Math.round(active.reduce((sum,c) => {
+  return active.reduce((sum,c) => {
     const raw = +g[c.key]||0
     const maxRaw = c.max_score||1
     return sum + (raw/maxRaw)*c.weight
-  }, 0))
+  }, 0)
 }
 const getLetter = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.letter; return 'F' }
 const getGPA    = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.gpa;    return 0   }
 const getGradeLetter = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.letter||'--'; return '--' }
 const getGradeRemark = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.remark||''; return '' }
+const formatScore = (v, settings) => {
+  if(v===null || v===undefined || Number.isNaN(v)) return '--'
+  if(settings?.score_decimals) return Number(v).toFixed(1)
+  return Math.round(v).toString()
+}
 
 // ── AUDIT LOGGING ──────────────────────────────────────────────
 const auditLog = async (profile, module, action, description, meta={}, before_data=null, after_data=null) => {
@@ -1354,14 +1359,14 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
       const ltC    = letter==='--' ? '#9ca3af' : letter==='A+'||letter==='A' ? '#16a34a' : letter==='B' ? '#1d4ed8' : letter==='C'||letter==='D' ? '#d97706' : '#dc2626'
       return `<tr>
         <td style="padding:9px 14px;font-size:13px;border-bottom:1px solid #f3f4f6;color:#111827;">${sub.name}</td>
-        <td style="padding:9px 10px;text-align:center;font-size:16px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${scoreC};">${total !== null ? total : '\u2014'}</td>
+        <td style="padding:9px 10px;text-align:center;font-size:16px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${scoreC};">${total !== null ? formatScore(total, settings) : '\u2014'}</td>
         <td style="padding:9px 10px;text-align:center;border-bottom:1px solid #f3f4f6;"><span style="display:inline-block;padding:2px 8px;background:${ltC}18;border:1px solid ${ltC}40;border-radius:5px;font-size:12px;font-weight:700;color:${ltC};">${letter}</span></td>
         <td style="padding:9px 14px;font-size:11px;border-bottom:1px solid #f3f4f6;color:#6b7280;">${remark}</td>
       </tr>`
     }).join('')
 
     const scored      = subjectsForCls.map(sub => { const g = latestGrade(sub.id); return g ? calcTotal(g, gradeComps) : null }).filter(t => t !== null)
-    const grandAvg    = scored.length ? Math.round(scored.reduce((a,b)=>a+b,0) / scored.length) : null
+    const grandAvg    = scored.length ? scored.reduce((a,b)=>a+b,0) / scored.length : null
     const grandLetter = grandAvg !== null ? (scale.find(sc=>grandAvg>=sc.min&&grandAvg<=sc.max)?.letter||'--') : '--'
     const grandRemark = grandAvg !== null ? (scale.find(sc=>grandAvg>=sc.min&&grandAvg<=sc.max)?.remark||'')  : ''
     const gradeC      = grandAvg===null?'#6b7280':grandAvg>=75?'#16a34a':grandAvg>=50?'#1d4ed8':'#dc2626'
@@ -1422,7 +1427,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
       </div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      ${grandAvg !== null ? `<div style="text-align:center;padding:8px 14px;background:#fff;border:1.5px solid ${gradeC};border-radius:10px;min-width:72px;"><div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Avg Score</div><div style="font-size:22px;font-weight:900;color:${gradeC};line-height:1;">${grandAvg}</div><div style="font-size:9px;font-weight:700;color:${gradeC};margin-top:1px;">${grandLetter}${grandRemark ? ' \u00b7 '+grandRemark : ''}</div></div>` : ''}
+      ${grandAvg !== null ? `<div style="text-align:center;padding:8px 14px;background:#fff;border:1.5px solid ${gradeC};border-radius:10px;min-width:72px;"><div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Avg Score</div><div style="font-size:22px;font-weight:900;color:${gradeC};line-height:1;">${formatScore(grandAvg, settings)}</div><div style="font-size:9px;font-weight:700;color:${gradeC};margin-top:1px;">${grandLetter}${grandRemark ? ' \u00b7 '+grandRemark : ''}</div></div>` : ''}
       ${attRate !== null ? `<div style="text-align:center;padding:8px 14px;background:#fff;border:1.5px solid #0ea5e9;border-radius:10px;min-width:72px;"><div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Attendance</div><div style="font-size:22px;font-weight:900;color:#0ea5e9;line-height:1;">${attRate}%</div><div style="font-size:9px;color:#0ea5e9;margin-top:1px;">${present} present</div></div>` : ''}
     </div>
   </div>
@@ -2441,7 +2446,7 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
             <div style={{marginTop:14,display:'flex',alignItems:'center',gap:20,background:'var(--ink4)',borderRadius:'var(--r-sm)',padding:'14px 18px',border:`1px solid ${scoreWarnings.length?'var(--rose)':LETTER_COLOR[prevL]||'var(--line)'}20`}}>
               <div>
                 <div className='d' style={{fontSize:10,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Total Score</div>
-                <div className='d' style={{fontSize:28,fontWeight:700,color:scoreWarnings.length?'var(--rose)':LETTER_COLOR[prevL]||'var(--mist)',lineHeight:1}}>{prev}<span style={{fontSize:14,color:'var(--mist3)'}}>/100</span></div>
+                <div className='d' style={{fontSize:28,fontWeight:700,color:scoreWarnings.length?'var(--rose)':LETTER_COLOR[prevL]||'var(--mist)',lineHeight:1}}>{formatScore(prev,settings)}<span style={{fontSize:14,color:'var(--mist3)'}}>/100</span></div>
               </div>
               <div style={{width:1,height:40,background:'var(--line)'}}/>
               <div>
@@ -4411,11 +4416,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   // ── PRINT FUNCTIONS ────────────────────────────────────────────
 
-  const fmtScore = (v) => {
-    if(v===null || v===undefined || Number.isNaN(v)) return '--'
-    if(settings?.score_decimals) return Number(v).toFixed(1)
-    return Math.round(v)
-  }
+  const fmtScore = (v) => formatScore(v, settings)
 
   const logoTag = schoolLogo
     ? `<img src="${schoolLogo}" style="width:60px;height:60px;object-fit:contain;" />`
