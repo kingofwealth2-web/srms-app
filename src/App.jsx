@@ -3905,11 +3905,18 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
   })
   // Sort by total descending for ranking
   const sortedAcademic = [...academicData].sort((a,b)=>(b.total||0)-(a.total||0))
-  // Assign positions (shared rank for ties)
-  let pos=1
-  const rankedAcademic = sortedAcademic.map((s,i)=>{
-    if(i>0 && s.total===sortedAcademic[i-1].total) return {...s,position:sortedAcademic[i-1].position}
-    const p=pos; pos=i+2; return {...s,position:p}
+  // Assign positions (standard competition ranking with ties: 1,1,3,...)
+  let lastScoreAcad = null
+  let lastRankAcad  = 0
+  let seenAcad      = 0
+  const rankedAcademic = sortedAcademic.map(s=>{
+    seenAcad++
+    const score = s.total||0
+    if(lastScoreAcad===null || score!==lastScoreAcad){
+      lastRankAcad = seenAcad
+      lastScoreAcad = score
+    }
+    return {...s,position:lastRankAcad}
   })
   // If single student, show their rank in class
   const studentRankInClass = selectedStudent
@@ -3921,10 +3928,14 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
           const total=tots.length?tots.reduce((a,b)=>a+b,0):0
           return {id:s.id,total}
         }).sort((a,b)=>b.total-a.total)
-        let rpos=1
-        const ranked=allAcad.map((s,i)=>{
-          if(i>0&&s.total===allAcad[i-1].total) return {...s,pos:allAcad[i-1].pos}
-          const p=rpos; rpos=i+2; return {...s,pos:p}
+        let lastScore=null,lastRank=0,seen=0
+        const ranked=allAcad.map(s=>{
+          seen++
+          if(lastScore===null || s.total!==lastScore){
+            lastRank=seen
+            lastScore=s.total
+          }
+          return {...s,pos:lastRank}
         })
         return ranked.find(s=>s.id===selectedStudent.id)?.pos||null
       })()
@@ -4359,17 +4370,22 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     return tots.length ? tots.reduce((a,b)=>a+b,0) : null
   }
 
-  // Rank students by total
-  // Rank students by total — proper tie handling
+  // Rank students by total — proper tie handling (standard competition ranking)
   const rankedStudents = (() => {
     const withGrades    = [...classStudents].map(s=>({...s, total: getStudentTotal(s.id)})).filter(s=>s.total!==null)
     const withoutGrades = [...classStudents].map(s=>({...s, total: null})).filter(s=>getStudentTotal(s.id)===null)
     withGrades.sort((a,b)=>b.total-a.total)
-    let pos=1
+    let lastScore = null
+    let lastRank  = 0
+    let seen      = 0
     const ranked = []
-    withGrades.forEach((s,i)=>{
-      if(i>0&&s.total===withGrades[i-1].total) ranked.push({...s,position:ranked[i-1].position})
-      else { ranked.push({...s,position:pos}); pos=i+2 }
+    withGrades.forEach(s=>{
+      seen++
+      if(lastScore===null || s.total!==lastScore){
+        lastRank = seen
+        lastScore = s.total
+      }
+      ranked.push({...s,position:lastRank})
     })
     return [...ranked, ...withoutGrades.map(s=>({...s,position:null}))]
   })()
