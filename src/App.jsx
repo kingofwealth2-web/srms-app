@@ -1303,6 +1303,31 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
     else{const s=students.find(x=>x.id===id);setData(p=>({...p,students:p.students.filter(s=>s.id!==id)}));auditLog(profile,'Students','Deleted',`${s?.first_name} ${s?.last_name}`,{},s||null,null);toast('Student removed')}
   }
 
+  const exportStudentsCsv = () => {
+    try {
+      if(filtered.length===0){ toast('No students to export','error'); return }
+      const esc = v => {
+        if(v===null||v===undefined) return ''
+        return String(v).replace(/"/g,'""')
+      }
+      let csv = 'Student ID,First Name,Last Name,Class,Gender,DOB,Phone,Email,Guardian Name,Guardian Phone,Guardian Email,Archived,Graduation Year,Leaving Reason,Leaving Notes\n'
+      filtered.forEach(s=>{
+        const clsName = classes.find(c=>c.id===s.class_id)?.name || ''
+        csv += `"${esc(s.student_id)}","${esc(s.first_name)}","${esc(s.last_name)}","${esc(clsName)}","${esc(s.gender)}","${esc(s.dob)}","${esc(s.phone)}","${esc(s.email)}","${esc(s.guardian_name)}","${esc(s.guardian_phone)}","${esc(s.guardian_email)}","${s.archived?'Yes':'No'}","${esc(s.graduation_year)}","${esc(s.leaving_reason)}","${esc(s.leaving_notes)}"\n`
+      })
+      const blob = new Blob([csv],{type:'text/csv'})
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href = url
+      a.download = showArchived ? 'SRMS_Students_Archived.csv' : 'SRMS_Students_Active.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch(e){
+      console.error(e)
+      toast('Export failed. Please try again.','error')
+    }
+  }
+
   // ── PRINT STUDENT PROFILE ──────────────────────────────────────
   const printStudentProfile = (s) => {
     const cls            = classes.find(c => c.id === s.class_id)
@@ -1511,6 +1536,9 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
           ? `${filtered.length} of ${archivedStudents.length} archived${fyear?' · '+fyear:''}`
           : `${filtered.length} of ${activeStudents.length} students`}>
         {canEdit && !showArchived && <Btn onClick={openAdd}>+ New Student</Btn>}
+        {['superadmin','admin'].includes(profile?.role) && (
+          <Btn variant='ghost' onClick={exportStudentsCsv}>⬇ Export CSV</Btn>
+        )}
         {canEdit && (
           <Btn variant='ghost' onClick={()=>{setShowArchived(v=>!v);setSearch('');setFc('');setFyear('');setFReason('')}}>
             {showArchived?'← Back to Students':'⊡ Archived Students'}
@@ -2544,12 +2572,43 @@ function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPas
   const counts = statuses.reduce((acc,s)=>({...acc,[s]:classStudents.filter(st=>getStatus(st.id)===s).length}),{})
   const histRecs = attendance.filter(a=>!cid||a.class_id===cid).sort((a,b)=>b.date.localeCompare(a.date))
 
+  const exportAttendanceCsv = () => {
+    try{
+      if(tab!=='history'){
+        toast('Switch to the History tab to export attendance.','error'); return
+      }
+      if(histRecs.length===0){ toast('No attendance records to export','error'); return }
+      const esc = v => {
+        if(v===null||v===undefined) return ''
+        return String(v).replace(/"/g,'""')
+      }
+      let csv = 'Date,Class,Student ID,Student,Status\n'
+      histRecs.forEach(r=>{
+        const cls = classes.find(c=>c.id===r.class_id)
+        const s   = students.find(st=>st.id===r.student_id)
+        csv += `"${esc(r.date)}","${esc(cls?.name)}","${esc(s?.student_id)}","${esc(s?`${s.first_name} ${s.last_name}`:'')}","${esc(r.status)}"\n`
+      })
+      const blob = new Blob([csv],{type:'text/csv'})
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href = url
+      a.download = `SRMS_Attendance_${activeYear}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch(e){
+      console.error(e)
+      toast('Export failed. Please try again.','error')
+    }
+  }
 
   return (
     <div>
       <PageHeader title='Attendance' sub='Mark and review daily attendance records'>
         <Btn variant={tab==='mark'?'primary':'ghost'} size='sm' onClick={()=>setTab('mark')}>Mark Attendance</Btn>
         <Btn variant={tab==='history'?'primary':'ghost'} size='sm' onClick={()=>setTab('history')}>History</Btn>
+        {['superadmin','admin'].includes(profile?.role) && tab==='history' && (
+          <Btn variant='ghost' size='sm' onClick={exportAttendanceCsv}>⬇ Export CSV</Btn>
+        )}
       </PageHeader>
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
@@ -3106,6 +3165,36 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,init
   const step1Valid = bulk.fee_type && bulk.period && bulk.default_amount && bulk.selected_classes.length>0
   const step2Valid = step2Rows.every(r=>r.amount!==''&&parseFloat(r.amount)>0)
 
+  const exportFeesCsv = () => {
+    try {
+      if(feeActiveTab!=='fees'){
+        toast('Switch to the Fees tab to export fee records.','error'); return
+      }
+      if(filtered.length===0){ toast('No fee records to export','error'); return }
+      const esc = v => {
+        if(v===null||v===undefined) return ''
+        return String(v).replace(/"/g,'""')
+      }
+      let csv = 'Student ID,Student,Class,Fee Type,Period,Amount,Paid,Balance,Status,Due Date,Receipt\n'
+      filtered.forEach(r=>{
+        const s   = students.find(x=>x.id===r.student_id)
+        const cls = s ? classes.find(c=>c.id===s.class_id)?.name || '' : ''
+        csv += `"${esc(s?.student_id)}","${esc(s?`${s.first_name} ${s.last_name}`:'')}",
+"${esc(cls)}","${esc(r.fee_type)}","${esc(r.period)}",${Number(r.amount||0)},${Number(r.effectivePaid||0)},${Number(r.balance||0)},"${esc(r.status)}","${esc(r.due_date)}","${esc(r.receipt_no)}"\n`
+      })
+      const blob = new Blob([csv],{type:'text/csv'})
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href = url
+      a.download = `SRMS_Fees_${activeYear}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch(e){
+      console.error(e)
+      toast('Export failed. Please try again.','error')
+    }
+  }
+
   // ── Payment History derived data ──
   const phClassId   = feeActiveTab==='history' ? fClassId : fClassId
   const [phSearch,  setPhSearch]   = useState('')
@@ -3175,6 +3264,9 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,init
   return (
     <div>
       <PageHeader title='Fee Management' sub='Track payments, balances and receipts'>
+        {['superadmin','admin'].includes(profile?.role) && (
+          <Btn variant='ghost' onClick={exportFeesCsv}>⬇ Export CSV</Btn>
+        )}
         {feeActiveTab==='fees' && !isViewingPast && canBulk && (
           <Btn variant='secondary' onClick={()=>{setBulkModal(true);setBulkStep(1);setBulk(BULK_INIT)}}>⊞ Bulk Add Fee</Btn>
         )}
@@ -3698,10 +3790,39 @@ function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast
     else{const rec=behaviour.find(x=>x.id===id);const s=students.find(x=>x.id===rec?.student_id);setData(p=>({...p,behaviour:p.behaviour.filter(b=>b.id!==id)}));auditLog(profile,'Behaviour','Deleted',`${s?.first_name} ${s?.last_name} · ${rec?.type} · ${rec?.title}`,{},rec,null);toast('Record removed')}
   }
 
+  const exportBehaviourCsv = () => {
+    try{
+      if(filtered.length===0){ toast('No behaviour records to export','error'); return }
+      const esc = v => {
+        if(v===null||v===undefined) return ''
+        return String(v).replace(/"/g,'""')
+      }
+      let csv = 'Date,Class,Student ID,Student,Type,Title,Description,Recorded By\n'
+      filtered.forEach(b=>{
+        const s   = students.find(x=>x.id===b.student_id)
+        const cls = s ? classes.find(c=>c.id===s.class_id)?.name || '' : ''
+        csv += `"${esc(b.date||b.created_at)}","${esc(cls)}","${esc(s?.student_id)}","${esc(s?`${s.first_name} ${s.last_name}`:'')}","${esc(b.type)}","${esc(b.title)}","${esc(b.description)}","${esc(b.recorded_by_name)}"\n`
+      })
+      const blob = new Blob([csv],{type:'text/csv'})
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href = url
+      a.download = `SRMS_Behaviour_${activeYear}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch(e){
+      console.error(e)
+      toast('Export failed. Please try again.','error')
+    }
+  }
+
   return (
     <div>
       <PageHeader title='Behaviour & Extracurricular' sub='Discipline, achievements and co-curricular records'>
         {!isViewingPast && <Btn onClick={openAdd}>+ Add Record</Btn>}
+        {['superadmin','admin'].includes(profile?.role) && (
+          <Btn variant='ghost' onClick={exportBehaviourCsv}>⬇ Export CSV</Btn>
+        )}
       </PageHeader>
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
         {types.map((t,i)=>{
