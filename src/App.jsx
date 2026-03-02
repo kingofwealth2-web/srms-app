@@ -78,22 +78,16 @@ const calcTotal = (g, gradeComponents) => {
   const comps = gradeComponents || DEFAULT_GRADE_COMPONENTS
   const active = comps.filter(c=>c.enabled)
   if(!active.length) return 0
-  return active.reduce((sum,c) => {
+  return Math.round(active.reduce((sum,c) => {
     const raw = +g[c.key]||0
     const maxRaw = c.max_score||1
     return sum + (raw/maxRaw)*c.weight
-  }, 0)
+  }, 0))
 }
-// Format a score value: 1 decimal if enabled, else integer
-const fmtScore = (val, settings) => {
-  if(val===null||val===undefined) return '—'
-  const v = Number(val)
-  return settings?.score_decimals ? v.toFixed(1) : Math.round(v).toString()
-}
-const getLetter = (t, scale) => { const ti=Math.floor(t); for(const s of scale) if(ti>=s.min&&ti<=s.max) return s.letter; return 'F' }
-const getGPA    = (t, scale) => { const ti=Math.floor(t); for(const s of scale) if(ti>=s.min&&ti<=s.max) return s.gpa;    return 0   }
-const getGradeLetter = (t, scale) => { const ti=Math.floor(t); for(const s of scale) if(ti>=s.min&&ti<=s.max) return s.letter||'--'; return '--' }
-const getGradeRemark = (t, scale) => { const ti=Math.floor(t); for(const s of scale) if(ti>=s.min&&ti<=s.max) return s.remark||''; return '' }
+const getLetter = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.letter; return 'F' }
+const getGPA    = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.gpa;    return 0   }
+const getGradeLetter = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.letter||'--'; return '--' }
+const getGradeRemark = (t, scale) => { for(const s of scale) if(t>=s.min&&t<=s.max) return s.remark||''; return '' }
 
 // ── AUDIT LOGGING ──────────────────────────────────────────────
 const auditLog = async (profile, module, action, description, meta={}, before_data=null, after_data=null) => {
@@ -984,7 +978,7 @@ function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,isViewingPa
       return totals.reduce((a,b)=>a+b,0)/totals.length
     }).filter(v=>v!==null)
     if(!perStudent.length) return {avg:0, passRate:0}
-    const avg      = perStudent.reduce((a,b)=>a+b,0)/perStudent.length
+    const avg      = Math.round(perStudent.reduce((a,b)=>a+b,0)/perStudent.length)
     const passRate = Math.round(perStudent.filter(v=>v>=50).length/perStudent.length*100)
     return {avg, passRate}
   }
@@ -1098,7 +1092,7 @@ function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,isViewingPa
         {isAdmin && <>
           <KPI label='Total Students'   value={yearStudents.length}      color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
           <KPI label='Attendance Rate'  value={`${schoolAttRate}%`}  color='var(--emerald)' sub={`${schoolAttPresent} of ${schoolAttTotal} records`} index={1}/>
-          <KPI label='Average Score'    value={fmtScore(avgScore,settings)}             color='var(--sky)'     sub={`Pass rate: ${passRate}%`} index={2}/>
+          <KPI label='Average Score'    value={avgScore}             color='var(--sky)'     sub={`Pass rate: ${passRate}%`} index={2}/>
           <KPI label='Fee Collection'   value={`${totalFees?Math.round(totalPaid/totalFees*100):0}%`} color='var(--amber)' sub={overdueFeesCount>0?`${fmtMoney(totalPaid,currency)} collected · ${overdueFeesCount} overdue`:`${fmtMoney(totalPaid,currency)} collected`} index={3}/>
         </>}
         {profile?.role==='classteacher' && <>
@@ -1110,7 +1104,7 @@ function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,isViewingPa
         {profile?.role==='teacher' && <>
           <KPI label='Subjects'        value={subjects.filter(s=>s.teacher_id===profile.id).length} color='var(--gold)'  sub='Assigned to you' index={0}/>
           <KPI label='Grades Entered'  value={grades.filter(g=>subjects.some(s=>s.id===g.subject_id&&s.teacher_id===profile.id)).length} color='var(--sky)' sub='Total records' index={1}/>
-          <KPI label='Avg Score'       value={fmtScore(mySubjectAvg,settings)}         color='var(--emerald)' sub='Your subjects' index={2}/>
+          <KPI label='Avg Score'       value={mySubjectAvg}         color='var(--emerald)' sub='Your subjects' index={2}/>
           <KPI label='Announcements'   value={activeAnn.length}     color='var(--amber)'   sub='Active' index={3}/>
         </>}
       </div>
@@ -1354,22 +1348,22 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
     const subjectRows = subjectsForCls.map(sub => {
       const g      = latestGrade(sub.id)
       const total  = g ? calcTotal(g, gradeComps) : null
-      const letter = total !== null ? (scale.find(sc => Math.floor(total) >= sc.min && Math.floor(total) <= sc.max)?.letter || '--') : '--'
-      const remark = total !== null ? (scale.find(sc => Math.floor(total) >= sc.min && Math.floor(total) <= sc.max)?.remark || '')  : ''
+      const letter = total !== null ? (scale.find(sc => total >= sc.min && total <= sc.max)?.letter || '--') : '--'
+      const remark = total !== null ? (scale.find(sc => total >= sc.min && total <= sc.max)?.remark || '')  : ''
       const scoreC = total === null ? '#9ca3af' : total < 50 ? '#dc2626' : total >= 75 ? '#16a34a' : '#1d4ed8'
       const ltC    = letter==='--' ? '#9ca3af' : letter==='A+'||letter==='A' ? '#16a34a' : letter==='B' ? '#1d4ed8' : letter==='C'||letter==='D' ? '#d97706' : '#dc2626'
       return `<tr>
         <td style="padding:9px 14px;font-size:13px;border-bottom:1px solid #f3f4f6;color:#111827;">${sub.name}</td>
-        <td style="padding:9px 10px;text-align:center;font-size:16px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${scoreC};">${total !== null ? fmtScore(total,settings) : '\u2014'}</td>
+        <td style="padding:9px 10px;text-align:center;font-size:16px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${scoreC};">${total !== null ? total : '\u2014'}</td>
         <td style="padding:9px 10px;text-align:center;border-bottom:1px solid #f3f4f6;"><span style="display:inline-block;padding:2px 8px;background:${ltC}18;border:1px solid ${ltC}40;border-radius:5px;font-size:12px;font-weight:700;color:${ltC};">${letter}</span></td>
         <td style="padding:9px 14px;font-size:11px;border-bottom:1px solid #f3f4f6;color:#6b7280;">${remark}</td>
       </tr>`
     }).join('')
 
     const scored      = subjectsForCls.map(sub => { const g = latestGrade(sub.id); return g ? calcTotal(g, gradeComps) : null }).filter(t => t !== null)
-    const grandAvg    = scored.length ? scored.reduce((a,b)=>a+b,0) / scored.length : null
-    const grandLetter = grandAvg !== null ? (scale.find(sc=>Math.floor(grandAvg)>=sc.min&&Math.floor(grandAvg)<=sc.max)?.letter||'--') : '--'
-    const grandRemark = grandAvg !== null ? (scale.find(sc=>Math.floor(grandAvg)>=sc.min&&Math.floor(grandAvg)<=sc.max)?.remark||'')  : ''
+    const grandAvg    = scored.length ? Math.round(scored.reduce((a,b)=>a+b,0) / scored.length) : null
+    const grandLetter = grandAvg !== null ? (scale.find(sc=>grandAvg>=sc.min&&grandAvg<=sc.max)?.letter||'--') : '--'
+    const grandRemark = grandAvg !== null ? (scale.find(sc=>grandAvg>=sc.min&&grandAvg<=sc.max)?.remark||'')  : ''
     const gradeC      = grandAvg===null?'#6b7280':grandAvg>=75?'#16a34a':grandAvg>=50?'#1d4ed8':'#dc2626'
 
     const recentBeh = [...behRecs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,6)
@@ -1428,7 +1422,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
       </div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      ${grandAvg !== null ? `<div style="text-align:center;padding:8px 14px;background:#fff;border:1.5px solid ${gradeC};border-radius:10px;min-width:72px;"><div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Avg Score</div><div style="font-size:22px;font-weight:900;color:${gradeC};line-height:1;">${fmtScore(grandAvg,settings)}</div><div style="font-size:9px;font-weight:700;color:${gradeC};margin-top:1px;">${grandLetter}${grandRemark ? ' \u00b7 '+grandRemark : ''}</div></div>` : ''}
+      ${grandAvg !== null ? `<div style="text-align:center;padding:8px 14px;background:#fff;border:1.5px solid ${gradeC};border-radius:10px;min-width:72px;"><div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Avg Score</div><div style="font-size:22px;font-weight:900;color:${gradeC};line-height:1;">${grandAvg}</div><div style="font-size:9px;font-weight:700;color:${gradeC};margin-top:1px;">${grandLetter}${grandRemark ? ' \u00b7 '+grandRemark : ''}</div></div>` : ''}
       ${attRate !== null ? `<div style="text-align:center;padding:8px 14px;background:#fff;border:1.5px solid #0ea5e9;border-radius:10px;min-width:72px;"><div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Attendance</div><div style="font-size:22px;font-weight:900;color:#0ea5e9;line-height:1;">${attRate}%</div><div style="font-size:9px;color:#0ea5e9;margin-top:1px;">${present} present</div></div>` : ''}
     </div>
   </div>
@@ -1810,7 +1804,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
                   : subjectsForClass.map(sub=>{
                       const g = latestGrade(sub.id)
                       const total = g ? calcTotal(g, gradeComps) : null
-                      const grade = total!==null ? (scale.find(s=>Math.floor(total)>=s.min&&Math.floor(total)<=s.max)?.letter||'--') : '--'
+                      const grade = total!==null ? (scale.find(s=>total>=s.min&&total<=s.max)?.letter||'--') : '--'
                       const gradeColor = LETTER_COLOR[grade]||'var(--mist3)'
                       return (
                         <div key={sub.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:6,border:'1px solid var(--line)'}}>
@@ -2352,7 +2346,7 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
             })),
             {key:'id',label:'Total',render:(_,r)=>{const t=calcTotal(r,allComps);const l=getLetter(t,scale);return(
               <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                <span className='mono' style={{fontWeight:700,fontSize:14}}>{fmtScore(t,settings)}</span>
+                <span className='mono' style={{fontWeight:700,fontSize:14}}>{t}</span>
                 <Badge color={LETTER_COLOR[l]||'var(--mist2)'}>{l}</Badge>
                 <span style={{fontSize:11,color:'var(--mist3)'}}>GPA {getGPA(t,scale).toFixed(1)}</span>
               </div>
@@ -2447,7 +2441,7 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
             <div style={{marginTop:14,display:'flex',alignItems:'center',gap:20,background:'var(--ink4)',borderRadius:'var(--r-sm)',padding:'14px 18px',border:`1px solid ${scoreWarnings.length?'var(--rose)':LETTER_COLOR[prevL]||'var(--line)'}20`}}>
               <div>
                 <div className='d' style={{fontSize:10,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Total Score</div>
-                <div className='d' style={{fontSize:28,fontWeight:700,color:scoreWarnings.length?'var(--rose)':LETTER_COLOR[prevL]||'var(--mist)',lineHeight:1}}>{fmtScore(prev,settings)}<span style={{fontSize:14,color:'var(--mist3)'}}>/100</span></div>
+                <div className='d' style={{fontSize:28,fontWeight:700,color:scoreWarnings.length?'var(--rose)':LETTER_COLOR[prevL]||'var(--mist)',lineHeight:1}}>{prev}<span style={{fontSize:14,color:'var(--mist3)'}}>/100</span></div>
               </div>
               <div style={{width:1,height:40,background:'var(--line)'}}/>
               <div>
@@ -3789,6 +3783,7 @@ function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast
 
 // ── ORDINAL HELPER ─────────────────────────────────────────────
 const ordinal = n => {
+  if(n===null||n===undefined||isNaN(n)) return '--'
   const s=['th','st','nd','rd'], v=n%100
   return n+(s[(v-20)%10]||s[v]||s[0])
 }
@@ -3903,7 +3898,7 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
     sg.forEach(g=>{ subjectScores[g.subject_id] = calcTotal(g,gradeComps) })
     const tots = Object.values(subjectScores)
     const total = tots.length ? tots.reduce((a,b)=>a+b,0) : null
-    const avg   = tots.length ? total/tots.length : null
+    const avg   = tots.length ? Math.round(total/tots.length) : null
     const remark= avg!==null ? getGradeRemark(avg,scale) : '--'
     const trend = !fp ? getTrendArrow(s.id) : null
     return {...s, subjectScores, total: total||0, avg, remark, trend, count:sg.length, letter:avg!==null?getLetter(avg,scale):'--', pass:avg!==null?avg>=50:null}
@@ -3990,7 +3985,7 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
             sg.forEach(g=>{ scores[g.subject_id]=calcTotal(g,gradeComps) })
             const tots=Object.values(scores)
             const total=tots.length?tots.reduce((a,b)=>a+b,0):null
-            const avg=tots.length?total/tots.length:null
+            const avg=tots.length?Math.round(total/tots.length):null
             return {...s,scores,total:total||0,avg,letter:avg!==null?getLetter(avg,scale):'--',remark:avg!==null?getGradeRemark(avg,scale):'',pass:avg!==null?avg>=50:null}
           })
           .sort((a,b)=>(b.total||0)-(a.total||0))
@@ -4224,7 +4219,7 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
                               <td style={tdStyle}><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={`${selectedStudent.first_name} ${selectedStudent.last_name}`} size={24} photo={selectedStudent.photo}/><span style={{fontWeight:600}}>{selectedStudent.first_name} {selectedStudent.last_name}</span></div></td>
                               <td style={tdStyle}>{subj?.name||'--'}</td>
                               {gradeComps.filter(c=>c.enabled).map(c=><td key={c.key} style={tdStyle}><span className='mono'>{g[c.key]||0}</span></td>)}
-                              <td style={tdStyle}><span className='mono' style={{fontWeight:700,fontSize:14}}>{fmtScore(tot,settings)}</span></td>
+                              <td style={tdStyle}><span className='mono' style={{fontWeight:700,fontSize:14}}>{tot}</span></td>
                               <td style={tdStyle}><Badge color={LETTER_COLOR[let_]||'var(--mist2)'}>{let_}</Badge></td>
                               <td style={tdStyle}><span style={{fontSize:12,color:'var(--mist2)'}}>{getGradeRemark(tot,scale)||'--'}</span></td>
                               <td style={tdStyle}>{tot>=50?<Badge color='var(--emerald)'>Pass</Badge>:<Badge color='var(--rose)'>Fail</Badge>}</td>
@@ -4247,10 +4242,10 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
                               {classSubjects.map(sub=>{
                                 const score=s.subjectScores[sub.id]
                                 const scoreColor=score!==undefined?(score<50?'var(--rose)':score>=75?'var(--emerald)':'var(--white)'):'var(--mist3)'
-                                return <td key={sub.id} style={{...tdStyle,textAlign:'center'}}><span className='mono' style={{color:scoreColor,fontWeight:score!==undefined?600:400}}>{score!==undefined?fmtScore(score,settings):'--'}</span></td>
+                                return <td key={sub.id} style={{...tdStyle,textAlign:'center'}}><span className='mono' style={{color:scoreColor,fontWeight:score!==undefined?600:400}}>{score??'--'}</span></td>
                               })}
-                              <td style={tdStyle}><span className='mono' style={{fontWeight:700}}>{s.total?fmtScore(s.total,settings):'--'}</span></td>
-                              <td style={tdStyle}><span className='mono'>{s.avg!==null&&s.avg!==undefined?fmtScore(s.avg,settings):'--'}</span></td>
+                              <td style={tdStyle}><span className='mono' style={{fontWeight:700}}>{s.total||'--'}</span></td>
+                              <td style={tdStyle}><span className='mono'>{s.avg??'--'}</span></td>
                               <td style={tdStyle}>{s.letter!=='--'?<Badge color={LETTER_COLOR[s.letter]||'var(--mist2)'}>{s.letter}</Badge>:'--'}</td>
                               <td style={tdStyle}><span style={{fontSize:12,color:'var(--mist2)'}}>{s.remark||'--'}</span></td>
                               {!fp && <td style={tdStyle}>{s.trend ? <span style={{fontWeight:700,color:s.trend.color,fontSize:14}} title={s.trend.diff}>{s.trend.arrow}</span> : <span style={{color:'var(--mist3)'}}>--</span>}</td>}
@@ -4364,26 +4359,18 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     return tots.length ? tots.reduce((a,b)=>a+b,0) : null
   }
 
-  // Helper: class average for a specific subject
-  const getSubjectClassAvg = (subjectId) => {
-    const scores = classStudents
-      .map(s => getTotal(s.id, subjectId))
-      .filter(t => t !== null)
-    if(!scores.length) return null
-    return scores.reduce((a,b)=>a+b,0) / scores.length
-  }
-
   // Rank students by total
   // Rank students by total — proper tie handling
   const rankedStudents = (() => {
-    const sorted = [...classStudents]
-      .map(s=>({...s, total: getStudentTotal(s.id)}))
-      .sort((a,b)=>(b.total||0)-(a.total||0))
+    const withGrades    = [...classStudents].map(s=>({...s, total: getStudentTotal(s.id)})).filter(s=>s.total!==null)
+    const withoutGrades = [...classStudents].map(s=>({...s, total: null})).filter(s=>getStudentTotal(s.id)===null)
+    withGrades.sort((a,b)=>b.total-a.total)
     let pos=1
-    return sorted.map((s,i)=>{
-      if(i>0&&s.total===sorted[i-1].total) return {...s,position:sorted[i-1].position}
+    const ranked = withGrades.map((s,i)=>{
+      if(i>0&&s.total===withGrades[i-1].total) return {...s,position:withGrades[i-1].position}
       const p=pos; pos=i+2; return {...s,position:p}
     })
+    return [...ranked, ...withoutGrades.map(s=>({...s,position:null}))]
   })()
 
   // Attendance helper
@@ -4438,12 +4425,13 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         const t = getTotal(s.id,sub.id)
         const c = t===null?'#9ca3af':t<50?'#dc2626':t>=75?'#16a34a':'#1d4ed8'
         const bg= t===null?'#f9fafb':t<50?'#fef2f2':t>=75?'#f0fdf4':'#eff6ff'
-        return `<td style="padding:8px 6px;text-align:center;font-size:12px;font-weight:700;border:1px solid #f3f4f6;color:${c};background:${bg};">${t!==null?fmtScore(t,settings):'—'}</td>`
+        return `<td style="padding:8px 6px;text-align:center;font-size:12px;font-weight:700;border:1px solid #f3f4f6;color:${c};background:${bg};">${t!==null?t:'—'}</td>`
       }).join('')
       const total  = s.total
-      const avg    = classSubjects.length&&total!==null ? total/classSubjects.length : null
-      const letter = total!==null ? getGradeLetter(avg,scale) : '--'
-      const remark = total!==null ? getGradeRemark(avg,scale) : '--'
+      const scoredCount = classSubjects.filter(sub=>getTotal(s.id,sub.id)!==null).length
+      const avg    = scoredCount>0&&total!==null ? total/scoredCount : null
+      const letter = avg!==null ? getGradeLetter(avg,scale) : '--'
+      const remark = avg!==null ? getGradeRemark(avg,scale) : '--'
       const posOrd = ordinal(s.position)
       const posC   = s.position===1?'#b45309':s.position===2?'#6b7280':s.position===3?'#92400e':'#6d28d9'
       const posBg  = s.position===1?'#fef3c7':s.position===2?'#f3f4f6':s.position===3?'#fef3c7':'#f5f3ff'
@@ -4452,18 +4440,22 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         <td style="padding:8px 12px;font-size:11px;font-family:monospace;border:1px solid #f3f4f6;color:#6b7280;">${s.student_id}</td>
         <td style="padding:8px 12px;font-size:13px;font-weight:600;border:1px solid #f3f4f6;color:#111827;">${s.last_name}, ${s.first_name}</td>
         ${subjectCells}
-        <td style="padding:8px 8px;text-align:center;font-size:13px;font-weight:800;border:1px solid #f3f4f6;background:#dbeafe;color:#1e40af;">${total!==null?fmtScore(total,settings):'—'}</td>
-        <td style="padding:8px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #f3f4f6;background:#dbeafe;color:#1e40af;">${avg!==null?fmtScore(avg,settings):'—'}</td>
+        <td style="padding:8px 8px;text-align:center;font-size:13px;font-weight:800;border:1px solid #f3f4f6;background:#dbeafe;color:#1e40af;">${total!==null?total:'—'}</td>
+        <td style="padding:8px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #f3f4f6;background:#dbeafe;color:#1e40af;">${avg!==null?avg:'—'}</td>
         <td style="padding:8px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #f3f4f6;color:#d97706;">${letter}</td>
         <td style="padding:8px 10px;font-size:11px;border:1px solid #f3f4f6;color:#4b5563;">${remark}</td>
         <td style="padding:8px 10px;text-align:center;font-size:13px;font-weight:800;border:1px solid #f3f4f6;color:${posC};background:${posBg};">${posOrd}</td>
       </tr>`
     }).join('')
 
-    const passCount = rankedStudents.filter(s=>s.total!==null&&classSubjects.length&&(s.total/classSubjects.length)>=50).length
-    const withTotals = rankedStudents.filter(s=>s.total!==null)
-    const classAvg  = withTotals.length
-      ? withTotals.reduce((a,s)=>a+(classSubjects.length?s.total/classSubjects.length:0),0)/withTotals.length
+    const passCount = rankedStudents.filter(s=>{
+      if(s.total===null) return false
+      const sc=classSubjects.filter(sub=>getTotal(s.id,sub.id)!==null).length
+      return sc>0&&s.total/sc>=50
+    }).length
+    const withT = rankedStudents.filter(s=>s.total!==null)
+    const classAvg = withT.length
+      ? withT.reduce((a,s)=>{const sc=classSubjects.filter(sub=>getTotal(s.id,sub.id)!==null).length;return a+(sc>0?s.total/sc:0)},0)/withT.length
       : null
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -4555,7 +4547,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
     const withScore = ranked.filter(s=>s.score!==null)
     const passCount = withScore.filter(s=>s.score>=50).length
-    const avgScore  = withScore.length ? withScore.reduce((a,s)=>a+s.score,0)/withScore.length : null
+    const avgScore  = withScore.length ? Math.round(withScore.reduce((a,s)=>a+s.score,0)/withScore.length) : '--'
 
     const rows = ranked.map((s,i)=>{
       const letter  = s.score!==null ? getGradeLetter(s.score,scale) : '--'
@@ -4567,7 +4559,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       return `<tr style="background:${i%2===0?'#fff':'#f9fafb'};">
         <td style="padding:10px 14px;font-size:11px;font-family:monospace;border-bottom:1px solid #f3f4f6;color:#6b7280;">${s.student_id}</td>
         <td style="padding:10px 14px;font-size:14px;font-weight:600;border-bottom:1px solid #f3f4f6;color:#111827;">${s.last_name}, ${s.first_name}</td>
-        <td style="padding:10px 14px;text-align:center;font-size:18px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${scoreC};">${s.score!==null?fmtScore(s.score,settings):'—'}</td>
+        <td style="padding:10px 14px;text-align:center;font-size:18px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${scoreC};">${s.score!==null?s.score:'—'}</td>
         <td style="padding:10px 14px;text-align:center;font-size:13px;font-weight:700;border-bottom:1px solid #f3f4f6;color:#d97706;">${letter}</td>
         <td style="padding:10px 14px;font-size:12px;border-bottom:1px solid #f3f4f6;color:#4b5563;">${remark}</td>
         <td style="padding:10px 14px;text-align:center;font-size:14px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${posC};background:${posBg};">${posOrd}</td>
@@ -4602,12 +4594,11 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           </div>
         </div>
       </div>
-      <div style="background:#f8fafc;border-bottom:1px solid #e5e7eb;padding:10px 28px;display:flex;gap:24px;align-items:center;">
+      <div style="background:#f8fafc;border-bottom:1px solid #e5e7eb;padding:10px 28px;display:flex;gap:24px;">
         <div style="font-size:12px;color:#6b7280;">Students: <strong style="color:#111827;">${ranked.length}</strong></div>
         <div style="font-size:12px;color:#6b7280;">Pass Rate: <strong style="color:${withScore.length&&passCount/withScore.length>=0.7?'#16a34a':'#dc2626'};">${withScore.length?Math.round(passCount/withScore.length*100):0}%</strong></div>
-        <div style="font-size:12px;color:#6b7280;">Class Avg: <strong style="color:#1e40af;font-size:15px;">${avgScore!==null?fmtScore(avgScore,settings):'--'}</strong></div>
+        <div style="font-size:12px;color:#6b7280;">Class Avg: <strong style="color:#1e40af;">${avgScore}</strong></div>
       </div>
-      ${avgScore!==null?'<div style="margin:14px 28px;padding:14px 20px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;display:flex;align-items:center;gap:16px;"><div style="width:44px;height:44px;border-radius:50%;background:#1e3a8a;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="font-size:18px;font-weight:900;color:#fbbf24;">'+fmtScore(avgScore,settings)+'</span></div><div><div style="font-size:10px;color:#3b82f6;text-transform:uppercase;letter-spacing:0.1em;font-weight:700;margin-bottom:2px;">Class Average — '+(sub?.name||'')+'</div><div style="font-size:12px;color:#1e3a8a;">Average score across all '+withScore.length+' student'+(withScore.length!==1?'s':'')+' who completed this subject for '+rcPeriod+'.</div></div></div>':''}
       <div style="padding:16px;">
         <table style="width:100%;">
           <thead>
@@ -4645,18 +4636,14 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     const teacherRemark = rcRemarks[student.id]||''
 
     const subjectRows = classSubjects.map(sub=>{
-      const g        = grades.find(gr=>gr.student_id===student.id&&gr.subject_id===sub.id&&(!rcPeriod||gr.period===rcPeriod))
-      const total    = g ? calcTotal(g,gradeComps) : null
-      const clsAvg   = getSubjectClassAvg(sub.id)
-      const letter   = total!==null ? getGradeLetter(total,scale) : '--'
-      const remark   = total!==null ? getGradeRemark(total,scale) : '--'
-      const scoreC   = total===null?'#9ca3af':total<50?'#dc2626':total>=75?'#16a34a':'#1d4ed8'
-      const aboveAvg = total!==null&&clsAvg!==null&&total>clsAvg
-      const avgC     = clsAvg===null?'#9ca3af':'#3b82f6'
+      const g      = grades.find(gr=>gr.student_id===student.id&&gr.subject_id===sub.id&&(!rcPeriod||gr.period===rcPeriod))
+      const total  = g ? calcTotal(g,gradeComps) : null
+      const letter = total!==null ? getGradeLetter(total,scale) : '--'
+      const remark = total!==null ? getGradeRemark(total,scale) : '--'
+      const scoreC = total===null?'#9ca3af':total<50?'#dc2626':total>=75?'#16a34a':'#1d4ed8'
       return `<tr>
         <td style="padding:9px 14px;font-size:13px;border-bottom:1px solid #f3f4f6;color:#111827;">${sub.name}</td>
-        <td style="padding:9px 12px;text-align:center;font-size:15px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${scoreC};">${total!==null?fmtScore(total,settings):'—'}</td>
-        <td style="padding:9px 10px;text-align:center;font-size:12px;border-bottom:1px solid #f3f4f6;color:${avgC};">${clsAvg!==null?fmtScore(clsAvg,settings):'—'}${aboveAvg?' <span style="font-size:9px;color:#16a34a;">▲</span>':total!==null&&clsAvg!==null?' <span style="font-size:9px;color:#dc2626;">▼</span>':''}</td>
+        <td style="padding:9px 12px;text-align:center;font-size:15px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${scoreC};">${total!==null?total:'—'}</td>
         <td style="padding:9px 10px;text-align:center;font-size:12px;font-weight:700;border-bottom:1px solid #f3f4f6;color:#d97706;">${letter}</td>
         <td style="padding:9px 14px;font-size:11px;border-bottom:1px solid #f3f4f6;color:#4b5563;">${remark}</td>
       </tr>`
@@ -4667,7 +4654,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       return g?calcTotal(g,gradeComps):null
     }).filter(t=>t!==null)
     const grandTotal  = subTotals.length ? subTotals.reduce((a,b)=>a+b,0) : null
-    const grandAvg    = grandTotal!==null ? grandTotal/subTotals.length : null
+    const grandAvg    = grandTotal!==null ? Math.round(grandTotal/subTotals.length) : null
     const grandLetter = grandAvg!==null ? getGradeLetter(grandAvg,scale) : '--'
     const grandRemark = grandAvg!==null ? getGradeRemark(grandAvg,scale) : '--'
     const gradeC      = grandAvg===null?'#6b7280':grandAvg>=75?'#16a34a':grandAvg>=50?'#1d4ed8':'#dc2626'
@@ -4682,14 +4669,6 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
     const lastPeriodLabel = Array.from({length:settings?.period_count||2},(_,i)=>`${settings?.period_type==='term'?'Term':'Semester'} ${i+1}`).at(-1)
     const isLastPeriod = rcPeriod===lastPeriodLabel
-
-    const posBg   = sPos===1?'linear-gradient(135deg,#fbbf24,#f59e0b)':sPos===2?'linear-gradient(135deg,#e2e8f0,#cbd5e1)':sPos===3?'linear-gradient(135deg,#d97706,#b45309)':'linear-gradient(135deg,#eff6ff,#dbeafe)'
-    const posTextC = sPos===1?'#111827':sPos===2?'#334155':sPos===3?'#fff':'#1e3a8a'
-    const posLabelC = sPos<=3?'rgba(0,0,0,0.5)':'#3b82f6'
-    const posSubC   = sPos<=3?'rgba(0,0,0,0.45)':'#3b82f6'
-    const positionBox = sPos!=='--'
-      ? '<div style="text-align:center;padding:8px 16px;background:'+posBg+';border-radius:10px;"><div style="font-size:9px;color:'+posLabelC+';text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Position</div><div style="font-size:22px;font-weight:900;color:'+posTextC+';">'+ordinal(sPos)+'</div><div style="font-size:9px;color:'+posSubC+';">of '+classStudents.length+'</div></div>'
-      : '<div style="text-align:center;padding:8px 16px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;"><div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Position</div><div style="font-size:22px;font-weight:900;color:#d1d5db;">--</div><div style="font-size:9px;color:#9ca3af;">of '+classStudents.length+'</div></div>'
 
     return `
     <div style="background:#fff;border-radius:14px;overflow:hidden;page-break-after:always;max-width:780px;margin:0 auto 24px;box-shadow:0 4px 32px rgba(0,0,0,0.10);">
@@ -4736,7 +4715,11 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             <div style="font-size:22px;font-weight:900;color:${gradeC};">${grandLetter}</div>
             <div style="font-size:9px;color:#9ca3af;margin-top:1px;">${grandRemark}</div>
           </div>
-${positionBox}
+          <div style="text-align:center;padding:8px 16px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border-radius:10px;">
+            <div style="font-size:9px;color:rgba(0,0,0,0.45);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Position</div>
+            <div style="font-size:22px;font-weight:900;color:#111827;">${sPos!=='--'?ordinal(sPos):'--'}</div>
+            <div style="font-size:9px;color:rgba(0,0,0,0.45);">of ${classStudents.length}</div>
+          </div>
         </div>
       </div>
 
@@ -4754,7 +4737,6 @@ ${positionBox}
               <tr style="background:#f8fafc;">
                 <th style="padding:8px 14px;text-align:left;font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Subject</th>
                 <th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Score</th>
-                <th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Class Avg</th>
                 <th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Grade</th>
                 <th style="padding:8px 14px;text-align:left;font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Remark</th>
               </tr>
@@ -4763,8 +4745,7 @@ ${positionBox}
             <tfoot>
               <tr style="background:#eff6ff;border-top:2px solid #1e3a8a;">
                 <td style="padding:9px 14px;font-size:12px;font-weight:700;color:#1e3a8a;">Total / Average</td>
-                <td style="padding:9px 10px;text-align:center;font-size:15px;font-weight:900;color:#1e3a8a;">${grandAvg!==null?fmtScore(grandAvg,settings):'—'}</td>
-                <td style="padding:9px 10px;text-align:center;font-size:11px;color:#9ca3af;">—</td>
+                <td style="padding:9px 10px;text-align:center;font-size:15px;font-weight:900;color:#1e3a8a;">${grandAvg!==null?grandAvg:'—'}</td>
                 <td style="padding:9px 10px;text-align:center;font-size:12px;font-weight:700;color:#d97706;">${grandLetter}</td>
                 <td style="padding:9px 14px;font-size:11px;color:#4b5563;">${grandRemark}</td>
               </tr>
@@ -5679,8 +5660,13 @@ function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}
       setTimeout(()=>setWeightWarning(false),4000)
     }
     setSaving(true)
-    const payload = {...form, grade_components: gradeComponents}
+    const {score_decimals, ...formWithoutDecimals} = form
+    const payload = {...formWithoutDecimals, grade_components: gradeComponents}
     const {error} = await supabase.from('settings').update(payload).eq('id',form.id)
+    // Save score_decimals separately (requires the column to exist in DB)
+    if(!error && profile?.role==='superadmin') {
+      await supabase.from('settings').update({score_decimals: score_decimals||false}).eq('id',form.id)
+    }
     if(error) toast(error.message,'error')
     else {
       // Build a human-readable summary of what changed
@@ -5844,18 +5830,6 @@ function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}
             <p style={{fontSize:12,color:'var(--mist2)',marginBottom:14,lineHeight:1.6}}>
               Toggle which components teachers enter grades for. Disabling a component <strong style={{color:'var(--rose)'}}>clears all existing scores</strong> for it immediately. Active weights must total <strong style={{color:'var(--white)'}}>100%</strong>.
             </p>
-            {profile?.role==='superadmin' && (
-              <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:14,border:'1px solid var(--line)'}}>
-                <button onClick={()=>setForm(p=>({...p,score_decimals:!p.score_decimals}))}
-                  style={{width:38,height:22,borderRadius:11,background:form.score_decimals?'var(--emerald)':'var(--line2)',border:'none',cursor:'pointer',transition:'background 0.2s',position:'relative',flexShrink:0}}>
-                  <div style={{width:16,height:16,borderRadius:'50%',background:'white',position:'absolute',top:3,left:form.score_decimals?19:3,transition:'left 0.2s'}}/>
-                </button>
-                <div>
-                  <div style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>1 Decimal Place</div>
-                  <div style={{fontSize:11,color:'var(--mist3)'}}>Show scores as e.g. 78.4 instead of 78. Affects all score displays and report cards.</div>
-                </div>
-              </div>
-            )}
             <div style={{background:'var(--ink3)',borderRadius:'var(--r-sm)',padding:'10px 16px',marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span style={{fontSize:12,color:'var(--mist2)'}}>Active weight total</span>
               <span className='d' style={{fontSize:18,fontWeight:700,color:totalWeight===100?'var(--emerald)':totalWeight===0?'var(--mist3)':'var(--rose)'}}>{totalWeight}%</span>
