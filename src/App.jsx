@@ -105,12 +105,6 @@ const auditLog = async (profile, module, action, description, meta={}, before_da
   } catch(e) { console.warn('Audit log failed:', e) }
 }
 const fmtDate   = d => d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '--'
-function downloadCSV(csv, filename) {
-  const blob = new Blob([csv], {type:'text/csv'})
-  const url  = URL.createObjectURL(blob)
-  const a    = document.createElement('a'); a.href=url; a.download=filename; a.click()
-  URL.revokeObjectURL(url)
-}
 const CURRENCIES = [
   {code:'GHS',symbol:'₵', name:'Ghanaian Cedi',    position:'before', decimals:2},
   {code:'USD',symbol:'$', name:'US Dollar',         position:'before', decimals:2},
@@ -1508,21 +1502,6 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
   }
 
 
-  const exportStudents = () => {
-    const isArchived = showArchived
-    let csv = isArchived
-      ? 'Student ID,First Name,Last Name,Gender,Graduation Year,Reason,Guardian,Phone\n'
-      : 'Student ID,First Name,Last Name,Class,Gender,Date of Birth,Guardian,Phone\n'
-    filtered.forEach(s => {
-      const cls = classes.find(c=>c.id===s.class_id)?.name||'--'
-      if(isArchived) {
-        csv += `"${s.student_id||''}","${s.first_name}","${s.last_name}","${s.gender||''}","${s.graduation_year||''}","${s.leaving_reason||''}","${s.guardian_name||''}","${s.phone||''}"`
-      } else {
-        csv += `"${s.student_id||''}","${s.first_name}","${s.last_name}","${cls}","${s.gender||''}","${s.dob||''}","${s.guardian_name||''}","${s.phone||''}"`
-      }
-    })
-    downloadCSV(csv, `SRMS_Students_${isArchived?'Archived':'Active'}.csv`)
-  }
   return (
     <div>
       <PageHeader
@@ -1536,7 +1515,6 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
             {showArchived?'← Back to Students':'⊡ Archived Students'}
           </Btn>
         )}
-        {isAdmin && <Btn variant='ghost' size='sm' onClick={exportStudents}>⬇ Export CSV</Btn>}
       </PageHeader>
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
@@ -2566,22 +2544,11 @@ function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPas
   const histRecs = attendance.filter(a=>!cid||a.class_id===cid).sort((a,b)=>b.date.localeCompare(a.date))
 
 
-  const exportAttendance = () => {
-    let csv = 'Date,Class,Student ID,Student,Status\n'
-    histRecs.forEach(a => {
-      const s = students.find(x=>x.id===a.student_id)
-      const cls = classes.find(c=>c.id===a.class_id)?.name||'--'
-      const sNameA = s ? s.first_name+' '+s.last_name : '--'
-      csv += `"${a.date}","${cls}","${s?.student_id||''}","${sNameA}","${a.status}"`
-    })
-    downloadCSV(csv, `SRMS_Attendance${cid?'_'+classes.find(c=>c.id===cid)?.name.replace(/\s+/g,'_'):''}.csv`)
-  }
   return (
     <div>
       <PageHeader title='Attendance' sub='Mark and review daily attendance records'>
         <Btn variant={tab==='mark'?'primary':'ghost'} size='sm' onClick={()=>setTab('mark')}>Mark Attendance</Btn>
         <Btn variant={tab==='history'?'primary':'ghost'} size='sm' onClick={()=>setTab('history')}>History</Btn>
-        {tab==='history' && <Btn variant='ghost' size='sm' onClick={exportAttendance}>⬇ Export CSV</Btn>}
       </PageHeader>
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
@@ -3204,19 +3171,9 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,init
   })
 
 
-  const exportFees = () => {
-    let csv = 'Student ID,Student,Class,Fee Type,Period,Amount,Paid,Balance,Status,Due Date,Overdue\n'
-    filtered.forEach(r => {
-      const s = students.find(x=>x.id===r.student_id)
-      const cls = classes.find(c=>c.id===s?.class_id)?.name||'--'
-      csv += `"${s?.student_id||''}","${r.student_name}","${cls}","${r.fee_type||''}","${r.period||''}",${r.amount||0},${r.effectivePaid||0},${r.balance||0},"${r.status}","${r.due_date||''}","${r.isOverdue?'Yes':'No'}"`
-    })
-    downloadCSV(csv, `SRMS_Fees_${activeYear}.csv`)
-  }
   return (
     <div>
       <PageHeader title='Fee Management' sub='Track payments, balances and receipts'>
-        {isAdmin && <Btn variant='ghost' size='sm' onClick={exportFees}>⬇ Export CSV</Btn>}
         {feeActiveTab==='fees' && !isViewingPast && canBulk && (
           <Btn variant='secondary' onClick={()=>{setBulkModal(true);setBulkStep(1);setBulk(BULK_INIT)}}>⊞ Bulk Add Fee</Btn>
         )}
@@ -3740,21 +3697,9 @@ function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast
     else{const rec=behaviour.find(x=>x.id===id);const s=students.find(x=>x.id===rec?.student_id);setData(p=>({...p,behaviour:p.behaviour.filter(b=>b.id!==id)}));auditLog(profile,'Behaviour','Deleted',`${s?.first_name} ${s?.last_name} · ${rec?.type} · ${rec?.title}`,{},rec,null);toast('Record removed')}
   }
 
-  const exportBehaviour = () => {
-    let csv = 'Date,Student ID,Student,Class,Type,Title,Description\n'
-    filtered.forEach(b => {
-      const s = students.find(x=>x.id===b.student_id)
-      const cls = classes.find(c=>c.id===s?.class_id)?.name||'--'
-      const desc = (b.description||'').replace(/"/g,"'")
-      const sName = s ? s.first_name+' '+s.last_name : '--'
-      csv += `"${b.date||b.created_at?.split('T')[0]||''}","${s?.student_id||''}","${sName}","${cls}","${b.type}","${b.title||''}","${desc}"`
-    })
-    downloadCSV(csv, `SRMS_Behaviour_${activeYear}.csv`)
-  }
   return (
     <div>
       <PageHeader title='Behaviour & Extracurricular' sub='Discipline, achievements and co-curricular records'>
-        {isAdmin && <Btn variant='ghost' size='sm' onClick={exportBehaviour}>⬇ Export CSV</Btn>}
         {!isViewingPast && <Btn onClick={openAdd}>+ Add Record</Btn>}
       </PageHeader>
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
