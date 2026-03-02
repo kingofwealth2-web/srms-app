@@ -1130,7 +1130,7 @@ function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,isViewingPa
                         <div style={{fontSize:13,fontWeight:600,color:'var(--white)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{student.first_name} {student.last_name}</div>
                         <div style={{fontSize:11,color:'var(--mist3)'}}>{getLetter(total,scale)} · {classes.find(c=>c.id===student.class_id)?.name||'--'}</div>
                       </div>
-                      <div style={{fontSize:16,fontWeight:700,color:['var(--gold)','var(--mist)','var(--amber)'][i],flexShrink:0}}>{total}</div>
+                      <div style={{fontSize:16,fontWeight:700,color:['var(--gold)','var(--mist)','var(--amber)'][i],flexShrink:0}}>{formatScore(total,settings)}</div>
                     </div>
                   ))}
                 </div>
@@ -1158,7 +1158,7 @@ function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,isViewingPa
                         <div style={{fontSize:13,fontWeight:600,color:'var(--white)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{student.first_name} {student.last_name}</div>
                         <div style={{fontSize:11,color:'var(--mist3)'}}>total across subjects</div>
                       </div>
-                      <div style={{fontSize:16,fontWeight:700,color:['var(--gold)','var(--mist)','var(--amber)'][i],flexShrink:0}}>{total}</div>
+                      <div style={{fontSize:16,fontWeight:700,color:['var(--gold)','var(--mist)','var(--amber)'][i],flexShrink:0}}>{formatScore(total,settings)}</div>
                     </div>
                   ))}
                 </div>
@@ -2302,7 +2302,7 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
                       <td style={{padding:'8px 12px',textAlign:'center'}}>
                         {!isSkipped && total!==null ? (
                           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
-                            <span className='mono' style={{fontSize:15,fontWeight:700,color:LETTER_COLOR[letter]||'var(--mist)'}}>{total}</span>
+                            <span className='mono' style={{fontSize:15,fontWeight:700,color:LETTER_COLOR[letter]||'var(--mist)'}}>{formatScore(total,settings)}</span>
                             <Badge color={LETTER_COLOR[letter]||'var(--mist2)'}>{letter}</Badge>
                           </div>
                         ) : <span style={{color:'var(--mist3)',fontSize:12}}>—</span>}
