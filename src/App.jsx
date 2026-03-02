@@ -4411,6 +4411,11 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   // ── PRINT FUNCTIONS ────────────────────────────────────────────
 
+  const fmtScore = (v) => {
+    if(v===null || v===undefined || Number.isNaN(v)) return '--'
+    return Math.round(v)
+  }
+
   const logoTag = schoolLogo
     ? `<img src="${schoolLogo}" style="width:60px;height:60px;object-fit:contain;" />`
     : `<div style="width:60px;height:60px;border-radius:50%;background:rgba(251,191,36,0.15);border:2px solid rgba(251,191,36,0.4);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fbbf24;">${schoolName.charAt(0)}</div>`
