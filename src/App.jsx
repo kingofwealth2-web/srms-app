@@ -1516,11 +1516,9 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
     filtered.forEach(s => {
       const cls = classes.find(c=>c.id===s.class_id)?.name||'--'
       if(isArchived) {
-        csv += `"${s.student_id||''}","${s.first_name}","${s.last_name}","${s.gender||''}","${s.graduation_year||''}","${s.leaving_reason||''}","${s.guardian_name||''}","${s.phone||''}"
-`
+        csv += `"${s.student_id||''}","${s.first_name}","${s.last_name}","${s.gender||''}","${s.graduation_year||''}","${s.leaving_reason||''}","${s.guardian_name||''}","${s.phone||''}"`
       } else {
-        csv += `"${s.student_id||''}","${s.first_name}","${s.last_name}","${cls}","${s.gender||''}","${s.dob||''}","${s.guardian_name||''}","${s.phone||''}"
-`
+        csv += `"${s.student_id||''}","${s.first_name}","${s.last_name}","${cls}","${s.gender||''}","${s.dob||''}","${s.guardian_name||''}","${s.phone||''}"`
       }
     })
     downloadCSV(csv, `SRMS_Students_${isArchived?'Archived':'Active'}.csv`)
@@ -2573,8 +2571,8 @@ function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPas
     histRecs.forEach(a => {
       const s = students.find(x=>x.id===a.student_id)
       const cls = classes.find(c=>c.id===a.class_id)?.name||'--'
-      csv += `"${a.date}","${cls}","${s?.student_id||''}","${s?`${s.first_name} ${s.last_name}`:'--'}","${a.status}"
-`
+      const sNameA = s ? s.first_name+' '+s.last_name : '--'
+      csv += `"${a.date}","${cls}","${s?.student_id||''}","${sNameA}","${a.status}"`
     })
     downloadCSV(csv, `SRMS_Attendance${cid?'_'+classes.find(c=>c.id===cid)?.name.replace(/\s+/g,'_'):''}.csv`)
   }
@@ -3211,8 +3209,7 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,init
     filtered.forEach(r => {
       const s = students.find(x=>x.id===r.student_id)
       const cls = classes.find(c=>c.id===s?.class_id)?.name||'--'
-      csv += `"${s?.student_id||''}","${r.student_name}","${cls}","${r.fee_type||''}","${r.period||''}",${r.amount||0},${r.effectivePaid||0},${r.balance||0},"${r.status}","${r.due_date||''}","${r.isOverdue?'Yes':'No'}"
-`
+      csv += `"${s?.student_id||''}","${r.student_name}","${cls}","${r.fee_type||''}","${r.period||''}",${r.amount||0},${r.effectivePaid||0},${r.balance||0},"${r.status}","${r.due_date||''}","${r.isOverdue?'Yes':'No'}"`
     })
     downloadCSV(csv, `SRMS_Fees_${activeYear}.csv`)
   }
@@ -3749,8 +3746,8 @@ function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast
       const s = students.find(x=>x.id===b.student_id)
       const cls = classes.find(c=>c.id===s?.class_id)?.name||'--'
       const desc = (b.description||'').replace(/"/g,"'")
-      csv += `"${b.date||b.created_at?.split('T')[0]||''}","${s?.student_id||''}","${s?`${s.first_name} ${s.last_name}`:'--'}","${cls}","${b.type}","${b.title||''}","${desc}"
-`
+      const sName = s ? s.first_name+' '+s.last_name : '--'
+      csv += `"${b.date||b.created_at?.split('T')[0]||''}","${s?.student_id||''}","${sName}","${cls}","${b.type}","${b.title||''}","${desc}"`
     })
     downloadCSV(csv, `SRMS_Behaviour_${activeYear}.csv`)
   }
