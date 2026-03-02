@@ -4433,9 +4433,9 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       const avg    = scoredCount>0&&total!==null ? total/scoredCount : null
       const letter = avg!==null ? getGradeLetter(avg,scale) : '--'
       const remark = avg!==null ? getGradeRemark(avg,scale) : '--'
-      const posOrd = ordinal(s.position)
-      const posC   = s.position===1?'#b45309':s.position===2?'#6b7280':s.position===3?'#92400e':'#6d28d9'
-      const posBg  = s.position===1?'#fef3c7':s.position===2?'#f3f4f6':s.position===3?'#fef3c7':'#f5f3ff'
+      const posOrd = s.position!==null ? ordinal(s.position) : '—'
+      const posC   = s.position===null?'#9ca3af':s.position===1?'#b45309':s.position===2?'#6b7280':s.position===3?'#92400e':'#6d28d9'
+      const posBg  = s.position===null?'#f9fafb':s.position===1?'#fef3c7':s.position===2?'#f3f4f6':s.position===3?'#fef3c7':'#f5f3ff'
       const rowBg  = i%2===0?'#ffffff':'#f9fafb'
       return `<tr style="background:${rowBg};">
         <td style="padding:8px 12px;font-size:11px;font-family:monospace;border:1px solid #f3f4f6;color:#6b7280;">${s.student_id}</td>
@@ -5831,6 +5831,18 @@ function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}
             <p style={{fontSize:12,color:'var(--mist2)',marginBottom:14,lineHeight:1.6}}>
               Toggle which components teachers enter grades for. Disabling a component <strong style={{color:'var(--rose)'}}>clears all existing scores</strong> for it immediately. Active weights must total <strong style={{color:'var(--white)'}}>100%</strong>.
             </p>
+            {profile?.role==='superadmin' && (
+              <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:14,border:'1px solid var(--line)'}}>
+                <button onClick={()=>setForm(p=>({...p,score_decimals:!p.score_decimals}))}
+                  style={{width:38,height:22,borderRadius:11,background:form.score_decimals?'var(--emerald)':'var(--line2)',border:'none',cursor:'pointer',transition:'background 0.2s',position:'relative',flexShrink:0}}>
+                  <div style={{width:16,height:16,borderRadius:'50%',background:'white',position:'absolute',top:3,left:form.score_decimals?19:3,transition:'left 0.2s'}}/>
+                </button>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>1 Decimal Place</div>
+                  <div style={{fontSize:11,color:'var(--mist3)'}}>Show scores as e.g. 78.4 instead of 78. Affects all score displays and report cards.</div>
+                </div>
+              </div>
+            )}
             <div style={{background:'var(--ink3)',borderRadius:'var(--r-sm)',padding:'10px 16px',marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span style={{fontSize:12,color:'var(--mist2)'}}>Active weight total</span>
               <span className='d' style={{fontSize:18,fontWeight:700,color:totalWeight===100?'var(--emerald)':totalWeight===0?'var(--mist3)':'var(--rose)'}}>{totalWeight}%</span>
