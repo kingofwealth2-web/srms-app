@@ -3992,9 +3992,12 @@ function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast
                       Recorded by {b.recorded_by_name} . {fmtDate(b.date||b.created_at)}
                     </div>
                   </div>
-                  {!isViewingPast && <button onClick={()=>del(b.id)} style={{background:'none',color:'var(--mist3)',fontSize:16,padding:'4px 8px',borderRadius:4,cursor:'pointer',transition:'all 0.15s'}}
-                    onMouseEnter={e=>{e.currentTarget.style.color='var(--rose)';e.currentTarget.style.background='rgba(240,107,122,0.1)'}}
-                    onMouseLeave={e=>{e.currentTarget.style.color='var(--mist3)';e.currentTarget.style.background='none'}}>×</button>}
+                  {!isViewingPast && (
+                    <Btn variant='ghost' size='sm' onClick={()=>del(b.id)}
+                      style={{color:'var(--rose)',borderColor:'rgba(240,107,122,0.25)',flexShrink:0}}>
+                      Delete
+                    </Btn>
+                  )}
                 </div>
               </div>
             </div>
