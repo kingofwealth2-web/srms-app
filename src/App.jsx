@@ -983,10 +983,15 @@ function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,isViewingPa
   const myClassStudents = myClass ? students.filter(s=>s.class_id===myClass.id) : []
 
   // Helper: average of per-student averages (correct school-wide or scoped avg)
-  const calcStats = (studentIds, subjectIds) => {
+  // period: if provided, only grades from that period are included
+  const calcStats = (studentIds, subjectIds, period) => {
     const sidSet = subjectIds ? new Set(subjectIds) : null
     const perStudent = studentIds.map(sid => {
-      const sg = grades.filter(g => g.student_id===sid && (!sidSet || sidSet.has(g.subject_id)))
+      const sg = grades.filter(g =>
+        g.student_id===sid &&
+        (!sidSet || sidSet.has(g.subject_id)) &&
+        (!period || g.period===period)
+      )
       if(!sg.length) return null
       const totals = sg.map(g=>calcTotal(g,gradeComps))
       return totals.reduce((a,b)=>a+b,0)/totals.length
@@ -997,27 +1002,28 @@ function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,isViewingPa
     return {avg, passRate}
   }
 
-  // Admin/superadmin: school-wide average of per-student averages
-  const schoolStats     = calcStats(yearStudents.map(s=>s.id), null)
+  // Latest period that has grade data
+  const periodOrder     = Array.from({length:settings?.period_count||2},(_,i)=>`${settings?.period_type==='term'?'Term':'Semester'} ${i+1}`)
+  const periodsWithData = periodOrder.filter(p=>grades.some(g=>g.period===p))
+  const latestPeriod    = periodsWithData.length>0 ? periodsWithData[periodsWithData.length-1] : periodOrder[periodOrder.length-1]
+
+  // Admin/superadmin: school-wide average of per-student averages (latest period only)
+  const schoolStats     = calcStats(yearStudents.map(s=>s.id), null, latestPeriod)
   const avgScore        = schoolStats.avg
   const passRate        = schoolStats.passRate
 
   // Class teacher: scoped to their class students only
-  const myClassStats    = myClass ? calcStats(myClassStudents.map(s=>s.id), null) : {avg:0, passRate:0}
+  const myClassStats    = myClass ? calcStats(myClassStudents.map(s=>s.id), null, latestPeriod) : {avg:0, passRate:0}
   const myClassPassRate = myClassStats.passRate
 
   // Subject teacher: scoped to their subjects and the students in those subjects
   const mySubjectIds        = subjects.filter(s=>s.teacher_id===profile?.id).map(s=>s.id)
   const mySubjectStudentIds = [...new Set(grades.filter(g=>mySubjectIds.includes(g.subject_id)).map(g=>g.student_id))]
-  const mySubjectStats      = calcStats(mySubjectStudentIds, mySubjectIds)
+  const mySubjectStats      = calcStats(mySubjectStudentIds, mySubjectIds, latestPeriod)
   const mySubjectAvg        = mySubjectStats.avg
   const activeAnn = announcements.filter(a=>canSeeAnnouncement(profile?.role,a)).slice(0,4)
 
   // ── Top Performers ──
-  const periodOrder = Array.from({length:settings?.period_count||2},(_,i)=>`${settings?.period_type==='term'?'Term':'Semester'} ${i+1}`)
-  // Use the latest period that actually has grade data, not just the last in the list
-  const periodsWithData = periodOrder.filter(p=>grades.some(g=>g.period===p))
-  const latestPeriod = periodsWithData.length>0 ? periodsWithData[periodsWithData.length-1] : periodOrder[periodOrder.length-1]
 
   // Teacher: top 3 per subject (latest period)
   const topPerSubject = (profile?.role==='teacher' || profile?.role==='classteacher')
