@@ -1335,7 +1335,7 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
         const fmtPhone = v => v ? `="${esc(v)}"` : '""'  
         csv += `"${esc(s.student_id)}","${esc(s.first_name)}","${esc(s.last_name)}","${esc(clsName)}","${esc(s.gender)}","${esc(s.dob)}",${fmtPhone(s.phone)},"${esc(s.email)}","${esc(s.guardian_name)}",${fmtPhone(s.guardian_phone)},"${esc(s.guardian_email)}","${s.archived?'Yes':'No'}","${esc(s.graduation_year)}","${esc(s.leaving_reason)}","${esc(s.leaving_notes)}"\n`
       })
-      const blob = new Blob([csv],{type:'text/csv'})
+      const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href = url
@@ -2704,7 +2704,7 @@ function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPas
         const s   = students.find(st=>st.id===r.student_id)
         csv += `"${esc(r.date)}","${esc(cls?.name)}","${esc(s?.student_id)}","${esc(s?`${s.first_name} ${s.last_name}`:'')}","${esc(r.status)}"\n`
       })
-      const blob = new Blob([csv],{type:'text/csv'})
+      const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href = url
@@ -3299,7 +3299,7 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,init
         const sName = s ? s.first_name+' '+s.last_name : ''
         csv += `"${esc(s?.student_id)}","${esc(sName)}","${esc(cls)}","${esc(r.fee_type)}","${esc(r.period)}","${esc(fmtMoney(r.amount,currency))}","${esc(fmtMoney(r.effectivePaid,currency))}","${esc(fmtMoney(r.balance,currency))}","${esc(r.status)}","${esc(r.due_date)}","${esc(r.receipt_no)}"\n`
       })
-      const blob = new Blob([csv],{type:'text/csv'})
+      const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href = url
@@ -3921,7 +3921,7 @@ function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast
         const bName = s ? s.first_name+' '+s.last_name : ''
         csv += `"${esc(b.date||b.created_at)}","${esc(cls)}","${esc(s?.student_id)}","${esc(bName)}","${esc(b.type)}","${esc(b.title)}","${esc(b.description)}","${esc(b.recorded_by_name)}"\\n`
       })
-      const blob = new Blob([csv],{type:'text/csv'})
+      const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href = url
@@ -4288,7 +4288,7 @@ function Reports({profile,data,settings,activeYear,isViewingPast}) {
         feeData.forEach(s=>{csv+=`"${s.student_id}","${s.first_name} ${s.last_name}","${classes.find(c=>c.id===s.class_id)?.name||'--'}","${fmtMoney(s.owed,currency)}","${fmtMoney(s.paid,currency)}","${fmtMoney(s.balance,currency)}",${s.feeStatus}\n`})
         filename=`SRMS_Fees_${scope}.csv`
       }
-      const blob=new Blob([csv],{type:'text/csv'})
+      const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
       const url=URL.createObjectURL(blob)
       const a=document.createElement('a'); a.href=url; a.download=filename; a.click()
       URL.revokeObjectURL(url)
