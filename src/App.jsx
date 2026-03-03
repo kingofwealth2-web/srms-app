@@ -66,6 +66,12 @@ function useIsMobile() {
 
 // ── HELPERS ────────────────────────────────────────────────────
 const ALL_COMPONENTS = ['classwork','homework','midsemester','final_exam','project']
+const DEFAULT_GRADING_SCALE = [
+  {min:80, max:100, letter:'A', gpa:4.0, remark:'Excellent'},
+  {min:65, max:79,  letter:'B', gpa:3.0, remark:'Very Good'},
+  {min:50, max:64,  letter:'C', gpa:2.0, remark:'Good'},
+  {min:0,  max:49,  letter:'F', gpa:0.0, remark:'Fail'},
+]
 const DEFAULT_GRADE_COMPONENTS = [
   {key:'classwork',  label:'Classwork',   max_score:10, weight:10, enabled:true},
   {key:'homework',   label:'Homework',    max_score:10, weight:10, enabled:true},
@@ -5815,7 +5821,12 @@ function AuditLog({profile}) {
 
 // ── SETTINGS ───────────────────────────────────────────────────
 function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}) {
-  const [form,setForm]   = useState(JSON.parse(JSON.stringify(settings||{})))
+  const [form,setForm]   = useState(()=>{
+    const base = JSON.parse(JSON.stringify(settings||{}))
+    if(!base.grading_scale||base.grading_scale.length===0)
+      base.grading_scale = JSON.parse(JSON.stringify(DEFAULT_GRADING_SCALE))
+    return base
+  })
   const [saving,setSaving] = useState(false)
   const [weightWarning,setWeightWarning] = useState(false)
   const [logoUploading,setLogoUploading] = useState(false)
@@ -5874,7 +5885,10 @@ function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}
     reader.readAsDataURL(file)
   }
 
-  const updGrade = (i,k,v)=>{const g=[...form.grading_scale];g[i]={...g[i],[k]:k==='letter'||k==='remark'?v:parseFloat(v)||0};setForm(p=>({...p,grading_scale:g}))}
+  const updGrade = (i,k,v)=>{const g=[...(form.grading_scale||DEFAULT_GRADING_SCALE)];g[i]={...g[i],[k]:k==='letter'||k==='remark'?v:parseFloat(v)||0};setForm(p=>({...p,grading_scale:g}))}
+
+  const addGradeRow    = () => setForm(p=>({...p, grading_scale:[...(p.grading_scale||DEFAULT_GRADING_SCALE), {min:0,max:0,letter:'',gpa:0,remark:''}]}))
+  const removeGradeRow = (i) => setForm(p=>({...p, grading_scale:(p.grading_scale||[]).filter((_,idx)=>idx!==i)}))
 
   const updComponent = (i,k,v) => {
     const comps = [...gradeComponents]
@@ -6035,10 +6049,10 @@ function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}
             <SectionTitle>Grading Scale</SectionTitle>
             <table style={{width:'100%',borderCollapse:'collapse'}}>
               <thead><tr style={{borderBottom:'1px solid var(--line)'}}>
-                {['Min','Max','Letter','GPA','Remark'].map(h=><th key={h} style={{padding:8,textAlign:'left',fontSize:10,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',fontFamily:"'Clash Display',sans-serif"}}>{h}</th>)}
+                {['Min','Max','Letter','GPA','Remark',''].map(h=><th key={h} style={{padding:8,textAlign:'left',fontSize:10,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',fontFamily:"'Clash Display',sans-serif"}}>{h}</th>)}
               </tr></thead>
               <tbody>
-                {(form.grading_scale||[]).map((row,i)=>(
+                {(form.grading_scale||DEFAULT_GRADING_SCALE).map((row,i)=>(
                   <tr key={i} style={{borderBottom:'1px solid var(--line)'}}>
                     {['min','max','letter','gpa'].map(k=>(
                       <td key={k} style={{padding:'5px 4px'}}>
@@ -6051,10 +6065,14 @@ function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}
                         placeholder='e.g. Excellent'
                         style={{width:100,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'6px 8px',color:'var(--white)',fontSize:12}}/>
                     </td>
+                    <td style={{padding:'5px 4px'}}>
+                      <button onClick={()=>removeGradeRow(i)} style={{width:26,height:26,borderRadius:'var(--r-sm)',background:'var(--rose-bg,rgba(240,107,122,0.08))',border:'1px solid rgba(240,107,122,0.2)',color:'var(--rose)',fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>×</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <button onClick={addGradeRow} style={{marginTop:10,padding:'6px 14px',borderRadius:'var(--r-sm)',background:'var(--ink3)',border:'1px solid var(--line)',color:'var(--mist2)',fontSize:12,cursor:'pointer'}}>+ Add Row</button>
           </Card>
         </div>
       </div>
