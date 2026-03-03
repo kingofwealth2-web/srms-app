@@ -1981,6 +1981,23 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
   }
   const openEdit = g => { setEdit(g); setForm({...g}); setModal(true) }
 
+  const delGrade = async () => {
+    if(!edit) return
+    if(!confirm('Delete this grade record? This cannot be undone.')) return
+    setSaving(true)
+    const {error} = await supabase.from('grades').delete().eq('id', edit.id)
+    if(error) toast(error.message,'error')
+    else {
+      setData(p=>({...p, grades: p.grades.filter(x=>x.id!==edit.id)}))
+      const student = students.find(s=>s.id===edit.student_id)
+      const subject = subjects.find(s=>s.id===edit.subject_id)
+      auditLog(profile,'Grades','Deleted',`${student?.first_name} ${student?.last_name} · ${subject?.name} · ${edit.period}`,{},{...edit},null)
+      toast('Grade deleted')
+      setModal(false)
+    }
+    setSaving(false)
+  }
+
   const save = async () => {
     if(!form.student_id||!form.subject_id){toast('Please select a student and subject','error');return}
     // Only save scores for active components; zero out disabled ones
@@ -2497,9 +2514,19 @@ function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) 
               </div>
             </div>
           </div>
-          <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
-            <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
-            <Btn onClick={save} disabled={saving||activeComps.length===0}>{saving?<><Spinner/> Saving...</>:'Save Grade'}</Btn>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10}}>
+            <div>
+              {edit && !isViewingPast && (
+                <Btn variant='ghost' onClick={delGrade} disabled={saving}
+                  style={{color:'var(--rose)',borderColor:'rgba(240,107,122,0.3)'}}>
+                  {saving ? <><Spinner/> Deleting...</> : 'Delete Grade'}
+                </Btn>
+              )}
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
+              <Btn onClick={save} disabled={saving||activeComps.length===0}>{saving?<><Spinner/> Saving...</>:'Save Grade'}</Btn>
+            </div>
           </div>
         </Modal>
       )}
