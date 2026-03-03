@@ -1886,6 +1886,75 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
                 }
               </div>
             </div>
+
+          {/* ── Fees Section ── */}
+          {(() => {
+            const currency = getCurrency(settings)
+            const today    = new Date().toISOString().split('T')[0]
+            const stuFees  = (data.fees||[]).filter(f=>f.student_id===s.id)
+            if(stuFees.length===0) return null
+            const stuPayments = data.payments||[]
+            const enrichedFees = stuFees.map(fee=>{
+              const feePayments   = stuPayments.filter(p=>p.fee_id===fee.id)
+              const paymentsPaid  = feePayments.reduce((a,p)=>a+Number(p.amount||0),0)
+              const effectivePaid = Math.max(Number(fee.paid||0), paymentsPaid)
+              const bal           = Number(fee.amount||0)-effectivePaid
+              const status        = bal<=0?'Paid':effectivePaid>0?'Partial':'Outstanding'
+              const isOverdue     = !!(fee.due_date && fee.due_date < today && bal > 0)
+              return {...fee, effectivePaid, balance:bal, status, isOverdue}
+            })
+            const totalOwed    = enrichedFees.reduce((a,f)=>a+Number(f.amount||0),0)
+            const totalPaid    = enrichedFees.reduce((a,f)=>a+f.effectivePaid,0)
+            const totalBalance = enrichedFees.reduce((a,f)=>a+f.balance,0)
+            const hasOverdue   = enrichedFees.some(f=>f.isOverdue)
+            return (
+              <div style={{marginTop:24,paddingTop:20,borderTop:'1px solid var(--line)'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',fontFamily:"'Clash Display',sans-serif"}}>Fee Summary</div>
+                  {hasOverdue && (
+                    <span style={{fontSize:10,fontWeight:700,color:'var(--rose)',background:'rgba(240,107,122,0.1)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:4,padding:'2px 8px'}}>⚠ Overdue</span>
+                  )}
+                </div>
+                <div style={{display:'flex',gap:8,marginBottom:14}}>
+                  {[
+                    ['Total Billed', fmtMoney(totalOwed,currency),    'var(--mist2)'],
+                    ['Total Paid',   fmtMoney(totalPaid,currency),    'var(--emerald)'],
+                    ['Balance',      fmtMoney(totalBalance,currency), totalBalance>0?'var(--rose)':'var(--emerald)'],
+                  ].map(([label,value,color])=>(
+                    <div key={label} style={{flex:1,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:'1px solid var(--line)',textAlign:'center'}}>
+                      <div style={{fontSize:15,fontWeight:700,color}}>{value}</div>
+                      <div style={{fontSize:10,color:'var(--mist3)',marginTop:2}}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                  {enrichedFees.map(fee=>{
+                    const sc = FEE_STATUS[fee.status]||{color:'var(--mist2)',bg:'rgba(255,255,255,0.05)'}
+                    return (
+                      <div key={fee.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${fee.isOverdue?'rgba(240,107,122,0.25)':'var(--line)'}`}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3}}>
+                            <span style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{fee.fee_type||'Fee'}</span>
+                            {fee.period && <span style={{fontSize:10,color:'var(--mist3)'}}>{fee.period}</span>}
+                            {fee.isOverdue && <span style={{fontSize:10,color:'var(--rose)',fontWeight:600}}>Overdue</span>}
+                          </div>
+                          <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                            <span style={{fontSize:11,color:'var(--mist3)'}}>Billed: <span style={{color:'var(--mist)'}}>{fmtMoney(fee.amount,currency)}</span></span>
+                            <span style={{fontSize:11,color:'var(--mist3)'}}>Paid: <span style={{color:'var(--emerald)'}}>{fmtMoney(fee.effectivePaid,currency)}</span></span>
+                            {fee.due_date && <span style={{fontSize:11,color:'var(--mist3)'}}>Due: <span style={{color:fee.isOverdue?'var(--rose)':'var(--mist)'}}>{fee.due_date}</span></span>}
+                          </div>
+                        </div>
+                        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4,flexShrink:0}}>
+                          <span style={{fontSize:11,fontWeight:700,color:sc.color,background:sc.bg,border:`1px solid ${sc.color}30`,borderRadius:4,padding:'2px 8px'}}>{fee.status}</span>
+                          <span style={{fontSize:12,fontWeight:700,color:fee.balance>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(fee.balance,currency)}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
           </Modal>
         )
       })()}
@@ -3225,8 +3294,8 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,init
       filtered.forEach(r=>{
         const s   = students.find(x=>x.id===r.student_id)
         const cls = s ? classes.find(c=>c.id===s.class_id)?.name || '' : ''
-        csv += `"${esc(s?.student_id)}","${esc(s?`${s.first_name} ${s.last_name}`:'')}",
-"${esc(cls)}","${esc(r.fee_type)}","${esc(r.period)}",${Number(r.amount||0)},${Number(r.effectivePaid||0)},${Number(r.balance||0)},"${esc(r.status)}","${esc(r.due_date)}","${esc(r.receipt_no)}"\n`
+        const sName = s ? s.first_name+' '+s.last_name : ''
+        csv += `"${esc(s?.student_id)}","${esc(sName)}","${esc(cls)}","${esc(r.fee_type)}","${esc(r.period)}",${Number(r.amount||0)},${Number(r.effectivePaid||0)},${Number(r.balance||0)},"${esc(r.status)}","${esc(r.due_date)}","${esc(r.receipt_no)}"\n`
       })
       const blob = new Blob([csv],{type:'text/csv'})
       const url  = URL.createObjectURL(blob)
@@ -6527,8 +6596,10 @@ function Classes({profile,data,setData,toast,activeYear,isViewingPast,onPromotio
       const maxOrder = Math.max(-1,...classes.map(c=>c.sort_order??-1))
       const {data:row,error}=await supabase.from('classes').insert({...payload,sort_order:maxOrder+1}).select().single()
       if(error){toast(error.message,'error');setSaving(false);return}
-      if(newTeacherId && row)
-        await supabase.from('profiles').update({class_id:row.id}).eq('id',newTeacherId)
+      if(newTeacherId && row){
+        const {error:teacherErr} = await supabase.from('profiles').update({class_id:row.id}).eq('id',newTeacherId)
+        if(teacherErr) toast('Class created but failed to assign teacher: '+teacherErr.message,'error')
+      }
       setData(p=>({...p,classes:[...p.classes,row]}))
       toast('Class created');setClassModal(false)
     }
