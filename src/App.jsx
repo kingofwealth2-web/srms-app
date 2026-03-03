@@ -5308,7 +5308,7 @@ function Announcements({profile,data,setData,toast,activeYear,isViewingPast}) {
   const [form,setForm]   = useState({})
   const [saving,setSaving] = useState(false)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
-  const visible = announcements.filter(a=>canManage ? true : canSeeAnnouncement(profile?.role,a)).sort((a,b)=>b.created_at?.localeCompare(a.created_at))
+  const visible = announcements.filter(a=>profile?.role==="superadmin" ? true : canSeeAnnouncement(profile?.role,a)).sort((a,b)=>b.created_at?.localeCompare(a.created_at))
   const openAdd = ()=>{setForm({title:'',body:'',target_role:'all'});setModal(true)}
   const save = async ()=>{
     if(!form.title||!form.body)return
