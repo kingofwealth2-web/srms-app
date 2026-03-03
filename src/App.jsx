@@ -1332,7 +1332,8 @@ function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}
       let csv = 'Student ID,First Name,Last Name,Class,Gender,DOB,Phone,Email,Guardian Name,Guardian Phone,Guardian Email,Archived,Graduation Year,Leaving Reason,Leaving Notes\n'
       filtered.forEach(s=>{
         const clsName = classes.find(c=>c.id===s.class_id)?.name || ''
-        csv += `"${esc(s.student_id)}","${esc(s.first_name)}","${esc(s.last_name)}","${esc(clsName)}","${esc(s.gender)}","${esc(s.dob)}","${esc(s.phone)}","${esc(s.email)}","${esc(s.guardian_name)}","${esc(s.guardian_phone)}","${esc(s.guardian_email)}","${s.archived?'Yes':'No'}","${esc(s.graduation_year)}","${esc(s.leaving_reason)}","${esc(s.leaving_notes)}"\n`
+        const fmtPhone = v => v ? `="${esc(v)}"` : '""'  
+        csv += `"${esc(s.student_id)}","${esc(s.first_name)}","${esc(s.last_name)}","${esc(clsName)}","${esc(s.gender)}","${esc(s.dob)}",${fmtPhone(s.phone)},"${esc(s.email)}","${esc(s.guardian_name)}",${fmtPhone(s.guardian_phone)},"${esc(s.guardian_email)}","${s.archived?'Yes':'No'}","${esc(s.graduation_year)}","${esc(s.leaving_reason)}","${esc(s.leaving_notes)}"\n`
       })
       const blob = new Blob([csv],{type:'text/csv'})
       const url  = URL.createObjectURL(blob)
@@ -3290,12 +3291,13 @@ function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,init
         if(v===null||v===undefined) return ''
         return String(v).replace(/"/g,'""')
       }
+      const currency = getCurrency(settings)
       let csv = 'Student ID,Student,Class,Fee Type,Period,Amount,Paid,Balance,Status,Due Date,Receipt\n'
       filtered.forEach(r=>{
         const s   = students.find(x=>x.id===r.student_id)
         const cls = s ? classes.find(c=>c.id===s.class_id)?.name || '' : ''
         const sName = s ? s.first_name+' '+s.last_name : ''
-        csv += `"${esc(s?.student_id)}","${esc(sName)}","${esc(cls)}","${esc(r.fee_type)}","${esc(r.period)}",${Number(r.amount||0)},${Number(r.effectivePaid||0)},${Number(r.balance||0)},"${esc(r.status)}","${esc(r.due_date)}","${esc(r.receipt_no)}"\n`
+        csv += `"${esc(s?.student_id)}","${esc(sName)}","${esc(cls)}","${esc(r.fee_type)}","${esc(r.period)}","${esc(fmtMoney(r.amount,currency))}","${esc(fmtMoney(r.effectivePaid,currency))}","${esc(fmtMoney(r.balance,currency))}","${esc(r.status)}","${esc(r.due_date)}","${esc(r.receipt_no)}"\n`
       })
       const blob = new Blob([csv],{type:'text/csv'})
       const url  = URL.createObjectURL(blob)
@@ -3916,7 +3918,8 @@ function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast
       filtered.forEach(b=>{
         const s   = students.find(x=>x.id===b.student_id)
         const cls = s ? classes.find(c=>c.id===s.class_id)?.name || '' : ''
-        csv += `"${esc(b.date||b.created_at)}","${esc(cls)}","${esc(s?.student_id)}","${esc(s?`${s.first_name} ${s.last_name}`:'')}","${esc(b.type)}","${esc(b.title)}","${esc(b.description)}","${esc(b.recorded_by_name)}"\n`
+        const bName = s ? s.first_name+' '+s.last_name : ''
+        csv += `"${esc(b.date||b.created_at)}","${esc(cls)}","${esc(s?.student_id)}","${esc(bName)}","${esc(b.type)}","${esc(b.title)}","${esc(b.description)}","${esc(b.recorded_by_name)}"\\n`
       })
       const blob = new Blob([csv],{type:'text/csv'})
       const url  = URL.createObjectURL(blob)
