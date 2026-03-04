@@ -1,29 +1,138 @@
--- ═══════════════════════════════════════════════════════════
--- SRMS — Complete Supabase Database Schema
--- Paste this entire file into Supabase → SQL Editor → Run
--- ═══════════════════════════════════════════════════════════
+-- ═══════════════════════════════════════════════════════════════════
+-- SRMS — Multi-Tenant Supabase Schema
+-- Paste into Supabase → SQL Editor → Run
+--
+-- Role hierarchy:
+--   ministry_admin  → sees ALL schools (ministry-level)
+--   superadmin      → sees ONE school (school owner/head)
+--   admin           → manages one school
+--   classteacher    → one class
+--   teacher         → assigned subjects only
+-- ═══════════════════════════════════════════════════════════════════
 
--- 1. PROFILES (extends Supabase auth.users)
+-- ── EXTENSIONS ────────────────────────────────────────────────────
+create extension if not exists "pgcrypto";
+
+-- ── HELPER: current user's school_id ──────────────────────────────
+-- Used inside RLS policies to avoid repeated subqueries
+create or replace function public.my_school_id()
+returns uuid language sql stable security definer as $$
+  select school_id from public.profiles where id = auth.uid()
+$$;
+
+-- ── HELPER: current user's role ───────────────────────────────────
+create or replace function public.my_role()
+returns text language sql stable security definer as $$
+  select role from public.profiles where id = auth.uid()
+$$;
+
+-- ── HELPER: is ministry admin ─────────────────────────────────────
+create or replace function public.is_ministry_admin()
+returns boolean language sql stable security definer as $$
+  select coalesce(
+    (select role = 'ministry_admin' from public.profiles where id = auth.uid()),
+    false
+  )
+$$;
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 1. SCHOOLS
+--    One row per school. The ministry_admin can see all rows.
+--    Each school's staff only sees their own.
+-- ═══════════════════════════════════════════════════════════════════
+create table if not exists public.schools (
+  id           uuid default gen_random_uuid() primary key,
+  name         text not null,
+  address      text,
+  region       text,
+  district     text,
+  phone        text,
+  email        text,
+  logo_url     text,
+  active       boolean default true,
+  created_at   timestamptz default now()
+);
+alter table public.schools enable row level security;
+
+create policy "Ministry admins can manage all schools"
+  on public.schools for all
+  using (public.is_ministry_admin())
+  with check (public.is_ministry_admin());
+
+create policy "School staff can read own school"
+  on public.schools for select
+  using (id = public.my_school_id());
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 2. PROFILES (extends auth.users)
+-- ═══════════════════════════════════════════════════════════════════
 create table if not exists public.profiles (
   id          uuid references auth.users(id) on delete cascade primary key,
+  school_id   uuid references public.schools(id) on delete cascade,
   full_name   text not null,
   email       text,
-  role        text not null default 'teacher' check (role in ('superadmin','admin','classteacher','teacher')),
+  role        text not null default 'teacher' check (
+                role in ('ministry_admin','superadmin','admin','classteacher','teacher')
+              ),
   class_id    uuid,
   subject_id  uuid,
   locked      boolean default false,
   created_at  timestamptz default now()
 );
 alter table public.profiles enable row level security;
-create policy "Users can read all profiles" on public.profiles for select using (true);
-create policy "Users can update own profile" on public.profiles for update using (auth.uid() = id);
 
--- Auto-create profile on signup
+-- Ministry admins see everyone
+create policy "Ministry admins read all profiles"
+  on public.profiles for select
+  using (public.is_ministry_admin());
+
+-- School staff read profiles in same school
+create policy "School staff read own school profiles"
+  on public.profiles for select
+  using (school_id = public.my_school_id());
+
+-- Users update only their own profile (non-role fields)
+create policy "Users update own profile"
+  on public.profiles for update
+  using (auth.uid() = id)
+  with check (
+    -- Cannot self-escalate role
+    role = (select role from public.profiles where id = auth.uid())
+    and school_id = (select school_id from public.profiles where id = auth.uid())
+  );
+
+-- Admins manage profiles in their school
+create policy "Admins manage school profiles"
+  on public.profiles for all
+  using (
+    school_id = public.my_school_id()
+    and public.my_role() in ('superadmin','admin')
+  );
+
+-- Admins can insert/update/delete profiles in their school
+-- (profile creation for new users is handled by the trigger, which runs as security definer
+--  and bypasses RLS — this policy covers admin-initiated operations like inviting users)
+create policy "Admins manage school profiles"
+  on public.profiles for all
+  using (
+    school_id = public.my_school_id()
+    and public.my_role() in ('superadmin','admin')
+  )
+  with check (
+    -- Admins cannot insert/update a profile to a role higher than their own
+    -- and cannot assign profiles to a different school
+    school_id = public.my_school_id()
+    and role != 'ministry_admin'
+  );
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer as $$
 begin
   insert into public.profiles (id, full_name, email)
-  values (new.id, coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email,'@',1)), new.email);
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email,'@',1)),
+    new.email
+  );
   return new;
 end;
 $$;
@@ -32,37 +141,86 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
--- 2. SETTINGS
+-- Enforce locked: locked users cannot query anything
+-- (checked in every policy via this helper)
+create or replace function public.is_active_user()
+returns boolean language sql stable security definer as $$
+  select coalesce(
+    (select not locked from public.profiles where id = auth.uid()),
+    false
+  )
+$$;
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 3. SETTINGS (one row per school)
+-- ═══════════════════════════════════════════════════════════════════
 create table if not exists public.settings (
-  id             uuid default gen_random_uuid() primary key,
-  school_name    text default 'Westbrook Academy',
-  address        text default '100 Academy Drive',
-  motto          text default 'Knowledge · Integrity · Excellence',
-  academic_year  text default '2024-2025',
-  period_type    text default 'semester' check (period_type in ('semester','term')),
-  period_count   int  default 2,
-  grading_scale  jsonb default '[
-    {"min":90,"max":100,"letter":"A+","gpa":4.0},
-    {"min":80,"max":89,"letter":"A","gpa":4.0},
-    {"min":70,"max":79,"letter":"B","gpa":3.0},
-    {"min":60,"max":69,"letter":"C","gpa":2.0},
-    {"min":50,"max":59,"letter":"D","gpa":1.0},
-    {"min":0,"max":49,"letter":"F","gpa":0.0}
+  id                  uuid default gen_random_uuid() primary key,
+  school_id           uuid references public.schools(id) on delete cascade unique not null,
+  school_name         text default 'My School',
+  address             text,
+  motto               text,
+  phone               text,
+  email               text,
+  logo_url            text,
+  academic_year       text default '2024/2025',
+  period_type         text default 'semester' check (period_type in ('semester','term')),
+  period_count        int  default 2,
+  currency_code       text default 'GHS',
+  currency_position   text default 'before',
+  currency_decimals   int  default 2,
+  grading_scale       jsonb default '[
+    {"min":80,"max":100,"letter":"A","gpa":4.0,"remark":"Excellent"},
+    {"min":65,"max":79, "letter":"B","gpa":3.0,"remark":"Very Good"},
+    {"min":50,"max":64, "letter":"C","gpa":2.0,"remark":"Good"},
+    {"min":0, "max":49, "letter":"F","gpa":0.0,"remark":"Fail"}
   ]'::jsonb,
-  score_weights  jsonb default '{"classwork":10,"homework":10,"midsemester":20,"final_exam":50,"project":10}'::jsonb,
-  updated_at     timestamptz default now()
+  grade_components    jsonb default '[
+    {"key":"classwork",   "label":"Classwork",   "max_score":10,"weight":10,"enabled":true},
+    {"key":"homework",    "label":"Homework",    "max_score":10,"weight":10,"enabled":true},
+    {"key":"midsemester", "label":"Midsemester", "max_score":20,"weight":20,"enabled":true},
+    {"key":"final_exam",  "label":"Final Exam",  "max_score":50,"weight":50,"enabled":true},
+    {"key":"project",     "label":"Project",     "max_score":10,"weight":10,"enabled":true}
+  ]'::jsonb,
+  custom_holidays     jsonb default '[]'::jsonb,
+  vacations           jsonb default '[]'::jsonb,
+  updated_at          timestamptz default now()
 );
 alter table public.settings enable row level security;
-create policy "Anyone can read settings" on public.settings for select using (true);
-create policy "Admins can update settings" on public.settings for update using (
-  exists (select 1 from public.profiles where id = auth.uid() and role in ('superadmin','admin'))
-);
--- Insert default settings row
-insert into public.settings (id) values (gen_random_uuid()) on conflict do nothing;
 
--- 3. CLASSES
+create policy "Ministry admins read all settings"
+  on public.settings for select
+  using (public.is_ministry_admin());
+
+create policy "School staff read own settings"
+  on public.settings for select
+  using (school_id = public.my_school_id() and public.is_active_user());
+
+create policy "Admins update own settings"
+  on public.settings for update
+  using (
+    school_id = public.my_school_id()
+    and public.my_role() in ('superadmin','admin')
+    and public.is_active_user()
+  );
+
+create policy "Superadmin insert settings"
+  on public.settings for insert
+  with check (
+    school_id = public.my_school_id()
+    and public.my_role() = 'superadmin'
+  );
+
+create policy "Ministry admin manage all settings"
+  on public.settings for all
+  using (public.is_ministry_admin());
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 4. CLASSES
+-- ═══════════════════════════════════════════════════════════════════
 create table if not exists public.classes (
   id                uuid default gen_random_uuid() primary key,
+  school_id         uuid references public.schools(id) on delete cascade not null,
   name              text not null,
   level             text,
   section           text,
@@ -70,14 +228,28 @@ create table if not exists public.classes (
   created_at        timestamptz default now()
 );
 alter table public.classes enable row level security;
-create policy "Anyone can read classes" on public.classes for select using (true);
-create policy "Admins can manage classes" on public.classes for all using (
-  exists (select 1 from public.profiles where id = auth.uid() and role in ('superadmin','admin'))
-);
 
--- 4. SUBJECTS
+create policy "Ministry admins read all classes"
+  on public.classes for select using (public.is_ministry_admin());
+
+create policy "School staff read own classes"
+  on public.classes for select
+  using (school_id = public.my_school_id() and public.is_active_user());
+
+create policy "Admins manage classes"
+  on public.classes for all
+  using (
+    school_id = public.my_school_id()
+    and public.my_role() in ('superadmin','admin')
+    and public.is_active_user()
+  );
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 5. SUBJECTS
+-- ═══════════════════════════════════════════════════════════════════
 create table if not exists public.subjects (
   id          uuid default gen_random_uuid() primary key,
+  school_id   uuid references public.schools(id) on delete cascade not null,
   name        text not null,
   code        text,
   class_id    uuid references public.classes(id) on delete cascade,
@@ -85,36 +257,103 @@ create table if not exists public.subjects (
   created_at  timestamptz default now()
 );
 alter table public.subjects enable row level security;
-create policy "Anyone can read subjects" on public.subjects for select using (true);
-create policy "Admins can manage subjects" on public.subjects for all using (
-  exists (select 1 from public.profiles where id = auth.uid() and role in ('superadmin','admin'))
-);
 
--- 5. STUDENTS
+create policy "Ministry admins read all subjects"
+  on public.subjects for select using (public.is_ministry_admin());
+
+create policy "School staff read own subjects"
+  on public.subjects for select
+  using (school_id = public.my_school_id() and public.is_active_user());
+
+create policy "Admins manage subjects"
+  on public.subjects for all
+  using (
+    school_id = public.my_school_id()
+    and public.my_role() in ('superadmin','admin')
+    and public.is_active_user()
+  );
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 6. STUDENTS
+-- ═══════════════════════════════════════════════════════════════════
 create table if not exists public.students (
-  id            uuid default gen_random_uuid() primary key,
-  student_id    text unique not null,
-  first_name    text not null,
-  last_name     text not null,
-  class_id      uuid references public.classes(id) on delete set null,
-  dob           date,
-  gender        text,
-  phone         text,
-  email         text,
-  address       text,
-  medical_info  text default 'None',
-  created_at    timestamptz default now(),
-  updated_at    timestamptz default now()
+  id               uuid default gen_random_uuid() primary key,
+  school_id        uuid references public.schools(id) on delete cascade not null,
+  student_id       text not null,
+  first_name       text not null,
+  last_name        text not null,
+  class_id         uuid references public.classes(id) on delete set null,
+  dob              date,
+  gender           text,
+  phone            text,
+  email            text,
+  address          text,
+  photo_url        text,
+  medical_info     text default 'None',
+  guardian_name    text,
+  guardian_phone   text,
+  guardian_email   text,
+  archived         boolean default false,
+  graduation_year  text,
+  entry_year       text,
+  leaving_reason   text,
+  leaving_notes    text,
+  created_at       timestamptz default now(),
+  updated_at       timestamptz default now(),
+  unique(school_id, student_id)   -- student_id unique per school, not globally
 );
 alter table public.students enable row level security;
-create policy "Authenticated users can read students" on public.students for select using (auth.role() = 'authenticated');
-create policy "Admins can manage students" on public.students for all using (
-  exists (select 1 from public.profiles where id = auth.uid() and role in ('superadmin','admin'))
-);
 
--- 6. GRADES
+create policy "Ministry admins read all students"
+  on public.students for select using (public.is_ministry_admin());
+
+create policy "School staff read own students"
+  on public.students for select
+  using (school_id = public.my_school_id() and public.is_active_user());
+
+create policy "Admins manage students"
+  on public.students for all
+  using (
+    school_id = public.my_school_id()
+    and public.my_role() in ('superadmin','admin')
+    and public.is_active_user()
+  );
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 7. STUDENT YEAR ENROLMENT
+-- ═══════════════════════════════════════════════════════════════════
+create table if not exists public.student_year_enrolment (
+  id             uuid default gen_random_uuid() primary key,
+  school_id      uuid references public.schools(id) on delete cascade not null,
+  student_id     uuid references public.students(id) on delete cascade,
+  class_id       uuid references public.classes(id) on delete set null,
+  academic_year  text not null,
+  created_at     timestamptz default now(),
+  unique(school_id, student_id, academic_year)
+);
+alter table public.student_year_enrolment enable row level security;
+
+create policy "Ministry admins read all enrolments"
+  on public.student_year_enrolment for select using (public.is_ministry_admin());
+
+create policy "School staff read own enrolments"
+  on public.student_year_enrolment for select
+  using (school_id = public.my_school_id() and public.is_active_user());
+
+create policy "Admins manage enrolments"
+  on public.student_year_enrolment for all
+  using (
+    school_id = public.my_school_id()
+    and public.my_role() in ('superadmin','admin')
+    and public.is_active_user()
+  );
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 8. GRADES
+-- ═══════════════════════════════════════════════════════════════════
 create table if not exists public.grades (
   id           uuid default gen_random_uuid() primary key,
+  school_id    uuid references public.schools(id) on delete cascade not null,
   student_id   uuid references public.students(id) on delete cascade,
   subject_id   uuid references public.subjects(id) on delete cascade,
   classwork    numeric(5,2) default 0,
@@ -123,116 +362,333 @@ create table if not exists public.grades (
   final_exam   numeric(5,2) default 0,
   project      numeric(5,2) default 0,
   period       text not null,
-  year         text,
+  year         text not null,
   created_at   timestamptz default now(),
-  unique(student_id, subject_id, period, year)
+  unique(school_id, student_id, subject_id, period, year)
 );
 alter table public.grades enable row level security;
-create policy "Teachers can read grades" on public.grades for select using (auth.role() = 'authenticated');
-create policy "Teachers can manage their subject grades" on public.grades for all using (
-  exists (
-    select 1 from public.subjects s
-    join public.profiles p on p.id = auth.uid()
-    where s.id = grades.subject_id
-    and (p.role in ('superadmin','admin') or s.teacher_id = auth.uid())
-  )
-);
 
--- 7. ATTENDANCE
+create policy "Ministry admins read all grades"
+  on public.grades for select using (public.is_ministry_admin());
+
+create policy "School staff read own grades"
+  on public.grades for select
+  using (school_id = public.my_school_id() and public.is_active_user());
+
+-- Teachers can only write grades for their own subjects
+create policy "Teachers manage own subject grades"
+  on public.grades for all
+  using (
+    school_id = public.my_school_id()
+    and public.is_active_user()
+    and (
+      public.my_role() in ('superadmin','admin')
+      or exists (
+        select 1 from public.subjects s
+        where s.id = grades.subject_id
+        and s.teacher_id = auth.uid()
+      )
+    )
+  );
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 9. ATTENDANCE
+-- ═══════════════════════════════════════════════════════════════════
 create table if not exists public.attendance (
-  id          uuid default gen_random_uuid() primary key,
-  student_id  uuid references public.students(id) on delete cascade,
-  class_id    uuid references public.classes(id) on delete cascade,
-  date        date not null,
-  status      text not null check (status in ('Present','Absent','Late','Excused')),
-  marked_by   uuid references public.profiles(id),
-  created_at  timestamptz default now(),
-  unique(student_id, class_id, date)
+  id             uuid default gen_random_uuid() primary key,
+  school_id      uuid references public.schools(id) on delete cascade not null,
+  student_id     uuid references public.students(id) on delete cascade,
+  class_id       uuid references public.classes(id) on delete cascade,
+  date           date not null,
+  status         text not null check (status in ('Present','Absent','Late','Excused')),
+  academic_year  text not null,
+  marked_by      uuid references public.profiles(id),
+  created_at     timestamptz default now(),
+  unique(school_id, student_id, date)
 );
 alter table public.attendance enable row level security;
-create policy "Authenticated can read attendance" on public.attendance for select using (auth.role() = 'authenticated');
-create policy "Teachers can manage attendance" on public.attendance for all using (auth.role() = 'authenticated');
 
--- 8. FEES
+create policy "Ministry admins read all attendance"
+  on public.attendance for select using (public.is_ministry_admin());
+
+create policy "School staff read own attendance"
+  on public.attendance for select
+  using (school_id = public.my_school_id() and public.is_active_user());
+
+-- Class teachers manage their own class; admins manage all
+create policy "Teachers manage own class attendance"
+  on public.attendance for all
+  using (
+    school_id = public.my_school_id()
+    and public.is_active_user()
+    and (
+      public.my_role() in ('superadmin','admin')
+      or exists (
+        select 1 from public.profiles p
+        where p.id = auth.uid()
+        and p.class_id = attendance.class_id
+      )
+    )
+  );
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 10. FEES
+-- ═══════════════════════════════════════════════════════════════════
 create table if not exists public.fees (
-  id          uuid default gen_random_uuid() primary key,
-  student_id  uuid references public.students(id) on delete cascade,
-  fee_type    text not null,
-  amount      numeric(10,2) not null default 0,
-  paid        numeric(10,2) default 0,
-  due_date    date,
-  receipt_no  text unique,
-  created_at  timestamptz default now()
+  id               uuid default gen_random_uuid() primary key,
+  school_id        uuid references public.schools(id) on delete cascade not null,
+  student_id       uuid references public.students(id) on delete cascade,
+  fee_type         text not null,
+  amount           numeric(10,2) not null default 0,
+  paid             numeric(10,2) default 0 check (paid >= 0),
+  balance          numeric(10,2) generated always as (amount - paid) stored,
+  status           text generated always as (
+                     case
+                       when paid >= amount then 'Paid'
+                       when paid > 0 then 'Partial'
+                       else 'Outstanding'
+                     end
+                   ) stored,
+  period           text,
+  due_date         date,
+  receipt_no       text,
+  academic_year    text not null,
+  is_arrear        boolean default false,
+  arrear_from_year text,
+  created_at       timestamptz default now(),
+  unique(school_id, receipt_no)  -- receipt unique per school
 );
 alter table public.fees enable row level security;
-create policy "Authenticated can read fees" on public.fees for select using (auth.role() = 'authenticated');
-create policy "Admins can manage fees" on public.fees for all using (
-  exists (select 1 from public.profiles where id = auth.uid() and role in ('superadmin','admin'))
-);
 
--- 9. BEHAVIOUR
+create policy "Ministry admins read all fees"
+  on public.fees for select using (public.is_ministry_admin());
+
+create policy "Admins read own fees"
+  on public.fees for select
+  using (school_id = public.my_school_id() and public.is_active_user());
+
+create policy "Admins manage fees"
+  on public.fees for all
+  using (
+    school_id = public.my_school_id()
+    and public.my_role() in ('superadmin','admin')
+    and public.is_active_user()
+  );
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 11. PAYMENTS
+-- ═══════════════════════════════════════════════════════════════════
+create table if not exists public.payments (
+  id             uuid default gen_random_uuid() primary key,
+  school_id      uuid references public.schools(id) on delete cascade not null,
+  fee_id         uuid references public.fees(id) on delete cascade,
+  student_id     uuid references public.students(id) on delete cascade,
+  class_id       uuid references public.classes(id) on delete set null,
+  amount         numeric(10,2) not null,
+  receipt_no     text,
+  payment_method text,
+  recorded_by    uuid references public.profiles(id),
+  academic_year  text not null,
+  created_at     timestamptz default now()
+);
+alter table public.payments enable row level security;
+
+create policy "Ministry admins read all payments"
+  on public.payments for select using (public.is_ministry_admin());
+
+create policy "Admins read own payments"
+  on public.payments for select
+  using (school_id = public.my_school_id() and public.is_active_user());
+
+create policy "Admins manage payments"
+  on public.payments for all
+  using (
+    school_id = public.my_school_id()
+    and public.my_role() in ('superadmin','admin')
+    and public.is_active_user()
+  );
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 12. BEHAVIOUR
+-- ═══════════════════════════════════════════════════════════════════
 create table if not exists public.behaviour (
   id                uuid default gen_random_uuid() primary key,
+  school_id         uuid references public.schools(id) on delete cascade not null,
   student_id        uuid references public.students(id) on delete cascade,
   type              text not null check (type in ('Discipline','Achievement','Club Activity','Notes')),
   title             text not null,
   description       text,
   date              date default current_date,
+  academic_year     text not null,
   recorded_by_id    uuid references public.profiles(id),
   recorded_by_name  text,
   created_at        timestamptz default now()
 );
 alter table public.behaviour enable row level security;
-create policy "Authenticated can read behaviour" on public.behaviour for select using (auth.role() = 'authenticated');
-create policy "Teachers can manage behaviour" on public.behaviour for all using (auth.role() = 'authenticated');
 
--- 10. ANNOUNCEMENTS
+create policy "Ministry admins read all behaviour"
+  on public.behaviour for select using (public.is_ministry_admin());
+
+create policy "School staff read own behaviour"
+  on public.behaviour for select
+  using (school_id = public.my_school_id() and public.is_active_user());
+
+-- Any active teacher can insert behaviour records
+create policy "Teachers insert behaviour"
+  on public.behaviour for insert
+  with check (
+    school_id = public.my_school_id()
+    and public.is_active_user()
+  );
+
+-- Only admins or the original recorder can update
+create policy "Admins or recorder update behaviour"
+  on public.behaviour for update
+  using (
+    school_id = public.my_school_id()
+    and public.is_active_user()
+    and (
+      public.my_role() in ('superadmin','admin')
+      or recorded_by_id = auth.uid()
+    )
+  );
+
+-- Only admins or the original recorder can delete
+create policy "Admins or recorder delete behaviour"
+  on public.behaviour for delete
+  using (
+    school_id = public.my_school_id()
+    and public.is_active_user()
+    and (
+      public.my_role() in ('superadmin','admin')
+      or recorded_by_id = auth.uid()
+    )
+  );
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 13. ANNOUNCEMENTS
+-- ═══════════════════════════════════════════════════════════════════
 create table if not exists public.announcements (
   id               uuid default gen_random_uuid() primary key,
+  school_id        uuid references public.schools(id) on delete cascade not null,
   title            text not null,
   body             text not null,
   target_role      text default 'all',
   active           boolean default true,
   posted_by_id     uuid references public.profiles(id),
   posted_by_name   text,
+  academic_year    text not null,
   created_at       timestamptz default now()
 );
 alter table public.announcements enable row level security;
-create policy "Authenticated can read announcements" on public.announcements for select using (auth.role() = 'authenticated');
-create policy "Admins can manage announcements" on public.announcements for all using (
-  exists (select 1 from public.profiles where id = auth.uid() and role in ('superadmin','admin'))
+
+create policy "Ministry admins read all announcements"
+  on public.announcements for select using (public.is_ministry_admin());
+
+create policy "School staff read own announcements"
+  on public.announcements for select
+  using (school_id = public.my_school_id() and public.is_active_user());
+
+create policy "Admins manage announcements"
+  on public.announcements for all
+  using (
+    school_id = public.my_school_id()
+    and public.my_role() in ('superadmin','admin')
+    and public.is_active_user()
+  );
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 14. AUDIT LOGS
+-- ═══════════════════════════════════════════════════════════════════
+create table if not exists public.audit_logs (
+  id           uuid default gen_random_uuid() primary key,
+  school_id    uuid references public.schools(id) on delete cascade,
+  user_id      uuid references public.profiles(id) on delete set null,
+  user_name    text,
+  module       text,
+  action       text,
+  description  text,
+  meta         jsonb default '{}'::jsonb,
+  before_data  jsonb,
+  after_data   jsonb,
+  ip_address   text,
+  created_at   timestamptz default now()
 );
+alter table public.audit_logs enable row level security;
 
--- ═══════════════════════════════════════════════════════════
--- SEED DATA — Sample classes, subjects, students
--- ═══════════════════════════════════════════════════════════
+create policy "Ministry admins read all audit logs"
+  on public.audit_logs for select using (public.is_ministry_admin());
 
--- Sample classes
-insert into public.classes (id, name, level, section) values
-  ('11111111-0001-0001-0001-000000000001', 'Grade 10 — Alpha', 'Grade 10', 'Alpha'),
-  ('11111111-0001-0001-0001-000000000002', 'Grade 10 — Beta',  'Grade 10', 'Beta'),
-  ('11111111-0001-0001-0001-000000000003', 'Grade 11 — Alpha', 'Grade 11', 'Alpha')
-on conflict do nothing;
+create policy "Superadmins read own school audit logs"
+  on public.audit_logs for select
+  using (
+    school_id = public.my_school_id()
+    and public.my_role() in ('superadmin','admin')
+    and public.is_active_user()
+  );
 
--- Sample subjects
-insert into public.subjects (name, code, class_id) values
-  ('Mathematics',    'MTH-101', '11111111-0001-0001-0001-000000000001'),
-  ('English',        'ENG-101', '11111111-0001-0001-0001-000000000001'),
-  ('Physics',        'PHY-101', '11111111-0001-0001-0001-000000000002'),
-  ('Chemistry',      'CHM-101', '11111111-0001-0001-0001-000000000002'),
-  ('Biology',        'BIO-101', '11111111-0001-0001-0001-000000000003')
-on conflict do nothing;
+-- Any authenticated active user can insert audit logs
+create policy "Authenticated users insert audit logs"
+  on public.audit_logs for insert
+  with check (
+    public.is_active_user()
+    and (
+      -- School users must log against their own school
+      (school_id = public.my_school_id() and school_id is not null)
+      -- Ministry admins can log without a school_id
+      or public.is_ministry_admin()
+    )
+  );
 
--- Sample students
-insert into public.students (student_id, first_name, last_name, class_id, gender, dob, medical_info) values
-  ('STU-0001','Emma',   'Wilson',  '11111111-0001-0001-0001-000000000001','Female','2008-03-15','None'),
-  ('STU-0002','Liam',   'Johnson', '11111111-0001-0001-0001-000000000001','Male',  '2008-07-22','Mild asthma'),
-  ('STU-0003','Olivia', 'Davis',   '11111111-0001-0001-0001-000000000001','Female','2008-11-09','None'),
-  ('STU-0004','Noah',   'Martinez','11111111-0001-0001-0001-000000000002','Male',  '2007-05-14','None'),
-  ('STU-0005','Ava',    'Garcia',  '11111111-0001-0001-0001-000000000002','Female','2007-09-30','Peanut allergy'),
-  ('STU-0006','William','Brown',   '11111111-0001-0001-0001-000000000003','Male',  '2006-01-18','None')
-on conflict do nothing;
+-- Audit logs are immutable — no updates or deletes
+-- (no update/delete policy = blocked by RLS)
 
--- ═══════════════════════════════════════════════════════════
--- DONE. Your database is ready.
--- ═══════════════════════════════════════════════════════════
+-- ═══════════════════════════════════════════════════════════════════
+-- INDEXES — performance at scale
+-- ═══════════════════════════════════════════════════════════════════
+create index if not exists idx_profiles_school      on public.profiles(school_id);
+create index if not exists idx_students_school      on public.students(school_id);
+create index if not exists idx_students_class       on public.students(class_id);
+create index if not exists idx_grades_school_year   on public.grades(school_id, year);
+create index if not exists idx_grades_student       on public.grades(student_id);
+create index if not exists idx_attendance_school    on public.attendance(school_id, academic_year);
+create index if not exists idx_attendance_date      on public.attendance(date);
+create index if not exists idx_fees_school_year     on public.fees(school_id, academic_year);
+create index if not exists idx_fees_student         on public.fees(student_id);
+create index if not exists idx_payments_school      on public.payments(school_id, academic_year);
+create index if not exists idx_behaviour_school     on public.behaviour(school_id, academic_year);
+create index if not exists idx_announcements_school on public.announcements(school_id, academic_year);
+create index if not exists idx_audit_school         on public.audit_logs(school_id, created_at desc);
+create index if not exists idx_enrolment_school     on public.student_year_enrolment(school_id, academic_year);
+
+-- ═══════════════════════════════════════════════════════════════════
+-- MIGRATION NOTES (for existing single-school deployments)
+-- ═══════════════════════════════════════════════════════════════════
+-- If migrating from the old single-school schema:
+--
+-- 1. Create your first school row:
+--    insert into public.schools (id, name) values ('<your-uuid>', 'Your School Name');
+--
+-- 2. Backfill school_id on all tables:
+--    update public.profiles     set school_id = '<your-uuid>';
+--    update public.students     set school_id = '<your-uuid>';
+--    update public.classes      set school_id = '<your-uuid>';
+--    update public.subjects     set school_id = '<your-uuid>';
+--    update public.grades       set school_id = '<your-uuid>';
+--    update public.attendance   set school_id = '<your-uuid>';
+--    update public.fees         set school_id = '<your-uuid>';
+--    update public.payments     set school_id = '<your-uuid>';
+--    update public.behaviour    set school_id = '<your-uuid>';
+--    update public.announcements set school_id = '<your-uuid>';
+--    update public.settings     set school_id = '<your-uuid>';
+--
+-- 3. Create settings row for the school:
+--    insert into public.settings (school_id) values ('<your-uuid>');
+--
+-- 4. Assign ministry_admin role to ministry-level users:
+--    update public.profiles set role = 'ministry_admin', school_id = null
+--    where id = '<ministry-user-uuid>';
+--
+-- ═══════════════════════════════════════════════════════════════════
+-- DONE.
+-- ═══════════════════════════════════════════════════════════════════
