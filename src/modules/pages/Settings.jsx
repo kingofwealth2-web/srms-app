@@ -97,7 +97,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
     setForm(p=>({...p,grade_components:comps}))
     if(wasEnabled) {
       const key = comps[i].key
-      await supabase.from('grades').update({[key]:0}).neq('id','00000000-0000-0000-0000-000000000000')
+      await supabase.from('grades').update({[key]:0}).eq('school_id', profile?.school_id)
       auditLog(profile,'Settings','Updated',`Grade component disabled & scores cleared: ${comps[i].label}`,{component:comps[i].label},null,null)
       toast(`${comps[i].label} disabled -- all scores cleared`)
     }
@@ -504,4 +504,3 @@ function AcademicCalendar({form, setForm, activeYear}) {
     </Card>
   )
 }
-
