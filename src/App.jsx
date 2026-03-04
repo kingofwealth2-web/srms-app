@@ -121,11 +121,14 @@ export default function App() {
       setProfile(prof)
       setSettings(settingsRow)
       if (!prof && session?.user) {
+        // New user — profile wasn't created yet (edge case if signup upsert failed)
+        // Use role from user metadata if available, default to superadmin for new signups
+        const metaRole = session.user.user_metadata?.role || 'superadmin'
         const { data: newProf } = await supabase.from('profiles').upsert({
           id: session.user.id,
           full_name: session.user.user_metadata?.full_name || session.user.email,
           email: session.user.email,
-          role: 'teacher',
+          role: metaRole,
           locked: false,
         }).select().single()
         setProfile(newProf)

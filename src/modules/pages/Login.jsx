@@ -10,11 +10,16 @@ export default function Login({ onLogin }) {
   const [password,setPassword]     = useState('')
   const [error,setError]           = useState('')
   const [loading,setLoading]       = useState(false)
-  const [view,setView]             = useState('login') // 'login' | 'forgot' | 'forgot-sent'
+  const [view,setView]             = useState('login') // 'login' | 'signup' | 'forgot' | 'forgot-sent'
   const [resetEmail,setResetEmail] = useState('')
   const [resetLoading,setResetLoading] = useState(false)
   const [resetError,setResetError]     = useState('')
   const [showPassword,setShowPassword] = useState(false)
+  const [signupName,setSignupName]     = useState('')
+  const [signupEmail,setSignupEmail]   = useState('')
+  const [signupPass,setSignupPass]     = useState('')
+  const [signupLoading,setSignupLoading] = useState(false)
+  const [signupError,setSignupError]   = useState('')
   const [schoolName,setSchoolName] = useState('Kandit Standard School')
   const [schoolLogo,setSchoolLogo] = useState(null)
   const [acadYear,setAcadYear]     = useState('2026–2027')
@@ -55,6 +60,33 @@ export default function Login({ onLogin }) {
     setView('forgot-sent')
   }
 
+  const signUp = async () => {
+    if (!signupName.trim()) { setSignupError('Please enter your full name.'); return }
+    if (!signupEmail)       { setSignupError('Please enter your email address.'); return }
+    if (signupPass.length < 6) { setSignupError('Password must be at least 6 characters.'); return }
+    setSignupLoading(true); setSignupError('')
+    const { data, error: err } = await supabase.auth.signUp({
+      email: signupEmail.trim(),
+      password: signupPass,
+      options: { data: { full_name: signupName.trim() } }
+    })
+    if (err) { setSignupError(err.message); setSignupLoading(false); return }
+    if (!data?.user?.id) { setSignupError('Account created but could not get user ID. Please sign in.'); setSignupLoading(false); return }
+    // Upsert profile BEFORE onAuthStateChange triggers App.jsx loadAll
+    const { error: profErr } = await supabase.from('profiles').upsert({
+      id:        data.user.id,
+      full_name: signupName.trim(),
+      email:     signupEmail.trim(),
+      role:      'superadmin',
+      locked:    false,
+      // school_id intentionally null — SchoolSetup wizard will set it
+    })
+    if (profErr) { setSignupError('Account created but profile setup failed: ' + profErr.message); setSignupLoading(false); return }
+    // Don't call onLogin — onAuthStateChange in App.jsx fires automatically
+    // and loadAll will fetch the profile we just created above
+    setSignupLoading(false)
+  }
+
   const features = [
     { icon: '🎓', title: 'Grades & Assessments', desc: 'Flexible components, weighted scoring, term reports' },
     { icon: '📋', title: 'Attendance Tracking',  desc: 'Daily batch entry with real-time class summaries' },
@@ -67,7 +99,7 @@ export default function Login({ onLogin }) {
       {/* Left — login form */}
       <div
         style={{ flex: isMobile ? '1' : '0 0 520px', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? '40px 28px' : '60px', position: 'relative', zIndex: 1, minHeight: '100vh' }}
-        onKeyDown={e => { if (e.key !== 'Enter') return; if (view === 'login') attempt(); else if (view === 'forgot') sendReset() }}
+        onKeyDown={e => { if (e.key !== 'Enter') return; if (view === 'login') attempt(); else if (view === 'signup') signUp(); else if (view === 'forgot') sendReset() }}
       >
         <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)', backgroundSize: '40px 40px', opacity: 0.3, maskImage: 'radial-gradient(ellipse at center,black 40%,transparent 80%)' }}/>
         <div className='fu' style={{ position: 'relative' }}>
@@ -82,14 +114,16 @@ export default function Login({ onLogin }) {
           </div>
 
           <h1 className='d' style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.1, marginBottom: 12 }}>
-            {view === 'login' ? <>Welcome<br/>back.</> : view === 'forgot-sent' ? 'Link sent.' : <>Reset<br/>password.</>}
+            {view === 'login' ? <>Welcome<br/>back.</> : view === 'signup' ? <>Create<br/>account.</> : view === 'forgot-sent' ? 'Link sent.' : <>Reset<br/>password.</>}
           </h1>
           <p style={{ color: 'var(--mist2)', fontSize: 14, marginBottom: 40, lineHeight: 1.6 }}>
             {view === 'login'
               ? <>Sign in to access your dashboard<br/>and manage student records.</>
-              : view === 'forgot'
-                ? "Enter your email and we'll send a reset link."
-                : 'Check your email for the reset link.'}
+              : view === 'signup'
+                ? 'Set up your school in under a minute.'
+                : view === 'forgot'
+                  ? "Enter your email and we'll send a reset link."
+                  : 'Check your email for the reset link.'}
           </p>
 
           {/* LOGIN VIEW */}
@@ -127,6 +161,62 @@ export default function Login({ onLogin }) {
                   onMouseEnter={e => { e.target.style.color = 'var(--gold)'; e.target.style.textDecorationColor = 'var(--gold)' }}
                   onMouseLeave={e => { e.target.style.color = 'var(--mist3)'; e.target.style.textDecorationColor = 'transparent' }}
                 >Forgot your password?</button>
+              </div>
+              <div style={{ marginTop: 12, textAlign: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--mist3)' }}>New school? </span>
+                <button onClick={() => { setView('signup'); setSignupError('') }}
+                  style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 12, cursor: 'pointer', fontWeight: 600, padding: 0, textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'all 0.15s' }}
+                  onMouseEnter={e => e.target.style.textDecorationColor = 'var(--gold)'}
+                  onMouseLeave={e => e.target.style.textDecorationColor = 'transparent'}
+                >Create an account →</button>
+              </div>
+            </>
+          )}
+
+          {/* SIGNUP VIEW */}
+          {view === 'signup' && (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--mist2)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, fontFamily: "'Clash Display',sans-serif" }}>Full Name <span style={{ color: 'var(--rose)' }}>*</span></div>
+                <input
+                  value={signupName} onChange={e => setSignupName(e.target.value)}
+                  placeholder='Your full name' autoFocus
+                  style={{ width: '100%', background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--white)', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = '0 0 0 3px rgba(232,184,75,0.08)' }}
+                  onBlur={e  => { e.target.style.borderColor = 'var(--line)'; e.target.style.boxShadow = 'none' }}
+                />
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--mist2)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, fontFamily: "'Clash Display',sans-serif" }}>Email Address <span style={{ color: 'var(--rose)' }}>*</span></div>
+                <input
+                  value={signupEmail} onChange={e => setSignupEmail(e.target.value)}
+                  type='email' placeholder='you@school.edu'
+                  style={{ width: '100%', background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--white)', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = '0 0 0 3px rgba(232,184,75,0.08)' }}
+                  onBlur={e  => { e.target.style.borderColor = 'var(--line)'; e.target.style.boxShadow = 'none' }}
+                />
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--mist2)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, fontFamily: "'Clash Display',sans-serif" }}>Password <span style={{ color: 'var(--rose)' }}>*</span></div>
+                <input
+                  value={signupPass} onChange={e => setSignupPass(e.target.value)}
+                  type='password' placeholder='Min. 6 characters'
+                  onKeyDown={e => e.key === 'Enter' && signUp()}
+                  style={{ width: '100%', background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--white)', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = '0 0 0 3px rgba(232,184,75,0.08)' }}
+                  onBlur={e  => { e.target.style.borderColor = 'var(--line)'; e.target.style.boxShadow = 'none' }}
+                />
+              </div>
+              {signupError && <div style={{ background: 'rgba(240,107,122,0.08)', border: '1px solid rgba(240,107,122,0.25)', borderRadius: 'var(--r-sm)', padding: '11px 14px', fontSize: 13, color: 'var(--rose)', marginBottom: 16 }}>{signupError}</div>}
+              <Btn onClick={signUp} disabled={signupLoading} style={{ width: '100%', justifyContent: 'center', padding: 13, fontSize: 14, boxShadow: signupLoading ? 'none' : '0 4px 20px rgba(232,184,75,0.25)' }}>
+                {signupLoading ? <><Spinner/> Creating account...</> : 'Create Account →'}
+              </Btn>
+              <div style={{ marginTop: 20, textAlign: 'center' }}>
+                <button onClick={() => { setView('login'); setSignupError('') }}
+                  style={{ background: 'none', border: 'none', color: 'var(--mist3)', fontSize: 12, cursor: 'pointer', padding: 0 }}
+                  onMouseEnter={e => e.target.style.color = 'var(--mist)'}
+                  onMouseLeave={e => e.target.style.color = 'var(--mist3)'}
+                >← Back to sign in</button>
               </div>
             </>
           )}
