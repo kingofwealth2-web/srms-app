@@ -46,7 +46,7 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
   }
   const del = async id=>{
     if(!confirm('Remove this record?'))return
-    const {error}=await supabase.from('behaviour').delete().eq('id',id)
+    const {error}=await supabase.from('behaviour').delete().eq('id',id).eq('school_id',profile?.school_id)
     if(error)toast(error.message,'error')
     else{const rec=behaviour.find(x=>x.id===id);const s=students.find(x=>x.id===rec?.student_id);setData(p=>({...p,behaviour:p.behaviour.filter(b=>b.id!==id)}));auditLog(profile,'Behaviour','Deleted',`${s?.first_name} ${s?.last_name} · ${rec?.type} · ${rec?.title}`,{},rec,null);toast('Record removed')}
   }

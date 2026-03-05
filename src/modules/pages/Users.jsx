@@ -48,7 +48,7 @@ export default function Users({profile,toast}) {
       // If switching away from class teacher, unlink from class
       if(edit.role==='classteacher' && form.role!=='classteacher'){
         await supabase.from('profiles').update({class_id:null}).eq('id',edit.id)
-        await supabase.from('classes').update({class_teacher_id:null}).eq('class_teacher_id',edit.id)
+        await supabase.from('classes').update({class_teacher_id:null}).eq('class_teacher_id',edit.id).eq('school_id',profile?.school_id)
       }
       // Re-fetch from DB to confirm the change actually saved
       const {data:refreshed} = await supabase.from('profiles').select('*').eq('id',edit.id).single()

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import Btn from '../components/Btn'
@@ -20,28 +20,19 @@ export default function Login({ onLogin }) {
   const [signupPass,setSignupPass]     = useState('')
   const [signupLoading,setSignupLoading] = useState(false)
   const [signupError,setSignupError]   = useState('')
-  const [schoolName,setSchoolName] = useState('Kandit Standard School')
+  const schoolName = 'SRMS'
   const [schoolLogo,setSchoolLogo] = useState(null)
   const [acadYear,setAcadYear]     = useState('2026–2027')
   const isMobile = useIsMobile()
 
-  useEffect(() => {
-    supabase.from('settings').select('school_name,school_logo,academic_year').limit(1).single()
-      .then(({ data }) => {
-        if (data?.school_name) setSchoolName(data.school_name)
-        if (data?.school_logo) setSchoolLogo(data.school_logo)
-        if (data?.academic_year) setAcadYear(data.academic_year)
-      })
-  }, [])
+
 
   const attempt = async () => {
     if (!email || !password) { setError('Please enter your email and password.'); return }
     setLoading(true); setError('')
     const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
-    console.log('AUTH RESULT:', data, err)
     if (err) { setError(err.message); setLoading(false); return }
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single()
-    console.log('PROFILE RESULT:', profile);
     if (profile?.locked) {
       await supabase.auth.signOut()
       setError('Your account has been locked. Please contact your administrator.')

@@ -33,12 +33,12 @@ export default function Announcements({profile,data,setData,toast,activeYear,isV
   }
   const toggle = async id=>{
     const ann=announcements.find(a=>a.id===id)
-    await supabase.from('announcements').update({active:!ann.active}).eq('id',id)
+    await supabase.from('announcements').update({active:!ann.active}).eq('id',id).eq('school_id',profile?.school_id)
     setData(p=>({...p,announcements:p.announcements.map(a=>a.id===id?{...a,active:!a.active}:a)}))
   }
   const del = async id=>{
     if(!confirm('Delete this announcement?'))return
-    await supabase.from('announcements').delete().eq('id',id)
+    await supabase.from('announcements').delete().eq('id',id).eq('school_id',profile?.school_id)
     setData(p=>({...p,announcements:p.announcements.filter(a=>a.id!==id)}))
     toast('Announcement deleted')
   }
