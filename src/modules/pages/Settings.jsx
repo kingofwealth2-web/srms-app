@@ -27,17 +27,21 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
   const canAdmin = ['superadmin','admin'].includes(profile?.role)
 
-  // Re-sync form when settings prop updates (e.g. loaded after first mount)
+  // Re-sync form when settings content changes (e.g. after save, or loaded after mount)
   useEffect(()=>{
     if(!settings?.id) return
     setForm(prev => {
-      if(prev.id === settings.id) return prev
+      // Only overwrite if grade_components or grading_scale actually changed in DB
+      // This preserves unsaved edits for other fields while correcting grade config
+      const gradeChanged = JSON.stringify(prev.grade_components) !== JSON.stringify(settings.grade_components)
+      const scaleChanged = JSON.stringify(prev.grading_scale)    !== JSON.stringify(settings.grading_scale)
+      if(prev.id === settings.id && !gradeChanged && !scaleChanged) return prev
       const base = JSON.parse(JSON.stringify(settings))
       if(!base.grading_scale||base.grading_scale.length===0)
         base.grading_scale = JSON.parse(JSON.stringify(DEFAULT_GRADING_SCALE))
       return base
     })
-  },[settings?.id])
+  },[settings])
 
   const gradeComponents = form.grade_components || DEFAULT_GRADE_COMPONENTS
   const activeComps = gradeComponents.filter(c=>c.enabled)
@@ -73,7 +77,9 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       auditLog(profile,'Settings','Updated',desc,{},settingsBefore,settingsAfter)
       // Re-fetch from DB to confirm what was actually written
       const {data: freshSettings} = await supabase.from('settings').select('*').eq('id',form.id).single()
-      setSettings(freshSettings || payload)
+      const saved = freshSettings || payload
+      setSettings(saved)
+      setForm(JSON.parse(JSON.stringify(saved)))
       toast('Settings saved')
     }
     setSaving(false)
