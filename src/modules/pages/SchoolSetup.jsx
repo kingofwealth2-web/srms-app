@@ -9,7 +9,7 @@ import Spinner from '../components/Spinner'
 
 const STEP_LABELS = ['Your School', 'Academic Setup']
 
-export default function SchoolSetup({ profile, onComplete }) {
+export default function SchoolSetup({ profile, onComplete, onCancel }) {
   const [step, setStep]     = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
@@ -96,7 +96,13 @@ export default function SchoolSetup({ profile, onComplete }) {
   }
 
   return (
-    <div style={styles.overlay}>
+    <div style={styles.overlay} className='srms-setup-overlay'>
+      <style>{`
+        .srms-setup-overlay::-webkit-scrollbar { width: 6px; }
+        .srms-setup-overlay::-webkit-scrollbar-track { background: transparent; }
+        .srms-setup-overlay::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 3px; }
+        .srms-setup-overlay::-webkit-scrollbar-thumb:hover { background: var(--mist3); }
+      `}</style>
       <div style={styles.card}>
 
         {/* Header */}
@@ -240,6 +246,15 @@ export default function SchoolSetup({ profile, onComplete }) {
             </button>
           </div>
         )}
+
+        {step < 2 && (
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <button onClick={onCancel} style={{ background: 'none', border: 'none', color: 'var(--mist3)', fontSize: 12, cursor: 'pointer', padding: 0 }}
+              onMouseEnter={e => e.target.style.color = 'var(--mist)'}
+              onMouseLeave={e => e.target.style.color = 'var(--mist3)'}
+            >← Back to sign in</button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -265,8 +280,12 @@ const styles = {
   overlay: {
     position: 'fixed', inset: 0, zIndex: 9999,
     background: 'var(--ink)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    padding: 20,
+    display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+    padding: '24px 20px',
+    overflowY: 'auto',
+    // Custom scrollbar
+    scrollbarWidth: 'thin',
+    scrollbarColor: 'var(--line2) transparent',
   },
   card: {
     width: '100%', maxWidth: 480,
@@ -275,6 +294,7 @@ const styles = {
     borderRadius: 'var(--r)',
     padding: '40px 36px',
     boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
+    margin: 'auto',
   },
   header: { marginBottom: 32, textAlign: 'center' },
   logo: {
