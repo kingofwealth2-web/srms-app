@@ -38,8 +38,10 @@ export default function Login({ onLogin }) {
     if (!email || !password) { setError('Please enter your email and password.'); return }
     setLoading(true); setError('')
     const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
+    console.log('AUTH RESULT:', data, err)
     if (err) { setError(err.message); setLoading(false); return }
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single()
+    console.log('PROFILE RESULT:', profile);
     if (profile?.locked) {
       await supabase.auth.signOut()
       setError('Your account has been locked. Please contact your administrator.')
