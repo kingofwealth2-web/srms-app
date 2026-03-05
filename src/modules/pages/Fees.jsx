@@ -364,7 +364,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const saveFee = async ()=>{
     if(!form.student_id||!form.amount)return
     setSaving(true)
-    const {data:row,error}=await supabase.from('fees').insert({school_id:profile?.school_id,student_id:form.student_id,fee_type:form.fee_type,amount:parseFloat(form.amount),paid:0,due_date:form.due_date,period:form.period||null,academic_year:activeYear}).select().single()
+    const {data:row,error}=await supabase.from('fees').insert({school_id:profile?.school_id,student_id:form.student_id,fee_type:form.fee_type,amount:parseFloat(form.amount),paid:0,due_date:form.due_date||null,period:form.period||null,academic_year:activeYear}).select().single()
     if(error)toast(error.message,'error')
     else{setData(p=>({...p,fees:[...p.fees,row]}));const s=students.find(x=>x.id===form.student_id);auditLog(profile,'Fees','Created',`${s?.first_name} ${s?.last_name} · ${form.fee_type} · ${fmtMoney(parseFloat(form.amount),currency)}`,{},null,row);toast('Fee record added');setModal(false)}
     setSaving(false)
@@ -372,7 +372,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
   const delFee = async id=>{
     if(!confirm('Remove this fee record? This cannot be undone.'))return
-    const {error}=await supabase.from('fees').delete().eq('id',id)
+    const {error}=await supabase.from('fees').delete().eq('id',id).eq('school_id',profile?.school_id)
     if(error)toast(error.message,'error')
     else{const fee=fees.find(x=>x.id===id);const s=students.find(x=>x.id===fee?.student_id);setData(p=>({...p,fees:p.fees.filter(f=>f.id!==id),payments:p.payments.filter(p=>p.fee_id!==id)}));auditLog(profile,'Fees','Deleted',`${s?.first_name} ${s?.last_name} · ${fee?.fee_type}`,{},fee,null);toast('Fee record removed')}
   }
@@ -413,7 +413,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     }).select().single()
     if(payErr){ toast(payErr.message,'error'); return }
     // Update cumulative paid on fee record
-    const {error:feeErr} = await supabase.from('fees').update({paid:newCumPaid, receipt_no:rcpt}).eq('id',editFee.id)
+    const {error:feeErr} = await supabase.from('fees').update({paid:newCumPaid, receipt_no:rcpt}).eq('id',editFee.id).eq('school_id',profile?.school_id)
     if(feeErr){ toast(feeErr.message,'error'); return }
     const updatedFee = {...editFee, paid:newCumPaid, receipt_no:rcpt}
     setData(p=>({
@@ -826,7 +826,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           <Field label='Fee Type' value={form.fee_type} onChange={f('fee_type')} placeholder='e.g. Tuition, Activity Fee' required/>
           <Field label='Period' value={form.period} onChange={f('period')} options={feePeriods.map(p=>({value:p,label:p}))}/>
           <Field label='Amount' value={form.amount} onChange={f('amount')} type='number' required/>
-          <Field label='Due Date' value={form.due_date} onChange={f('due_date')} type='date'/>
+          <Field label='Due Date (optional)' value={form.due_date} onChange={f('due_date')} type='date'/>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
             <Btn onClick={saveFee} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save'}</Btn>
