@@ -164,11 +164,11 @@ export default function App() {
     if (!newYearTarget) return
     setNewYearWorking(true)
     try {
-      await supabase.from('attendance').update({ academic_year: activeYear }).is('academic_year', null)
-      await supabase.from('fees').update({ academic_year: activeYear }).is('academic_year', null)
-      await supabase.from('behaviour').update({ academic_year: activeYear }).is('academic_year', null)
-      await supabase.from('announcements').update({ academic_year: activeYear }).is('academic_year', null)
-      await supabase.from('grades').update({ year: activeYear }).is('year', null)
+      await supabase.from('attendance').update({ academic_year: activeYear }).is('academic_year', null).eq('school_id', profile.school_id)
+      await supabase.from('fees').update({ academic_year: activeYear }).is('academic_year', null).eq('school_id', profile.school_id)
+      await supabase.from('behaviour').update({ academic_year: activeYear }).is('academic_year', null).eq('school_id', profile.school_id)
+      await supabase.from('announcements').update({ academic_year: activeYear }).is('academic_year', null).eq('school_id', profile.school_id)
+      await supabase.from('grades').update({ year: activeYear }).is('year', null).eq('school_id', profile.school_id)
 
       const activeStudents = data.students.filter(s => !s.archived && s.class_id)
       if (activeStudents.length > 0) {
@@ -190,7 +190,7 @@ export default function App() {
       }
 
       await supabase.from('students').update({ entry_year: activeYear }).is('entry_year', null).eq('school_id', profile.school_id)
-      await supabase.from('settings').update({ academic_year: newYearTarget }).eq('id', settings.id)
+      await supabase.from('settings').update({ academic_year: newYearTarget }).eq('id', settings.id).eq('school_id', profile.school_id)
 
       setSettings(p => ({ ...p, academic_year: newYearTarget }))
       setSelectedYear(null)
