@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, CURRENCIES, GHANA_PUBLIC_HOLIDAYS } from '../lib/constants'
@@ -42,6 +42,9 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
   const gradeComponents = form.grade_components || DEFAULT_GRADE_COMPONENTS
   const activeComps = gradeComponents.filter(c=>c.enabled)
   const totalWeight = activeComps.reduce((a,c)=>a+c.weight,0)
+  // Keep a ref so the save closure always reads the latest grade_components
+  const gradeComponentsRef = React.useRef(gradeComponents)
+  gradeComponentsRef.current = gradeComponents
 
   const save = async () => {
     if(!form.id){ toast('Settings not loaded yet — please wait and try again.','error'); return }
@@ -50,7 +53,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       setTimeout(()=>setWeightWarning(false),4000)
     }
     setSaving(true)
-    const payload = {...form, grade_components: gradeComponents}
+    const payload = {...form, grade_components: gradeComponentsRef.current}
     const {error} = await supabase.from('settings').update(payload).eq('id',form.id).eq('school_id',profile?.school_id)
     if(error) toast(error.message,'error')
     else {
@@ -68,7 +71,9 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       const {school_logo:_bl,...settingsBefore} = settings||{}
       const {school_logo:_al,...settingsAfter}  = payload
       auditLog(profile,'Settings','Updated',desc,{},settingsBefore,settingsAfter)
-      setSettings(payload)
+      // Re-fetch from DB to confirm what was actually written
+      const {data: freshSettings} = await supabase.from('settings').select('*').eq('id',form.id).single()
+      setSettings(freshSettings || payload)
       toast('Settings saved')
     }
     setSaving(false)
@@ -98,21 +103,27 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
   const removeGradeRow = (i) => setForm(p=>({...p, grading_scale:(p.grading_scale||[]).filter((_,idx)=>idx!==i)}))
 
   const updComponent = (i,k,v) => {
-    const comps = [...gradeComponents]
-    comps[i] = {...comps[i],[k]: k==='label'?v : k==='enabled'?v : parseFloat(v)||0}
-    setForm(p=>({...p,grade_components:comps}))
+    setForm(p => {
+      const comps = [...(p.grade_components || DEFAULT_GRADE_COMPONENTS)]
+      comps[i] = {...comps[i],[k]: k==='label'?v : k==='enabled'?v : parseFloat(v)||0}
+      return {...p, grade_components: comps}
+    })
   }
 
   const handleToggle = async (i) => {
-    const comps = [...gradeComponents]
-    const wasEnabled = comps[i].enabled
-    comps[i] = {...comps[i], enabled: !wasEnabled}
-    setForm(p=>({...p,grade_components:comps}))
+    let key, label, wasEnabled
+    setForm(p => {
+      const comps = [...(p.grade_components || DEFAULT_GRADE_COMPONENTS)]
+      wasEnabled = comps[i].enabled
+      key = comps[i].key
+      label = comps[i].label
+      comps[i] = {...comps[i], enabled: !wasEnabled}
+      return {...p, grade_components: comps}
+    })
     if(wasEnabled) {
-      const key = comps[i].key
       await supabase.from('grades').update({[key]:0}).eq('school_id', profile?.school_id)
-      auditLog(profile,'Settings','Updated',`Grade component disabled & scores cleared: ${comps[i].label}`,{component:comps[i].label},null,null)
-      toast(`${comps[i].label} disabled -- all scores cleared`)
+      auditLog(profile,'Settings','Updated',`Grade component disabled & scores cleared: ${label}`,{component:label},null,null)
+      toast(`${label} disabled -- all scores cleared`)
     }
   }
 
