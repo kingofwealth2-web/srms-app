@@ -40,7 +40,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
   const [saving,setSaving] = useState(false)
   const fc = k=>v=>setCf(p=>({...p,[k]:v}))
   const fs = k=>v=>setSf(p=>({...p,[k]:v}))
-  useEffect(()=>{ supabase.from('profiles').select('*').then(({data})=>{ if(data) setAllUsers(data) }) },[])
+  useEffect(()=>{ if(!profile?.school_id) return; supabase.from('profiles').select('*').eq('school_id',profile.school_id).then(({data})=>{ if(data) setAllUsers(data) }) },[profile?.school_id])
   const teachers = allUsers.filter(u=>u.role==='classteacher')
   // Both subject teachers AND class teachers can be assigned to subjects
   const subjectTeachers = allUsers.filter(u=>u.role==='teacher'||u.role==='classteacher')
@@ -51,7 +51,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     if(hasStudents){toast('Cannot delete -- this class has students assigned to it.','error');return}
     if(hasSubjects){toast('Cannot delete -- this class has subjects. Remove them first.','error');return}
     if(!confirm('Delete "'+cls.name+'"? This cannot be undone.')) return
-    const {error}=await supabase.from('classes').delete().eq('id',cls.id)
+    const {error}=await supabase.from('classes').delete().eq('id',cls.id).eq('school_id',profile?.school_id)
     if(error){toast(error.message,'error');return}
     if(cls.class_teacher_id)
       await supabase.from('profiles').update({class_id:null}).eq('id',cls.class_teacher_id)
@@ -78,7 +78,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     const [moved]   = reordered.splice(dragging, 1)
     reordered.splice(idx, 0, moved)
     // Save new sort_order
-    const updates = reordered.map((c,i)=>supabase.from('classes').update({sort_order:i}).eq('id',c.id))
+    const updates = reordered.map((c,i)=>supabase.from('classes').update({sort_order:i}).eq('id',c.id).eq('school_id',profile?.school_id))
     await Promise.all(updates)
     setData(p=>({...p, classes: p.classes.map(c=>{ const idx=reordered.findIndex(r=>r.id===c.id); return idx>=0?{...c,sort_order:idx}:c })}))
     setDragging(null)
@@ -126,9 +126,9 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     const enrolmentRows = bulkStudents.map(p=>({school_id:profile?.school_id,student_id:p.student.id,class_id:p.fromClass.id,academic_year:activeYear}))
     await supabase.from('student_year_enrolment').upsert(enrolmentRows,{onConflict:'school_id,student_id,academic_year'})
     for(const p of toPromote)
-      await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id)
+      await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id).eq('school_id',profile?.school_id)
     for(const p of toGraduate)
-      await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id)
+      await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id).eq('school_id',profile?.school_id)
     const destMap     = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
     const gradIds     = toGraduate.map(p=>p.student.id)
     const promoteIds  = toPromote.map(p=>p.student.id)
@@ -162,9 +162,9 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     // Upsert — avoid duplicates
     await supabase.from('student_year_enrolment').upsert(enrolmentRows, {onConflict:'school_id,student_id,academic_year'})
     for(const p of toPromote)
-      await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id)
+      await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id).eq('school_id',profile?.school_id)
     for(const p of toGraduate)
-      await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id)
+      await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id).eq('school_id',profile?.school_id)
     const promotedIds  = toPromote.map(p=>p.student.id)
     const graduatedIds = toGraduate.map(p=>p.student.id)
     const destMap      = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
@@ -186,7 +186,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     const newTeacherId = cf.class_teacher_id||null
     const payload = {name:cleanName, class_teacher_id:newTeacherId, is_terminal:!!cf.is_terminal}
     if(editC){
-      const {error}=await supabase.from('classes').update(payload).eq('id',editC.id)
+      const {error}=await supabase.from('classes').update(payload).eq('id',editC.id).eq('school_id',profile?.school_id)
       if(error){toast(error.message,'error');setSaving(false);return}
       const oldTeacherId = editC.class_teacher_id
       if(oldTeacherId && oldTeacherId!==newTeacherId)
@@ -211,7 +211,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
   const saveSubject = async ()=>{
     if(!sf.name||!sf.class_id)return; setSaving(true)
     if(editS){
-      const {error}=await supabase.from('subjects').update({...sf,teacher_id:sf.teacher_id||null}).eq('id',editS.id)
+      const {error}=await supabase.from('subjects').update({...sf,teacher_id:sf.teacher_id||null}).eq('id',editS.id).eq('school_id',profile?.school_id)
       if(error)toast(error.message,'error')
       else{setData(p=>({...p,subjects:p.subjects.map(s=>s.id===editS.id?{...s,...sf,teacher_id:sf.teacher_id||null}:s)}));toast('Subject updated');setSubjectModal(false)}
     } else {
@@ -225,8 +225,8 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     if(!confirm(`Delete "${sub.name}"? This will also remove all grade records for this subject.`)) return
     setSaving(true)
     // Delete associated grades first
-    await supabase.from('grades').delete().eq('subject_id', sub.id)
-    const {error} = await supabase.from('subjects').delete().eq('id', sub.id)
+    await supabase.from('grades').delete().eq('subject_id', sub.id).eq('school_id', profile?.school_id)
+    const {error} = await supabase.from('subjects').delete().eq('id', sub.id).eq('school_id', profile?.school_id)
     if(error) toast(error.message,'error')
     else {
       setData(p=>({...p,

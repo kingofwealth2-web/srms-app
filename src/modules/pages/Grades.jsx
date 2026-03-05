@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, LETTER_COLOR } from '../lib/constants'
-import { calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, fmtDate, csvEscape } from '../lib/helpers'
+import { calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, fmtDate, csvEscape, ALL_COMPONENTS } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -137,7 +137,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
     const g = gClean
     setSaving(true)
     if(edit){
-      const {error}=await supabase.from('grades').update(g).eq('id',edit.id)
+      const {error}=await supabase.from('grades').update(g).eq('id',edit.id).eq('school_id',profile?.school_id)
       if(error)toast(error.message,'error')
       else{
         setData(p=>({...p,grades:p.grades.map(x=>x.id===edit.id?{...x,...g}:x)}))
@@ -289,7 +289,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
         ...scores,
       }
       if(row.existingId){
-        const {error} = await supabase.from('grades').update(payload).eq('id',row.existingId)
+        const {error} = await supabase.from('grades').update(payload).eq('id',row.existingId).eq('school_id',profile?.school_id)
         if(!error){
           const idx = updatedGrades.findIndex(g=>g.id===row.existingId)
           if(idx>-1) updatedGrades[idx]={...updatedGrades[idx],...payload}
