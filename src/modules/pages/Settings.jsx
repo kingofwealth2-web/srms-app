@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, CURRENCIES, GHANA_PUBLIC_HOLIDAYS } from '../lib/constants'
@@ -27,28 +27,10 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
   const canAdmin = ['superadmin','admin'].includes(profile?.role)
 
-  // Re-sync form when settings content changes (e.g. after save, or loaded after mount)
-  useEffect(()=>{
-    if(!settings?.id) return
-    setForm(prev => {
-      // Only overwrite if grade_components or grading_scale actually changed in DB
-      // This preserves unsaved edits for other fields while correcting grade config
-      const gradeChanged = JSON.stringify(prev.grade_components) !== JSON.stringify(settings.grade_components)
-      const scaleChanged = JSON.stringify(prev.grading_scale)    !== JSON.stringify(settings.grading_scale)
-      if(prev.id === settings.id && !gradeChanged && !scaleChanged) return prev
-      const base = JSON.parse(JSON.stringify(settings))
-      if(!base.grading_scale||base.grading_scale.length===0)
-        base.grading_scale = JSON.parse(JSON.stringify(DEFAULT_GRADING_SCALE))
-      return base
-    })
-  },[settings])
 
   const gradeComponents = form.grade_components || DEFAULT_GRADE_COMPONENTS
   const activeComps = gradeComponents.filter(c=>c.enabled)
   const totalWeight = activeComps.reduce((a,c)=>a+c.weight,0)
-  // Keep a ref so the save closure always reads the latest grade_components
-  const gradeComponentsRef = React.useRef(gradeComponents)
-  gradeComponentsRef.current = gradeComponents
 
   const save = async () => {
     if(!form.id){ toast('Settings not loaded yet — please wait and try again.','error'); return }
@@ -57,7 +39,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       setTimeout(()=>setWeightWarning(false),4000)
     }
     setSaving(true)
-    const payload = {...form, grade_components: gradeComponentsRef.current}
+    const payload = {...form, grade_components: gradeComponents}
     const {error} = await supabase.from('settings').update(payload).eq('id',form.id).eq('school_id',profile?.school_id)
     if(error) toast(error.message,'error')
     else {
@@ -75,11 +57,8 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       const {school_logo:_bl,...settingsBefore} = settings||{}
       const {school_logo:_al,...settingsAfter}  = payload
       auditLog(profile,'Settings','Updated',desc,{},settingsBefore,settingsAfter)
-      // Re-fetch from DB to confirm what was actually written
-      const {data: freshSettings} = await supabase.from('settings').select('*').eq('id',form.id).single()
-      const saved = freshSettings || payload
-      setSettings(saved)
-      setForm(JSON.parse(JSON.stringify(saved)))
+      setSettings(payload)
+      setForm(JSON.parse(JSON.stringify(payload)))
       toast('Settings saved')
     }
     setSaving(false)
