@@ -117,12 +117,10 @@ export default function App() {
     setLoading(true)
     const loadAll = async () => {
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
-      const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', prof?.school_id).single()
-      setProfile(prof)
-      setSettings(settingsRow)
+
+      // Handle missing profile (edge case: signup upsert failed)
+      let resolvedProf = prof
       if (!prof && session?.user) {
-        // New user — profile wasn't created yet (edge case if signup upsert failed)
-        // Use role from user metadata if available, default to superadmin for new signups
         const metaRole = session.user.user_metadata?.role || 'superadmin'
         const { data: newProf } = await supabase.from('profiles').upsert({
           id: session.user.id,
@@ -131,9 +129,25 @@ export default function App() {
           role: metaRole,
           locked: false,
         }).select().single()
-        setProfile(newProf)
+        resolvedProf = newProf
       }
-      await loadData(selectedYear, prof, settingsRow)
+      setProfile(resolvedProf)
+
+      // Only fetch settings once we have a confirmed school_id
+      let settingsRow = null
+      if (resolvedProf?.school_id) {
+        const { data, error } = await supabase.from('settings').select('*').eq('school_id', resolvedProf.school_id).single()
+        if (!error && data) {
+          settingsRow = data
+        } else {
+          // Retry once — occasional RLS latency on first login
+          const { data: retry } = await supabase.from('settings').select('*').eq('school_id', resolvedProf.school_id).single()
+          settingsRow = retry || null
+        }
+      }
+      setSettings(settingsRow)
+
+      await loadData(selectedYear, resolvedProf, settingsRow)
       setLoading(false)
     }
     loadAll()
