@@ -12,17 +12,9 @@ export default function ResetPassword({ onDone }) {
   const [success,setSuccess] = useState(false)
   const isMobile = useIsMobile()
 
-  const [schoolName,setSchoolName] = useState('Kandit Standard School')
-  const [schoolLogo,setSchoolLogo] = useState(null)
+  const schoolName = 'SRMS'
+  const schoolLogo = null
   const timerRef = useRef(null)
-
-  useEffect(() => {
-    supabase.from('settings').select('school_name,school_logo').limit(1).single()
-      .then(({ data }) => {
-        if (data?.school_name) setSchoolName(data.school_name)
-        if (data?.school_logo) setSchoolLogo(data.school_logo)
-      })
-  }, [])
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
 

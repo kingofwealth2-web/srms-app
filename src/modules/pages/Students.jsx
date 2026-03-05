@@ -110,7 +110,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     if(!form.guardian_name||!form.guardian_phone){toast('Please add at least one parent or guardian with a name and phone number','error');return}
     setSaving(true)
     if(edit){
-      const {error} = await supabase.from('students').update({...form,updated_at:new Date()}).eq('id',edit.id)
+      const {error} = await supabase.from('students').update({...form,updated_at:new Date()}).eq('id',edit.id).eq('school_id',profile?.school_id)
       if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));auditLog(profile,'Students','Updated',`${form.first_name} ${form.last_name}`,{},{...edit},{...form});toast('Student updated');setModal(false)}
     } else {
       const sid = genSID(students)
