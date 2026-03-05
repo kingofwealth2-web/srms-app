@@ -476,7 +476,6 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       a.click()
       URL.revokeObjectURL(url)
     } catch(e){
-      console.error(e)
       toast('Export failed. Please try again.','error')
     }
   }

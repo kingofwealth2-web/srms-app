@@ -73,7 +73,6 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
       a.click()
       URL.revokeObjectURL(url)
     } catch(e){
-      console.error(e)
       toast('Export failed. Please try again.','error')
     }
   }

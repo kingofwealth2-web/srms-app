@@ -117,7 +117,6 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
       a.click()
       URL.revokeObjectURL(url)
     } catch(e){
-      console.error(e)
       toast('Export failed. Please try again.','error')
     }
   }

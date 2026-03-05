@@ -43,7 +43,7 @@ export default function Users({profile,toast}) {
     if(!form.full_name||!form.email)return
     setSaving(true)
     if(edit){
-      const {error} = await supabase.from('profiles').update({full_name:form.full_name,email:form.email,role:form.role}).eq('id',edit.id)
+      const {error} = await supabase.from('profiles').update({full_name:form.full_name,email:form.email,role:form.role}).eq('id',edit.id).eq('school_id',profile?.school_id)
       if(error){ toast(error.message,'error'); setSaving(false); return }
       // If switching away from class teacher, unlink from class
       if(edit.role==='classteacher' && form.role!=='classteacher'){
@@ -83,7 +83,7 @@ export default function Users({profile,toast}) {
     if(!u) return
     if(u.id===profile?.id){toast('You cannot lock your own account.','error');return}
     if(u.role==='superadmin'){toast('Super Admin accounts cannot be locked.','error');return}
-    const {error} = await supabase.from('profiles').update({locked:!u.locked}).eq('id',id)
+    const {error} = await supabase.from('profiles').update({locked:!u.locked}).eq('id',id).eq('school_id',profile?.school_id)
     if(error){toast('Failed to update -- check Supabase RLS policies.','error');return}
     setUsers(p=>p.map(x=>x.id===id?{...x,locked:!x.locked}:x))
     auditLog(profile,'Users',u.locked?'Unlocked':'Locked',`${u.full_name} · ${u.email}`,{},{...u},null)

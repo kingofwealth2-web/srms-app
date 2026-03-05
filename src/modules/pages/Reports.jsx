@@ -268,7 +268,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
       const url=URL.createObjectURL(blob)
       const a=document.createElement('a'); a.href=url; a.download=filename; a.click()
       URL.revokeObjectURL(url)
-    } catch(e){ console.error(e) }
+    } catch(e){}
   }
 
   const scopeLabel = selectedStudent
@@ -1275,4 +1275,3 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     </div>
   )
 }
-

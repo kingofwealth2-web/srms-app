@@ -175,7 +175,7 @@ export default function App() {
         await supabase.from('fees').insert(arrearRows)
       }
 
-      await supabase.from('students').update({ entry_year: activeYear }).is('entry_year', null)
+      await supabase.from('students').update({ entry_year: activeYear }).is('entry_year', null).eq('school_id', profile.school_id)
       await supabase.from('settings').update({ academic_year: newYearTarget }).eq('id', settings.id)
 
       setSettings(p => ({ ...p, academic_year: newYearTarget }))
