@@ -70,7 +70,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
   const unarchive = async (student, classId) => {
     if(!classId){ toast('Please select a class to re-enrol the student into','error'); return }
     setSaving(true)
-    const {error} = await supabase.from('students').update({archived:false, class_id:classId, graduation_year:null, leaving_reason:null, leaving_notes:null}).eq('id',student.id)
+    const {error} = await supabase.from('students').update({archived:false, class_id:classId, graduation_year:null, leaving_reason:null, leaving_notes:null}).eq('id',student.id).eq('school_id',profile?.school_id)
     if(error){ toast(error.message,'error'); setSaving(false); return }
     setData(p=>({...p, students:p.students.map(s=>s.id===student.id?{...s,archived:false,class_id:classId,graduation_year:null,leaving_reason:null,leaving_notes:null}:s)}))
     auditLog(profile,'Students','Unarchived',`${student.first_name} ${student.last_name} → ${classes.find(c=>c.id===classId)?.name}`,{},{...student},{archived:false,class_id:classId})
@@ -90,7 +90,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
       graduation_year: activeYear,
       leaving_reason: archiveForm.reason,
       leaving_notes: archiveForm.notes||null,
-    }).eq('id', student.id)
+    }).eq('id', student.id).eq('school_id', profile?.school_id)
     if(error){ toast(error.message,'error'); setSaving(false); return }
     setData(p=>({...p, students:p.students.map(s=>s.id===student.id
       ? {...s, archived:true, class_id:null, graduation_year:activeYear, leaving_reason:archiveForm.reason, leaving_notes:archiveForm.notes||null}
@@ -121,7 +121,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
   }
   const del = async id=>{
     if(!confirm('Remove this student?'))return
-    const {error} = await supabase.from('students').delete().eq('id',id)
+    const {error} = await supabase.from('students').delete().eq('id',id).eq('school_id',profile?.school_id)
     if(error)toast(error.message,'error')
     else{const s=students.find(x=>x.id===id);setData(p=>({...p,students:p.students.filter(s=>s.id!==id)}));auditLog(profile,'Students','Deleted',`${s?.first_name} ${s?.last_name}`,{},s||null,null);toast('Student removed')}
   }

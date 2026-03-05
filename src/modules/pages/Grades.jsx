@@ -113,7 +113,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
     if(!edit) return
     if(!confirm('Delete this grade record? This cannot be undone.')) return
     setSaving(true)
-    const {error} = await supabase.from('grades').delete().eq('id', edit.id)
+    const {error} = await supabase.from('grades').delete().eq('id', edit.id).eq('school_id', profile?.school_id)
     if(error) toast(error.message,'error')
     else {
       setData(p=>({...p, grades: p.grades.filter(x=>x.id!==edit.id)}))
@@ -265,7 +265,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
       if(row.skip){
         // If skip is toggled on a previously-existing record, delete it
         if(row.existingId){
-          const {error} = await supabase.from('grades').delete().eq('id',row.existingId)
+          const {error} = await supabase.from('grades').delete().eq('id',row.existingId).eq('school_id',profile?.school_id)
           if(!error){
             const idx = updatedGrades.findIndex(g=>g.id===row.existingId)
             if(idx>-1) updatedGrades.splice(idx,1)

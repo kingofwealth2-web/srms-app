@@ -38,7 +38,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
     }
     setSaving(true)
     const payload = {...form, grade_components: gradeComponents}
-    const {error} = await supabase.from('settings').update(payload).eq('id',form.id)
+    const {error} = await supabase.from('settings').update(payload).eq('id',form.id).eq('school_id',profile?.school_id)
     if(error) toast(error.message,'error')
     else {
       // Build a human-readable summary of what changed
