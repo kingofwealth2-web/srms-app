@@ -14,6 +14,29 @@ import Card from '../components/Card'
 import Avatar from '../components/Avatar'
 import LoadingScreen from '../components/LoadingScreen'
 
+const MODULE_META = {
+  Students:      { icon: '👤', color: 'var(--sky)' },
+  Classes:       { icon: '🏫', color: 'var(--amber)' },
+  Grades:        { icon: '📝', color: 'var(--emerald)' },
+  Attendance:    { icon: '📋', color: 'var(--gold)' },
+  Fees:          { icon: '💳', color: 'var(--rose)' },
+  Payments:      { icon: '💰', color: 'var(--emerald)' },
+  Behaviour:     { icon: '⭐', color: 'var(--amber)' },
+  Announcements: { icon: '📢', color: 'var(--sky)' },
+  Users:         { icon: '👥', color: 'var(--gold)' },
+  Settings:      { icon: '⚙️', color: 'var(--mist2)' },
+}
+
+const ACTION_COLOR = {
+  Created:  'var(--emerald)',
+  Updated:  'var(--sky)',
+  Deleted:  'var(--rose)',
+  Locked:   'var(--rose)',
+  Unlocked: 'var(--emerald)',
+  Marked:   'var(--gold)',
+  'Bulk Promote': 'var(--amber)',
+}
+
 export default function AuditLog({profile}) {
   const [logs, setLogs]         = useState([])
   const [loading, setLoading]   = useState(true)
@@ -24,18 +47,18 @@ export default function AuditLog({profile}) {
   const [users,   setUsers]     = useState([])
 
   useEffect(()=>{
-    // 50 days back
+    if(!profile?.school_id) return
     const cutoff = new Date(Date.now() - 50*24*60*60*1000).toISOString()
     Promise.all([
-      supabase.from('audit_logs').select('*').eq('school_id', profile?.school_id).gte('created_at',cutoff).order('created_at',{ascending:false}).limit(500),
-      supabase.from('profiles').select('id,full_name,email,role').eq('school_id', profile?.school_id)
+      supabase.from('audit_logs').select('*').eq('school_id', profile.school_id).gte('created_at',cutoff).order('created_at',{ascending:false}).limit(500),
+      supabase.from('profiles').select('id,full_name,email,role').eq('school_id', profile.school_id)
     ]).then(([{data:logs,error},{data:users}])=>{
       if(error) console.error(error)
       setLogs(logs||[])
       setUsers(users||[])
       setLoading(false)
     })
-  },[])
+  },[profile?.school_id])
 
   const modules = [...new Set(logs.map(l=>l.module))].sort()
   const filtered = logs.filter(l=>{
