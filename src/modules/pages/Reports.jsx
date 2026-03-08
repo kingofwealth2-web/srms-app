@@ -624,7 +624,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   // Attendance helper
   const getAttendance = (studentId) => {
-    const recs = attendance.filter(a=>a.student_id===studentId)
+    const recs = attendance.filter(a=>a.student_id===studentId && (!a.academic_year || a.academic_year===activeYear))
     const total   = recs.length
     const present = recs.filter(a=>a.status==='Present').length
     const absent  = recs.filter(a=>a.status==='Absent').length
@@ -635,7 +635,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   // Behaviour helper
   const getBehaviour = (studentId) => {
-    const recs = behaviour.filter(b=>b.student_id===studentId)
+    const recs = behaviour.filter(b=>b.student_id===studentId && (!b.academic_year || b.academic_year===activeYear))
     const achievements = recs.filter(b=>b.type==='Achievement').length
     const discipline   = recs.filter(b=>b.type==='Discipline').length
     return {achievements, discipline, total: recs.length}
