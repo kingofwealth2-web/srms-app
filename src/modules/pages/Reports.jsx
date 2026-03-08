@@ -14,6 +14,12 @@ import Card from '../components/Card'
 import DataTable from '../components/DataTable'
 import KPI from '../components/KPI'
 
+const ordinal = n => {
+  if(n===null||n===undefined) return '--'
+  const s=['th','st','nd','rd'], v=n%100
+  return n+(s[(v-20)%10]||s[v]||s[0])
+}
+
 // ── REPORTS ────────────────────────────────────────────────────
 export default function Reports({profile,data,settings,activeYear,isViewingPast}) {
   const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[]} = data
