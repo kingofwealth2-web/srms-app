@@ -1,17 +1,19 @@
 export default function DataTable({ columns, data, onRow }) {
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <div style={{ overflowX: 'auto', marginInline: -2 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 500 }}>
         <thead>
-          <tr style={{ borderBottom: '1px solid var(--line)' }}>
+          <tr>
             {columns.map(c => (
               <th key={c.key} style={{
-                padding: '10px 16px', textAlign: 'left',
-                fontSize: 10, fontWeight: 600, color: 'var(--mist3)',
+                padding: '9px 16px',
+                textAlign: 'left',
+                fontSize: 10, fontWeight: 700, color: 'var(--mist3)',
                 textTransform: 'uppercase', letterSpacing: '0.1em',
                 whiteSpace: 'nowrap',
                 fontFamily: "'Clash Display',sans-serif",
-                background: 'var(--ink3)',
+                borderBottom: '1px solid var(--line)',
+                background: 'transparent',
               }}>{c.label}</th>
             ))}
           </tr>
@@ -20,9 +22,14 @@ export default function DataTable({ columns, data, onRow }) {
           {data.length === 0 && (
             <tr>
               <td colSpan={columns.length} style={{
-                padding: 48, textAlign: 'center',
+                padding: '52px 20px', textAlign: 'center',
                 color: 'var(--mist3)', fontSize: 13,
-              }}>No records found</td>
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontSize: 28, opacity: 0.3 }}>◌</div>
+                  <span>No records found</span>
+                </div>
+              </td>
             </tr>
           )}
           {data.map((row, i) => (
@@ -32,9 +39,12 @@ export default function DataTable({ columns, data, onRow }) {
               style={{
                 borderBottom: '1px solid var(--line)',
                 cursor: onRow ? 'pointer' : 'default',
-                transition: 'background 0.1s',
+                transition: 'background var(--t-snap)',
+                animation: `fadeIn 0.3s ${i * 0.025}s both`,
               }}
-              onMouseEnter={e => { if (onRow) e.currentTarget.style.background = 'var(--ink3)' }}
+              onMouseEnter={e => {
+                if (onRow) e.currentTarget.style.background = 'rgba(255,255,255,0.025)'
+              }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
             >
               {columns.map(c => (
@@ -42,7 +52,7 @@ export default function DataTable({ columns, data, onRow }) {
                   padding: '13px 16px', fontSize: 13,
                   color: 'var(--white)', verticalAlign: 'middle',
                 }}>
-                  {c.render ? c.render(row[c.key], row) : (row[c.key] ?? '--')}
+                  {c.render ? c.render(row[c.key], row) : (row[c.key] ?? '—')}
                 </td>
               ))}
             </tr>

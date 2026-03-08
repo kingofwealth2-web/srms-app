@@ -33,6 +33,28 @@ import MyProfile      from './modules/pages/MyProfile'
 import AuditLog       from './modules/pages/AuditLog'
 import Settings       from './modules/pages/Settings'
 
+// ── Theme Toggle ────────────────────────────────────────────────
+function ThemeToggle({ isDark, onToggle, size = 'md' }) {
+  const w = size === 'sm' ? 44 : 52
+  const h = size === 'sm' ? 24 : 28
+  const d = h - 6
+  return (
+    <button onClick={onToggle} title={isDark ? 'Light mode' : 'Dark mode'} style={{
+      width: w, height: h, borderRadius: h/2,
+      background: isDark ? 'var(--ink5)' : 'rgba(232,184,75,0.15)',
+      border: `1px solid ${isDark ? 'var(--line2)' : 'rgba(232,184,75,0.35)'}`,
+      cursor: 'pointer', position: 'relative',
+      transition: 'background var(--t), border-color var(--t)',
+      flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 3px',
+    }}>
+      <span style={{ position: 'absolute', left: 7, fontSize: size==='sm'?10:11, opacity: isDark?0.35:1, transition: 'opacity 0.2s', lineHeight:1 }}>☀</span>
+      <span style={{ position: 'absolute', right: 7, fontSize: size==='sm'?9:10, opacity: isDark?1:0.3, transition: 'opacity 0.2s', lineHeight:1 }}>🌙</span>
+      <div style={{ width: d, height: d, borderRadius: '50%', background: isDark ? 'var(--mist2)' : 'var(--gold)', boxShadow: isDark ? 'none' : '0 2px 8px rgba(232,184,75,0.4)', transition: 'transform var(--t), background var(--t)', transform: isDark ? `translateX(${w - d - 6}px)` : 'translateX(0)' }}/>
+    </button>
+  )
+}
+
+
 export default function App() {
   const [session,setSession]       = useState(null)
   const [profile,setProfile]       = useState(null)
@@ -255,77 +277,68 @@ export default function App() {
 
           {/* ── Topbar ── */}
           {isMobile ? (
-            <div style={{ flexShrink: 0, borderBottom: '1px solid var(--line)', background: 'var(--ink2)' }}>
-              <div style={{ height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px' }}>
-                <button onClick={() => setDrawerOpen(true)} style={{ width: 40, height: 40, borderRadius: 'var(--r-sm)', background: 'var(--ink4)', border: '1px solid var(--line)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, flexShrink: 0 }}>
-                  <div style={{ width: 18, height: 1.5, background: 'var(--mist2)', borderRadius: 1 }}/>
-                  <div style={{ width: 18, height: 1.5, background: 'var(--mist2)', borderRadius: 1 }}/>
-                  <div style={{ width: 18, height: 1.5, background: 'var(--mist2)', borderRadius: 1 }}/>
+            <div style={{ flexShrink: 0, background: 'var(--ink2)', borderBottom: '1px solid var(--line)' }}>
+              <div style={{ height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', gap: 12 }}>
+                <button onClick={() => setDrawerOpen(true)} style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--ink4)', border: '1px solid var(--line2)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, transition: 'background var(--t-fast)' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--ink5)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'var(--ink4)'}
+                >
+                  {[0,1,2].map(i => <div key={i} style={{ width: 16, height: 1.5, background: 'var(--mist2)', borderRadius: 1 }}/>)}
                 </button>
-                <span className='d' style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em' }}>{pageTitles[page] || 'SRMS'}</span>
+                <span className='d' style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', flex: 1, textAlign: 'center' }}>{pageTitles[page] || 'SRMS'}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button onClick={() => setIsDark(d => !d)} title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                    style={{ width: 50, height: 26, borderRadius: 13, background: isDark ? 'var(--ink4)' : 'rgba(232,184,75,0.15)', border: `1px solid ${isDark ? 'var(--line2)' : 'rgba(232,184,75,0.4)'}`, cursor: 'pointer', position: 'relative', transition: 'all 0.25s', display: 'flex', alignItems: 'center', padding: '0 3px' }}>
-                    <span style={{ position: 'absolute', left: 6, fontSize: 11, lineHeight: 1, opacity: isDark ? 0.4 : 1, transition: 'opacity 0.2s' }}>☀</span>
-                    <span style={{ position: 'absolute', right: 6, fontSize: 10, lineHeight: 1, opacity: isDark ? 1 : 0.3, transition: 'opacity 0.2s' }}>🌙</span>
-                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: isDark ? 'var(--mist2)' : 'var(--gold)', boxShadow: '0 1px 4px rgba(0,0,0,0.3)', transition: 'transform 0.25s, background 0.25s', transform: isDark ? 'translateX(24px)' : 'translateX(0px)' }}/>
-                  </button>
-                  <button onClick={() => setPage('myprofile')} title='My Profile' style={{ background: 'none', borderRadius: '50%', padding: 0, cursor: 'pointer', lineHeight: 0 }}>
-                    <Avatar name={profile?.full_name} size={34} color={ROLE_META[profile?.role]?.bg}/>
+                  <ThemeToggle isDark={isDark} onToggle={() => setIsDark(d => !d)} size='sm'/>
+                  <button onClick={() => setPage('myprofile')} style={{ background: 'none', borderRadius: '50%', cursor: 'pointer', lineHeight: 0 }}>
+                    <Avatar name={profile?.full_name} size={32} color={ROLE_META[profile?.role]?.bg}/>
                   </button>
                 </div>
               </div>
-              {/* Mobile year bar */}
-              <div style={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderTop: '1px solid var(--line)', background: isViewingPast ? 'rgba(251,159,58,0.06)' : 'transparent' }}>
-                <span style={{ fontSize: 10, color: 'var(--mist3)', letterSpacing: '0.06em' }}>{settings?.school_name || 'SRMS'}</span>
-                <span style={{ color: 'var(--line2)', fontSize: 10 }}>.</span>
-                {profile?.role === 'superadmin' ? (
-                  <YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={true}/>
-                ) : (
-                  <span style={{ fontSize: 10, color: 'var(--mist3)' }}>{activeYear}</span>
-                )}
-                {isViewingPast && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.12)', border: '1px solid rgba(251,159,58,0.3)', borderRadius: 3, padding: '1px 6px', letterSpacing: '0.06em' }}>READ ONLY</span>}
+              <div style={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderTop: '1px solid var(--line)', background: isViewingPast ? 'rgba(251,159,58,0.05)' : 'transparent' }}>
+                <span style={{ fontSize: 10, color: 'var(--mist3)' }}>{settings?.school_name || 'SRMS'}</span>
+                <span style={{ color: 'var(--line2)', fontSize: 10 }}>·</span>
+                {profile?.role === 'superadmin'
+                  ? <YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={true}/>
+                  : <span style={{ fontSize: 10, color: 'var(--mist3)' }}>{activeYear}</span>}
+                {isViewingPast && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 4, padding: '1px 6px', letterSpacing: '0.06em' }}>READ ONLY</span>}
               </div>
             </div>
           ) : (
-            <div style={{ height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px', borderBottom: '1px solid var(--line)', background: 'var(--ink2)', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className='d' style={{ fontSize: 12, color: 'var(--mist3)', fontWeight: 500, letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>{settings?.school_name || 'SRMS'}</span>
-                <span style={{ color: 'var(--line2)' }}>.</span>
-                {profile?.role === 'superadmin' ? (
-                  <YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={false}/>
-                ) : (
-                  <span style={{ fontSize: 12, color: 'var(--mist3)' }}>{activeYear}</span>
+            <div style={{ height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px', borderBottom: '1px solid var(--line)', background: 'var(--ink2)', flexShrink: 0, gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--mist3)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{settings?.school_name || 'SRMS'}</span>
+                <span style={{ color: 'var(--line2)', fontSize: 10 }}>·</span>
+                {profile?.role === 'superadmin'
+                  ? <YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={false}/>
+                  : <span style={{ fontSize: 12, color: 'var(--mist3)' }}>{activeYear}</span>}
+                {isViewingPast && (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 5, padding: '2px 8px', letterSpacing: '0.06em' }}>READ ONLY</span>
                 )}
-                {isViewingPast && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.12)', border: '1px solid rgba(251,159,58,0.3)', borderRadius: 4, padding: '2px 8px', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>READ ONLY</span>}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <button onClick={() => setPage('myprofile')} title='My Profile'
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', borderRadius: 'var(--r-sm)', padding: '4px 8px', transition: 'background 0.15s', cursor: 'pointer' }}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <ThemeToggle isDark={isDark} onToggle={() => setIsDark(d => !d)}/>
+                <div style={{ width: 1, height: 20, background: 'var(--line2)' }}/>
+                <button onClick={() => setPage('myprofile')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'none', borderRadius: 10, padding: '4px 10px 4px 6px', transition: 'background var(--t-fast)', cursor: 'pointer' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--ink4)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'none'}
                 >
-                  <Avatar name={profile?.full_name} size={30} color={ROLE_META[profile?.role]?.bg}/>
+                  <div style={{ position: 'relative' }}>
+                    <Avatar name={profile?.full_name} size={28} color={ROLE_META[profile?.role]?.bg}/>
+                    <div style={{ position: 'absolute', bottom: 0, right: 0, width: 8, height: 8, borderRadius: '50%', background: 'var(--emerald)', border: '1.5px solid var(--ink2)' }}/>
+                  </div>
                   <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2, color: 'var(--white)' }}>{profile?.full_name}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--white)', lineHeight: 1.2 }}>{profile?.full_name}</div>
                     <div style={{ fontSize: 10, color: 'var(--mist3)' }}>{ROLE_META[profile?.role]?.label}</div>
                   </div>
                 </button>
-                <button onClick={() => setIsDark(d => !d)} title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                  style={{ width: 56, height: 28, borderRadius: 14, background: isDark ? 'var(--ink4)' : 'rgba(232,184,75,0.15)', border: `1px solid ${isDark ? 'var(--line2)' : 'rgba(232,184,75,0.4)'}`, cursor: 'pointer', position: 'relative', transition: 'all 0.25s', flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 4px' }}
-                >
-                  <span style={{ position: 'absolute', left: 7, fontSize: 12, lineHeight: 1, opacity: isDark ? 0.4 : 1, transition: 'opacity 0.2s' }}>☀</span>
-                  <span style={{ position: 'absolute', right: 7, fontSize: 11, lineHeight: 1, opacity: isDark ? 1 : 0.3, transition: 'opacity 0.2s' }}>🌙</span>
-                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: isDark ? 'var(--mist2)' : 'var(--gold)', boxShadow: '0 1px 4px rgba(0,0,0,0.3)', transition: 'transform 0.25s, background 0.25s', transform: isDark ? 'translateX(27px)' : 'translateX(0px)' }}/>
-                </button>
-                <Btn variant='ghost' size='sm' onClick={logout}>Sign Out</Btn>
+                <Btn variant='ghost' size='sm' onClick={logout}>Sign out</Btn>
               </div>
             </div>
           )}
 
           {/* ── Page content ── */}
           <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '20px 16px' : '32px 36px' }}>
-            {renderPage()}
+            <div key={page} className='page'>{renderPage()}</div>
           </div>
         </div>
       </div>
