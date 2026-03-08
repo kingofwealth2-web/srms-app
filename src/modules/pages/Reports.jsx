@@ -20,6 +20,13 @@ const ordinal = n => {
   return n+(s[(v-20)%10]||s[v]||s[0])
 }
 
+// Abbreviate long subject names for table headers
+const abbrSubject = name => {
+  if(!name) return ''
+  if(name.length <= 10) return name
+  return name.split(' ').map(w => w[0]?.toUpperCase()).join('') || name.slice(0,8)
+}
+
 // ── REPORTS ────────────────────────────────────────────────────
 export default function Reports({profile,data,settings,activeYear,isViewingPast}) {
   const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[]} = data
