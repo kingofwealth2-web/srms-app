@@ -44,49 +44,26 @@ export default function SchoolSetup({ profile, onComplete, onCancel }) {
     setSaving(true)
     setError('')
     try {
-      // 1. Create school row
-      const { data: school, error: schoolErr } = await supabase
-        .from('schools')
-        .insert({
-          name:    form.school_name.trim(),
-          address: form.address.trim() || null,
-          region:  form.region.trim(),
-        })
-        .select()
-        .single()
-      if (schoolErr) throw schoolErr
+      // Single SECURITY DEFINER RPC — bypasses RLS so it works even though
+      // the user is still role='teacher'/school_id=null at this point.
+      // Creates school, settings, and promotes profile to superadmin atomically.
+      const { data, error: rpcErr } = await supabase.rpc('setup_school', {
+        p_school_name:      form.school_name.trim(),
+        p_address:          form.address.trim(),
+        p_region:           form.region.trim(),
+        p_motto:            form.motto.trim(),
+        p_academic_year:    form.academic_year,
+        p_period_type:      form.period_type,
+        p_period_count:     parseInt(form.period_count),
+        p_currency_code:    form.currency_code,
+        p_grading_scale:    DEFAULT_GRADING_SCALE,
+        p_grade_components: DEFAULT_GRADE_COMPONENTS,
+      })
+      if (rpcErr) throw rpcErr
 
-      // 2. Create settings row
-      const { error: settingsErr } = await supabase
-        .from('settings')
-        .insert({
-          school_id:        school.id,
-          school_name:      form.school_name.trim(),
-          address:          form.address.trim() || null,
-          motto:            form.motto.trim() || null,
-          academic_year:    form.academic_year,
-          period_type:      form.period_type,
-          period_count:     parseInt(form.period_count),
-          currency_code:    form.currency_code,
-          currency_position:'before',
-          currency_decimals: 2,
-          grading_scale:    DEFAULT_GRADING_SCALE,
-          grade_components: DEFAULT_GRADE_COMPONENTS,
-          vacations:        [],
-          custom_holidays:  [],
-        })
-      if (settingsErr) throw settingsErr
-
-      // 3. Link profile to school as superadmin
-      const { error: profErr } = await supabase
-        .from('profiles')
-        .update({ school_id: school.id, role: 'superadmin' })
-        .eq('id', profile.id)
-      if (profErr) throw profErr
-
-      // 4. Done — hand back to App.jsx to reload
+      // Done — hand back to App.jsx to reload
       setStep(2)
-      setTimeout(() => onComplete(school.id), 1800)
+      setTimeout(() => onComplete(data.school_id), 1800)
 
     } catch (e) {
       setError(e.message || 'Something went wrong. Please try again.')
