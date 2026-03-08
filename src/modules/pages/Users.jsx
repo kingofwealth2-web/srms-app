@@ -77,7 +77,13 @@ export default function Users({profile,toast}) {
       if(authErr){ toast(authErr.message,'error'); setSaving(false); return }
       const uid = authData?.user?.id
       if(!uid){ toast('User account created but could not get ID.','error'); setSaving(false); return }
-      const {error:profErr} = await supabase.from('profiles').upsert({id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false,school_id:profile?.school_id})
+      const {error:profErr} = await supabase.rpc('create_school_user', {
+        p_user_id:   uid,
+        p_full_name: form.full_name,
+        p_email:     form.email,
+        p_role:      form.role,
+        p_school_id: profile?.school_id,
+      })
       if(profErr){ toast(profErr.message,'error'); setSaving(false); return }
       setUsers(p=>[...p,{id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false}])
       auditLog(profile,'Users','Created',`${form.full_name} · ${form.role}`,{},null,{id:uid,full_name:form.full_name,email:form.email,role:form.role})
