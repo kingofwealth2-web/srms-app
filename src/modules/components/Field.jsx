@@ -60,6 +60,8 @@ export default function Field({ label, value, onChange, type = 'text', placehold
           placeholder={placeholder}
           onFocus={() => setFoc(true)}
           onBlur={() => setFoc(false)}
+          onWheel={type === 'number' ? e => e.target.blur() : undefined}
+          onKeyDown={type === 'number' ? e => { if(e.key==='ArrowUp'||e.key==='ArrowDown') e.preventDefault() } : undefined}
           style={{ ...base, ...fs }}
         />
       )}
