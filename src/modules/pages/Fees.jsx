@@ -343,7 +343,9 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     const bal=Number(fee.amount||0)-effectivePaid
     const status=bal<=0?'Paid':effectivePaid>0?'Partial':'Outstanding'
     const isOverdue = !!(fee.due_date && fee.due_date < today && bal > 0)
-    return{...fee,student_name:s?`${s.first_name} ${s.last_name}`:'--',balance:bal,effectivePaid,status,isOverdue,hasPayments:feePayments.length>0||effectivePaid>0}
+    const latestPayment = feePayments.sort((a,b)=>b.created_at?.localeCompare(a.created_at))[0]
+    const latestReceipt = latestPayment?.receipt_no || fee.receipt_no || null
+    return{...fee,student_name:s?`${s.first_name} ${s.last_name}`:'--',balance:bal,effectivePaid,status,isOverdue,hasPayments:feePayments.length>0||effectivePaid>0,receipt_no:latestReceipt}
   })
   const filtered = enriched.filter(r=>{
     if(fClassId){
@@ -413,9 +415,9 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     }).select().single()
     if(payErr){ toast(payErr.message,'error'); return }
     // Update cumulative paid on fee record
-    const {error:feeErr} = await supabase.from('fees').update({paid:newCumPaid, receipt_no:rcpt}).eq('id',editFee.id).eq('school_id',profile?.school_id)
+    const {error:feeErr} = await supabase.from('fees').update({paid:newCumPaid}).eq('id',editFee.id).eq('school_id',profile?.school_id)
     if(feeErr){ toast(feeErr.message,'error'); return }
-    const updatedFee = {...editFee, paid:newCumPaid, receipt_no:rcpt}
+    const updatedFee = {...editFee, paid:newCumPaid}
     setData(p=>({
       ...p,
       fees:     p.fees.map(f=>f.id===editFee.id ? updatedFee : f),
