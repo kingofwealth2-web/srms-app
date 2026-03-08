@@ -546,8 +546,16 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
       {modal && (
         <Modal title={edit?'Edit Grade':'Record Grades'} onClose={()=>setModal(false)} width={600}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 20px'}}>
-            <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={myStudents.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name} · ${data.classes?.find(c=>c.id===s.class_id)?.name||''}`}))}/>
-            <Field label='Subject' value={form.subject_id} onChange={f('subject_id')} required options={(fc ? mySubjects.filter(s=>s.class_id===fc) : mySubjects).map(s=>({value:s.id,label:fc ? s.name : `${s.name} — ${classes.find(c=>c.id===s.class_id)?.name||''}`}))}/>
+            <Field label='Student' value={form.student_id} onChange={v=>{f('student_id')(v); f('subject_id')('')}} required options={myStudents.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name} · ${data.classes?.find(c=>c.id===s.class_id)?.name||''}`}))}/>
+            <Field label='Subject' value={form.subject_id} onChange={v=>{f('subject_id')(v)}} required options={(() => {
+              // Filter subjects by the selected student's class, not the page-level filter
+              const selectedStudent = students.find(s=>s.id===form.student_id)
+              const studentClassId  = selectedStudent?.class_id
+              const subjectPool     = studentClassId
+                ? mySubjects.filter(s=>s.class_id===studentClassId)
+                : (fc ? mySubjects.filter(s=>s.class_id===fc) : mySubjects)
+              return subjectPool.map(s=>({value:s.id,label:s.name}))
+            })()}/>
             <Field label='Period'        value={form.period} onChange={f('period')} options={periods}/>
             <div style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Academic Year</div><div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>{form.year||settings?.academic_year||'--'}</div></div>
           </div>
