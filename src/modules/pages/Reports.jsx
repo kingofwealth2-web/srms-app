@@ -792,11 +792,13 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
     const rankedBySub = [...classStudents].map(s=>({...s,score:getTotal(s.id,rcSubject)}))
       .sort((a,b)=>(b.score||0)-(a.score||0))
-    let rpos=1
+    // Standard competition ranking: 1,1,3 — track last assigned rank separately
+    let rpos=1, lastScore=null, lastPos=1
     const ranked = rankedBySub.map((s,i)=>{
       if(s.score===null) return {...s,position:null}
-      if(i>0&&s.score===rankedBySub[i-1].score) return {...s,position:rankedBySub[i-1].position}
-      const p=rpos; rpos=i+2; return {...s,position:p}
+      if(lastScore===null || s.score!==lastScore){ lastPos=rpos; lastScore=s.score }
+      rpos=i+2
+      return {...s,position:lastPos}
     })
 
     const withScore = ranked.filter(s=>s.score!==null)
