@@ -22,6 +22,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
   const [search,setSearch] = useState('')
   const [fc,setFc]         = useState('')
   const [modal,setModal]   = useState(false)
+  const [confirmState,setConfirmState] = useState(null)
   const [edit,setEdit]     = useState(null)
   const [form,setForm]     = useState({})
   const [saving,setSaving] = useState(false)
