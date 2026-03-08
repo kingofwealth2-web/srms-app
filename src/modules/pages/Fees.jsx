@@ -361,6 +361,28 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const totalOwed = fees.reduce((s,f)=>s+Number(f.amount||0),0)
   const totalPaid = fees.reduce((s,f)=>s+Number(f.paid||0),0)
   const openAdd = ()=>{setForm({student_id:'',fee_type:'',amount:'',due_date:'',period:''});setModal(true)}
+  const [editFeeModal,setEditFeeModal] = useState(false)
+  const [editFeeRow,setEditFeeRow]     = useState(null)
+  const [editFeeForm,setEditFeeForm]   = useState({})
+  const eff = k=>v=>setEditFeeForm(p=>({...p,[k]:v}))
+  const openEditFee = r=>{setEditFeeRow(r);setEditFeeForm({fee_type:r.fee_type,amount:r.amount,due_date:r.due_date||'',period:r.period||''});setEditFeeModal(true)}
+  const saveEditFee = async ()=>{
+    if(!editFeeForm.fee_type||!editFeeForm.amount){toast('Fee type and amount are required','error');return}
+    if(parseFloat(editFeeForm.amount)<=0){toast('Amount must be greater than zero','error');return}
+    setSaving(true)
+    const {error}=await supabase.from('fees').update({
+      fee_type: editFeeForm.fee_type,
+      amount:   parseFloat(editFeeForm.amount),
+      due_date: editFeeForm.due_date||null,
+      period:   editFeeForm.period||null,
+    }).eq('id',editFeeRow.id).eq('school_id',profile?.school_id)
+    if(error){toast(error.message,'error');setSaving(false);return}
+    setData(p=>({...p,fees:p.fees.map(f=>f.id===editFeeRow.id?{...f,...editFeeForm,amount:parseFloat(editFeeForm.amount)}:f)}))
+    auditLog(profile,'Fees','Edited',`${editFeeRow.student_name} · ${editFeeForm.fee_type} · ${fmtMoney(parseFloat(editFeeForm.amount),currency)}`,{},{...editFeeRow},{...editFeeForm})
+    toast('Fee updated')
+    setSaving(false)
+    setEditFeeModal(false)
+  }
   const openPay = fee=>{setEditFee(fee);setPayForm({amount:fee.balance>0?fee.balance:''});setPayModal(true)}
 
   const saveFee = async ()=>{
@@ -602,6 +624,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
               {r.balance>0 && <Btn size='sm' onClick={()=>openPay(r)}>Record Payment</Btn>}
               {r.hasPayments && <Btn variant='ghost' size='sm' onClick={()=>openReceipt(r)}>⎙ Receipt</Btn>}
               {r.balance<=0 && !r.hasPayments && <Badge color='var(--emerald)'>Paid</Badge>}
+              <Btn variant='ghost' size='sm' onClick={()=>openEditFee(r)}>Edit</Btn>
               {canBulk && <Btn variant='danger' size='sm' onClick={()=>delFee(r.id)}>Remove</Btn>}
             </div>
           )},
@@ -825,6 +848,25 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
             <Btn onClick={saveFee} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save'}</Btn>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Edit Fee Modal ── */}
+      {editFeeModal && editFeeRow && (
+        <Modal title='Edit Fee Record' subtitle={editFeeRow.student_name} onClose={()=>setEditFeeModal(false)}>
+          {editFeeRow.effectivePaid>0 && (
+            <div style={{fontSize:12,color:'var(--amber)',background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r-sm)',padding:'8px 12px',marginBottom:16}}>
+              ⚠ This fee has existing payments ({fmtMoney(editFeeRow.effectivePaid,currency)} paid). Editing the amount will affect the balance.
+            </div>
+          )}
+          <Field label='Fee Type' value={editFeeForm.fee_type} onChange={eff('fee_type')} placeholder='e.g. Tuition, Activity Fee' required/>
+          <Field label='Period' value={editFeeForm.period} onChange={eff('period')} options={feePeriods.map(p=>({value:p,label:p}))}/>
+          <Field label='Amount' value={editFeeForm.amount} onChange={eff('amount')} type='number' required/>
+          <Field label='Due Date (optional)' value={editFeeForm.due_date} onChange={eff('due_date')} type='date'/>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
+            <Btn variant='ghost' onClick={()=>setEditFeeModal(false)}>Cancel</Btn>
+            <Btn onClick={saveEditFee} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save Changes'}</Btn>
           </div>
         </Modal>
       )}
