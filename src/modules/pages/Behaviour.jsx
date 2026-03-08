@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, BEHAVIOUR_META } from '../lib/constants'
-import { fmtDate } from '../lib/helpers'
+import { fmtDate, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -13,6 +13,7 @@ import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
+import ConfirmModal from '../components/ConfirmModal'
 
 // ── BEHAVIOUR ──────────────────────────────────────────────────
 export default function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
@@ -25,6 +26,7 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
   const [modal,setModal] = useState(false)
   const [form,setForm]   = useState({})
   const [saving,setSaving] = useState(false)
+  const [confirmState,setConfirmState] = useState(null)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
   const types = ['Discipline','Achievement','Club Activity','Notes']
   const studentsInClass = fClassId ? activeStudents.filter(s=>s.class_id===fClassId) : activeStudents
@@ -45,22 +47,23 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
       const updated={...editRow,...form}
       setData(p=>({...p,behaviour:p.behaviour.map(b=>b.id===editRow.id?updated:b)}))
       const s=students.find(x=>x.id===form.student_id)
-      auditLog(profile,'Behaviour','Edited',`${s?.first_name} ${s?.last_name} · ${form.type} · ${form.title}`,{},{...editRow},{...form})
+      auditLog(profile,'Behaviour','Edited',`${fullName(s)} · ${form.type} · ${form.title}`,{},{...editRow},{...form})
       toast('Record updated');setModal(false);setEditRow(null)
     } else {
       const {data:row,error}=await supabase.from('behaviour').insert({...form,school_id:profile?.school_id,recorded_by_id:profile?.id,recorded_by_name:profile?.full_name,academic_year:activeYear}).select().single()
       if(error)toast(error.message,'error')
-      else{setData(p=>({...p,behaviour:[row,...p.behaviour]}));const s=students.find(x=>x.id===form.student_id);auditLog(profile,'Behaviour','Created',`${s?.first_name} ${s?.last_name} · ${form.type} · ${form.title}`,{},null,row);toast('Record added');setModal(false)}
+      else{setData(p=>({...p,behaviour:[row,...p.behaviour]}));const s=students.find(x=>x.id===form.student_id);auditLog(profile,'Behaviour','Created',`${fullName(s)} · ${form.type} · ${form.title}`,{},null,row);toast('Record added');setModal(false)}
     }
     setSaving(false)
   }
   const [editRow,setEditRow] = useState(null)
   const openEdit = r=>{setEditRow(r);setForm({student_id:r.student_id,type:r.type,title:r.title,description:r.description||'',date:r.date||new Date().toISOString().split('T')[0]});setModal(true)}
   const del = async id=>{
-    if(!confirm('Remove this record?'))return
-    const {error}=await supabase.from('behaviour').delete().eq('id',id).eq('school_id',profile?.school_id)
-    if(error)toast(error.message,'error')
-    else{const rec=behaviour.find(x=>x.id===id);const s=students.find(x=>x.id===rec?.student_id);setData(p=>({...p,behaviour:p.behaviour.filter(b=>b.id!==id)}));auditLog(profile,'Behaviour','Deleted',`${s?.first_name} ${s?.last_name} · ${rec?.type} · ${rec?.title}`,{},rec,null);toast('Record removed')}
+    setConfirmState({title:'Remove record?',body:'This behaviour record will be permanently deleted.',icon:'🗑',danger:true,onConfirm:async()=>{
+      const {error}=await supabase.from('behaviour').delete().eq('id',id).eq('school_id',profile?.school_id)
+      if(error)toast(error.message,'error')
+      else{const rec=behaviour.find(x=>x.id===id);const s=students.find(x=>x.id===rec?.student_id);setData(p=>({...p,behaviour:p.behaviour.filter(b=>b.id!==id)}));auditLog(profile,'Behaviour','Deleted',`${fullName(s)} · ${rec?.type} · ${rec?.title}`,{},rec,null);toast('Record removed')}
+    }})
   }
 
   const exportBehaviourCsv = () => {
@@ -146,7 +149,7 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
                     </div>
                     <p style={{fontSize:13,color:'var(--mist2)',lineHeight:1.6}}>{b.description}</p>
                     <div style={{fontSize:11,color:'var(--mist3)',marginTop:8}}>
-                      {s&&<><span style={{color:'var(--mist2)',fontWeight:500}}>{s.first_name} {s.last_name}</span> . </>}
+                      {s&&<><span style={{color:'var(--mist2)',fontWeight:500}}>{fullName(s,true)}</span> . </>}
                       Recorded by {b.recorded_by_name} . {fmtDate(b.date||b.created_at)}
                     </div>
                   </div>
@@ -167,7 +170,7 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
       </div>
       {modal && (
         <Modal title={editRow?'Edit Behaviour Record':'New Behaviour Record'} onClose={()=>{setModal(false);setEditRow(null)}}>
-          <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={studentsInClass.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name} · ${classes.find(c=>c.id===s.class_id)?.name||''}`}))}/>
+          <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={studentsInClass.map(s=>({value:s.id,label:`${fullName(s,true)} · ${classes.find(c=>c.id===s.class_id)?.name||''}`}))}/>
           <Field label='Record Type' value={form.type} onChange={f('type')} options={types}/>
           <Field label='Title' value={form.title} onChange={f('title')} placeholder='Brief descriptive title' required/>
           <Field label='Description' value={form.description} onChange={f('description')} rows={3} placeholder='Provide full details...'/>
@@ -178,6 +181,7 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
           </div>
         </Modal>
       )}
+      {confirmState && <ConfirmModal {...confirmState} onClose={()=>setConfirmState(null)}/>}
     </div>
   )
 }

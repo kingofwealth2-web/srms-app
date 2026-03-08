@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, STATUS_META } from '../lib/constants'
-import { fmtDate, getHolidayOnDate, getVacationOnDate } from '../lib/helpers'
+import { fmtDate, fullName, getHolidayOnDate, getVacationOnDate } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -14,6 +14,7 @@ import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import DataTable from '../components/DataTable'
 import Card from '../components/Card'
+import ConfirmModal from '../components/ConfirmModal'
 
 // ── ATTENDANCE ─────────────────────────────────────────────────
 export default function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
@@ -23,6 +24,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   const [cid,setCid]       = useState(profile?.role==='classteacher'?profile.class_id:'')
   const [tab,setTab]       = useState('mark')
   const [saving,setSaving] = useState(false)
+  const [confirmState,setConfirmState] = useState(null)
   const [pendingMarks,setPendingMarks] = useState({})
   const [hasUnsaved,setHasUnsaved] = useState(false)
   const myClasses = profile?.role==='classteacher' ? classes.filter(c=>c.id===profile.class_id) : classes
@@ -47,12 +49,13 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
 
   const changeContext = (newCid, newDate) => {
     if(hasUnsaved) {
-      if(!window.confirm('You have unsaved attendance marks. Changing will discard them. Continue?')) return
+      setConfirmState({title:'Discard unsaved marks?',body:'Changing class or date will lose your unsaved attendance.',icon:'⚠',danger:true,confirmLabel:'Discard & Continue',onConfirm:()=>{setPendingMarks({});setHasUnsaved(false);if(newCid!==undefined)setCid(newCid);if(newDate!==undefined)setDate(newDate)}});return
     }
-    setPendingMarks({})
-    setHasUnsaved(false)
-    if(newCid !== undefined) setCid(newCid)
-    if(newDate !== undefined) setDate(newDate)
+    if(!hasUnsaved){
+      setPendingMarks({});setHasUnsaved(false)
+      if(newCid!==undefined)setCid(newCid)
+      if(newDate!==undefined)setDate(newDate)
+    }
   }
 
   const markStudent = (sid, status) => {
@@ -132,7 +135,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
       </PageHeader>
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
-          {['superadmin','admin'].includes(profile?.role) && (
+          {['superadmin','admin'].includes(profile?.role) && tab==='mark' && !isBlocked && (
             <select value={cid} onChange={e=>changeContext(e.target.value,undefined)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:180}}>
               <option value=''>Select a class</option>
@@ -198,9 +201,9 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
                   {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
                   {key:'first_name',label:'Student',render:(v,r)=>(
                     <div style={{display:'flex',alignItems:'center',gap:10}}>
-                      <Avatar name={`${r.first_name} ${r.last_name}`} size={28}/>
+                      <Avatar name={fullName(r)} size={28}/>
                       <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        <span style={{fontWeight:600}}>{r.first_name} {r.last_name}</span>
+                        <span style={{fontWeight:600}}>{fullName(r,true)}</span>
                         {!getStatus(r.id)&&hasUnsaved&&<span style={{width:6,height:6,borderRadius:'50%',background:'var(--rose)',display:'inline-block'}}/>}
                       </div>
                     </div>
@@ -245,11 +248,12 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
           <DataTable data={histRecs.slice(0,100)} columns={[
             {key:'date',label:'Date',render:v=>fmtDate(v)},
             {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
-            {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?`${s.first_name} ${s.last_name}`:'--'}},
+            {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?fullName(s,true):'--'}},
             {key:'status',label:'Status',render:v=><Badge color={STATUS_META[v]?.color} bg={STATUS_META[v]?.bg}>{v}</Badge>},
           ]}/>
         </Card>
       )}
+      {confirmState && <ConfirmModal {...confirmState} onClose={()=>setConfirmState(null)}/>}
     </div>
   )
 }

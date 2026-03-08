@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META } from '../lib/constants'
-import { fmtDate } from '../lib/helpers'
+import { fmtDate, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -13,6 +13,7 @@ import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
+import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
 
 // ── CLASSES ────────────────────────────────────────────────────
@@ -50,14 +51,15 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     const hasSubjects = subjects.some(s=>s.class_id===cls.id)
     if(hasStudents){toast('Cannot delete -- this class has students assigned to it.','error');return}
     if(hasSubjects){toast('Cannot delete -- this class has subjects. Remove them first.','error');return}
-    if(!confirm('Delete "'+cls.name+'"? This cannot be undone.')) return
-    const {error}=await supabase.from('classes').delete().eq('id',cls.id).eq('school_id',profile?.school_id)
-    if(error){toast(error.message,'error');return}
-    if(cls.class_teacher_id)
-      await supabase.from('profiles').update({class_id:null}).eq('id',cls.class_teacher_id)
-    setData(p=>({...p,classes:p.classes.filter(c=>c.id!==cls.id)}))
-    if(selected?.id===cls.id) setSelected(null)
-    toast('"'+cls.name+'" deleted.')
+    setConfirmState({title:`Delete "${cls.name}"?`,body:'This cannot be undone.',icon:'🗑',danger:true,onConfirm:async()=>{
+      const {error}=await supabase.from('classes').delete().eq('id',cls.id).eq('school_id',profile?.school_id)
+      if(error){toast(error.message,'error');return}
+      if(cls.class_teacher_id)
+        await supabase.from('profiles').update({class_id:null}).eq('id',cls.class_teacher_id)
+      setData(p=>({...p,classes:p.classes.filter(c=>c.id!==cls.id)}))
+      if(selected?.id===cls.id) setSelected(null)
+      toast('"'+cls.name+'" deleted.')
+    }})
   }
 
   // Classes sorted by sort_order, then alphabetically
@@ -222,7 +224,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     setSaving(false)
   }
   const deleteSubject = async (sub) => {
-    if(!confirm(`Delete "${sub.name}"? This will also remove all grade records for this subject.`)) return
+    setConfirmState({title:`Delete "${sub.name}"?`,body:'This will also remove all grade records for this subject. Cannot be undone.',icon:'🗑',danger:true,onConfirm:async()=>{
     setSaving(true)
     // Delete associated grades first
     await supabase.from('grades').delete().eq('subject_id', sub.id).eq('school_id', profile?.school_id)
@@ -237,6 +239,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
       toast(`"${sub.name}" deleted`)
     }
     setSaving(false)
+    }})
   }
   const classSubjects = selected ? subjects.filter(s=>s.class_id===selected.id) : []
   const classStudents = selected ? students.filter(s=>s.class_id===selected.id) : []
@@ -248,7 +251,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
           <Btn variant='ghost' onClick={openPromo}>Promote Class</Btn>
         </>}
         <Btn variant='ghost' onClick={()=>{setSubjectModal(true);setEditS(null);setSf({name:'',code:'',class_id:selected?.id||'',teacher_id:''})}}>+ Subject</Btn>
-        {!isViewingPast && profile?.role==='superadmin' && <Btn onClick={()=>{setClassModal(true);setEditC(null);setCf({name:'',class_teacher_id:'',is_terminal:false})}}>+ New Class</Btn>}
+        {!isViewingPast && <Btn onClick={()=>{setClassModal(true);setEditC(null);setCf({name:'',class_teacher_id:'',is_terminal:false})}}>+ New Class</Btn>}
       </PageHeader>
       <div style={{display:'grid',gridTemplateColumns:selected?'260px 1fr':'repeat(auto-fill,minmax(260px,1fr))',gap:16}}>
         {selected ? (
@@ -470,8 +473,8 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                               const globalIdx = bulkStudents.findIndex(x=>x.student.id===p.student.id)
                               return (
                                 <div key={p.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 16px',borderBottom:i<clsStudents.length-1?'1px solid var(--line)':'none',background:p.action==='graduate'?'rgba(240,107,122,0.04)':p.action==='repeat'?'rgba(251,159,58,0.04)':'transparent'}}>
-                                  <Avatar name={`${p.student.first_name} ${p.student.last_name}`} size={24}/>
-                                  <span style={{flex:1,fontSize:13,fontWeight:500}}>{p.student.first_name} {p.student.last_name}</span>
+                                  <Avatar name={fullName(p.student)} size={24}/>
+                                  <span style={{flex:1,fontSize:13,fontWeight:500}}>{fullName(p.student,true)}</span>
                                   <div style={{display:'flex',gap:5}}>
                                     {['promote','repeat','graduate'].map(a=>(
                                       <button key={a} onClick={()=>setBulkStudents(prev=>prev.map((x,j)=>j===globalIdx?{...x,action:a}:x))}
@@ -530,7 +533,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                       <div style={{fontSize:11,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,paddingBottom:4,borderBottom:'1px solid var(--line)'}}>{cls.name}</div>
                       {forClass.map(p=>(
                         <div key={p.student.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'4px 0'}}>
-                          <span style={{fontWeight:500}}>{p.student.first_name} {p.student.last_name}</span>
+                          <span style={{fontWeight:500}}>{fullName(p.student,true)}</span>
                           {p.action==='promote'  && <span style={{color:'var(--emerald)'}}>→ {orderedClasses.find(c=>c.id===p.destClassId)?.name}</span>}
                           {p.action==='repeat'   && <span style={{color:'var(--amber)'}}>Repeating {cls.name}</span>}
                           {p.action==='graduate' && <span style={{color:'var(--rose)'}}>Graduated — archived</span>}
@@ -590,8 +593,8 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
               <div style={{maxHeight:340,overflowY:'auto',display:'flex',flexDirection:'column',gap:6,marginBottom:16}}>
                 {promoStudents.map((p,i)=>(
                   <div key={p.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${p.action==='graduate'?'rgba(240,107,122,0.3)':p.action==='repeat'?'rgba(251,159,58,0.3)':'var(--line)'}`}}>
-                    <Avatar name={`${p.student.first_name} ${p.student.last_name}`} size={28}/>
-                    <div style={{flex:1,fontSize:13,fontWeight:500}}>{p.student.first_name} {p.student.last_name}</div>
+                    <Avatar name={fullName(p.student)} size={28}/>
+                    <div style={{flex:1,fontSize:13,fontWeight:500}}>{fullName(p.student,true)}</div>
                     <div style={{display:'flex',gap:6}}>
                       {['promote','repeat','graduate'].map(a=>(
                         <button key={a} onClick={()=>setPromoStudents(prev=>prev.map((x,j)=>j===i?{...x,action:a}:x))}
@@ -630,19 +633,19 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
               <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:16,marginBottom:16,maxHeight:320,overflowY:'auto'}}>
                 {promoStudents.filter(p=>p.action==='promote').map(p=>(
                   <div key={p.student.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'6px 0',borderBottom:'1px solid var(--line)'}}>
-                    <span style={{fontWeight:500}}>{p.student.first_name} {p.student.last_name}</span>
+                    <span style={{fontWeight:500}}>{fullName(p.student,true)}</span>
                     <span style={{color:'var(--emerald)'}}>&rarr; {classes.find(c=>c.id===p.destClassId)?.name}</span>
                   </div>
                 ))}
                 {promoStudents.filter(p=>p.action==='repeat').map(p=>(
                   <div key={p.student.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'6px 0',borderBottom:'1px solid var(--line)',opacity:0.6}}>
-                    <span style={{fontWeight:500}}>{p.student.first_name} {p.student.last_name}</span>
+                    <span style={{fontWeight:500}}>{fullName(p.student,true)}</span>
                     <span style={{color:'var(--amber)'}}>Repeating — stays in {classes.find(c=>c.id===promoSource)?.name}</span>
                   </div>
                 ))}
                 {promoStudents.filter(p=>p.action==='graduate').map(p=>(
                   <div key={p.student.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'6px 0',borderBottom:'1px solid var(--line)',opacity:0.6}}>
-                    <span style={{fontWeight:500}}>{p.student.first_name} {p.student.last_name}</span>
+                    <span style={{fontWeight:500}}>{fullName(p.student,true)}</span>
                     <span style={{color:'var(--rose)'}}>Graduated — archived</span>
                   </div>
                 ))}
@@ -658,6 +661,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
           )}
         </Modal>
       )}
+      {confirmState && <ConfirmModal {...confirmState} onClose={()=>setConfirmState(null)}/>}
     </div>
   )
 }

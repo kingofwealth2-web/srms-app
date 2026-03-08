@@ -265,8 +265,10 @@ export default function App() {
                 <span className='d' style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em' }}>{pageTitles[page] || 'SRMS'}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <button onClick={() => setIsDark(d => !d)} title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                    style={{ width: 34, height: 34, borderRadius: 'var(--r-sm)', background: 'var(--ink4)', border: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                    <span style={{ fontSize: 14, lineHeight: 1 }}>{isDark ? '☀' : '🌙'}</span>
+                    style={{ width: 50, height: 26, borderRadius: 13, background: isDark ? 'var(--ink4)' : 'rgba(232,184,75,0.15)', border: `1px solid ${isDark ? 'var(--line2)' : 'rgba(232,184,75,0.4)'}`, cursor: 'pointer', position: 'relative', transition: 'all 0.25s', display: 'flex', alignItems: 'center', padding: '0 3px' }}>
+                    <span style={{ position: 'absolute', left: 6, fontSize: 11, lineHeight: 1, opacity: isDark ? 0.4 : 1, transition: 'opacity 0.2s' }}>☀</span>
+                    <span style={{ position: 'absolute', right: 6, fontSize: 10, lineHeight: 1, opacity: isDark ? 1 : 0.3, transition: 'opacity 0.2s' }}>🌙</span>
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: isDark ? 'var(--mist2)' : 'var(--gold)', boxShadow: '0 1px 4px rgba(0,0,0,0.3)', transition: 'transform 0.25s, background 0.25s', transform: isDark ? 'translateX(24px)' : 'translateX(0px)' }}/>
                   </button>
                   <button onClick={() => setPage('myprofile')} title='My Profile' style={{ background: 'none', borderRadius: '50%', padding: 0, cursor: 'pointer', lineHeight: 0 }}>
                     <Avatar name={profile?.full_name} size={34} color={ROLE_META[profile?.role]?.bg}/>
@@ -310,11 +312,11 @@ export default function App() {
                   </div>
                 </button>
                 <button onClick={() => setIsDark(d => !d)} title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                  style={{ width: 36, height: 36, borderRadius: 'var(--r-sm)', background: 'var(--ink4)', border: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--gold)'; e.currentTarget.style.background = 'var(--gold-dim)' }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.background = 'var(--ink4)' }}
+                  style={{ width: 56, height: 28, borderRadius: 14, background: isDark ? 'var(--ink4)' : 'rgba(232,184,75,0.15)', border: `1px solid ${isDark ? 'var(--line2)' : 'rgba(232,184,75,0.4)'}`, cursor: 'pointer', position: 'relative', transition: 'all 0.25s', flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 4px' }}
                 >
-                  <span style={{ fontSize: 15, lineHeight: 1 }}>{isDark ? '☀' : '🌙'}</span>
+                  <span style={{ position: 'absolute', left: 7, fontSize: 12, lineHeight: 1, opacity: isDark ? 0.4 : 1, transition: 'opacity 0.2s' }}>☀</span>
+                  <span style={{ position: 'absolute', right: 7, fontSize: 11, lineHeight: 1, opacity: isDark ? 1 : 0.3, transition: 'opacity 0.2s' }}>🌙</span>
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: isDark ? 'var(--mist2)' : 'var(--gold)', boxShadow: '0 1px 4px rgba(0,0,0,0.3)', transition: 'transform 0.25s, background 0.25s', transform: isDark ? 'translateX(27px)' : 'translateX(0px)' }}/>
                 </button>
                 <Btn variant='ghost' size='sm' onClick={logout}>Sign Out</Btn>
               </div>

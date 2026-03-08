@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS, LETTER_COLOR } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getCurrency, fmtMoney, genSID } from '../lib/helpers'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getCurrency, fmtMoney, genSID, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -14,6 +14,7 @@ import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import DataTable from '../components/DataTable'
+import ConfirmModal from '../components/ConfirmModal'
 
 // ── STUDENTS ───────────────────────────────────────────────────
 export default function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
@@ -73,8 +74,8 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     const {error} = await supabase.from('students').update({archived:false, class_id:classId, graduation_year:null, leaving_reason:null, leaving_notes:null}).eq('id',student.id).eq('school_id',profile?.school_id)
     if(error){ toast(error.message,'error'); setSaving(false); return }
     setData(p=>({...p, students:p.students.map(s=>s.id===student.id?{...s,archived:false,class_id:classId,graduation_year:null,leaving_reason:null,leaving_notes:null}:s)}))
-    auditLog(profile,'Students','Unarchived',`${student.first_name} ${student.last_name} → ${classes.find(c=>c.id===classId)?.name}`,{},{...student},{archived:false,class_id:classId})
-    toast(`${student.first_name} ${student.last_name} re-enrolled`)
+    auditLog(profile,'Students','Unarchived',`${fullName(student)} → ${classes.find(c=>c.id===classId)?.name}`,{},{...student},{archived:false,class_id:classId})
+    toast(`${fullName(student)} re-enrolled`)
     setUnarchiveModal(null)
     setUnarchiveClass('')
     setSaving(false)
@@ -96,34 +97,35 @@ export default function Students({profile,data,setData,toast,settings,activeYear
       ? {...s, archived:true, class_id:null, graduation_year:activeYear, leaving_reason:archiveForm.reason, leaving_notes:archiveForm.notes||null}
       : s
     )}))
-    auditLog(profile,'Students','Archived',`${student.first_name} ${student.last_name} · ${archiveForm.reason}`,{reason:archiveForm.reason},{...student},{archived:true,leaving_reason:archiveForm.reason})
-    toast(`${student.first_name} ${student.last_name} archived`)
+    auditLog(profile,'Students','Archived',`${fullName(student)} · ${archiveForm.reason}`,{reason:archiveForm.reason},{...student},{archived:true,leaving_reason:archiveForm.reason})
+    toast(`${fullName(student)} archived`)
     setArchiveModal(null)
     setArchiveForm({reason:'Withdrawn',notes:''})
     setViewStudent(null)  // close profile modal if open
     setSaving(false)
   }
-  const openAdd = ()=>{setEdit(null);setForm({first_name:'',last_name:'',class_id:'',dob:'',gender:'',phone:'',email:'',address:'',medical_info:'',guardian_name:'',guardian_relation:'',guardian_phone:'',guardian_email:''});setModal(true)}
+  const openAdd = ()=>{setEdit(null);setForm({first_name:'',middle_name:'',last_name:'',class_id:'',dob:'',gender:'',phone:'',email:'',address:'',medical_info:'',guardian_name:'',guardian_relation:'',guardian_phone:'',guardian_email:''});setModal(true)}
   const openEdit = s=>{setEdit(s);setForm({...s});setModal(true)}
   const save = async ()=>{
-    if(!form.first_name||!form.last_name||!form.class_id)return
+    if(!form.first_name||!form.last_name||!form.class_id||!form.dob){toast(!form.dob?'Please enter a date of birth ✦':'Please fill all required fields','error');return}
     if(!form.guardian_name||!form.guardian_phone){toast('Please add at least one parent or guardian with a name and phone number','error');return}
     setSaving(true)
     if(edit){
       const {error} = await supabase.from('students').update({...form,updated_at:new Date()}).eq('id',edit.id)
-      if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));auditLog(profile,'Students','Updated',`${form.first_name} ${form.last_name}`,{},{...edit},{...form});toast('Student updated');setModal(false)}
+      if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));auditLog(profile,'Students','Updated',`${fullName(form)}`,{},{...edit},{...form});toast('Student updated');setModal(false)}
     } else {
       const sid = genSID(students)
       const {data:row,error} = await supabase.from('students').insert({...form,school_id:profile?.school_id,student_id:sid,created_at:new Date(),entry_year:activeYear}).select().single()
-      if(error){toast(error.message,'error')}else{setData(p=>({...p,students:[...p.students,row]}));auditLog(profile,'Students','Created',`${form.first_name} ${form.last_name}`,{},null,row);toast('Student added');setModal(false)}
+      if(error){toast(error.message,'error')}else{setData(p=>({...p,students:[...p.students,row]}));auditLog(profile,'Students','Created',`${fullName(form)}`,{},null,row);toast('Student added');setModal(false)}
     }
     setSaving(false)
   }
   const del = async id=>{
-    if(!confirm('Remove this student?'))return
-    const {error} = await supabase.from('students').delete().eq('id',id).eq('school_id',profile?.school_id)
-    if(error)toast(error.message,'error')
-    else{const s=students.find(x=>x.id===id);setData(p=>({...p,students:p.students.filter(s=>s.id!==id)}));auditLog(profile,'Students','Deleted',`${s?.first_name} ${s?.last_name}`,{},s||null,null);toast('Student removed')}
+    setConfirmState({title:'Remove student?',body:'This action is permanent and cannot be undone.',icon:'🗑',danger:true,onConfirm:async()=>{
+      const {error} = await supabase.from('students').delete().eq('id',id).eq('school_id',profile?.school_id)
+      if(error)toast(error.message,'error')
+      else{const s=students.find(x=>x.id===id);setData(p=>({...p,students:p.students.filter(s=>s.id!==id)}));auditLog(profile,'Students','Deleted',`${fullName(s)}`,{},s||null,null);toast('Student removed')}
+    }})
   }
 
   const exportStudentsCsv = () => {
@@ -133,7 +135,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
         if(v===null||v===undefined) return ''
         return String(v).replace(/"/g,'""')
       }
-      let csv = 'Student ID,First Name,Last Name,Class,Gender,DOB,Phone,Email,Guardian Name,Guardian Phone,Guardian Email,Archived,Graduation Year,Leaving Reason,Leaving Notes\n'
+      let csv = 'Student ID,First Name,Middle Name,Last Name,Class,Gender,DOB,Phone,Email,Guardian Name,Guardian Phone,Guardian Email,Archived,Graduation Year,Leaving Reason,Leaving Notes\n'
       filtered.forEach(s=>{
         const clsName = classes.find(c=>c.id===s.class_id)?.name || ''
         const fmtPhone = v => v ? `="${esc(v)}"` : '""'  
@@ -451,7 +453,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
           {/* Photo upload */}
           <div style={{display:'flex',alignItems:'center',gap:16,padding:'14px 16px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:20,border:'1px solid var(--line)'}}>
             <div style={{position:'relative',flexShrink:0}}>
-              <Avatar name={`${form.first_name||'?'} ${form.last_name||''}`} size={56} photo={form.photo}/>
+              <Avatar name={fullName(form)||'?'} size={56} photo={form.photo}/>
               {form.photo && (
                 <button onClick={()=>setForm(p=>({...p,photo:null}))}
                   style={{position:'absolute',top:-4,right:-4,width:18,height:18,borderRadius:'50%',background:'var(--rose)',color:'white',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',border:'none'}}>×</button>
@@ -468,10 +470,11 @@ export default function Students({profile,data,setData,toast,settings,activeYear
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 20px'}}>
             <Field label='First Name' value={form.first_name} onChange={f('first_name')} required/>
+            <Field label='Middle Name' value={form.middle_name||''} onChange={f('middle_name')} placeholder='Optional'/>
             <Field label='Last Name'  value={form.last_name}  onChange={f('last_name')}  required/>
             <Field label='Class' value={form.class_id} onChange={f('class_id')} required options={classes.map(c=>({value:c.id,label:c.name}))}/>
-            <Field label='Gender' value={form.gender} onChange={f('gender')} options={['Male','Female','Other']}/>
-            <Field label='Date of Birth' value={form.dob} onChange={f('dob')} type='date'/>
+            <Field label='Gender' value={form.gender} onChange={f('gender')} options={['Male','Female']}/>
+            <Field label='Date of Birth ✦' value={form.dob} onChange={f('dob')} type='date' required style={!form.dob&&saving?{borderColor:'var(--rose)'}:{}}/>
             <Field label='Phone' value={form.phone} onChange={f('phone')}/>
             <Field label='Email' value={form.email} onChange={f('email')} type='email'/>
             <Field label='Address' value={form.address} onChange={f('address')}/>
@@ -500,9 +503,9 @@ export default function Students({profile,data,setData,toast,settings,activeYear
       {archiveModal && (
         <Modal title='Archive Student' subtitle='This student will be moved to Archived Students.' onClose={()=>{setArchiveModal(null);setArchiveForm({reason:'Withdrawn',notes:''})}} width={440}>
           <div style={{display:'flex',alignItems:'center',gap:14,padding:'14px 16px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:20,border:'1px solid var(--line)'}}>
-            <Avatar name={`${archiveModal.first_name} ${archiveModal.last_name}`} size={44} photo={archiveModal.photo}/>
+            <Avatar name={fullName(archiveModal)} size={44} photo={archiveModal.photo}/>
             <div>
-              <div style={{fontWeight:600,fontSize:14}}>{archiveModal.first_name} {archiveModal.last_name}</div>
+              <div style={{fontWeight:600,fontSize:14}}>{fullName(archiveModal)}</div>
               <div style={{fontSize:12,color:'var(--mist3)',marginTop:2}}>ID: {archiveModal.student_id} · {classes.find(c=>c.id===archiveModal.class_id)?.name||'--'}</div>
             </div>
           </div>
@@ -529,9 +532,9 @@ export default function Students({profile,data,setData,toast,settings,activeYear
       {unarchiveModal && (
         <Modal title='Re-enrol Student' onClose={()=>{setUnarchiveModal(null);setUnarchiveClass('')}} width={420}>
           <div style={{display:'flex',alignItems:'center',gap:14,padding:'14px 16px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:20,border:'1px solid var(--line)'}}>
-            <Avatar name={`${unarchiveModal.first_name} ${unarchiveModal.last_name}`} size={44} photo={unarchiveModal.photo}/>
+            <Avatar name={fullName(unarchiveModal)} size={44} photo={unarchiveModal.photo}/>
             <div>
-              <div style={{fontWeight:600,fontSize:14}}>{unarchiveModal.first_name} {unarchiveModal.last_name}</div>
+              <div style={{fontWeight:600,fontSize:14}}>{fullName(unarchiveModal)}</div>
               <div style={{fontSize:12,color:'var(--mist3)',marginTop:2}}>ID: {unarchiveModal.student_id} · {unarchiveModal.leaving_reason||'Archived'} {unarchiveModal.graduation_year||'--'}</div>
             </div>
           </div>
@@ -582,7 +585,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
                 <div style={{position:'absolute',bottom:4,right:4,width:12,height:12,borderRadius:'50%',background:s.archived?'var(--mist3)':'var(--emerald)',border:'2px solid var(--ink3)'}}/>
               </div>
               <div style={{flex:1}}>
-                <h2 className='d' style={{fontSize:22,fontWeight:700,letterSpacing:'-0.02em',marginBottom:8}}>{s.first_name} {s.last_name}</h2>
+                <h2 className='d' style={{fontSize:22,fontWeight:700,letterSpacing:'-0.02em',marginBottom:8}}>{fullName(s)}</h2>
                 <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
                   <span className='mono' style={{fontSize:12,color:'var(--gold)',background:'rgba(232,184,75,0.1)',border:'1px solid rgba(232,184,75,0.25)',borderRadius:4,padding:'2px 8px'}}>{s.student_id}</span>
                   {s.archived ? (() => {
@@ -763,6 +766,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
           </Modal>
         )
       })()}
+      {confirmState && <ConfirmModal {...confirmState} onClose={()=>setConfirmState(null)}/>}
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS, CURRENCIES } from '../lib/constants'
-import { fmtDate, fmtMoney, getCurrency, genRCP, csvEscape } from '../lib/helpers'
+import { fmtDate, fmtMoney, getCurrency, genRCP, csvEscape, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -13,6 +13,7 @@ import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
+import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
 import KPI from '../components/KPI'
 
@@ -107,7 +108,7 @@ function printReceipt({fee, feePayments, student, cls, settings, currency}) {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <div>
           <div style="font-size:10px;color:#999;margin-bottom:2px;">Full Name</div>
-          <div style="font-size:13px;font-weight:700;color:#111;">${student?.first_name||''} ${student?.last_name||''}</div>
+          <div style="font-size:13px;font-weight:700;color:#111;">${student?fullName(student):''}</div>
         </div>
         <div>
           <div style="font-size:10px;color:#999;margin-bottom:2px;">Student ID</div>
@@ -345,7 +346,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     const isOverdue = !!(fee.due_date && fee.due_date < today && bal > 0)
     const latestPayment = feePayments.sort((a,b)=>b.created_at?.localeCompare(a.created_at))[0]
     const latestReceipt = latestPayment?.receipt_no || fee.receipt_no || null
-    return{...fee,student_name:s?`${s.first_name} ${s.last_name}`:'--',balance:bal,effectivePaid,status,isOverdue,hasPayments:feePayments.length>0||effectivePaid>0,receipt_no:latestReceipt}
+    return{...fee,student_name:s?fullName(s,true):'--',balance:bal,effectivePaid,status,isOverdue,hasPayments:feePayments.length>0||effectivePaid>0,receipt_no:latestReceipt}
   })
   const filtered = enriched.filter(r=>{
     if(fClassId){
@@ -390,15 +391,16 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     setSaving(true)
     const {data:row,error}=await supabase.from('fees').insert({school_id:profile?.school_id,student_id:form.student_id,fee_type:form.fee_type,amount:parseFloat(form.amount),paid:0,due_date:form.due_date||null,period:form.period||null,academic_year:activeYear}).select().single()
     if(error)toast(error.message,'error')
-    else{setData(p=>({...p,fees:[...p.fees,row]}));const s=students.find(x=>x.id===form.student_id);auditLog(profile,'Fees','Created',`${s?.first_name} ${s?.last_name} · ${form.fee_type} · ${fmtMoney(parseFloat(form.amount),currency)}`,{},null,row);toast('Fee record added');setModal(false)}
+    else{setData(p=>({...p,fees:[...p.fees,row]}));const s=students.find(x=>x.id===form.student_id);auditLog(profile,'Fees','Created',`${fullName(s)} · ${form.fee_type} · ${fmtMoney(parseFloat(form.amount),currency)}`,{},null,row);toast('Fee record added');setModal(false)}
     setSaving(false)
   }
 
   const delFee = async id=>{
-    if(!confirm('Remove this fee record? This cannot be undone.'))return
+    setConfirmState({title:'Remove fee record?',body:'This will also delete all payment history for this fee.',icon:'🗑',danger:true,onConfirm:async()=>{
     const {error}=await supabase.from('fees').delete().eq('id',id).eq('school_id',profile?.school_id)
     if(error)toast(error.message,'error')
-    else{const fee=fees.find(x=>x.id===id);const s=students.find(x=>x.id===fee?.student_id);setData(p=>({...p,fees:p.fees.filter(f=>f.id!==id),payments:p.payments.filter(p=>p.fee_id!==id)}));auditLog(profile,'Fees','Deleted',`${s?.first_name} ${s?.last_name} · ${fee?.fee_type}`,{},fee,null);toast('Fee record removed')}
+    else{const fee=fees.find(x=>x.id===id);const s=students.find(x=>x.id===fee?.student_id);setData(p=>({...p,fees:p.fees.filter(f=>f.id!==id),payments:p.payments.filter(p=>p.fee_id!==id)}));auditLog(profile,'Fees','Deleted',`${fullName(s)} · ${fee?.fee_type}`,{},fee,null);toast('Fee record removed')}
+    }})
   }
 
   const recordPayment = async () => {
@@ -438,7 +440,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       fees:     p.fees.map(f=>f.id===editFee.id ? updatedFee : f),
       payments: [payRow, ...p.payments],
     }))
-    const pStudent=students.find(s=>s.id===editFee.student_id);auditLog(profile,'Fees','Payment',`${pStudent?.first_name} ${pStudent?.last_name} · ${fmtMoney(amt,currency)} · ${editFee.fee_type}`,{amount:amt,receipt:rcpt},null,null)
+    const pStudent=students.find(s=>s.id===editFee.student_id);auditLog(profile,'Fees','Payment',`${fullName(pStudent)} · ${fmtMoney(amt,currency)} · ${editFee.fee_type}`,{amount:amt,receipt:rcpt},null,null)
     toast('Payment recorded')
     setSaving(false)
     setPayModal(false)
@@ -483,7 +485,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       filtered.forEach(r=>{
         const s   = students.find(x=>x.id===r.student_id)
         const cls = s ? classes.find(c=>c.id===s.class_id)?.name || '' : ''
-        const sName = s ? s.first_name+' '+s.last_name : ''
+        const sName = s ? fullName(s,true) : ''
         csv += `"${esc(s?.student_id)}","${esc(sName)}","${esc(cls)}","${esc(r.fee_type)}","${esc(r.period)}","${esc(fmtMoney(r.amount,currency))}","${esc(fmtMoney(r.effectivePaid,currency))}","${esc(fmtMoney(r.balance,currency))}","${esc(r.status)}","${esc(r.due_date)}","${esc(r.receipt_no)}"\n`
       })
       const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
@@ -518,7 +520,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       fee_type:     fee?.fee_type||'--',
       period:       fee?.period||'',
       fee_amount:   fee?.amount||0,
-      student_name: student ? `${student.first_name} ${student.last_name}` : '--',
+      student_name: student ? fullName(student,true) : '--',
       student_id_no:student?.student_id||'',
       student_photo:student?.photo||null,
       class_name:   cls?.name||'--',
@@ -660,7 +662,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             <select value={phStudent} onChange={e=>setPhStudent(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:180}}>
               <option value=''>All Students</option>
-              {phStudentsInClass.sort((a,b)=>a.last_name.localeCompare(b.last_name)).map(s=><option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+              {phStudentsInClass.sort((a,b)=>a.last_name.localeCompare(b.last_name)).map(s=><option key={s.id} value={s.id}>{fullName(s,true)}</option>)}
             </select>
             <select value={phFeeType} onChange={e=>setPhFeeType(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
@@ -840,7 +842,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       {/* ── Single Add Fee Modal ── */}
       {modal && (
         <Modal title='Add Fee Record' onClose={()=>setModal(false)}>
-          <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={studentsInClass.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name} · ${classes.find(c=>c.id===s.class_id)?.name||''}`}))}/>
+          <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={studentsInClass.map(s=>({value:s.id,label:`${fullName(s,true)} · ${classes.find(c=>c.id===s.class_id)?.name||''}`}))}/>
           <Field label='Fee Type' value={form.fee_type} onChange={f('fee_type')} placeholder='e.g. Tuition, Activity Fee' required/>
           <Field label='Period' value={form.period} onChange={f('period')} options={feePeriods.map(p=>({value:p,label:p}))}/>
           <Field label='Amount' value={form.amount} onChange={f('amount')} type='number' required/>
@@ -1077,6 +1079,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           )}
         </Modal>
       )}
+      {confirmState && <ConfirmModal {...confirmState} onClose={()=>setConfirmState(null)}/>}
     </div>
   )
 }

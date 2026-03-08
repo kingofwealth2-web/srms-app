@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, LETTER_COLOR } from '../lib/constants'
-import { calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, fmtDate, csvEscape, ALL_COMPONENTS } from '../lib/helpers'
+import { calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, fmtDate, csvEscape, ALL_COMPONENTS, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -14,6 +14,7 @@ import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 import DataTable from '../components/DataTable'
+import ConfirmModal from '../components/ConfirmModal'
 
 // ── GRADES ─────────────────────────────────────────────────────
 export default function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
@@ -54,6 +55,9 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
   const [form,setForm]   = useState({})
   const [saving,setSaving] = useState(false)
   const [bulkMode,setBulkMode] = useState(false)
+  const [confirmState,setConfirmState] = useState(null)
+  const [studentSearch,setStudentSearch] = useState('')
+  const [showStudentDrop,setShowStudentDrop] = useState(false)
   // bulkRows: { [studentId]: { ...scores, skip:bool, dirty:bool, existingId:string|null } }
   const [bulkRows,setBulkRows] = useState({})
   const [bulkSaving,setBulkSaving] = useState(false)
@@ -111,7 +115,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
 
   const delGrade = async () => {
     if(!edit) return
-    if(!confirm('Delete this grade record? This cannot be undone.')) return
+    setConfirmState({title:'Delete grade record?',body:'This cannot be undone.',icon:'🗑',danger:true,onConfirm:async()=>{
     setSaving(true)
     const {error} = await supabase.from('grades').delete().eq('id', edit.id).eq('school_id', profile?.school_id)
     if(error) toast(error.message,'error')
@@ -124,6 +128,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
       setModal(false)
     }
     setSaving(false)
+    }})
   }
 
   const save = async () => {
@@ -449,9 +454,9 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
                                     isExisting? 'rgba(91,168,245,0.05)' : 'var(--ink2)',
                         borderRight:'1px solid var(--line)'}}>
                         <div style={{display:'flex',alignItems:'center',gap:10}}>
-                          <Avatar name={`${s.first_name} ${s.last_name}`} size={26}/>
+                          <Avatar name={fullName(s)} size={26}/>
                           <div>
-                            <div style={{fontSize:13,fontWeight:600,color:isSkipped?'var(--mist3)':'var(--white)'}}>{s.first_name} {s.last_name}</div>
+                            <div style={{fontSize:13,fontWeight:600,color:isSkipped?'var(--mist3)':'var(--white)'}}>{fullName(s,true)}</div>
                             {isExisting && !isSkipped && <div style={{fontSize:10,color:'var(--sky)',marginTop:1}}>● existing record</div>}
                           </div>
                         </div>
@@ -526,7 +531,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
         /* ── NORMAL LIST VIEW ── */
         <Card>
           <DataTable onRow={isViewingPast?null:(g=>mySubjects.some(s=>s.id===g.subject_id)?openEdit(g):null)} data={filtered} columns={[
-            {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?(<div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${s.first_name} ${s.last_name}`} size={28}/><span style={{fontWeight:600}}>{s.first_name} {s.last_name}</span></div>):'--'}},
+            {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?(<div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={fullName(s)} size={28}/><span style={{fontWeight:600}}>{fullName(s,true)}</span></div>):'--'}},
             {key:'subject_id',label:'Subject',render:v=>subjects.find(s=>s.id===v)?.name||'--'},
             {key:'period',label:'Period'},
             ...tableComps.map(c=>({
@@ -547,7 +552,38 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
       {modal && (
         <Modal title={edit?'Edit Grade':'Record Grades'} onClose={()=>setModal(false)} width={600}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 20px'}}>
-            <Field label='Student' value={form.student_id} onChange={v=>{f('student_id')(v); f('subject_id')('')}} required options={myStudents.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name} · ${data.classes?.find(c=>c.id===s.class_id)?.name||''}`}))}/>
+            <div style={{marginBottom:16,position:'relative'}}>
+              <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Student <span style={{color:'var(--rose)'}}>*</span></div>
+              <input
+                value={studentSearch || (form.student_id ? fullName(myStudents.find(s=>s.id===form.student_id),true)||'' : '')}
+                onChange={e=>{setStudentSearch(e.target.value);setShowStudentDrop(true);if(!e.target.value){f('student_id')('');f('subject_id')('')}}}
+                onFocus={()=>{setStudentSearch('');setShowStudentDrop(true)}}
+                onBlur={()=>setTimeout(()=>setShowStudentDrop(false),150)}
+                placeholder='Search student...'
+                style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',color:'var(--white)',fontSize:13,boxSizing:'border-box'}}
+              />
+              {showStudentDrop && (
+                <div style={{position:'absolute',top:'100%',left:0,right:0,background:'var(--ink3)',border:'1px solid var(--line2)',borderRadius:'var(--r-sm)',zIndex:50,maxHeight:200,overflowY:'auto',boxShadow:'0 8px 24px rgba(0,0,0,0.4)'}}>
+                  {myStudents.filter(s=>{
+                    if(!studentSearch) return true
+                    const q=studentSearch.toLowerCase()
+                    return fullName(s).toLowerCase().includes(q)||s.student_id?.toLowerCase().includes(q)
+                  }).slice(0,20).map(s=>(
+                    <div key={s.id}
+                      onMouseDown={()=>{f('student_id')(s.id);f('subject_id')('');setStudentSearch('');setShowStudentDrop(false)}}
+                      style={{padding:'9px 14px',cursor:'pointer',fontSize:13,display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid var(--line)'}}
+                      onMouseEnter={e=>e.currentTarget.style.background='var(--ink4)'}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      <span style={{fontWeight:500}}>{fullName(s,true)}</span>
+                      <span style={{fontSize:11,color:'var(--mist3)'}}>{data.classes?.find(c=>c.id===s.class_id)?.name||''}</span>
+                    </div>
+                  ))}
+                  {myStudents.filter(s=>!studentSearch||fullName(s).toLowerCase().includes(studentSearch.toLowerCase())).length===0 && (
+                    <div style={{padding:'12px 14px',fontSize:12,color:'var(--mist3)'}}>No students found</div>
+                  )}
+                </div>
+              )}
+            </div>
             <Field label='Subject' value={form.subject_id} onChange={v=>{f('subject_id')(v)}} required options={(() => {
               // Filter subjects by the selected student's class, not the page-level filter
               const selectedStudent = students.find(s=>s.id===form.student_id)
@@ -669,6 +705,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
           </div>
         </Modal>
       )}
+      {confirmState && <ConfirmModal {...confirmState} onClose={()=>setConfirmState(null)}/>}
     </div>
   )
 }

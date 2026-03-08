@@ -21,7 +21,7 @@ export default function Announcements({profile,data,setData,toast,activeYear,isV
   const [form,setForm]   = useState({})
   const [saving,setSaving] = useState(false)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
-  const visible = announcements.filter(a=>profile?.role==="superadmin" ? true : canSeeAnnouncement(profile?.role,a)).sort((a,b)=>b.created_at?.localeCompare(a.created_at))
+  const visible = announcements.filter(a=>['superadmin','admin'].includes(profile?.role) ? true : canSeeAnnouncement(profile?.role,a)).sort((a,b)=>b.created_at?.localeCompare(a.created_at))
   const [editRow,setEditRow] = useState(null)
   const openAdd  = ()=>{setEditRow(null);setForm({title:'',body:'',target_role:'all'});setModal(true)}
   const openEdit = a=>{setEditRow(a);setForm({title:a.title,body:a.body,target_role:a.target_role});setModal(true)}
@@ -59,29 +59,50 @@ export default function Announcements({profile,data,setData,toast,activeYear,isV
         {canManage && !isViewingPast && <Btn onClick={openAdd}>+ Post Announcement</Btn>}
       </PageHeader>
       {visible.length===0 && <Card style={{textAlign:'center',padding:60}}><div style={{fontSize:32,marginBottom:12}}>◯</div><div style={{fontWeight:600,marginBottom:6}}>No announcements</div><div style={{color:'var(--mist3)',fontSize:13,marginBottom:20}}>Nothing posted yet.</div>{canManage&&<Btn onClick={openAdd}>Post First Announcement</Btn>}</Card>}
-      <div style={{display:'flex',flexDirection:'column',gap:12}}>
-        {visible.map((a,i)=>(
-          <div key={a.id} className={`fu fu${Math.min(i+1,6)}`} style={{background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:'20px 24px',opacity:a.active?1:0.5,borderLeft:`3px solid ${a.active?roleColor[a.target_role]||'var(--gold)':'var(--line)'}`}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:16,flexWrap:'wrap'}}>
-              <div style={{flex:1}}>
-                <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginBottom:10}}>
-                  <h3 style={{fontSize:15,fontWeight:600}}>{a.title}</h3>
-                  <Badge color={roleColor[a.target_role]||'var(--mist2)'}>{a.target_role==='all'?'Everyone':a.target_role==='teacher'?'Teachers':'Admins'}</Badge>
-                  {!a.active && <Badge color='var(--mist3)'>Inactive</Badge>}
+      <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        {visible.map((a,i)=>{
+          const rc=roleColor[a.target_role]||'var(--gold)'
+          const isOwner=a.posted_by_id===profile?.id||profile?.role==='superadmin'
+          const audienceLabel=a.target_role==='all'?'Everyone':a.target_role==='teacher'?'Teachers':'Admins'
+          return (
+          <div key={a.id} className={`fu fu${Math.min(i+1,6)}`}
+            style={{background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:'var(--r)',overflow:'hidden',opacity:a.active?1:0.55,transition:'opacity 0.2s',borderLeft:`3px solid ${a.active?rc:'var(--line)'}`}}>
+            <div style={{display:'flex'}}>
+              <div style={{width:52,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-start',padding:'18px 0',background:`${rc}08`,borderRight:`1px solid ${rc}20`,flexShrink:0}}>
+                <div style={{width:32,height:32,borderRadius:'50%',background:`${rc}20`,border:`1px solid ${rc}40`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:rc}}>
+                  {(a.posted_by_name||'?')[0].toUpperCase()}
                 </div>
-                <p style={{fontSize:13,color:'var(--mist2)',lineHeight:1.7}}>{a.body}</p>
-                <div style={{fontSize:11,color:'var(--mist3)',marginTop:12}}>Posted by <strong style={{color:'var(--mist2)'}}>{a.posted_by_name}</strong> . {fmtDate(a.created_at)}</div>
               </div>
-              {canManage && !isViewingPast && (
-                <div style={{display:'flex',gap:8,flexShrink:0}}>
-                  <Btn variant='ghost' size='sm' onClick={()=>openEdit(a)}>Edit</Btn>
-                  <Btn variant='ghost' size='sm' onClick={()=>toggle(a.id)}>{a.active?'Deactivate':'Activate'}</Btn>
-                  <Btn variant='danger' size='sm' onClick={()=>del(a.id)}>Delete</Btn>
+              <div style={{flex:1,padding:'16px 18px'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,flexWrap:'wrap'}}>
+                  <div style={{flex:1}}>
+                    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:8}}>
+                      <Badge color={rc} bg={`${rc}15`}>{audienceLabel}</Badge>
+                      {!a.active&&<Badge color='var(--mist3)' bg='var(--ink3)'>Inactive</Badge>}
+                      <span style={{fontSize:11,color:'var(--mist3)'}}>{fmtDate(a.created_at)}</span>
+                    </div>
+                    <h3 style={{fontSize:14,fontWeight:700,marginBottom:6,color:'var(--white)'}}>{a.title}</h3>
+                    <p style={{fontSize:13,color:'var(--mist2)',lineHeight:1.7,margin:0}}>{a.body}</p>
+                    <div style={{fontSize:11,color:'var(--mist3)',marginTop:10}}>Posted by <strong style={{color:'var(--mist2)'}}>{a.posted_by_name}</strong></div>
+                  </div>
+                  {canManage&&!isViewingPast&&(
+                    <div style={{display:'flex',gap:6,flexShrink:0,alignItems:'center'}}>
+                      {isOwner&&<Btn variant='ghost' size='sm' onClick={()=>openEdit(a)}>Edit</Btn>}
+                      {isOwner&&(
+                        <Btn variant='ghost' size='sm' onClick={()=>toggle(a.id)}
+                          style={{color:a.active?'var(--amber)':'var(--emerald)',borderColor:a.active?'rgba(251,159,58,0.3)':'rgba(45,212,160,0.3)'}}>
+                          {a.active?'Deactivate':'Activate'}
+                        </Btn>
+                      )}
+                      {isOwner&&<Btn variant='danger' size='sm' onClick={()=>del(a.id)}>Delete</Btn>}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
       {modal && (
         <Modal title={editRow?'Edit Announcement':'New Announcement'} onClose={()=>{setModal(false);setEditRow(null)}}>

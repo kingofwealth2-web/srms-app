@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, BEHAVIOUR_META } from '../lib/constants'
-import { fmtDate, getLetter, calcTotal, getGradeComponents, canSeeAnnouncement, getCurrency, fmtMoney } from '../lib/helpers'
+import { fmtDate, getLetter, calcTotal, getGradeComponents, canSeeAnnouncement, getCurrency, fmtMoney , fullName } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Card from '../components/Card'
 import KPI from '../components/KPI'
@@ -193,9 +193,9 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
                   {top.map(({student,total},i)=>(
                     <div key={student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',borderLeft:`3px solid ${['var(--gold)','var(--mist2)','var(--amber)'][i]}`}}>
                       <div style={{width:20,height:20,borderRadius:'50%',background:['rgba(232,184,75,0.15)','rgba(255,255,255,0.06)','rgba(251,159,58,0.12)'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:['var(--gold)','var(--mist2)','var(--amber)'][i],flexShrink:0}}>{i+1}</div>
-                      <Avatar name={`${student.first_name} ${student.last_name}`} size={26} photo={student.photo}/>
+                      <Avatar name={fullName(student)} size={26} photo={student.photo}/>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:13,fontWeight:600,color:'var(--white)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{student.first_name} {student.last_name}</div>
+                        <div style={{fontSize:13,fontWeight:600,color:'var(--white)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{fullName(student,true)}</div>
                         <div style={{fontSize:11,color:'var(--mist3)'}}>{getLetter(total,scale)} · {classes.find(c=>c.id===student.class_id)?.name||'--'}</div>
                       </div>
                       <div style={{fontSize:16,fontWeight:700,color:['var(--gold)','var(--mist)','var(--amber)'][i],flexShrink:0}}>{total}</div>
@@ -221,9 +221,9 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
                   {top.map(({student,total},i)=>(
                     <div key={student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',borderLeft:`3px solid ${['var(--gold)','var(--mist2)','var(--amber)'][i]}`}}>
                       <div style={{width:20,height:20,borderRadius:'50%',background:['rgba(232,184,75,0.15)','rgba(255,255,255,0.06)','rgba(251,159,58,0.12)'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:['var(--gold)','var(--mist2)','var(--amber)'][i],flexShrink:0}}>{i+1}</div>
-                      <Avatar name={`${student.first_name} ${student.last_name}`} size={26} photo={student.photo}/>
+                      <Avatar name={fullName(student)} size={26} photo={student.photo}/>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:13,fontWeight:600,color:'var(--white)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{student.first_name} {student.last_name}</div>
+                        <div style={{fontSize:13,fontWeight:600,color:'var(--white)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{fullName(student,true)}</div>
                         <div style={{fontSize:11,color:'var(--mist3)'}}>total across subjects</div>
                       </div>
                       <div style={{fontSize:16,fontWeight:700,color:['var(--gold)','var(--mist)','var(--amber)'][i],flexShrink:0}}>{total}</div>

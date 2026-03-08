@@ -86,12 +86,19 @@ export default function AuditLog({profile}) {
     return 'just now'
   }
 
+  const isUUID = v => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+  const fmtVal = v => {
+    if (v === null || v === undefined) return '—'
+    if (isUUID(String(v))) return `ID: ${String(v).slice(0,8)}…`
+    return String(v)
+  }
+
   const renderDiff = (log) => {
     if(!log.before_data && !log.after_data) return null
     const before = log.before_data||{}
     const after  = log.after_data||{}
     const keys   = [...new Set([...Object.keys(before),...Object.keys(after)])]
-      .filter(k=>!['id','created_at','updated_at','password'].includes(k))
+      .filter(k=>!['id','created_at','updated_at','password','school_id'].includes(k))
       .filter(k=>JSON.stringify(before[k])!==JSON.stringify(after[k]))
     if(!keys.length) return <div style={{fontSize:12,color:'var(--mist3)',fontStyle:'italic'}}>No field changes recorded.</div>
     return (
@@ -102,17 +109,17 @@ export default function AuditLog({profile}) {
             {log.action==='Created' ? (
               <>
                 <div style={{color:'var(--mist3)',fontStyle:'italic'}}>—</div>
-                <div style={{color:'var(--emerald)',background:'rgba(45,212,160,0.08)',padding:'3px 8px',borderRadius:4,wordBreak:'break-all'}}>{String(after[k]??'—')}</div>
+                <div style={{color:'var(--emerald)',background:'rgba(45,212,160,0.08)',padding:'3px 8px',borderRadius:4,wordBreak:'break-all'}}>{fmtVal(after[k])}</div>
               </>
             ) : log.action==='Deleted' ? (
               <>
-                <div style={{color:'var(--rose)',background:'rgba(240,107,122,0.08)',padding:'3px 8px',borderRadius:4,wordBreak:'break-all',textDecoration:'line-through'}}>{String(before[k]??'—')}</div>
+                <div style={{color:'var(--rose)',background:'rgba(240,107,122,0.08)',padding:'3px 8px',borderRadius:4,wordBreak:'break-all',textDecoration:'line-through'}}>{fmtVal(before[k])}</div>
                 <div style={{color:'var(--mist3)',fontStyle:'italic'}}>—</div>
               </>
             ) : (
               <>
-                <div style={{color:'var(--mist2)',background:'var(--ink3)',padding:'3px 8px',borderRadius:4,wordBreak:'break-all'}}>{String(before[k]??'—')}</div>
-                <div style={{color:'var(--emerald)',background:'rgba(45,212,160,0.08)',padding:'3px 8px',borderRadius:4,wordBreak:'break-all'}}>{String(after[k]??'—')}</div>
+                <div style={{color:'var(--mist2)',background:'var(--ink3)',padding:'3px 8px',borderRadius:4,wordBreak:'break-all'}}>{fmtVal(before[k])}</div>
+                <div style={{color:'var(--emerald)',background:'rgba(45,212,160,0.08)',padding:'3px 8px',borderRadius:4,wordBreak:'break-all'}}>{fmtVal(after[k])}</div>
               </>
             )}
           </div>

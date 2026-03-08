@@ -116,6 +116,18 @@ export function getVacationOnDate(dateStr, vacations = [], academicYear) {
   return v ? v.name : null
 }
 
+// ── NAME HELPERS ───────────────────────────────────────────────
+// compact: First Last   (tables, dropdowns)
+// full:    First Middle Last (profile, reports, cards)
+export const fullName = (s, compact = false) => {
+  if (!s) return ''
+  const first  = s.first_name  || ''
+  const middle = s.middle_name || ''
+  const last   = s.last_name   || ''
+  if (compact || !middle) return `${first} ${last}`.trim()
+  return `${first} ${middle} ${last}`.trim()
+}
+
 // ── ANNOUNCEMENT VISIBILITY ────────────────────────────────────
 export function canSeeAnnouncement(role, ann) {
   if (!ann.active) return false
