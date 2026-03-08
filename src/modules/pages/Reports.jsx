@@ -766,8 +766,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print Broadsheet</button>
     </div>
     </body></html>`
-    const w=window.open('','_blank','width=1200,height=860')
-    if(w){w.document.write(html);w.document.close()}
+    const w=URL.createObjectURL(new Blob([html],{type:'text/html'}))
+    window.open(w,'_blank')
   }
 
   // ── SUBJECT REPORT ─────────────────────────────────────────────
@@ -864,8 +864,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       <button onclick="window.print()" style="padding:12px 32px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;">⎙ &nbsp;Print Subject Report</button>
     </div>
     </body></html>`
-    const w=window.open('','_blank','width=800,height=900')
-    if(w){w.document.write(html);w.document.close()}
+    const w=URL.createObjectURL(new Blob([html],{type:'text/html'}))
+    window.open(w,'_blank')
   }
 
   // ── INDIVIDUAL REPORT CARD ─────────────────────────────────────
@@ -1117,8 +1117,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     <div class="no-print" style="max-width:800px;margin:0 auto;text-align:center;padding:16px;">
       <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print Report Card</button>
     </div></body></html>`
-    const w=window.open('','_blank','width=860,height=960')
-    if(w){w.document.write(html);w.document.close()}
+    const w=URL.createObjectURL(new Blob([html],{type:'text/html'}))
+    window.open(w,'_blank')
   }
 
   const printAllCards = () => {
@@ -1129,8 +1129,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     <div class="no-print" style="max-width:800px;margin:0 auto;text-align:center;padding:16px;">
       <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print All Cards (${classStudents.length})</button>
     </div></body></html>`
-    const w=window.open('','_blank','width=860,height=960')
-    if(w){w.document.write(html);w.document.close()}
+    const w=URL.createObjectURL(new Blob([html],{type:'text/html'}))
+    window.open(w,'_blank')
   }
 
   // ── UI ─────────────────────────────────────────────────────────
@@ -1148,8 +1148,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     <div class="no-print" style="max-width:800px;margin:0 auto;text-align:center;padding:16px;">
       <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print This Card</button>
     </div></body></html>`
-    const w=window.open('','_blank','width=860,height=960')
-    if(w){w.document.write(html);w.document.close()}
+    const w=URL.createObjectURL(new Blob([html],{type:'text/html'}))
+    window.open(w,'_blank')
   }
 
     const canPrintBroadsheet = rcClass&&rcPeriod
