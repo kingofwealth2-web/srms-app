@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
+import { createClient } from '@supabase/supabase-js'
 import { supabase } from '../../supabase'
+
+const SUPABASE_URL      = 'https://kfcqkgvuluftnwzeqzmw.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmY3FrZ3Z1bHVmdG53emVxem13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NzkwMTUsImV4cCI6MjA4NzQ1NTAxNX0.dOW3c8XIfFbIq2ls9gEjgowWguIlWLVflR7nErXojDI'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META } from '../lib/constants'
 import { fmtDate } from '../lib/helpers'
@@ -60,11 +64,16 @@ export default function Users({profile,toast}) {
       setModal(false)
     } else {
       if(!form.password)return
-      const {data:authData,error:authErr} = await supabase.auth.signUp({
+      // Use a throwaway client so signUp never touches the SA's current session
+      const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      })
+      const {data:authData,error:authErr} = await tempClient.auth.signUp({
         email: form.email,
         password: form.password,
         options: { data: { full_name: form.full_name, role: form.role } }
       })
+      await tempClient.auth.signOut()
       if(authErr){ toast(authErr.message,'error'); setSaving(false); return }
       const uid = authData?.user?.id
       if(!uid){ toast('User account created but could not get ID.','error'); setSaving(false); return }
