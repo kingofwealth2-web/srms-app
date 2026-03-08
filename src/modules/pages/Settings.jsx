@@ -214,7 +214,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
             <p style={{fontSize:12,color:'var(--mist2)',marginBottom:14,lineHeight:1.6}}>
               Toggle which components teachers enter grades for. Disabling a component <strong style={{color:'var(--rose)'}}>clears all existing scores</strong> for it immediately. Active weights must total <strong style={{color:'var(--white)'}}>100%</strong>.
             </p>
-            {/* 1-decimal toggle removed */}
+            {/* Decimal scores — future feature */}
             <div style={{background:'var(--ink3)',borderRadius:'var(--r-sm)',padding:'10px 16px',marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span style={{fontSize:12,color:'var(--mist2)'}}>Active weight total</span>
               <span className='d' style={{fontSize:18,fontWeight:700,color:totalWeight===100?'var(--emerald)':totalWeight===0?'var(--mist3)':'var(--rose)'}}>{totalWeight}%</span>

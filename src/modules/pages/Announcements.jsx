@@ -22,13 +22,23 @@ export default function Announcements({profile,data,setData,toast,activeYear,isV
   const [saving,setSaving] = useState(false)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
   const visible = announcements.filter(a=>profile?.role==="superadmin" ? true : canSeeAnnouncement(profile?.role,a)).sort((a,b)=>b.created_at?.localeCompare(a.created_at))
-  const openAdd = ()=>{setForm({title:'',body:'',target_role:'all'});setModal(true)}
+  const [editRow,setEditRow] = useState(null)
+  const openAdd  = ()=>{setEditRow(null);setForm({title:'',body:'',target_role:'all'});setModal(true)}
+  const openEdit = a=>{setEditRow(a);setForm({title:a.title,body:a.body,target_role:a.target_role});setModal(true)}
   const save = async ()=>{
     if(!form.title||!form.body)return
     setSaving(true)
-    const {data:row,error}=await supabase.from('announcements').insert({...form,school_id:profile?.school_id,active:true,posted_by_id:profile?.id,posted_by_name:profile?.full_name,academic_year:activeYear}).select().single()
-    if(error)toast(error.message,'error')
-    else{setData(p=>({...p,announcements:[row,...p.announcements]}));toast('Announcement posted');setModal(false)}
+    if(editRow){
+      const {error}=await supabase.from('announcements').update({title:form.title,body:form.body,target_role:form.target_role}).eq('id',editRow.id).eq('school_id',profile?.school_id)
+      if(error){toast(error.message,'error');setSaving(false);return}
+      setData(p=>({...p,announcements:p.announcements.map(a=>a.id===editRow.id?{...a,...form}:a)}))
+      auditLog(profile,'Announcements','Edited',form.title,{},{...editRow},{...form})
+      toast('Announcement updated');setModal(false);setEditRow(null)
+    } else {
+      const {data:row,error}=await supabase.from('announcements').insert({...form,school_id:profile?.school_id,active:true,posted_by_id:profile?.id,posted_by_name:profile?.full_name,academic_year:activeYear}).select().single()
+      if(error)toast(error.message,'error')
+      else{setData(p=>({...p,announcements:[row,...p.announcements]}));toast('Announcement posted');setModal(false)}
+    }
     setSaving(false)
   }
   const toggle = async id=>{
@@ -64,6 +74,7 @@ export default function Announcements({profile,data,setData,toast,activeYear,isV
               </div>
               {canManage && !isViewingPast && (
                 <div style={{display:'flex',gap:8,flexShrink:0}}>
+                  <Btn variant='ghost' size='sm' onClick={()=>openEdit(a)}>Edit</Btn>
                   <Btn variant='ghost' size='sm' onClick={()=>toggle(a.id)}>{a.active?'Deactivate':'Activate'}</Btn>
                   <Btn variant='danger' size='sm' onClick={()=>del(a.id)}>Delete</Btn>
                 </div>
@@ -73,13 +84,13 @@ export default function Announcements({profile,data,setData,toast,activeYear,isV
         ))}
       </div>
       {modal && (
-        <Modal title='New Announcement' onClose={()=>setModal(false)}>
+        <Modal title={editRow?'Edit Announcement':'New Announcement'} onClose={()=>{setModal(false);setEditRow(null)}}>
           <Field label='Title' value={form.title} onChange={f('title')} required/>
           <Field label='Message' value={form.body} onChange={f('body')} rows={4} required placeholder='Full announcement text...'/>
           <Field label='Target Audience' value={form.target_role} onChange={f('target_role')} options={[{value:'all',label:'Everyone'},{value:'teacher',label:'Teachers Only'},{value:'admin',label:'Admins Only'}]}/>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
-            <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Posting...</>:'Post Announcement'}</Btn>
+            <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving...</>:editRow?'Save Changes':'Post Announcement'}</Btn>
           </div>
         </Modal>
       )}

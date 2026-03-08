@@ -110,7 +110,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     if(!form.guardian_name||!form.guardian_phone){toast('Please add at least one parent or guardian with a name and phone number','error');return}
     setSaving(true)
     if(edit){
-      const {error} = await supabase.from('students').update({...form,updated_at:new Date()}).eq('id',edit.id).eq('school_id',profile?.school_id)
+      const {error} = await supabase.from('students').update({...form,updated_at:new Date()}).eq('id',edit.id)
       if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));auditLog(profile,'Students','Updated',`${form.first_name} ${form.last_name}`,{},{...edit},{...form});toast('Student updated');setModal(false)}
     } else {
       const sid = genSID(students)
@@ -428,7 +428,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
           {key:'dob',label:'Date of Birth',render:v=>fmtDate(v)},
           {key:'medical_info',label:'Medical',render:v=>v&&v!=='None'?<Badge color='var(--rose)'>{v}</Badge>:<span style={{color:'var(--mist3)'}}>None</span>},
           showArchived
-            ? profile?.role==='superadmin'
+            ? (profile?.role==='superadmin'||profile?.role==='admin')
               ? {key:'id',label:'',render:(v,r)=>(
                   <div style={{display:'flex',gap:6}} onClick={e=>e.stopPropagation()}>
                     <Btn variant='ghost' size='sm' onClick={()=>{setUnarchiveModal(r);setUnarchiveClass('')}}>Re-enrol</Btn>

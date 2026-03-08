@@ -248,7 +248,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
           <Btn variant='ghost' onClick={openPromo}>Promote Class</Btn>
         </>}
         <Btn variant='ghost' onClick={()=>{setSubjectModal(true);setEditS(null);setSf({name:'',code:'',class_id:selected?.id||'',teacher_id:''})}}>+ Subject</Btn>
-        {!isViewingPast && <Btn onClick={()=>{setClassModal(true);setEditC(null);setCf({name:'',class_teacher_id:'',is_terminal:false})}}>+ New Class</Btn>}
+        {!isViewingPast && profile?.role==='superadmin' && <Btn onClick={()=>{setClassModal(true);setEditC(null);setCf({name:'',class_teacher_id:'',is_terminal:false})}}>+ New Class</Btn>}
       </PageHeader>
       <div style={{display:'grid',gridTemplateColumns:selected?'260px 1fr':'repeat(auto-fill,minmax(260px,1fr))',gap:16}}>
         {selected ? (

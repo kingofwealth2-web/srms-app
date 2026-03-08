@@ -128,6 +128,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
 
   const save = async () => {
     if(!form.student_id||!form.subject_id){toast('Please select a student and subject','error');return}
+    if(scoreWarnings.length>0){toast(`Score exceeds maximum: ${scoreWarnings.map(c=>c.label).join(', ')}`,'error');return}
     // Only save scores for active components; zero out disabled ones
     const scores = ALL_COMPONENTS.reduce((acc,k)=>{
       const comp = allComps.find(c=>c.key===k)

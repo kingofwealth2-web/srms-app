@@ -35,15 +35,27 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
     return true
   }).sort((a,b)=>b.created_at?.localeCompare(a.created_at))
   const counts   = types.reduce((acc,t)=>({...acc,[t]:behaviour.filter(b=>b.type===t).length}),{})
-  const openAdd  = ()=>{setForm({student_id:'',type:'Achievement',title:'',description:'',date:new Date().toISOString().split('T')[0]});setModal(true)}
+  const openAdd  = ()=>{setEditRow(null);setForm({student_id:'',type:'Achievement',title:'',description:'',date:new Date().toISOString().split('T')[0]});setModal(true)}
   const save = async ()=>{
     if(!form.student_id||!form.title)return
     setSaving(true)
-    const {data:row,error}=await supabase.from('behaviour').insert({...form,school_id:profile?.school_id,recorded_by_id:profile?.id,recorded_by_name:profile?.full_name,academic_year:activeYear}).select().single()
-    if(error)toast(error.message,'error')
-    else{setData(p=>({...p,behaviour:[row,...p.behaviour]}));const s=students.find(x=>x.id===form.student_id);auditLog(profile,'Behaviour','Created',`${s?.first_name} ${s?.last_name} · ${form.type} · ${form.title}`,{},null,row);toast('Record added');setModal(false)}
+    if(editRow){
+      const {error}=await supabase.from('behaviour').update({type:form.type,title:form.title,description:form.description,date:form.date}).eq('id',editRow.id).eq('school_id',profile?.school_id)
+      if(error){toast(error.message,'error');setSaving(false);return}
+      const updated={...editRow,...form}
+      setData(p=>({...p,behaviour:p.behaviour.map(b=>b.id===editRow.id?updated:b)}))
+      const s=students.find(x=>x.id===form.student_id)
+      auditLog(profile,'Behaviour','Edited',`${s?.first_name} ${s?.last_name} · ${form.type} · ${form.title}`,{},{...editRow},{...form})
+      toast('Record updated');setModal(false);setEditRow(null)
+    } else {
+      const {data:row,error}=await supabase.from('behaviour').insert({...form,school_id:profile?.school_id,recorded_by_id:profile?.id,recorded_by_name:profile?.full_name,academic_year:activeYear}).select().single()
+      if(error)toast(error.message,'error')
+      else{setData(p=>({...p,behaviour:[row,...p.behaviour]}));const s=students.find(x=>x.id===form.student_id);auditLog(profile,'Behaviour','Created',`${s?.first_name} ${s?.last_name} · ${form.type} · ${form.title}`,{},null,row);toast('Record added');setModal(false)}
+    }
     setSaving(false)
   }
+  const [editRow,setEditRow] = useState(null)
+  const openEdit = r=>{setEditRow(r);setForm({student_id:r.student_id,type:r.type,title:r.title,description:r.description||'',date:r.date||new Date().toISOString().split('T')[0]});setModal(true)}
   const del = async id=>{
     if(!confirm('Remove this record?'))return
     const {error}=await supabase.from('behaviour').delete().eq('id',id).eq('school_id',profile?.school_id)
@@ -139,10 +151,13 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
                     </div>
                   </div>
                   {!isViewingPast && (
-                    <Btn variant='ghost' size='sm' onClick={()=>del(b.id)}
-                      style={{color:'var(--rose)',borderColor:'rgba(240,107,122,0.25)',flexShrink:0}}>
-                      Delete
-                    </Btn>
+                    <div style={{display:'flex',gap:6,flexShrink:0}}>
+                      <Btn variant='ghost' size='sm' onClick={()=>openEdit(b)}>Edit</Btn>
+                      <Btn variant='ghost' size='sm' onClick={()=>del(b.id)}
+                        style={{color:'var(--rose)',borderColor:'rgba(240,107,122,0.25)'}}>
+                        Delete
+                      </Btn>
+                    </div>
                   )}
                 </div>
               </div>
@@ -151,7 +166,7 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
         })}
       </div>
       {modal && (
-        <Modal title='New Behaviour Record' onClose={()=>setModal(false)}>
+        <Modal title={editRow?'Edit Behaviour Record':'New Behaviour Record'} onClose={()=>{setModal(false);setEditRow(null)}}>
           <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={studentsInClass.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name} · ${classes.find(c=>c.id===s.class_id)?.name||''}`}))}/>
           <Field label='Record Type' value={form.type} onChange={f('type')} options={types}/>
           <Field label='Title' value={form.title} onChange={f('title')} placeholder='Brief descriptive title' required/>
