@@ -387,8 +387,9 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     const legacyPaid  = Math.max(0, Number(editFee.paid||0) - alreadyPaid)
     const currentPaid = alreadyPaid + legacyPaid
     const currentBalance = Number(editFee.amount||0) - currentPaid
-    const amt = Math.min(parseFloat(payForm.amount)||0, currentBalance)
+    const amt = parseFloat(payForm.amount)||0
     if(amt<=0){ toast('Amount must be greater than zero','error'); setSaving(false); return }
+    if(amt>currentBalance){ toast(`Amount exceeds balance of ${fmtMoney(currentBalance,currency)}`,'error'); setSaving(false); return }
     const newCumPaid = currentPaid + amt
     // Generate receipt number atomically in the DB to avoid race conditions
     const {data:rcptData, error:rcptErr} = await supabase.rpc('generate_receipt_no', { p_school_id: profile?.school_id })
@@ -837,6 +838,11 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             ))}
           </div>
           <Field label='Payment Amount' value={payForm.amount} onChange={pf('amount')} type='number'/>
+          {parseFloat(payForm.amount)>editFee.balance && (
+            <div style={{fontSize:12,color:'var(--rose)',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)',padding:'8px 12px',marginTop:-10,marginBottom:12}}>
+              ⚠ Amount exceeds balance of {fmtMoney(editFee.balance,currency)}
+            </div>
+          )}
           <p style={{fontSize:11,color:'var(--mist3)',marginTop:-10,marginBottom:16}}>A receipt will open automatically after saving.</p>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setPayModal(false)}>Cancel</Btn>
