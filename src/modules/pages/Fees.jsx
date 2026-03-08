@@ -380,28 +380,20 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   }
 
   const recordPayment = async () => {
-    if(!editFee) return
+    if(!editFee || saving) return
+    setSaving(true)
     const feePayments = payments.filter(p=>p.fee_id===editFee.id)
     const alreadyPaid = feePayments.reduce((a,p)=>a+Number(p.amount||0),0)
     const legacyPaid  = Math.max(0, Number(editFee.paid||0) - alreadyPaid)
     const currentPaid = alreadyPaid + legacyPaid
     const currentBalance = Number(editFee.amount||0) - currentPaid
     const amt = Math.min(parseFloat(payForm.amount)||0, currentBalance)
-    if(amt<=0){ toast('Amount must be greater than zero','error'); return }
+    if(amt<=0){ toast('Amount must be greater than zero','error'); setSaving(false); return }
     const newCumPaid = currentPaid + amt
-    // Fetch global max receipt number across ALL years to avoid collisions
-    const {data:allReceipts} = await supabase
-      .from('payments')
-      .select('receipt_no')
-      .eq('school_id', profile?.school_id)
-      .not('receipt_no','is',null)
-      .order('receipt_no',{ascending:false})
-      .limit(1)
-    const lastNum = allReceipts?.[0]?.receipt_no
-      ? parseInt(allReceipts[0].receipt_no.split('-')[1]||0)
-      : 0
-    const feeMaxNum = fees.filter(f=>f.receipt_no).reduce((m,f)=>Math.max(m,parseInt(f.receipt_no?.split('-')[1]||0)),0)
-    const rcpt = `RCP-${String(Math.max(lastNum, feeMaxNum)+1).padStart(4,'0')}`
+    // Generate receipt number atomically in the DB to avoid race conditions
+    const {data:rcptData, error:rcptErr} = await supabase.rpc('generate_receipt_no', { p_school_id: profile?.school_id })
+    if(rcptErr){ toast(rcptErr.message,'error'); setSaving(false); return }
+    const rcpt = rcptData
     // Insert payment record
     const {data:payRow, error:payErr} = await supabase.from('payments').insert({
       school_id:       profile?.school_id,
@@ -413,10 +405,10 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       recorded_by_id:  profile?.id,
       recorded_by_name:profile?.full_name,
     }).select().single()
-    if(payErr){ toast(payErr.message,'error'); return }
+    if(payErr){ toast(payErr.message,'error'); setSaving(false); return }
     // Update cumulative paid on fee record
     const {error:feeErr} = await supabase.from('fees').update({paid:newCumPaid}).eq('id',editFee.id).eq('school_id',profile?.school_id)
-    if(feeErr){ toast(feeErr.message,'error'); return }
+    if(feeErr){ toast(feeErr.message,'error'); setSaving(false); return }
     const updatedFee = {...editFee, paid:newCumPaid}
     setData(p=>({
       ...p,
@@ -425,6 +417,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     }))
     const pStudent=students.find(s=>s.id===editFee.student_id);auditLog(profile,'Fees','Payment',`${pStudent?.first_name} ${pStudent?.last_name} · ${fmtMoney(amt,currency)} · ${editFee.fee_type}`,{amount:amt,receipt:rcpt},null,null)
     toast('Payment recorded')
+    setSaving(false)
     setPayModal(false)
     // Auto-open receipt
     const student = students.find(s=>s.id===editFee.student_id)
@@ -847,7 +840,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           <p style={{fontSize:11,color:'var(--mist3)',marginTop:-10,marginBottom:16}}>A receipt will open automatically after saving.</p>
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setPayModal(false)}>Cancel</Btn>
-            <Btn onClick={recordPayment}>Confirm Payment</Btn>
+            <Btn onClick={recordPayment} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Confirm Payment'}</Btn>
           </div>
         </Modal>
       )}
