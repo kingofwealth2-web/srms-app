@@ -147,65 +147,72 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
 
       {/* ── User ── */}
       <div style={{ padding: '10px 10px 14px', flexShrink: 0, borderTop: '1px solid var(--line)' }}>
-        {/* Profile card */}
-        <button onClick={() => { onNav('myprofile'); if (isMobile) onDrawerClose() }}
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-            padding: '10px 12px', borderRadius: 12,
-            background: 'var(--ink3)',
-            border: '1px solid var(--line)',
-            cursor: 'pointer', textAlign: 'left', marginBottom: 6,
-            transition: 'background var(--t-fast), border-color var(--t-fast)',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--ink4)'; e.currentTarget.style.borderColor = 'var(--line2)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'var(--ink3)'; e.currentTarget.style.borderColor = 'var(--line)' }}
-        >
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <Avatar name={profile?.full_name} size={32} color={rm.bg}/>
-            <div style={{ position: 'absolute', bottom: 0, right: 0, width: 9, height: 9, borderRadius: '50%', background: 'var(--emerald)', border: '2px solid var(--ink2)' }}/>
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--white)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>{profile?.full_name}</div>
-            <div style={{ fontSize: 10, color: 'var(--mist3)', marginTop: 1 }}>{rm.label}</div>
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--mist3)', flexShrink: 0 }}>›</div>
-        </button>
-
-        {/* Sign out button — full width, distinct */}
-        <button onClick={onLogout} style={{
-          width: '100%', display: 'flex', alignItems: 'center', gap: 9,
-          padding: '8px 12px', borderRadius: 10,
-          background: 'transparent',
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 12px', borderRadius: 12,
+          background: 'var(--ink3)',
           border: '1px solid var(--line)',
-          cursor: 'pointer',
-          transition: 'all var(--t-fast)',
-          color: 'var(--mist3)',
-        }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(240,107,122,0.07)'
-            e.currentTarget.style.borderColor = 'rgba(240,107,122,0.3)'
-            e.currentTarget.style.color = 'var(--rose)'
-            e.currentTarget.querySelector('.so-icon').style.transform = 'translateX(2px)'
+          transition: 'background var(--t-fast), border-color var(--t-fast)',
+        }}>
+          {/* Profile — clickable */}
+          <button onClick={() => { onNav('myprofile'); if (isMobile) onDrawerClose() }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, background: 'none', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <Avatar name={profile?.full_name} size={32} color={rm.bg}/>
+              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 9, height: 9, borderRadius: '50%', background: 'var(--emerald)', border: '2px solid var(--ink2)' }}/>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--white)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>{profile?.full_name}</div>
+              <div style={{ fontSize: 10, color: 'var(--mist3)', marginTop: 1 }}>{rm.label}</div>
+            </div>
+          </button>
+
+          {/* Divider */}
+          <div style={{ width: 1, height: 24, background: 'var(--line2)', flexShrink: 0 }}/>
+
+          {/* Sign out — icon only, text slides out on hover */}
+          <button onClick={onLogout} title='Sign out' style={{
+            display: 'flex', alignItems: 'center', gap: 0,
+            background: 'none', borderRadius: 8,
+            padding: '5px 6px',
+            color: 'var(--mist3)', flexShrink: 0,
+            overflow: 'hidden',
+            transition: 'color var(--t-fast), background var(--t-fast), padding var(--t)',
           }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'transparent'
-            e.currentTarget.style.borderColor = 'var(--line)'
-            e.currentTarget.style.color = 'var(--mist3)'
-            e.currentTarget.querySelector('.so-icon').style.transform = 'translateX(0)'
-          }}
-        >
-          {/* Power icon */}
-          <div style={{
-            width: 26, height: 26, borderRadius: 7,
-            background: 'rgba(240,107,122,0.08)',
-            border: '1px solid rgba(240,107,122,0.18)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, flexShrink: 0,
-            transition: 'background var(--t-fast)',
-          }}>⏻</div>
-          <span style={{ fontSize: 12.5, fontWeight: 500, fontFamily: "'Cabinet Grotesk',sans-serif", letterSpacing: '-0.01em' }}>Sign out</span>
-          <div className='so-icon' style={{ marginLeft: 'auto', fontSize: 11, transition: 'transform var(--t-fast)' }}>→</div>
-        </button>
+            onMouseEnter={e => {
+              e.currentTarget.style.color = 'var(--rose)'
+              e.currentTarget.style.background = 'rgba(240,107,122,0.1)'
+              e.currentTarget.style.padding = '5px 10px 5px 8px'
+              const label = e.currentTarget.querySelector('.so-label')
+              label.style.maxWidth = '64px'
+              label.style.opacity = '1'
+              label.style.marginLeft = '6px'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.color = 'var(--mist3)'
+              e.currentTarget.style.background = 'none'
+              e.currentTarget.style.padding = '5px 6px'
+              const label = e.currentTarget.querySelector('.so-label')
+              label.style.maxWidth = '0px'
+              label.style.opacity = '0'
+              label.style.marginLeft = '0px'
+            }}
+          >
+            <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.2' strokeLinecap='round' strokeLinejoin='round' style={{ flexShrink: 0 }}>
+              <path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/>
+              <polyline points='16 17 21 12 16 7'/>
+              <line x1='21' y1='12' x2='9' y2='12'/>
+            </svg>
+            <span className='so-label' style={{
+              fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
+              fontFamily: "'Cabinet Grotesk',sans-serif", letterSpacing: '-0.01em',
+              maxWidth: '0px', opacity: 0, marginLeft: '0px',
+              transition: 'max-width var(--t), opacity var(--t), margin-left var(--t)',
+              overflow: 'hidden',
+            }}>Sign out</span>
+          </button>
+        </div>
       </div>
     </div>
   )
