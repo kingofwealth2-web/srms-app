@@ -14,8 +14,21 @@ import Card from '../components/Card'
 import DataTable from '../components/DataTable'
 import KPI from '../components/KPI'
 
+// ── HELPERS ────────────────────────────────────────────────────
+const ordinal = n => {
+  if(n===null||n===undefined||isNaN(n)) return '--'
+  const s=['th','st','nd','rd'], v=n%100
+  return n+(s[(v-20)%10]||s[v]||s[0])
+}
+const abbrSubject = name => {
+  if(!name) return '?'
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if(words.length>=2) return words.map(w=>w[0].toUpperCase()).join('')
+  return name.slice(0,4).toUpperCase()
+}
+
 // ── REPORTS ────────────────────────────────────────────────────
-export default function Reports({profile,data,settings,activeYear,isViewingPast}) {
+export default function Reports({profile,data,settings,activeYear,isViewingPast,toast}) {
   const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
@@ -219,7 +232,11 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
             return {...s,scores,total:total||0,avg,letter:avg!==null?getLetter(avg,scale):'--',remark:avg!==null?getGradeRemark(avg,scale):'',pass:avg!==null?avg>=50:null}
           })
           .sort((a,b)=>(b.total||0)-(a.total||0))
-          .map((s,i)=>({...s,position:i+1}))
+          .reduce((acc,s,i,arr)=>{
+            let rank=i+1
+            if(i>0&&(s.total||0)===(arr[i-1].total||0)) rank=acc[i-1].position
+            acc.push({...s,position:rank}); return acc
+          },[])
         csv='Position,Student ID,Student,'+rcClassSubjects.map(s=>`"${csvEscape(s.name)}"`).join(',')+',Total,Average,Grade,Remark,Status\n'
         rcRanked.forEach(s=>{
           csv+=`${ordinal(s.position)},"${csvEscape(s.student_id)}","${csvEscape(fullName(s))}",`
@@ -268,7 +285,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
       const url=URL.createObjectURL(blob)
       const a=document.createElement('a'); a.href=url; a.download=filename; a.click()
       URL.revokeObjectURL(url)
-    } catch(e){}
+    } catch(e){ toast('Export failed. Please try again.','error') }
   }
 
   const scopeLabel = selectedStudent
@@ -462,7 +479,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
                       : rankedAcademic.length===0
                         ? <tr><td colSpan={20} style={{padding:48,textAlign:'center',color:'var(--mist3)',fontSize:13}}>No grade records found for this class.</td></tr>
                         : rankedAcademic.map((s,i)=>(
-                            <tr key={s.id} style={{borderBottom:'1px solid var(--line)',background:i%2===0?'transparent':'var(--ink3)'}}>
+                            <tr key={s.id} style={{borderBottom:'1px solid var(--line)',background:i%2===0?'transparent':'rgba(255,255,255,0.01)'}}>
                               <td style={tdStyle}>
                                 <span style={{fontWeight:700,color:s.position<=3?'var(--gold)':'var(--mist2)',fontSize:13}}>{ordinal(s.position)}</span>
                               </td>
@@ -682,7 +699,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         <td style="padding:8px 12px;font-size:13px;font-weight:600;border:1px solid #f3f4f6;color:#111827;">${s.last_name}, ${s.first_name}</td>
         ${subjectCells}
         <td style="padding:8px 8px;text-align:center;font-size:13px;font-weight:800;border:1px solid #f3f4f6;background:#dbeafe;color:#1e40af;">${total!==null?total:'—'}</td>
-        <td style="padding:8px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #f3f4f6;background:#dbeafe;color:#1e40af;">${avg!==null?avg:'—'}</td>
+        <td style="padding:8px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #f3f4f6;background:#dbeafe;color:#1e40af;">${avg!==null?Math.round(avg):'—'}</td>
         <td style="padding:8px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #f3f4f6;color:#d97706;">${letter}</td>
         <td style="padding:8px 10px;font-size:11px;border:1px solid #f3f4f6;color:#4b5563;">${remark}</td>
         <td style="padding:8px 10px;text-align:center;font-size:13px;font-weight:800;border:1px solid #f3f4f6;color:${posC};background:${posBg};">${posOrd}</td>
@@ -725,7 +742,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         <div style="font-size:12px;color:#6b7280;">Students: <strong style="color:#111827;">${rankedStudents.length}</strong></div>
         <div style="font-size:12px;color:#6b7280;">Subjects: <strong style="color:#111827;">${classSubjects.length}</strong></div>
         <div style="font-size:12px;color:#6b7280;">Pass Rate: <strong style="color:${rankedStudents.length&&passCount/rankedStudents.length>=0.7?'#16a34a':'#dc2626'};">${rankedStudents.length?Math.round(passCount/rankedStudents.length*100):0}%</strong></div>
-        <div style="font-size:12px;color:#6b7280;">Class Avg: <strong style="color:#1e40af;">${classAvg!==null?fmtScore(classAvg,settings):'--'}</strong></div>
+        <div style="font-size:12px;color:#6b7280;">Class Avg: <strong style="color:#1e40af;">${classAvg!==null?fmtScore(classAvg):'--'}</strong></div>
         <div style="margin-left:auto;font-size:10px;color:#9ca3af;">Generated: ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}</div>
       </div>
       <div style="padding:16px;">
@@ -779,11 +796,12 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
     const rankedBySub = [...classStudents].map(s=>({...s,score:getTotal(s.id,rcSubject)}))
       .sort((a,b)=>(b.score||0)-(a.score||0))
-    let rpos=1
-    const ranked = rankedBySub.map((s,i)=>{
+    let lastScore=null, lastRank=0, seen=0
+    const ranked = rankedBySub.map((s)=>{
       if(s.score===null) return {...s,position:null}
-      if(i>0&&s.score===rankedBySub[i-1].score) return {...s,position:rankedBySub[i-1].position}
-      const p=rpos; rpos=i+2; return {...s,position:p}
+      seen++
+      if(lastScore===null||s.score!==lastScore){ lastRank=seen; lastScore=s.score }
+      return {...s,position:lastRank}
     })
 
     const withScore = ranked.filter(s=>s.score!==null)

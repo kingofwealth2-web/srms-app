@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
-import { useIsMobile, usePagination } from '../lib/hooks'
+import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS, CURRENCIES } from '../lib/constants'
 import { fmtDate, fmtMoney, getCurrency, genRCP, csvEscape, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
@@ -15,8 +15,6 @@ import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
-import Skeleton, { SkeletonRows } from '../components/Skeleton'
-import Pagination from '../components/Pagination'
 import KPI from '../components/KPI'
 
 // ── RECEIPT PRINTER ────────────────────────────────────────────
@@ -198,7 +196,7 @@ function printReceipt({fee, feePayments, student, cls, settings, currency}) {
 }
 
 // ── FEES ───────────────────────────────────────────────────────
-export default function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,dataLoading,initialFeeFilter,onFilterConsumed}) {
+export default function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,initialFeeFilter,onFilterConsumed}) {
   const {fees=[],students=[],classes=[],payments=[]} = data
   const currency = getCurrency(settings)
   const isMobile = useIsMobile()
@@ -360,7 +358,6 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     else if(fstatus && fstatus!=='Overdue' && r.status!==fstatus) return false
     return true
   })
-  const { paged, page, setPage, totalPages } = usePagination(filtered, 50)
   const overdueCount = enriched.filter(r=>r.isOverdue).length
   const totalOwed = fees.reduce((s,f)=>s+Number(f.amount||0),0)
   const totalPaid = fees.reduce((s,f)=>s+Number(f.paid||0),0)
@@ -400,6 +397,8 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
   const delFee = async id=>{
     setConfirmState({title:'Remove fee record?',body:'This will also delete all payment history for this fee.',icon:'🗑',danger:true,onConfirm:async()=>{
+    // Delete payments first (no cascade on fees → payments)
+    await supabase.from('payments').delete().eq('fee_id',id).eq('school_id',profile?.school_id)
     const {error}=await supabase.from('fees').delete().eq('id',id).eq('school_id',profile?.school_id)
     if(error)toast(error.message,'error')
     else{const fee=fees.find(x=>x.id===id);const s=students.find(x=>x.id===fee?.student_id);setData(p=>({...p,fees:p.fees.filter(f=>f.id!==id),payments:p.payments.filter(p=>p.fee_id!==id)}));auditLog(profile,'Fees','Deleted',`${fullName(s)} · ${fee?.fee_type}`,{},fee,null);toast('Fee record removed')}
@@ -617,31 +616,24 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       </Card>
 
       <Card>
-        {dataLoading ? (
-          <table style={{width:'100%',borderCollapse:'collapse'}}>
-            <tbody><SkeletonRows count={8} cols={7}/></tbody>
-          </table>
-        ) : (<>
-          <DataTable data={paged} columns={[
-            {key:'student_name',label:'Student',render:(v,r)=>{const s=students.find(x=>x.id===r.student_id);return(<div style={{display:'flex',alignItems:'center',gap:10}}>{s&&<Avatar name={v} size={28}/>}<span style={{fontWeight:600}}>{v}</span></div>)}},
-            {key:'fee_type',label:'Fee Type',render:(v,r)=>(<div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><span>{v}</span>{r.period&&<Badge color='var(--sky)' bg='rgba(91,168,245,0.08)'>{r.period}</Badge>}{r.is_arrear&&<Badge color='var(--amber)' bg='rgba(251,159,58,0.1)'>Arrear from {r.arrear_from_year}</Badge>}{r.isOverdue&&<Badge color='var(--rose)' bg='rgba(240,107,122,0.1)'>Overdue</Badge>}</div>)},
-            {key:'amount', label:'Amount',  render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
-            {key:'paid',   label:'Paid',    render:(_,r)=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(r.effectivePaid,currency)}</span>},
-            {key:'balance',label:'Balance', render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
-            {key:'status', label:'Status',  render:v=><Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>},
-            {key:'receipt_no',label:'Receipt',render:v=>v?<span className='mono' style={{fontSize:12,color:'var(--mist2)'}}>{v}</span>:'--'},
-            {key:'id',label:'',render:(_,r)=>isViewingPast?null:(
-              <div style={{display:'flex',gap:6,flexWrap:'wrap'}} onClick={e=>e.stopPropagation()}>
-                {r.balance>0 && <Btn size='sm' onClick={()=>openPay(r)}>Record Payment</Btn>}
-                {r.hasPayments && <Btn variant='ghost' size='sm' onClick={()=>openReceipt(r)}>⎙ Receipt</Btn>}
-                {r.balance<=0 && !r.hasPayments && <Badge color='var(--emerald)'>Paid</Badge>}
-                <Btn variant='ghost' size='sm' onClick={()=>openEditFee(r)}>Edit</Btn>
-                {canBulk && <Btn variant='danger' size='sm' onClick={()=>delFee(r.id)}>Remove</Btn>}
-              </div>
-            )},
-          ]}/>
-          <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={50} onPage={setPage}/>
-        </>)}
+        <DataTable data={filtered} columns={[
+          {key:'student_name',label:'Student',render:(v,r)=>{const s=students.find(x=>x.id===r.student_id);return(<div style={{display:'flex',alignItems:'center',gap:10}}>{s&&<Avatar name={v} size={28}/>}<span style={{fontWeight:600}}>{v}</span></div>)}},
+          {key:'fee_type',label:'Fee Type',render:(v,r)=>(<div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><span>{v}</span>{r.period&&<Badge color='var(--sky)' bg='rgba(91,168,245,0.08)'>{r.period}</Badge>}{r.is_arrear&&<Badge color='var(--amber)' bg='rgba(251,159,58,0.1)'>Arrear from {r.arrear_from_year}</Badge>}{r.isOverdue&&<Badge color='var(--rose)' bg='rgba(240,107,122,0.1)'>Overdue</Badge>}</div>)},
+          {key:'amount', label:'Amount',  render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
+          {key:'paid',   label:'Paid',    render:(_,r)=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(r.effectivePaid,currency)}</span>},
+          {key:'balance',label:'Balance', render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
+          {key:'status', label:'Status',  render:v=><Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>},
+          {key:'receipt_no',label:'Receipt',render:v=>v?<span className='mono' style={{fontSize:12,color:'var(--mist2)'}}>{v}</span>:'--'},
+          {key:'id',label:'',render:(_,r)=>isViewingPast?null:(
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}} onClick={e=>e.stopPropagation()}>
+              {r.balance>0 && <Btn size='sm' onClick={()=>openPay(r)}>Record Payment</Btn>}
+              {r.hasPayments && <Btn variant='ghost' size='sm' onClick={()=>openReceipt(r)}>⎙ Receipt</Btn>}
+              {r.balance<=0 && !r.hasPayments && <Badge color='var(--emerald)'>Paid</Badge>}
+              <Btn variant='ghost' size='sm' onClick={()=>openEditFee(r)}>Edit</Btn>
+              {canBulk && <Btn variant='danger' size='sm' onClick={()=>delFee(r.id)}>Remove</Btn>}
+            </div>
+          )},
+        ]}/>
       </Card>
 
       </>)}
@@ -927,7 +919,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                   Select Classes <span style={{color:'var(--gold)',marginLeft:3}}>*</span>
                 </div>
                 <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
-                  {classesWithStudents.map(c=>{
+                  {myClasses.map(c=>{
                     const sel = bulk.selected_classes.includes(c.id)
                     const cnt = activeStudents.filter(s=>s.class_id===c.id).length
                     return (

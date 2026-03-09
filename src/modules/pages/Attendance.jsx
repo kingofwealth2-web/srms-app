@@ -42,9 +42,9 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   const vacationName = getVacationOnDate(date, vacations, activeYear)
   const isBlocked    = !!(holidayName || vacationName)
   const blockReason  = vacationName
-    ? { icon: '🏖', title: 'School is on Vacation', sub: vacationName, color: 'var(--sky)', bg: 'var(--sky-subtle)', border: 'var(--sky-line)' }
+    ? { icon: '🏖', title: 'School is on Vacation', sub: vacationName, color: 'var(--sky)', bg: 'rgba(91,168,245,0.06)', border: 'rgba(91,168,245,0.2)' }
     : holidayName
-    ? { icon: '🎉', title: 'Public Holiday', sub: holidayName, color: 'var(--emerald)', bg: 'var(--emerald-subtle)', border: 'var(--emerald-line)' }
+    ? { icon: '🎉', title: 'Public Holiday', sub: holidayName, color: 'var(--emerald)', bg: 'rgba(45,212,160,0.06)', border: 'rgba(45,212,160,0.2)' }
     : null
 
   const changeContext = (newCid, newDate) => {
@@ -77,9 +77,10 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
         .map(s=>({school_id:profile?.school_id,student_id:s.id,class_id:cid,date,status:getStatus(s.id)||null,marked_by:profile?.id,academic_year:activeYear}))
         .filter(m=>m.status)
       if(allMarks.length===0){toast('No students marked -- nothing to save','error');setSaving(false);return}
-      const {error:delErr} = await supabase.from('attendance').delete().eq('school_id',profile?.school_id).eq('class_id',cid).eq('date',date)
-      if(delErr) throw delErr
-      const {data:rows,error:insErr} = await supabase.from('attendance').insert(allMarks).select()
+      // Upsert instead of delete+insert — prevents data loss if insert fails
+      const {data:rows,error:insErr} = await supabase.from('attendance')
+        .upsert(allMarks, {onConflict:'school_id,student_id,class_id,date'})
+        .select()
       if(insErr) throw insErr
       setData(p=>({...p,attendance:[...p.attendance.filter(a=>!(a.class_id===cid&&a.date===date)),...(rows||[])]}))
       setPendingMarks({})
@@ -170,19 +171,19 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
           ) : (
             <>
               {!hasUnsaved && alreadyMarkedToday && (
-                <div className='fi' style={{background:'var(--emerald-subtle)',border:'1px solid var(--emerald-line)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
+                <div className='fi' style={{background:'rgba(45,212,160,0.06)',border:'1px solid rgba(45,212,160,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
                   <span style={{fontSize:16}}>done</span>
                   <span style={{fontSize:13,color:'var(--emerald)'}}>Attendance already marked for today. You can still edit and save again.</span>
                 </div>
               )}
               {!hasUnsaved && !alreadyMarkedToday && savedRecs.length===0 && date===today && (
-                <div className='fi' style={{background:'var(--amber-subtle)',border:'1px solid var(--amber-line)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
+                <div className='fi' style={{background:'rgba(251,159,58,0.06)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
                   <span style={{fontSize:16}}>(!)</span>
                   <span style={{fontSize:13,color:'var(--amber)'}}>Attendance has not been marked yet today for <strong>{cls.name}</strong>.</span>
                 </div>
               )}
               {hasUnsaved && unmarkedCount>0 && (
-                <div className='fi' style={{background:'var(--rose-subtle)',border:'1px solid var(--rose-line)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
+                <div className='fi' style={{background:'rgba(240,107,122,0.06)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
                   <span style={{fontSize:16,color:'var(--rose)'}}>●</span>
                   <span style={{fontSize:13,color:'var(--rose)'}}><strong>{unmarkedCount} student{unmarkedCount!==1?'s':''}</strong> not yet marked -- they won't be recorded.</span>
                 </div>
@@ -229,14 +230,14 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
                   )},
                 ]}/>
               </Card>
-              <div style={{position:'sticky',bottom:0,marginTop:16,background:'var(--ink2)',border:'1px solid var(--line)',borderTop:`2px solid ${hasUnsaved?'var(--gold)':'var(--line)'}`,borderRadius:'var(--r)',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,boxShadow:'var(--shadow-lg)'}}>
+              <div style={{position:'sticky',bottom:0,marginTop:16,background:'var(--ink2)',border:'1px solid var(--line)',borderTop:`2px solid ${hasUnsaved?'var(--gold)':'var(--line)'}`,borderRadius:'var(--r)',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,boxShadow:'0 -8px 32px rgba(0,0,0,0.4)'}}>
                 <div style={{fontSize:13}}>
                   {hasUnsaved
                     ? <><span style={{fontWeight:600,color:'var(--amber)'}}>(!) Unsaved changes</span><span style={{color:'var(--mist2)'}}> -- click Save to record attendance</span></>
                     : <span style={{color:'var(--mist3)'}}>All changes saved</span>
                   }
                 </div>
-                {!isViewingPast && !isBlocked && <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{minWidth:160,justifyContent:'center',boxShadow:hasUnsaved?'var(--shadow-gold)':'none'}}>
+                {!isViewingPast && !isBlocked && <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{minWidth:160,justifyContent:'center',boxShadow:hasUnsaved?'0 4px 20px rgba(232,184,75,0.25)':'none'}}>
                   {saving?<><Spinner/> Saving...</>:(unmarkedCount>0?`Save Attendance (${unmarkedCount} unmarked)`:'Save Attendance')}
                 </Btn>}
               </div>
@@ -245,7 +246,8 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
         </div>
       ) : (
         <Card>
-          <DataTable data={histRecs.slice(0,100)} columns={[
+          {histRecs.length>500&&<div style={{padding:'8px 14px',background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--amber)',marginBottom:12}}>⚠ Showing the 500 most recent records. Export CSV to access the full history.</div>}
+          <DataTable data={histRecs.slice(0,500)} columns={[
             {key:'date',label:'Date',render:v=>fmtDate(v)},
             {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
             {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?fullName(s,true):'--'}},

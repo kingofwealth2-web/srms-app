@@ -186,16 +186,3 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
   )
 }
 
-// ── ORDINAL HELPER ─────────────────────────────────────────────
-const ordinal = n => {
-  if(n===null||n===undefined||isNaN(n)) return '--'
-  const s=['th','st','nd','rd'], v=n%100
-  return n+(s[(v-20)%10]||s[v]||s[0])
-}
-// Auto-abbreviate subject names: multi-word → initials, single-word → first 4 chars
-const abbrSubject = name => {
-  if(!name) return '?'
-  const words = name.trim().split(/\s+/).filter(Boolean)
-  if(words.length>=2) return words.map(w=>w[0].toUpperCase()).join('')
-  return name.slice(0,4).toUpperCase()
-}

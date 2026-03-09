@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../supabase'
-import { useIsMobile, usePagination } from '../lib/hooks'
+import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS, LETTER_COLOR } from '../lib/constants'
 import { fmtDate, calcTotal, getGradeComponents, getLetter, getCurrency, fmtMoney, genSID, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
@@ -14,12 +14,10 @@ import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import DataTable from '../components/DataTable'
-import Skeleton, { SkeletonRows } from '../components/Skeleton'
-import Pagination from '../components/Pagination'
 import ConfirmModal from '../components/ConfirmModal'
 
 // ── STUDENTS ───────────────────────────────────────────────────
-export default function Students({profile,data,setData,toast,settings,activeYear,isViewingPast,dataLoading}) {
+export default function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   const {students=[],classes=[]} = data
   const [search,setSearch] = useState('')
   const [fc,setFc]         = useState('')
@@ -71,7 +69,6 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     if(!showArchived && fc && s.class_id!==fc) return false
     return true
   })
-  const { paged, page, setPage, totalPages } = usePagination(filtered, 50)
   const unarchive = async (student, classId) => {
     if(!classId){ toast('Please select a class to re-enrol the student into','error'); return }
     setSaving(true)
@@ -125,7 +122,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     setSaving(false)
   }
   const del = async id=>{
-    setConfirmState({title:'Remove student?',body:'This action is permanent and cannot be undone.',icon:'🗑',danger:true,onConfirm:async()=>{
+    setConfirmState({title:'Remove student?',body:'This permanently deletes the student and all their grade, attendance, fee, and behaviour records. This cannot be undone.',icon:'🗑',danger:true,onConfirm:async()=>{
       const {error} = await supabase.from('students').delete().eq('id',id).eq('school_id',profile?.school_id)
       if(error)toast(error.message,'error')
       else{const s=students.find(x=>x.id===id);setData(p=>({...p,students:p.students.filter(s=>s.id!==id)}));auditLog(profile,'Students','Deleted',`${fullName(s)}`,{},s||null,null);toast('Student removed')}
@@ -143,7 +140,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
       filtered.forEach(s=>{
         const clsName = classes.find(c=>c.id===s.class_id)?.name || ''
         const fmtPhone = v => v ? `="${esc(v)}"` : '""'  
-        csv += `"${esc(s.student_id)}","${esc(s.first_name)}","${esc(s.last_name)}","${esc(clsName)}","${esc(s.gender)}","${esc(s.dob)}",${fmtPhone(s.phone)},"${esc(s.email)}","${esc(s.guardian_name)}",${fmtPhone(s.guardian_phone)},"${esc(s.guardian_email)}","${s.archived?'Yes':'No'}","${esc(s.graduation_year)}","${esc(s.leaving_reason)}","${esc(s.leaving_notes)}"\n`
+        csv += `"${esc(s.student_id)}","${esc(s.first_name)}","${esc(s.middle_name||'')}","${esc(s.last_name)}","${esc(clsName)}","${esc(s.gender)}","${esc(s.dob)}",${fmtPhone(s.phone)},"${esc(s.email)}","${esc(s.guardian_name)}",${fmtPhone(s.guardian_phone)},"${esc(s.guardian_email)}","${s.archived?'Yes':'No'}","${esc(s.graduation_year)}","${esc(s.leaving_reason)}","${esc(s.leaving_notes)}"\n`
       })
       const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
       const url  = URL.createObjectURL(blob)
@@ -278,7 +275,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
       </div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      ${grandAvg !== null ? `<div style="text-align:center;padding:8px 14px;background:#fff;border:1.5px solid ${gradeC};border-radius:10px;min-width:72px;"><div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Avg Score</div><div style="font-size:22px;font-weight:900;color:${gradeC};line-height:1;">${grandAvg}</div><div style="font-size:9px;font-weight:700;color:${gradeC};margin-top:1px;">${grandLetter}${grandRemark ? ' \u00b7 '+grandRemark : ''}</div></div>` : ''}
+      ${grandAvg !== null ? `<div style="text-align:center;padding:8px 14px;background:#fff;border:1.5px solid ${gradeC};border-radius:10px;min-width:72px;"><div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Avg Score</div><div style="font-size:22px;font-weight:900;color:${gradeC};line-height:1;">${Math.round(grandAvg)}</div><div style="font-size:9px;font-weight:700;color:${gradeC};margin-top:1px;">${grandLetter}${grandRemark ? ' \u00b7 '+grandRemark : ''}</div></div>` : ''}
       ${attRate !== null ? `<div style="text-align:center;padding:8px 14px;background:#fff;border:1.5px solid #0ea5e9;border-radius:10px;min-width:72px;"><div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Attendance</div><div style="font-size:22px;font-weight:900;color:#0ea5e9;line-height:1;">${attRate}%</div><div style="font-size:9px;color:#0ea5e9;margin-top:1px;">${present} present</div></div>` : ''}
     </div>
   </div>
@@ -408,13 +405,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
         </div>
       </Card>
       <Card>
-        {dataLoading ? (
-          <table style={{width:'100%',borderCollapse:'collapse'}}>
-            <tbody><SkeletonRows count={8} cols={5}/></tbody>
-          </table>
-        ) : (
-          <>
-            <DataTable onRow={s=>setViewStudent(s)} data={paged} columns={[
+        <DataTable onRow={s=>setViewStudent(s)} data={filtered} columns={[
           {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
           {key:'first_name',label:'Student',render:(v,r)=>(
             <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -457,9 +448,6 @@ export default function Students({profile,data,setData,toast,settings,activeYear
                 )}
               : {key:'id',label:'',render:()=>null},
         ]}/>
-        <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={50} onPage={setPage}/>
-          </>
-        )}
       </Card>
       {modal && (
         <Modal title={edit?'Edit Student':'New Student'} subtitle={edit?`ID: ${edit.student_id}`:'A Student ID will be generated automatically.'} onClose={()=>setModal(false)} width={580}>

@@ -68,7 +68,6 @@ export default function App() {
   const [feeFilter,setFeeFilter]   = useState('')
   const [collapsed,setCollapsed]   = useState(false)
   const [loading,setLoading]       = useState(true)
-  const [dataLoading,setDataLoading] = useState(false)
   const [toast,setToast]           = useState(null)
   const [drawerOpen,setDrawerOpen] = useState(false)
   const [isDark,setIsDark]         = useState(() => {
@@ -178,28 +177,25 @@ export default function App() {
 
   useEffect(() => {
     if (!session || !settings || !profile) return
-    setDataLoading(true)
-    loadData(selectedYear, profile, settings).then(() => setDataLoading(false))
-  }, [selectedYear])
+    loadData(selectedYear, profile, settings)
+  }, [selectedYear, loadData, profile, settings])
 
   const logout = async () => { await supabase.auth.signOut(); setPage('dashboard') }
 
   const confirmNewYear = async () => {
     if (!newYearTarget) return
-    // activeYear is derived after early returns, so compute it here directly
-    const closingYear = selectedYear || currentYearFromSettings(settings)
     setNewYearWorking(true)
     try {
-      await supabase.from('attendance').update({ academic_year: closingYear }).is('academic_year', null).eq('school_id', profile.school_id)
-      await supabase.from('fees').update({ academic_year: closingYear }).is('academic_year', null).eq('school_id', profile.school_id)
-      await supabase.from('behaviour').update({ academic_year: closingYear }).is('academic_year', null).eq('school_id', profile.school_id)
-      await supabase.from('announcements').update({ academic_year: closingYear }).is('academic_year', null).eq('school_id', profile.school_id)
-      await supabase.from('grades').update({ year: closingYear }).is('year', null).eq('school_id', profile.school_id)
+      await supabase.from('attendance').update({ academic_year: activeYear }).is('academic_year', null).eq('school_id', profile.school_id)
+      await supabase.from('fees').update({ academic_year: activeYear }).is('academic_year', null).eq('school_id', profile.school_id)
+      await supabase.from('behaviour').update({ academic_year: activeYear }).is('academic_year', null).eq('school_id', profile.school_id)
+      await supabase.from('announcements').update({ academic_year: activeYear }).is('academic_year', null).eq('school_id', profile.school_id)
+      await supabase.from('grades').update({ year: activeYear }).is('year', null).eq('school_id', profile.school_id)
 
       const activeStudents = data.students.filter(s => !s.archived && s.class_id)
       if (activeStudents.length > 0) {
-        const enrolmentRows = activeStudents.map(s => ({ school_id: profile.school_id, student_id: s.id, class_id: s.class_id, academic_year: closingYear }))
-        await supabase.from('student_year_enrolment').delete().eq('school_id', profile.school_id).eq('academic_year', closingYear)
+        const enrolmentRows = activeStudents.map(s => ({ school_id: profile.school_id, student_id: s.id, class_id: s.class_id, academic_year: activeYear }))
+        await supabase.from('student_year_enrolment').delete().eq('school_id', profile.school_id).eq('academic_year', activeYear)
         await supabase.from('student_year_enrolment').insert(enrolmentRows)
       }
 
@@ -208,14 +204,14 @@ export default function App() {
         const arrearRows = outstanding.map(f => ({
           school_id: profile.school_id,
           student_id: f.student_id,
-          fee_type: f.fee_type + ' (Arrears from ' + closingYear + ')',
+          fee_type: f.fee_type + ' (Arrears from ' + activeYear + ')',
           amount: Number(f.amount || 0) - Number(f.paid || 0),
-          paid: 0, academic_year: newYearTarget, is_arrear: true, arrear_from_year: closingYear,
+          paid: 0, academic_year: newYearTarget, is_arrear: true, arrear_from_year: activeYear,
         }))
         await supabase.from('fees').insert(arrearRows)
       }
 
-      await supabase.from('students').update({ entry_year: closingYear }).is('entry_year', null).eq('school_id', profile.school_id)
+      await supabase.from('students').update({ entry_year: activeYear }).is('entry_year', null).eq('school_id', profile.school_id)
       await supabase.from('settings').update({ academic_year: newYearTarget }).eq('id', settings.id).eq('school_id', profile.school_id)
 
       setSettings(p => ({ ...p, academic_year: newYearTarget }))
@@ -223,9 +219,6 @@ export default function App() {
       setNewYearModal(false)
       setNewYearStep(1)
       setNewYearTarget('')
-      // Explicitly reload data for the new year — setSelectedYear(null) won't
-      // trigger the selectedYear useEffect if it was already null
-      await loadData(null, profile, { ...settings, academic_year: newYearTarget })
       showToast('New academic year ' + newYearTarget + ' started successfully.')
     } catch (err) {
       showToast('Error: ' + err.message, 'error')
@@ -242,7 +235,7 @@ export default function App() {
   const currentYear   = currentYearFromSettings(settings)
   const activeYear    = selectedYear || currentYear
   const isViewingPast = selectedYear && selectedYear !== currentYear
-  const props = { profile, data, setData, toast: showToast, settings, activeYear, isViewingPast, dataLoading, reloadData: () => loadData(activeYear, profile, settings) }
+  const props = { profile, data, setData, toast: showToast, settings, activeYear, isViewingPast, reloadData: () => loadData(activeYear, profile, settings) }
 
   const renderPage = () => {
     switch (page) {

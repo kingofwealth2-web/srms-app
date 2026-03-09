@@ -106,7 +106,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       return {...p, grade_components: comps}
     })
     if(wasEnabled) {
-      await supabase.from('grades').update({[key]:0}).eq('school_id', profile?.school_id)
+      await supabase.from('grades').update({[key]:0}).eq('school_id', profile?.school_id).eq('year', activeYear)
       auditLog(profile,'Settings','Updated',`Grade component disabled & scores cleared: ${label}`,{component:label},null,null)
       toast(`${label} disabled -- all scores cleared`)
     }
@@ -121,7 +121,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       </PageHeader>
 
       {weightWarning && (
-        <div className='fi' style={{background:'var(--amber-subtle)',border:'1px solid var(--amber-line)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:20,display:'flex',alignItems:'center',gap:10}}>
+        <div className='fi' style={{background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:20,display:'flex',alignItems:'center',gap:10}}>
           <span style={{fontSize:18}}>(!)</span>
           <span style={{fontSize:13,color:'var(--amber)'}}>Active component weights add up to <strong>{totalWeight}%</strong> -- they should total 100% for accurate grade calculations. Settings saved anyway.</span>
         </div>
@@ -144,7 +144,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
               </div>
             </div>
             {profile?.role==='superadmin' && (
-              <div style={{padding:'14px 16px',background:'var(--emerald-subtle)',border:'1px solid var(--emerald-line)',borderRadius:'var(--r-sm)',marginBottom:8}}>
+              <div style={{padding:'14px 16px',background:'rgba(45,212,160,0.04)',border:'1px solid rgba(45,212,160,0.15)',borderRadius:'var(--r-sm)',marginBottom:8}}>
                 <div style={{fontSize:13,fontWeight:600,color:'var(--emerald)',marginBottom:4}}>Ready to close this year?</div>
                 <div style={{fontSize:12,color:'var(--mist2)',marginBottom:12}}>Archive all {activeYear} data and open a new academic year. All history is preserved.</div>
                 <Btn onClick={onStartNewYear} size='sm'>Start New Academic Year &rarr;</Btn>
@@ -269,7 +269,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
                         style={{width:100,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'6px 8px',color:'var(--white)',fontSize:12}}/>
                     </td>
                     <td style={{padding:'5px 4px'}}>
-                      <button onClick={()=>removeGradeRow(i)} style={{width:26,height:26,borderRadius:'var(--r-sm)',background:'var(--rose-subtle)',border:'1px solid var(--rose-line)',color:'var(--rose)',fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>×</button>
+                      <button onClick={()=>removeGradeRow(i)} style={{width:26,height:26,borderRadius:'var(--r-sm)',background:'var(--rose-bg,rgba(240,107,122,0.08))',border:'1px solid rgba(240,107,122,0.2)',color:'var(--rose)',fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>×</button>
                     </td>
                   </tr>
                 ))}
@@ -398,14 +398,14 @@ function AcademicCalendar({form, setForm, activeYear}) {
           ) : (
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
               {yearVacs.map(v=>(
-                <div key={v.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',background:'var(--sky-subtle)',border:'1px solid var(--sky-line)',borderRadius:'var(--r-sm)',gap:12,flexWrap:'wrap'}}>
+                <div key={v.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',background:'rgba(91,168,245,0.06)',border:'1px solid rgba(91,168,245,0.15)',borderRadius:'var(--r-sm)',gap:12,flexWrap:'wrap'}}>
                   <div>
                     <div style={{fontSize:13,fontWeight:600,color:'var(--sky)',marginBottom:3}}>{v.name}</div>
                     <div style={{fontSize:11,color:'var(--mist3)'}}>{fmtD(v.start_date)} — {fmtD(v.end_date)}</div>
                   </div>
                   <div style={{display:'flex',gap:8}}>
                     <button onClick={()=>openEditVac(v)} style={{background:'transparent',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--mist2)',fontSize:11,padding:'4px 10px',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>Edit</button>
-                    <button onClick={()=>delVac(v.id)} style={{background:'transparent',border:'1px solid var(--rose-line)',borderRadius:'var(--r-sm)',color:'var(--rose)',fontSize:11,padding:'4px 10px',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>Delete</button>
+                    <button onClick={()=>delVac(v.id)} style={{background:'transparent',border:'1px solid rgba(240,107,122,0.3)',borderRadius:'var(--r-sm)',color:'var(--rose)',fontSize:11,padding:'4px 10px',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>Delete</button>
                   </div>
                 </div>
               ))}
@@ -444,14 +444,14 @@ function AcademicCalendar({form, setForm, activeYear}) {
           ) : (
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
               {customHols.map(h=>(
-                <div key={h.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 16px',background:'var(--emerald-subtle)',border:'1px solid var(--emerald-line)',borderRadius:'var(--r-sm)',gap:12,flexWrap:'wrap'}}>
+                <div key={h.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 16px',background:'rgba(45,212,160,0.05)',border:'1px solid rgba(45,212,160,0.15)',borderRadius:'var(--r-sm)',gap:12,flexWrap:'wrap'}}>
                   <div>
                     <div style={{fontSize:13,fontWeight:600,color:'var(--emerald)',marginBottom:2}}>{h.name}</div>
                     <div style={{fontSize:11,color:'var(--mist3)'}}>{fmtD(h.date)}</div>
                   </div>
                   <div style={{display:'flex',gap:8}}>
                     <button onClick={()=>openEditHol(h)} style={{background:'transparent',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--mist2)',fontSize:11,padding:'4px 10px',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>Edit</button>
-                    <button onClick={()=>delHol(h.id)} style={{background:'transparent',border:'1px solid var(--rose-line)',borderRadius:'var(--r-sm)',color:'var(--rose)',fontSize:11,padding:'4px 10px',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>Delete</button>
+                    <button onClick={()=>delHol(h.id)} style={{background:'transparent',border:'1px solid rgba(240,107,122,0.3)',borderRadius:'var(--r-sm)',color:'var(--rose)',fontSize:11,padding:'4px 10px',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>Delete</button>
                   </div>
                 </div>
               ))}

@@ -8,11 +8,11 @@ import Badge from '../components/Badge'
 import Btn from '../components/Btn'
 import Field from '../components/Field'
 import Modal from '../components/Modal'
+import ConfirmModal from '../components/ConfirmModal'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
-import ConfirmModal from '../components/ConfirmModal'
 
 // ── ANNOUNCEMENTS ──────────────────────────────────────────────
 export default function Announcements({profile,data,setData,toast,activeYear,isViewingPast}) {
@@ -20,8 +20,8 @@ export default function Announcements({profile,data,setData,toast,activeYear,isV
   const canManage = ['superadmin','admin'].includes(profile?.role)
   const [modal,setModal] = useState(false)
   const [form,setForm]   = useState({})
-  const [saving,setSaving] = useState(false)
   const [confirmState,setConfirmState] = useState(null)
+  const [saving,setSaving] = useState(false)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
   const visible = announcements.filter(a=>['superadmin','admin'].includes(profile?.role) ? true : canSeeAnnouncement(profile?.role,a)).sort((a,b)=>b.created_at?.localeCompare(a.created_at))
   const [editRow,setEditRow] = useState(null)
@@ -45,20 +45,17 @@ export default function Announcements({profile,data,setData,toast,activeYear,isV
   }
   const toggle = async id=>{
     const ann=announcements.find(a=>a.id===id)
-    await supabase.from('announcements').update({active:!ann.active}).eq('id',id).eq('school_id',profile?.school_id)
+    const {error}=await supabase.from('announcements').update({active:!ann.active}).eq('id',id).eq('school_id',profile?.school_id)
+    if(error){toast(error.message,'error');return}
     setData(p=>({...p,announcements:p.announcements.map(a=>a.id===id?{...a,active:!a.active}:a)}))
   }
-  const del = async id => {
-    setConfirmState({
-      title: 'Delete announcement?',
-      body: 'This announcement will be permanently removed.',
-      icon: '🗑', danger: true,
-      onConfirm: async () => {
-        await supabase.from('announcements').delete().eq('id', id).eq('school_id', profile?.school_id)
-        setData(p => ({...p, announcements: p.announcements.filter(a => a.id !== id)}))
-        toast('Announcement deleted')
-      }
-    })
+  const del = async id=>{
+    setConfirmState({title:'Delete announcement?',body:'This will permanently remove the announcement for all users.',icon:'🗑',danger:true,onConfirm:async()=>{
+      const {error}=await supabase.from('announcements').delete().eq('id',id).eq('school_id',profile?.school_id)
+      if(error){toast(error.message,'error');return}
+      setData(p=>({...p,announcements:p.announcements.filter(a=>a.id!==id)}))
+      toast('Announcement deleted')
+    }})
   }
   const roleColor={all:'var(--gold)',teacher:'var(--sky)',admin:'var(--amber)'}
   return (
