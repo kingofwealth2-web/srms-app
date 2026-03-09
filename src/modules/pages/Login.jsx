@@ -134,7 +134,7 @@ export default function Login({ onLogin }) {
                     type={showPassword ? 'text' : 'password'}
                     placeholder='••••••••'
                     style={{ width: '100%', background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '10px 40px 10px 14px', color: 'var(--white)', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
-                    onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = '0 0 0 3px rgba(232,184,75,0.08)' }}
+                    onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = 'var(--gold-glow)' }}
                     onBlur={e  => { e.target.style.borderColor = 'var(--line)'; e.target.style.boxShadow = 'none' }}
                   />
                   <button onClick={() => setShowPassword(v => !v)} tabIndex={-1}
@@ -144,8 +144,8 @@ export default function Login({ onLogin }) {
                   >{showPassword ? '🙈' : '👁'}</button>
                 </div>
               </div>
-              {error && <div className='fi' style={{ background: 'rgba(240,107,122,0.08)', border: '1px solid rgba(240,107,122,0.25)', borderRadius: 'var(--r-sm)', padding: '11px 14px', fontSize: 13, color: 'var(--rose)', marginBottom: 16 }}>{error}</div>}
-              <Btn onClick={attempt} disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: 13, fontSize: 14, boxShadow: loading ? 'none' : '0 4px 20px rgba(232,184,75,0.25)' }}>
+              {error && <div className='fi' style={{ background: 'var(--rose-subtle)', border: '1px solid var(--rose-line)', borderRadius: 'var(--r-sm)', padding: '11px 14px', fontSize: 13, color: 'var(--rose)', marginBottom: 16 }}>{error}</div>}
+              <Btn onClick={attempt} disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: 13, fontSize: 14, boxShadow: loading ? 'none' : 'var(--shadow-gold)' }}>
                 {loading ? <><Spinner/> Signing in...</> : 'Sign In →'}
               </Btn>
               <div style={{ marginTop: 20, textAlign: 'center' }}>
@@ -175,7 +175,7 @@ export default function Login({ onLogin }) {
                   value={signupName} onChange={e => setSignupName(e.target.value)}
                   placeholder='Your full name' autoFocus
                   style={{ width: '100%', background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--white)', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
-                  onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = '0 0 0 3px rgba(232,184,75,0.08)' }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = 'var(--gold-glow)' }}
                   onBlur={e  => { e.target.style.borderColor = 'var(--line)'; e.target.style.boxShadow = 'none' }}
                 />
               </div>
@@ -185,7 +185,7 @@ export default function Login({ onLogin }) {
                   value={signupEmail} onChange={e => setSignupEmail(e.target.value)}
                   type='email' placeholder='you@school.edu'
                   style={{ width: '100%', background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--white)', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
-                  onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = '0 0 0 3px rgba(232,184,75,0.08)' }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = 'var(--gold-glow)' }}
                   onBlur={e  => { e.target.style.borderColor = 'var(--line)'; e.target.style.boxShadow = 'none' }}
                 />
               </div>
@@ -196,12 +196,12 @@ export default function Login({ onLogin }) {
                   type='password' placeholder='Min. 6 characters'
                   onKeyDown={e => e.key === 'Enter' && signUp()}
                   style={{ width: '100%', background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--white)', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
-                  onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = '0 0 0 3px rgba(232,184,75,0.08)' }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = 'var(--gold-glow)' }}
                   onBlur={e  => { e.target.style.borderColor = 'var(--line)'; e.target.style.boxShadow = 'none' }}
                 />
               </div>
-              {signupError && <div style={{ background: 'rgba(240,107,122,0.08)', border: '1px solid rgba(240,107,122,0.25)', borderRadius: 'var(--r-sm)', padding: '11px 14px', fontSize: 13, color: 'var(--rose)', marginBottom: 16 }}>{signupError}</div>}
-              <Btn onClick={signUp} disabled={signupLoading} style={{ width: '100%', justifyContent: 'center', padding: 13, fontSize: 14, boxShadow: signupLoading ? 'none' : '0 4px 20px rgba(232,184,75,0.25)' }}>
+              {signupError && <div style={{ background: 'var(--rose-subtle)', border: '1px solid var(--rose-line)', borderRadius: 'var(--r-sm)', padding: '11px 14px', fontSize: 13, color: 'var(--rose)', marginBottom: 16 }}>{signupError}</div>}
+              <Btn onClick={signUp} disabled={signupLoading} style={{ width: '100%', justifyContent: 'center', padding: 13, fontSize: 14, boxShadow: signupLoading ? 'none' : 'var(--shadow-gold)' }}>
                 {signupLoading ? <><Spinner/> Creating account...</> : 'Create Account →'}
               </Btn>
               <div style={{ marginTop: 20, textAlign: 'center' }}>
@@ -225,11 +225,11 @@ export default function Login({ onLogin }) {
                   onKeyDown={e => e.key === 'Enter' && sendReset()}
                   type='email' placeholder='you@school.edu' autoFocus
                   style={{ width: '100%', background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--white)', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
-                  onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = '0 0 0 3px rgba(232,184,75,0.08)' }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = 'var(--gold-glow)' }}
                   onBlur={e  => { e.target.style.borderColor = 'var(--line)'; e.target.style.boxShadow = 'none' }}
                 />
               </div>
-              {resetError && <div style={{ background: 'rgba(240,107,122,0.08)', border: '1px solid rgba(240,107,122,0.25)', borderRadius: 'var(--r-sm)', padding: '10px 14px', fontSize: 13, color: 'var(--rose)', marginBottom: 16 }}>{resetError}</div>}
+              {resetError && <div style={{ background: 'var(--rose-subtle)', border: '1px solid var(--rose-line)', borderRadius: 'var(--r-sm)', padding: '10px 14px', fontSize: 13, color: 'var(--rose)', marginBottom: 16 }}>{resetError}</div>}
               <Btn onClick={sendReset} disabled={resetLoading} style={{ width: '100%', justifyContent: 'center', padding: 13, fontSize: 14 }}>
                 {resetLoading ? <><Spinner/> Sending...</> : 'Send Reset Link →'}
               </Btn>
@@ -246,7 +246,7 @@ export default function Login({ onLogin }) {
           {/* FORGOT SENT VIEW */}
           {view === 'forgot-sent' && (
             <div style={{ textAlign: 'center', padding: '8px 0' }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(45,212,160,0.1)', border: '1px solid rgba(45,212,160,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, margin: '0 auto 20px' }}>✓</div>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--emerald-subtle)', border: '1px solid var(--emerald-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, margin: '0 auto 20px' }}>✓</div>
               <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--white)', marginBottom: 10 }}>Check your inbox</div>
               <p style={{ fontSize: 13, color: 'var(--mist2)', lineHeight: 1.7, marginBottom: 24 }}>
                 A password reset link has been sent to<br/>

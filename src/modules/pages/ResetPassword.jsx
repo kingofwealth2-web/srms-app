@@ -61,7 +61,7 @@ export default function ResetPassword({ onDone }) {
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--mist2)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, fontFamily: "'Clash Display',sans-serif" }}>New Password</div>
                 <input value={newPass} onChange={e => setNewPass(e.target.value)} type='password' placeholder='Min. 8 characters'
                   style={{ width: '100%', background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--white)', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
-                  onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = '0 0 0 3px rgba(232,184,75,0.08)' }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = 'var(--gold-glow)' }}
                   onBlur={e  => { e.target.style.borderColor = 'var(--line)'; e.target.style.boxShadow = 'none' }}/>
               </div>
 
@@ -69,7 +69,7 @@ export default function ResetPassword({ onDone }) {
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--mist2)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, fontFamily: "'Clash Display',sans-serif" }}>Confirm Password</div>
                 <input value={confirm} onChange={e => setConfirm(e.target.value)} type='password' placeholder='Repeat your new password'
                   style={{ width: '100%', background: 'var(--ink3)', border: `1px solid ${confirm && confirm !== newPass ? 'var(--rose)' : 'var(--line)'}`, borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--white)', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
-                  onFocus={e => { e.target.style.borderColor = confirm && confirm !== newPass ? 'var(--rose)' : 'var(--gold)'; e.target.style.boxShadow = '0 0 0 3px rgba(232,184,75,0.08)' }}
+                  onFocus={e => { e.target.style.borderColor = confirm && confirm !== newPass ? 'var(--rose)' : 'var(--gold)'; e.target.style.boxShadow = 'var(--gold-glow)' }}
                   onBlur={e  => { e.target.style.borderColor = confirm && confirm !== newPass ? 'var(--rose)' : 'var(--line)'; e.target.style.boxShadow = 'none' }}/>
                 {confirm && confirm !== newPass && <div style={{ fontSize: 11, color: 'var(--rose)', marginTop: 5 }}>Passwords do not match</div>}
               </div>
@@ -94,15 +94,15 @@ export default function ResetPassword({ onDone }) {
                 </div>
               )}
 
-              {error && <div style={{ background: 'rgba(240,107,122,0.08)', border: '1px solid rgba(240,107,122,0.25)', borderRadius: 'var(--r-sm)', padding: '11px 14px', fontSize: 13, color: 'var(--rose)', marginBottom: 16 }}>{error}</div>}
+              {error && <div style={{ background: 'var(--rose-subtle)', border: '1px solid var(--rose-line)', borderRadius: 'var(--r-sm)', padding: '11px 14px', fontSize: 13, color: 'var(--rose)', marginBottom: 16 }}>{error}</div>}
 
-              <Btn onClick={submit} disabled={saving || !newPass || newPass !== confirm} style={{ width: '100%', justifyContent: 'center', padding: 13, fontSize: 14, boxShadow: saving ? 'none' : '0 4px 20px rgba(232,184,75,0.25)' }}>
+              <Btn onClick={submit} disabled={saving || !newPass || newPass !== confirm} style={{ width: '100%', justifyContent: 'center', padding: 13, fontSize: 14, boxShadow: saving ? 'none' : 'var(--shadow-gold)' }}>
                 {saving ? <><Spinner/> Saving...</> : 'Set New Password →'}
               </Btn>
             </>
           ) : (
             <div style={{ textAlign: 'center', paddingTop: 8 }}>
-              <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(45,212,160,0.1)', border: '1px solid rgba(45,212,160,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, margin: '0 auto 24px', boxShadow: '0 0 32px rgba(45,212,160,0.15)' }}>✓</div>
+              <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--emerald-subtle)', border: '1px solid var(--emerald-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, margin: '0 auto 24px', boxShadow: 'var(--shadow-gold)' }}>✓</div>
               <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--white)', marginBottom: 10 }}>Password updated!</div>
               <p style={{ fontSize: 13, color: 'var(--mist2)', lineHeight: 1.7 }}>You will be redirected to the sign-in page in a moment…</p>
             </div>
