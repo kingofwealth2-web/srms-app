@@ -42,9 +42,9 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   const vacationName = getVacationOnDate(date, vacations, activeYear)
   const isBlocked    = !!(holidayName || vacationName)
   const blockReason  = vacationName
-    ? { icon: '🏖', title: 'School is on Vacation', sub: vacationName, color: 'var(--sky)', bg: 'rgba(91,168,245,0.06)', border: 'rgba(91,168,245,0.2)' }
+    ? { icon: '🏖', title: 'School is on Vacation', sub: vacationName, color: 'var(--sky)', bg: 'var(--sky-subtle)', border: 'var(--sky-line)' }
     : holidayName
-    ? { icon: '🎉', title: 'Public Holiday', sub: holidayName, color: 'var(--emerald)', bg: 'rgba(45,212,160,0.06)', border: 'rgba(45,212,160,0.2)' }
+    ? { icon: '🎉', title: 'Public Holiday', sub: holidayName, color: 'var(--emerald)', bg: 'var(--emerald-subtle)', border: 'var(--emerald-line)' }
     : null
 
   const changeContext = (newCid, newDate) => {
@@ -170,19 +170,19 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
           ) : (
             <>
               {!hasUnsaved && alreadyMarkedToday && (
-                <div className='fi' style={{background:'rgba(45,212,160,0.06)',border:'1px solid rgba(45,212,160,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
+                <div className='fi' style={{background:'var(--emerald-subtle)',border:'1px solid var(--emerald-line)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
                   <span style={{fontSize:16}}>done</span>
                   <span style={{fontSize:13,color:'var(--emerald)'}}>Attendance already marked for today. You can still edit and save again.</span>
                 </div>
               )}
               {!hasUnsaved && !alreadyMarkedToday && savedRecs.length===0 && date===today && (
-                <div className='fi' style={{background:'rgba(251,159,58,0.06)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
+                <div className='fi' style={{background:'var(--amber-subtle)',border:'1px solid var(--amber-line)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
                   <span style={{fontSize:16}}>(!)</span>
                   <span style={{fontSize:13,color:'var(--amber)'}}>Attendance has not been marked yet today for <strong>{cls.name}</strong>.</span>
                 </div>
               )}
               {hasUnsaved && unmarkedCount>0 && (
-                <div className='fi' style={{background:'rgba(240,107,122,0.06)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
+                <div className='fi' style={{background:'var(--rose-subtle)',border:'1px solid var(--rose-line)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
                   <span style={{fontSize:16,color:'var(--rose)'}}>●</span>
                   <span style={{fontSize:13,color:'var(--rose)'}}><strong>{unmarkedCount} student{unmarkedCount!==1?'s':''}</strong> not yet marked -- they won't be recorded.</span>
                 </div>
@@ -229,14 +229,14 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
                   )},
                 ]}/>
               </Card>
-              <div style={{position:'sticky',bottom:0,marginTop:16,background:'var(--ink2)',border:'1px solid var(--line)',borderTop:`2px solid ${hasUnsaved?'var(--gold)':'var(--line)'}`,borderRadius:'var(--r)',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,boxShadow:'0 -8px 32px rgba(0,0,0,0.4)'}}>
+              <div style={{position:'sticky',bottom:0,marginTop:16,background:'var(--ink2)',border:'1px solid var(--line)',borderTop:`2px solid ${hasUnsaved?'var(--gold)':'var(--line)'}`,borderRadius:'var(--r)',padding:'16px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,boxShadow:'var(--shadow-lg)'}}>
                 <div style={{fontSize:13}}>
                   {hasUnsaved
                     ? <><span style={{fontWeight:600,color:'var(--amber)'}}>(!) Unsaved changes</span><span style={{color:'var(--mist2)'}}> -- click Save to record attendance</span></>
                     : <span style={{color:'var(--mist3)'}}>All changes saved</span>
                   }
                 </div>
-                {!isViewingPast && !isBlocked && <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{minWidth:160,justifyContent:'center',boxShadow:hasUnsaved?'0 4px 20px rgba(232,184,75,0.25)':'none'}}>
+                {!isViewingPast && !isBlocked && <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{minWidth:160,justifyContent:'center',boxShadow:hasUnsaved?'var(--shadow-gold)':'none'}}>
                   {saving?<><Spinner/> Saving...</>:(unmarkedCount>0?`Save Attendance (${unmarkedCount} unmarked)`:'Save Attendance')}
                 </Btn>}
               </div>

@@ -123,7 +123,7 @@ export default function Users({profile,toast}) {
             </div>
           )},
           {key:'role',label:'Role',render:v=>{const m=ROLE_META[v]||{};return<Badge color={m.color} bg={m.bg}>{m.label||v}</Badge>}},
-          {key:'locked',label:'Status',render:v=><Badge color={v?'var(--rose)':'var(--emerald)'} bg={v?'rgba(240,107,122,0.1)':'rgba(45,212,160,0.1)'}>{v?'Locked':'Active'}</Badge>},
+          {key:'locked',label:'Status',render:v=><Badge color={v?'var(--rose)':'var(--emerald)'} bg={v?'var(--rose-subtle)':'var(--emerald-subtle)'}>{v?'Locked':'Active'}</Badge>},
           {key:'id',label:'',render:(v,r)=>(
             <div style={{display:'flex',gap:8}}>
               <Btn variant='ghost' size='sm' onClick={()=>openEdit(r)}>Edit</Btn>
