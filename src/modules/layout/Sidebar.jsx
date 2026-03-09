@@ -84,9 +84,9 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 10,
-            background: 'linear-gradient(145deg, #c49a2e, #e8b84b)',
+            background: 'linear-gradient(145deg, #b8871e, #e8b84b, #f5d07a)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 14px rgba(232,184,75,0.3)',
+            boxShadow: '0 4px 16px rgba(232,184,75,0.38), inset 0 1px 0 rgba(255,255,255,0.25)',
             flexShrink: 0,
           }}>
             <span className='d' style={{ fontSize: 15, fontWeight: 700, color: '#0c0c15' }}>S</span>
@@ -125,6 +125,7 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
                 transition: 'all var(--t-fast)',
                 animation: `fadeIn 0.3s ${i * 0.03 + 0.05}s both`,
                 position: 'relative', textAlign: 'left',
+                boxShadow: isAct ? 'inset 0 1px 0 rgba(232,184,75,0.1)' : 'none',
               }}
               onMouseEnter={e => { if (!isAct) { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'var(--mist)' } }}
               onMouseLeave={e => { if (!isAct) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--mist2)' } }}
@@ -216,9 +217,9 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
           <div style={{ padding: '18px 0 14px' }}>
             <div onClick={onToggle} style={{
               width: 32, height: 32, borderRadius: 10, cursor: 'pointer',
-              background: 'linear-gradient(145deg, #c49a2e, #e8b84b)',
+              background: 'linear-gradient(145deg, #b8871e, #e8b84b, #f5d07a)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 14px rgba(232,184,75,0.3)',
+              boxShadow: '0 4px 16px rgba(232,184,75,0.38), inset 0 1px 0 rgba(255,255,255,0.25)',
               transition: 'box-shadow var(--t-fast)',
             }}
               onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 20px rgba(232,184,75,0.5)'}

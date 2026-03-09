@@ -59,7 +59,7 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
         border: '1px solid var(--line2)',
         borderRadius: 20,
         maxHeight: '90vh', overflow: 'auto',
-        boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04)',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.05), inset 0 1px 0 rgba(255,255,255,0.07)',
       }}>
         {title && (
           <div style={{ padding: '22px 26px 18px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>

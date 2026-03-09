@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, LETTER_COLOR, FEE_STATUS } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears } from '../lib/helpers'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
@@ -13,19 +13,6 @@ import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 import DataTable from '../components/DataTable'
 import KPI from '../components/KPI'
-
-const ordinal = n => {
-  if(n===null||n===undefined) return '--'
-  const s=['th','st','nd','rd'], v=n%100
-  return n+(s[(v-20)%10]||s[v]||s[0])
-}
-
-// Abbreviate long subject names for table headers
-const abbrSubject = name => {
-  if(!name) return ''
-  if(name.length <= 10) return name
-  return name.split(' ').map(w => w[0]?.toUpperCase()).join('') || name.slice(0,8)
-}
 
 // ── REPORTS ────────────────────────────────────────────────────
 export default function Reports({profile,data,settings,activeYear,isViewingPast}) {
@@ -83,12 +70,12 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
       : students.filter(s=>!s.archived)
   const searchPool = fc ? roleBasePool.filter(s=>s.class_id===fc) : roleBasePool
   const matchedStudents = studentSearch.length>0
-    ? searchPool.filter(s=>`${s.first_name} ${s.last_name}`.toLowerCase().includes(studentSearch.toLowerCase())).slice(0,8)
+    ? searchPool.filter(s=>fullName(s).toLowerCase().includes(studentSearch.toLowerCase())).slice(0,8)
     : []
 
   const selectStudent = s => {
     setSelectedStudent(s)
-    setStudentSearch(`${s.first_name} ${s.last_name}`)
+    setStudentSearch(fullName(s,true))
     setShowDropdown(false)
     setFc('') // student overrides class filter
   }
@@ -214,7 +201,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
   const exportExcel = () => {
     try {
       let csv='', filename=''
-      const scope=selectedStudent?`${selectedStudent.first_name}_${selectedStudent.last_name}`:fc?classes.find(c=>c.id===fc)?.name?.replace(/\s+/g,'_'):'All'
+      const scope=selectedStudent?`${fullName(selectedStudent,true).replace(/\s+/g,'_')}`:fc?classes.find(c=>c.id===fc)?.name?.replace(/\s+/g,'_'):'All'
 
       if(rtype==='reportcards'){
         // Export broadsheet data for selected class
@@ -235,7 +222,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
           .map((s,i)=>({...s,position:i+1}))
         csv='Position,Student ID,Student,'+rcClassSubjects.map(s=>`"${csvEscape(s.name)}"`).join(',')+',Total,Average,Grade,Remark,Status\n'
         rcRanked.forEach(s=>{
-          csv+=`${ordinal(s.position)},"${csvEscape(s.student_id)}","${csvEscape(s.first_name)} ${csvEscape(s.last_name)}",`
+          csv+=`${ordinal(s.position)},"${csvEscape(s.student_id)}","${csvEscape(fullName(s))}",`
           csv+=rcClassSubjects.map(sub=>s.scores[sub.id]??'--').join(',')
           csv+=`,${s.total||0},${s.avg??0},${csvEscape(s.letter)},"${csvEscape(s.remark)}",${s.pass===null?'--':s.pass?'Pass':'Fail'}\n`
         })
@@ -258,7 +245,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
           })
           csv+=',Total,Average,Grade,Remark,Status\n'
           rankedAcademic.forEach(s=>{
-            let row=`${ordinal(s.position)},"${csvEscape(s.student_id)}","${csvEscape(s.first_name)} ${csvEscape(s.last_name)}"`
+            let row=`${ordinal(s.position)},"${csvEscape(s.student_id)}","${csvEscape(fullName(s))}"`
             visSubjects.forEach(sub=>{
               const g=grades.find(gr=>gr.student_id===s.id&&gr.subject_id===sub.id&&(!fp||gr.period===fp))
               gradeComps.filter(c=>c.enabled).forEach(c=>{ row+=`,${g?g[c.key]||0:'--'}` })
@@ -270,11 +257,11 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
         filename=`SRMS_Academic_${scope}_${fp||'AllPeriods'}.csv`
       } else if(rtype==='attendance'){
         csv='Student ID,Student,Class,Total Days,Present,Absent,Late,Excused,Rate\n'
-        attData.forEach(s=>{csv+=`"${s.student_id}","${s.first_name} ${s.last_name}","${classes.find(c=>c.id===s.class_id)?.name||'--'}",${s.total},${s.present},${s.absent},${s.late},${s.excused},${s.rate!==null?s.rate+'%':'--'}\n`})
+        attData.forEach(s=>{csv+=`"${s.student_id}","${fullName(s)}","${classes.find(c=>c.id===s.class_id)?.name||'--'}",${s.total},${s.present},${s.absent},${s.late},${s.excused},${s.rate!==null?s.rate+'%':'--'}\n`})
         filename=`SRMS_Attendance_${scope}.csv`
       } else {
         csv='Student ID,Student,Class,Total Owed,Paid,Balance,Status\n'
-        feeData.forEach(s=>{csv+=`"${s.student_id}","${s.first_name} ${s.last_name}","${classes.find(c=>c.id===s.class_id)?.name||'--'}","${fmtMoney(s.owed,currency)}","${fmtMoney(s.paid,currency)}","${fmtMoney(s.balance,currency)}",${s.feeStatus}\n`})
+        feeData.forEach(s=>{csv+=`"${s.student_id}","${fullName(s)}","${classes.find(c=>c.id===s.class_id)?.name||'--'}","${fmtMoney(s.owed,currency)}","${fmtMoney(s.paid,currency)}","${fmtMoney(s.balance,currency)}",${s.feeStatus}\n`})
         filename=`SRMS_Fees_${scope}.csv`
       }
       const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
@@ -285,7 +272,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
   }
 
   const scopeLabel = selectedStudent
-    ? `${selectedStudent.first_name} ${selectedStudent.last_name}`
+    ? fullName(selectedStudent,true)
     : fc ? classes.find(c=>c.id===fc)?.name : 'All Students'
 
   return (
@@ -347,9 +334,9 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
                     style={{padding:'10px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:10,transition:'background 0.1s'}}
                     onMouseEnter={e=>e.currentTarget.style.background='var(--ink3)'}
                     onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                    <Avatar name={`${s.first_name} ${s.last_name}`} size={26}/>
+                    <Avatar name={fullName(s)} size={26}/>
                     <div>
-                      <div style={{fontSize:13,fontWeight:600}}>{s.first_name} {s.last_name}</div>
+                      <div style={{fontSize:13,fontWeight:600}}>{fullName(s,true)}</div>
                       <div style={{fontSize:11,color:'var(--mist3)'}}>{classes.find(c=>c.id===s.class_id)?.name||'--'} . {s.student_id}</div>
                     </div>
                   </div>
@@ -391,7 +378,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
         {/* Active scope indicators */}
         {(selectedStudent||fc) && (
           <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}>
-            {selectedStudent && <Badge color='var(--gold)' bg='rgba(232,184,75,0.1)'>Student: {selectedStudent.first_name} {selectedStudent.last_name}</Badge>}
+            {selectedStudent && <Badge color='var(--gold)' bg='rgba(232,184,75,0.1)'>Student: {fullName(selectedStudent)}</Badge>}
             {fc && !selectedStudent && <Badge color='var(--sky)' bg='rgba(91,168,245,0.1)'>Class: {classes.find(c=>c.id===fc)?.name}</Badge>}
             {selectedStudent && rtype==='academic' && studentRankInClass && (
               <Badge color='var(--emerald)' bg='rgba(45,212,160,0.1)'>Class Position: {ordinal(studentRankInClass)}</Badge>
@@ -459,7 +446,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
                           return (
                             <tr key={g.id} style={{borderBottom:'1px solid var(--line)',background:i%2===0?'transparent':'var(--ink3)'}}>
                               <td style={tdStyle}><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{selectedStudent.student_id}</span></td>
-                              <td style={tdStyle}><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={`${selectedStudent.first_name} ${selectedStudent.last_name}`} size={24} photo={selectedStudent.photo}/><span style={{fontWeight:600}}>{selectedStudent.first_name} {selectedStudent.last_name}</span></div></td>
+                              <td style={tdStyle}><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={`${selectedStudent.first_name} ${selectedStudent.last_name}`} size={24} photo={selectedStudent.photo}/><span style={{fontWeight:600}}>{fullName(selectedStudent)}</span></div></td>
                               <td style={tdStyle}>{subj?.name||'--'}</td>
                               {gradeComps.filter(c=>c.enabled).map(c=><td key={c.key} style={tdStyle}><span className='mono'>{g[c.key]||0}</span></td>)}
                               <td style={tdStyle}><span className='mono' style={{fontWeight:700,fontSize:14}}>{tot}</span></td>
@@ -480,7 +467,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
                                 <span style={{fontWeight:700,color:s.position<=3?'var(--gold)':'var(--mist2)',fontSize:13}}>{ordinal(s.position)}</span>
                               </td>
                               <td style={tdStyle}><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{s.student_id}</span></td>
-                              <td style={tdStyle}><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={`${s.first_name} ${s.last_name}`} size={26} photo={s.photo}/><span style={{fontWeight:600}}>{s.first_name} {s.last_name}</span></div></td>
+                              <td style={tdStyle}><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={fullName(s)} size={26} photo={s.photo}/><span style={{fontWeight:600}}>{fullName(s)}</span></div></td>
                               {!isClassTeacher && <td style={tdStyle}>{classes.find(c=>c.id===s.class_id)?.name||'--'}</td>}
                               {classSubjects.map(sub=>{
                                 const score=s.subjectScores[sub.id]
@@ -504,7 +491,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
         {rtype==='attendance' && (
           <DataTable data={attData} columns={[
             {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
-            {key:'first_name',label:'Student',render:(v,r)=><div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${r.first_name} ${r.last_name}`} size={28}/><span style={{fontWeight:600}}>{r.first_name} {r.last_name}</span></div>},
+            {key:'first_name',label:'Student',render:(v,r)=><div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={fullName(r)} size={28}/><span style={{fontWeight:600}}>{fullName(r,true)}</span></div>},
             {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
             {key:'total',label:'Days'},
             {key:'present',label:'Present',render:v=><span style={{color:'var(--emerald)',fontWeight:600}}>{v}</span>},
@@ -517,7 +504,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
         {rtype==='fees' && (
           <DataTable data={feeData} columns={[
             {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
-            {key:'first_name',label:'Student',render:(v,r)=><div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={`${r.first_name} ${r.last_name}`} size={28}/><span style={{fontWeight:600}}>{r.first_name} {r.last_name}</span></div>},
+            {key:'first_name',label:'Student',render:(v,r)=><div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={fullName(r)} size={28}/><span style={{fontWeight:600}}>{fullName(r,true)}</span></div>},
             {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
             {key:'owed',label:'Owed',render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
             {key:'paid',label:'Paid',render:v=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
@@ -624,7 +611,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   // Attendance helper
   const getAttendance = (studentId) => {
-    const recs = attendance.filter(a=>a.student_id===studentId && (!a.academic_year || a.academic_year===activeYear))
+    const recs = attendance.filter(a=>a.student_id===studentId)
     const total   = recs.length
     const present = recs.filter(a=>a.status==='Present').length
     const absent  = recs.filter(a=>a.status==='Absent').length
@@ -635,7 +622,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   // Behaviour helper
   const getBehaviour = (studentId) => {
-    const recs = behaviour.filter(b=>b.student_id===studentId && (!b.academic_year || b.academic_year===activeYear))
+    const recs = behaviour.filter(b=>b.student_id===studentId)
     const achievements = recs.filter(b=>b.type==='Achievement').length
     const discipline   = recs.filter(b=>b.type==='Discipline').length
     return {achievements, discipline, total: recs.length}
@@ -779,8 +766,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print Broadsheet</button>
     </div>
     </body></html>`
-    const w=URL.createObjectURL(new Blob([html],{type:'text/html'}))
-    window.open(w,'_blank')
+    const w=window.open('','_blank','width=1200,height=860')
+    if(w){w.document.write(html);w.document.close()}
   }
 
   // ── SUBJECT REPORT ─────────────────────────────────────────────
@@ -792,13 +779,11 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
     const rankedBySub = [...classStudents].map(s=>({...s,score:getTotal(s.id,rcSubject)}))
       .sort((a,b)=>(b.score||0)-(a.score||0))
-    // Standard competition ranking: 1,1,3 — track last assigned rank separately
-    let rpos=1, lastScore=null, lastPos=1
+    let rpos=1
     const ranked = rankedBySub.map((s,i)=>{
       if(s.score===null) return {...s,position:null}
-      if(lastScore===null || s.score!==lastScore){ lastPos=rpos; lastScore=s.score }
-      rpos=i+2
-      return {...s,position:lastPos}
+      if(i>0&&s.score===rankedBySub[i-1].score) return {...s,position:rankedBySub[i-1].position}
+      const p=rpos; rpos=i+2; return {...s,position:p}
     })
 
     const withScore = ranked.filter(s=>s.score!==null)
@@ -814,7 +799,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       const posBg   = s.position===1?'#fef3c7':s.position===2?'#f3f4f6':s.position===3?'#fef3c7':'#f5f3ff'
       return `<tr style="background:${i%2===0?'#fff':'#f9fafb'};">
         <td style="padding:10px 14px;font-size:11px;font-family:monospace;border-bottom:1px solid #f3f4f6;color:#6b7280;">${s.student_id}</td>
-        <td style="padding:10px 14px;font-size:14px;font-weight:600;border-bottom:1px solid #f3f4f6;color:#111827;">${s.last_name}, ${s.first_name}</td>
+        <td style="padding:10px 14px;font-size:14px;font-weight:600;border-bottom:1px solid #f3f4f6;color:#111827;">${s.last_name}, ${s.first_name}${s.middle_name?" "+s.middle_name[0]+".":""}</td>
         <td style="padding:10px 14px;text-align:center;font-size:18px;font-weight:800;border-bottom:1px solid #f3f4f6;color:${scoreC};">${s.score!==null?s.score:'—'}</td>
         <td style="padding:10px 14px;text-align:center;font-size:13px;font-weight:700;border-bottom:1px solid #f3f4f6;color:#d97706;">${letter}</td>
         <td style="padding:10px 14px;font-size:12px;border-bottom:1px solid #f3f4f6;color:#4b5563;">${remark}</td>
@@ -879,8 +864,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       <button onclick="window.print()" style="padding:12px 32px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;">⎙ &nbsp;Print Subject Report</button>
     </div>
     </body></html>`
-    const w=URL.createObjectURL(new Blob([html],{type:'text/html'}))
-    window.open(w,'_blank')
+    const w=window.open('','_blank','width=800,height=900')
+    if(w){w.document.write(html);w.document.close()}
   }
 
   // ── INDIVIDUAL REPORT CARD ─────────────────────────────────────
@@ -936,7 +921,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
     const photoTag = student.photo
       ? `<img src="${student.photo}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #fbbf24;flex-shrink:0;" />`
-      : `<div style="width:80px;height:80px;border-radius:50%;background:rgba(251,191,36,0.15);border:3px solid rgba(251,191,36,0.35);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fbbf24;flex-shrink:0;">${student.first_name[0]}${student.last_name[0]}</div>`
+      : `<div style="width:80px;height:80px;border-radius:50%;background:rgba(251,191,36,0.15);border:3px solid rgba(251,191,36,0.35);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fbbf24;flex-shrink:0;">${student.first_name[0]}${student.middle_name?student.middle_name[0]:''}${student.last_name[0]}</div>`
 
     const stampBox = rcStamp
       ? `<div style="width:88px;height:88px;border:2px dashed #d1d5db;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#d1d5db;text-align:center;line-height:1.4;">OFFICIAL<br>STAMP</div>`
@@ -966,7 +951,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       <div style="background:#f8fafc;border-bottom:2px solid #e5e7eb;padding:14px 28px;display:flex;gap:0;align-items:stretch;flex-wrap:wrap;">
         <div style="padding:0 20px 0 0;margin-right:20px;border-right:1px solid #e5e7eb;">
           <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Student Name</div>
-          <div style="font-size:17px;font-weight:700;color:#111827;font-family:'Playfair Display',serif;">${student.first_name} ${student.last_name}</div>
+          <div style="font-size:17px;font-weight:700;color:#111827;font-family:'Playfair Display',serif;">${student.first_name}${student.middle_name?' '+student.middle_name:''}  ${student.last_name}</div>
         </div>
         <div style="padding:0 20px;border-right:1px solid #e5e7eb;">
           <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Student ID</div>
@@ -1126,14 +1111,14 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     if(!rcStudent) return
     const student = classStudents.find(s=>s.id===rcStudent)
     if(!student) return
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Report Card — ${student.first_name} ${student.last_name}</title>
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Report Card — ${student.first_name}${student.middle_name?' '+student.middle_name:''} ${student.last_name}</title>
     <style>${cardStyles}</style></head>
     <body>${buildReportCard(student)}
     <div class="no-print" style="max-width:800px;margin:0 auto;text-align:center;padding:16px;">
       <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print Report Card</button>
     </div></body></html>`
-    const w=URL.createObjectURL(new Blob([html],{type:'text/html'}))
-    window.open(w,'_blank')
+    const w=window.open('','_blank','width=860,height=960')
+    if(w){w.document.write(html);w.document.close()}
   }
 
   const printAllCards = () => {
@@ -1144,8 +1129,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     <div class="no-print" style="max-width:800px;margin:0 auto;text-align:center;padding:16px;">
       <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print All Cards (${classStudents.length})</button>
     </div></body></html>`
-    const w=URL.createObjectURL(new Blob([html],{type:'text/html'}))
-    window.open(w,'_blank')
+    const w=window.open('','_blank','width=860,height=960')
+    if(w){w.document.write(html);w.document.close()}
   }
 
   // ── UI ─────────────────────────────────────────────────────────
@@ -1157,14 +1142,14 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     if(!sid) return
     const student = classStudents.find(s=>s.id===sid)
     if(!student) return
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Preview — ${student.first_name} ${student.last_name}</title>
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Preview — ${student.first_name}${student.middle_name?' '+student.middle_name:''} ${student.last_name}</title>
     <style>${cardStyles}</style></head>
     <body>${buildReportCard(student)}
     <div class="no-print" style="max-width:800px;margin:0 auto;text-align:center;padding:16px;">
       <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print This Card</button>
     </div></body></html>`
-    const w=URL.createObjectURL(new Blob([html],{type:'text/html'}))
-    window.open(w,'_blank')
+    const w=window.open('','_blank','width=860,height=960')
+    if(w){w.document.write(html);w.document.close()}
   }
 
     const canPrintBroadsheet = rcClass&&rcPeriod
@@ -1194,7 +1179,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           )}
           {rcType==='individual' && rcClass && (
             <Field label='Student' value={rcStudent} onChange={setRcStudent}
-              options={[{value:'',label:'All students'},...classStudents.map(s=>({value:s.id,label:`${s.first_name} ${s.last_name}`}))]}/>
+              options={[{value:'',label:'All students'},...classStudents.map(s=>({value:s.id,label:fullName(s,true)}))]}/>
           )}
         </div>
 
@@ -1225,8 +1210,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             {classStudents.map(s=>(
               <div key={s.id} style={{display:'flex',alignItems:'center',gap:12}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,width:180,flexShrink:0}}>
-                  <Avatar name={`${s.first_name} ${s.last_name}`} size={26} photo={s.photo}/>
-                  <span style={{fontSize:12,fontWeight:600,color:'var(--mist)'}}>{s.first_name} {s.last_name}</span>
+                  <Avatar name={fullName(s)} size={26} photo={s.photo}/>
+                  <span style={{fontSize:12,fontWeight:600,color:'var(--mist)'}}>{fullName(s,true)}</span>
                 </div>
                 <input
                   value={rcRemarks[s.id]||''}
@@ -1278,7 +1263,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             <span style={{fontSize:12,color:'var(--mist3)'}}>Preview student:</span>
             <select value={previewStudent||classStudents[0]?.id||''} onChange={e=>setPreviewStudent(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'6px 12px',color:'var(--mist)',fontSize:12,cursor:'pointer'}}>
-              {classStudents.map(s=><option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+              {classStudents.map(s=><option key={s.id} value={s.id}>{fullName(s,true)}</option>)}
             </select>
           </div>
         )}

@@ -43,6 +43,11 @@ const G = `
   --t:      0.28s cubic-bezier(.16,1,.3,1);
   --t-slow: 0.45s cubic-bezier(.16,1,.3,1);
   --t-spring: 0.5s cubic-bezier(0.34,1.56,0.64,1);
+
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05);
+  --shadow-md: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
+  --shadow-lg: 0 24px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06);
+  --shadow-gold: 0 4px 20px rgba(232,184,75,0.3);
 }
 
 /* ── Light theme ───────────────────────────────────────────── */
@@ -77,9 +82,9 @@ html,body,#root{
   line-height:1.5;
 }
 
-::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--ink6);border-radius:3px}
+::-webkit-scrollbar-thumb{background:var(--ink6);border-radius:4px}
 ::-webkit-scrollbar-thumb:hover{background:var(--mist3)}
 
 .d{font-family:'Clash Display',system-ui,sans-serif}
@@ -121,11 +126,39 @@ html,body,#root{
 /* ── Utility ───────────────────────────────────────────────── */
 button{cursor:pointer;border:none;outline:none;font-family:inherit}
 input,select,textarea{font-family:inherit;outline:none}
-::selection{background:rgba(232,184,75,0.2);color:var(--white)}
+::selection{background:rgba(232,184,75,0.25);color:var(--white)}
+
+::placeholder{color:var(--mist3);opacity:1}
+
+/* dark option elements */
+select option{background:var(--ink4);color:var(--white)}
+
+/* date picker icon tint */
+input[type=date]::-webkit-calendar-picker-indicator{
+  filter:invert(0.45) sepia(0.1);cursor:pointer;opacity:0.7;
+}
+input[type=date]::-webkit-calendar-picker-indicator:hover{opacity:1}
+
+/* focus-visible ring */
+:focus-visible{
+  outline:2px solid rgba(232,184,75,0.55);
+  outline-offset:2px;
+  border-radius:4px;
+}
+button:focus-visible,a:focus-visible{border-radius:8px}
+
+/* number input: hide spinners */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
+
+/* link reset */
+a{color:inherit;text-decoration:none}
+
 
 /* subtle grain overlay */
 .grain::after{
-  content:'';position:fixed;inset:0;pointer-events:none;opacity:0.014;
+  content:'';position:fixed;inset:0;pointer-events:none;opacity:0.022;
   background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size:200px;z-index:9999;
 }
