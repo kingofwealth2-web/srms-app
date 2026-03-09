@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { supabase } from '../../supabase'
-import { useIsMobile } from '../lib/hooks'
+import { useIsMobile, usePagination } from '../lib/hooks'
 import { ROLE_META, LETTER_COLOR } from '../lib/constants'
 import { calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, fmtDate, csvEscape, ALL_COMPONENTS, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
@@ -14,10 +14,12 @@ import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 import DataTable from '../components/DataTable'
+import { SkeletonRows } from '../components/Skeleton'
+import Pagination from '../components/Pagination'
 import ConfirmModal from '../components/ConfirmModal'
 
 // ── GRADES ─────────────────────────────────────────────────────
-export default function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
+export default function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast,dataLoading}) {
   const {grades=[],students=[],subjects=[],classes=[]} = data
   const scale = settings?.grading_scale || []
   const allComps = getGradeComponents(settings)
@@ -98,6 +100,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
     }
     return (!fs||g.subject_id===fs)&&(!fp||g.period===fp)
   })
+  const { paged, page, setPage, totalPages } = usePagination(filtered, 50)
 
   // Score limit warnings
   const scoreWarnings = allComps.filter(c=>c.enabled && +form[c.key] > c.max_score && c.max_score>0)
@@ -441,7 +444,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
                   return (
                     <tr key={s.id} style={{
                       borderBottom:'1px solid var(--line)',
-                      background: isSkipped ? 'var(--ink)' :
+                      background: isSkipped ? 'rgba(255,255,255,0.02)' :
                                   isDirty   ? 'rgba(232,184,75,0.04)' :
                                   isExisting? 'rgba(91,168,245,0.04)' : 'transparent',
                       opacity: isSkipped ? 0.4 : 1,
@@ -530,7 +533,12 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
       ) : (
         /* ── NORMAL LIST VIEW ── */
         <Card>
-          <DataTable onRow={isViewingPast?null:(g=>mySubjects.some(s=>s.id===g.subject_id)?openEdit(g):null)} data={filtered} columns={[
+          {dataLoading ? (
+            <table style={{width:'100%',borderCollapse:'collapse'}}>
+              <tbody><SkeletonRows count={8} cols={6}/></tbody>
+            </table>
+          ) : (<>
+            <DataTable onRow={isViewingPast?null:(g=>mySubjects.some(s=>s.id===g.subject_id)?openEdit(g):null)} data={paged} columns={[
             {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?(<div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={fullName(s)} size={28}/><span style={{fontWeight:600}}>{fullName(s,true)}</span></div>):'--'}},
             {key:'subject_id',label:'Subject',render:v=>subjects.find(s=>s.id===v)?.name||'--'},
             {key:'period',label:'Period'},
@@ -547,6 +555,8 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
               </div>
             )}},
           ]}/>
+          <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={50} onPage={setPage}/>
+          </>)}
         </Card>
       )}
       {modal && (
