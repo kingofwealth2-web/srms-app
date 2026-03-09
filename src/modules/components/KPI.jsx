@@ -1,30 +1,52 @@
 import { useState, useEffect, useRef } from 'react'
 
 function useCountUp(target, duration = 900) {
-  const [val, setVal] = useState(0)
+  const [val, setVal] = useState(target)
   const raf = useRef(null)
+  const prevTarget = useRef(target)
+
   useEffect(() => {
-    const num = parseFloat(String(target).replace(/[^0-9.]/g, '')) || 0
-    const isPercent = String(target).includes('%')
+    const str = String(target)
+    // Extract numeric part and surrounding text
+    const match = str.match(/^([^0-9-]*)(-?[\d,]+\.?\d*)([^0-9]*)$/)
+    if (!match) { setVal(target); return }
+
+    const prefix = match[1]
+    const suffix = match[3]
+    const num    = parseFloat(match[2].replace(/,/g, '')) || 0
+    const prevNum = parseFloat(String(prevTarget.current).replace(/[^0-9.-]/g, '')) || 0
+    prevTarget.current = target
+
     let start = null
     const ease = t => 1 - Math.pow(1 - t, 3)
+    const hasDecimals = match[2].includes('.')
+    const decimals = hasDecimals ? (match[2].split('.')[1]?.length || 0) : 0
+
+    const fmt = n => {
+      const fixed = n.toFixed(decimals)
+      const parts = fixed.split('.')
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+      return parts.join('.')
+    }
+
+    cancelAnimationFrame(raf.current)
     const run = ts => {
       if (!start) start = ts
       const p = Math.min((ts - start) / duration, 1)
-      const cur = Math.round(num * ease(p))
-      setVal(isPercent ? cur + '%' : cur)
+      const cur = prevNum + (num - prevNum) * ease(p)
+      setVal(`${prefix}${fmt(cur)}${suffix}`)
       if (p < 1) raf.current = requestAnimationFrame(run)
+      else setVal(target)
     }
     raf.current = requestAnimationFrame(run)
     return () => cancelAnimationFrame(raf.current)
   }, [target])
+
   return val
 }
 
-export default function KPI({ label, value, color, sub, index = 0, prefix = '', suffix = '' }) {
-  const animated = useCountUp(value)
-  const raw = String(value)
-  const hasNum = /\d/.test(raw)
+export default function KPI({ label, value, color, sub, index = 0 }) {
+  const animated = useCountUp(String(value))
 
   return (
     <div
@@ -36,11 +58,10 @@ export default function KPI({ label, value, color, sub, index = 0, prefix = '', 
         padding: '24px 26px',
         position: 'relative', overflow: 'hidden',
         transition: 'border-color var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast)',
-        cursor: 'default',
       }}
       onMouseEnter={e => {
         e.currentTarget.style.borderColor = `${color}40`
-        e.currentTarget.style.boxShadow   = `0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px ${color}20`
+        e.currentTarget.style.boxShadow   = `0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px ${color}18`
         e.currentTarget.style.transform   = 'translateY(-2px)'
       }}
       onMouseLeave={e => {
@@ -49,28 +70,21 @@ export default function KPI({ label, value, color, sub, index = 0, prefix = '', 
         e.currentTarget.style.transform   = 'translateY(0)'
       }}
     >
-      {/* Ambient glow */}
       <div style={{
         position: 'absolute', top: -20, right: -20, width: 100, height: 100,
-        background: `radial-gradient(circle, ${color}1a 0%, transparent 70%)`,
+        background: `radial-gradient(circle, ${color}18 0%, transparent 70%)`,
         pointerEvents: 'none',
       }}/>
-
       <div style={{
         fontSize: 10, fontWeight: 700, color: 'var(--mist3)',
         textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 16,
         fontFamily: "'Clash Display',sans-serif",
       }}>{label}</div>
-
       <div className='d' style={{
-        fontSize: 36, fontWeight: 700, color,
+        fontSize: 34, fontWeight: 700, color,
         letterSpacing: '-0.03em', lineHeight: 1,
-        marginBottom: sub ? 10 : 0,
-      }}>
-        {prefix}{hasNum ? animated : raw}{!hasNum ? '' : suffix}
-      </div>
-
-      {sub && <div style={{ fontSize: 12, color: 'var(--mist3)', marginTop: 8 }}>{sub}</div>}
+      }}>{animated}</div>
+      {sub && <div style={{ fontSize: 12, color: 'var(--mist3)', marginTop: 10 }}>{sub}</div>}
     </div>
   )
 }
