@@ -147,37 +147,65 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
 
       {/* ── User ── */}
       <div style={{ padding: '10px 10px 14px', flexShrink: 0, borderTop: '1px solid var(--line)' }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '10px 12px', borderRadius: 12,
-          background: 'var(--ink3)',
-          border: '1px solid var(--line)',
-          transition: 'background var(--t-fast), border-color var(--t-fast)',
-        }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--ink3)'; e.currentTarget.style.borderColor = 'var(--line2)' }}
+        {/* Profile card */}
+        <button onClick={() => { onNav('myprofile'); if (isMobile) onDrawerClose() }}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 12px', borderRadius: 12,
+            background: 'var(--ink3)',
+            border: '1px solid var(--line)',
+            cursor: 'pointer', textAlign: 'left', marginBottom: 6,
+            transition: 'background var(--t-fast), border-color var(--t-fast)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--ink4)'; e.currentTarget.style.borderColor = 'var(--line2)' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'var(--ink3)'; e.currentTarget.style.borderColor = 'var(--line)' }}
         >
-          <button onClick={() => { onNav('myprofile'); if (isMobile) onDrawerClose() }}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, background: 'none', cursor: 'pointer', textAlign: 'left' }}
-          >
-            <div style={{ position: 'relative', flexShrink: 0 }}>
-              <Avatar name={profile?.full_name} size={32} color={rm.bg}/>
-              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 9, height: 9, borderRadius: '50%', background: 'var(--emerald)', border: '2px solid var(--ink2)' }}/>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--white)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>{profile?.full_name}</div>
-              <div style={{ fontSize: 10, color: 'var(--mist3)', marginTop: 1 }}>{rm.label}</div>
-            </div>
-          </button>
-          <button onClick={onLogout} title='Sign out' style={{
-            background: 'none', color: 'var(--mist3)', width: 28, height: 28,
-            borderRadius: 8, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0, transition: 'all var(--t-fast)',
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <Avatar name={profile?.full_name} size={32} color={rm.bg}/>
+            <div style={{ position: 'absolute', bottom: 0, right: 0, width: 9, height: 9, borderRadius: '50%', background: 'var(--emerald)', border: '2px solid var(--ink2)' }}/>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--white)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>{profile?.full_name}</div>
+            <div style={{ fontSize: 10, color: 'var(--mist3)', marginTop: 1 }}>{rm.label}</div>
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--mist3)', flexShrink: 0 }}>›</div>
+        </button>
+
+        {/* Sign out button — full width, distinct */}
+        <button onClick={onLogout} style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 9,
+          padding: '8px 12px', borderRadius: 10,
+          background: 'transparent',
+          border: '1px solid var(--line)',
+          cursor: 'pointer',
+          transition: 'all var(--t-fast)',
+          color: 'var(--mist3)',
+        }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'rgba(240,107,122,0.07)'
+            e.currentTarget.style.borderColor = 'rgba(240,107,122,0.3)'
+            e.currentTarget.style.color = 'var(--rose)'
+            e.currentTarget.querySelector('.so-icon').style.transform = 'translateX(2px)'
           }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'var(--rose)'; e.currentTarget.style.background = 'rgba(240,107,122,0.1)' }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'var(--mist3)'; e.currentTarget.style.background = 'none' }}
-          >⏻</button>
-        </div>
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.borderColor = 'var(--line)'
+            e.currentTarget.style.color = 'var(--mist3)'
+            e.currentTarget.querySelector('.so-icon').style.transform = 'translateX(0)'
+          }}
+        >
+          {/* Power icon */}
+          <div style={{
+            width: 26, height: 26, borderRadius: 7,
+            background: 'rgba(240,107,122,0.08)',
+            border: '1px solid rgba(240,107,122,0.18)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, flexShrink: 0,
+            transition: 'background var(--t-fast)',
+          }}>⏻</div>
+          <span style={{ fontSize: 12.5, fontWeight: 500, fontFamily: "'Cabinet Grotesk',sans-serif", letterSpacing: '-0.01em' }}>Sign out</span>
+          <div className='so-icon' style={{ marginLeft: 'auto', fontSize: 11, transition: 'transform var(--t-fast)' }}>→</div>
+        </button>
       </div>
     </div>
   )
