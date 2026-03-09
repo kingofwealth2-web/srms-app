@@ -509,6 +509,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const [phDateFrom,setPhDateFrom] = useState('')
   const [phDateTo,  setPhDateTo]   = useState('')
   const [phDetail,  setPhDetail]   = useState(null)  // payment row for detail modal
+  const [confirmState,setConfirmState] = useState(null)
 
   // Enrich payments with student/fee/class info
   const enrichedPayments = payments.map(p => {

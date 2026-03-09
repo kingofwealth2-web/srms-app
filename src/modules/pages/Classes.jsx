@@ -38,6 +38,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
   const [editS,setEditS] = useState(null)
   const [cf,setCf] = useState({})
   const [sf,setSf] = useState({})
+  const [confirmState,setConfirmState] = useState(null)
   const [saving,setSaving] = useState(false)
   const fc = k=>v=>setCf(p=>({...p,[k]:v}))
   const fs = k=>v=>setSf(p=>({...p,[k]:v}))
