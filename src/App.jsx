@@ -223,6 +223,9 @@ export default function App() {
       setNewYearModal(false)
       setNewYearStep(1)
       setNewYearTarget('')
+      // Explicitly reload data for the new year — setSelectedYear(null) won't
+      // trigger the selectedYear useEffect if it was already null
+      await loadData(null, profile, { ...settings, academic_year: newYearTarget })
       showToast('New academic year ' + newYearTarget + ' started successfully.')
     } catch (err) {
       showToast('Error: ' + err.message, 'error')
