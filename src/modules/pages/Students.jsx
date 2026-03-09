@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../supabase'
-import { useIsMobile } from '../lib/hooks'
+import { useIsMobile, usePagination } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS, LETTER_COLOR } from '../lib/constants'
 import { fmtDate, calcTotal, getGradeComponents, getLetter, getCurrency, fmtMoney, genSID, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
@@ -14,10 +14,12 @@ import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import DataTable from '../components/DataTable'
+import Skeleton, { SkeletonRows } from '../components/Skeleton'
+import Pagination from '../components/Pagination'
 import ConfirmModal from '../components/ConfirmModal'
 
 // ── STUDENTS ───────────────────────────────────────────────────
-export default function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
+export default function Students({profile,data,setData,toast,settings,activeYear,isViewingPast,dataLoading}) {
   const {students=[],classes=[]} = data
   const [search,setSearch] = useState('')
   const [fc,setFc]         = useState('')
@@ -69,6 +71,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     if(!showArchived && fc && s.class_id!==fc) return false
     return true
   })
+  const { paged, page, setPage, totalPages } = usePagination(filtered, 50)
   const unarchive = async (student, classId) => {
     if(!classId){ toast('Please select a class to re-enrol the student into','error'); return }
     setSaving(true)
@@ -405,7 +408,13 @@ export default function Students({profile,data,setData,toast,settings,activeYear
         </div>
       </Card>
       <Card>
-        <DataTable onRow={s=>setViewStudent(s)} data={filtered} columns={[
+        {dataLoading ? (
+          <table style={{width:'100%',borderCollapse:'collapse'}}>
+            <tbody><SkeletonRows count={8} cols={5}/></tbody>
+          </table>
+        ) : (
+          <>
+            <DataTable onRow={s=>setViewStudent(s)} data={paged} columns={[
           {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
           {key:'first_name',label:'Student',render:(v,r)=>(
             <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -448,6 +457,9 @@ export default function Students({profile,data,setData,toast,settings,activeYear
                 )}
               : {key:'id',label:'',render:()=>null},
         ]}/>
+        <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={50} onPage={setPage}/>
+          </>
+        )}
       </Card>
       {modal && (
         <Modal title={edit?'Edit Student':'New Student'} subtitle={edit?`ID: ${edit.student_id}`:'A Student ID will be generated automatically.'} onClose={()=>setModal(false)} width={580}>
@@ -738,7 +750,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
                 </div>
                 <div style={{display:'flex',flexDirection:'column',gap:6}}>
                   {enrichedFees.map(fee=>{
-                    const sc = FEE_STATUS[fee.status]||{color:'var(--mist2)',bg:'var(--ink4)'}
+                    const sc = FEE_STATUS[fee.status]||{color:'var(--mist2)',bg:'rgba(255,255,255,0.05)'}
                     return (
                       <div key={fee.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${fee.isOverdue?'rgba(240,107,122,0.25)':'var(--line)'}`}}>
                         <div style={{flex:1,minWidth:0}}>

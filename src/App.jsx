@@ -68,6 +68,7 @@ export default function App() {
   const [feeFilter,setFeeFilter]   = useState('')
   const [collapsed,setCollapsed]   = useState(false)
   const [loading,setLoading]       = useState(true)
+  const [dataLoading,setDataLoading] = useState(false)
   const [toast,setToast]           = useState(null)
   const [drawerOpen,setDrawerOpen] = useState(false)
   const [isDark,setIsDark]         = useState(() => {
@@ -177,7 +178,8 @@ export default function App() {
 
   useEffect(() => {
     if (!session || !settings || !profile) return
-    loadData(selectedYear, profile, settings)
+    setDataLoading(true)
+    loadData(selectedYear, profile, settings).then(() => setDataLoading(false))
   }, [selectedYear])
 
   const logout = async () => { await supabase.auth.signOut(); setPage('dashboard') }
@@ -237,7 +239,7 @@ export default function App() {
   const currentYear   = currentYearFromSettings(settings)
   const activeYear    = selectedYear || currentYear
   const isViewingPast = selectedYear && selectedYear !== currentYear
-  const props = { profile, data, setData, toast: showToast, settings, activeYear, isViewingPast, reloadData: () => loadData(activeYear, profile, settings) }
+  const props = { profile, data, setData, toast: showToast, settings, activeYear, isViewingPast, dataLoading, reloadData: () => loadData(activeYear, profile, settings) }
 
   const renderPage = () => {
     switch (page) {

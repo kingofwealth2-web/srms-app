@@ -78,7 +78,7 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
         const s   = students.find(x=>x.id===b.student_id)
         const cls = s ? classes.find(c=>c.id===s.class_id)?.name || '' : ''
         const bName = s ? s.first_name+' '+s.last_name : ''
-        csv += `"${esc(b.date||b.created_at)}","${esc(cls)}","${esc(s?.student_id)}","${esc(bName)}","${esc(b.type)}","${esc(b.title)}","${esc(b.description)}","${esc(b.recorded_by_name)}"\\n`
+        csv += `"${esc(b.date||b.created_at)}","${esc(cls)}","${esc(s?.student_id)}","${esc(bName)}","${esc(b.type)}","${esc(b.title)}","${esc(b.description)}","${esc(b.recorded_by_name)}"\n`
       })
       const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
       const url  = URL.createObjectURL(blob)

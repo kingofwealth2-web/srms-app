@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768)
@@ -57,4 +57,14 @@ export function usePageTransition(activePage) {
   }, [activePage])
 
   return key
+}
+// ── usePagination ──────────────────────────────────────────────
+// Returns paged slice of items plus navigation helpers.
+// Resets to page 1 whenever the source array length changes (e.g. filter applied).
+export function usePagination(items, pageSize = 50) {
+  const [page, setPage] = useState(1)
+  useEffect(() => { setPage(1) }, [items.length])
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize))
+  const paged = useMemo(() => items.slice((page - 1) * pageSize, page * pageSize), [items, page, pageSize])
+  return { paged, page, setPage, totalPages, total: items.length }
 }
