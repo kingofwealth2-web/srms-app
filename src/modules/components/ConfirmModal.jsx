@@ -1,7 +1,7 @@
 import Btn from './Btn'
 
 export default function ConfirmModal({ title, body, icon, danger = false, confirmLabel, onConfirm, onClose }) {
-  const handleConfirm = () => { onClose(); onConfirm() }
+  const handleConfirm = async () => { await onConfirm(); onClose() }
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 1100,

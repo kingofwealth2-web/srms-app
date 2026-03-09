@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../../supabase'
 import { DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, generateYears } from '../lib/helpers'
+import { CURRENCIES } from '../lib/constants'
 import Spinner from '../components/Spinner'
 
 // ── SCHOOL SETUP WIZARD ────────────────────────────────────────
@@ -103,7 +104,7 @@ export default function SchoolSetup({ profile, onComplete, onCancel }) {
                 <div style={{
                   ...styles.stepDot,
                   background: i <= step ? 'var(--gold)' : 'var(--line2)',
-                  boxShadow: i === step ? 'var(--gold-glow)' : 'none',
+                  boxShadow: i === step ? '0 0 0 4px rgba(212,175,55,0.2)' : 'none',
                 }}>
                   {i < step ? '✓' : i + 1}
                 </div>
@@ -166,7 +167,7 @@ export default function SchoolSetup({ profile, onComplete, onCancel }) {
                 {[['semester', 'Semester-based', '2 semesters per year'], ['term', 'Term-based', '3 terms per year']].map(([val, label, sub]) => (
                   <div key={val}
                     onClick={() => { f('period_type')(val); f('period_count')(val === 'semester' ? 2 : 3) }}
-                    style={{ ...styles.radioCard, borderColor: form.period_type === val ? 'var(--gold)' : 'var(--line)', background: form.period_type === val ? 'var(--gold-subtle)' : 'var(--ink3)' }}>
+                    style={{ ...styles.radioCard, borderColor: form.period_type === val ? 'var(--gold)' : 'var(--line)', background: form.period_type === val ? 'rgba(212,175,55,0.06)' : 'var(--ink3)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ ...styles.radioDot, background: form.period_type === val ? 'var(--gold)' : 'transparent', borderColor: form.period_type === val ? 'var(--gold)' : 'var(--mist3)' }} />
                       <div>
@@ -281,7 +282,7 @@ const styles = {
     fontFamily: "'Clash Display', sans-serif",
     marginBottom: 20,
     padding: '4px 12px',
-    border: '1px solid var(--gold-line)',
+    border: '1px solid rgba(212,175,55,0.3)',
     borderRadius: 4,
   },
   title: {
@@ -337,8 +338,8 @@ const styles = {
   },
   error: {
     fontSize: 12, color: 'var(--rose)',
-    background: 'var(--rose-subtle)',
-    border: '1px solid var(--rose-line)',
+    background: 'rgba(240,107,122,0.08)',
+    border: '1px solid rgba(240,107,122,0.2)',
     borderRadius: 'var(--r-sm)', padding: '10px 14px',
     marginBottom: 16,
   },
@@ -366,7 +367,7 @@ const styles = {
   },
   successIcon: {
     width: 64, height: 64, borderRadius: '50%',
-    background: 'var(--emerald-subtle)',
+    background: 'rgba(45,212,160,0.12)',
     border: '2px solid var(--emerald)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 28, color: 'var(--emerald)',
@@ -398,14 +399,4 @@ const GHANA_REGIONS = [
   'Eastern', 'Greater Accra', 'North East', 'Northern',
   'Oti', 'Savannah', 'Upper East', 'Upper West',
   'Volta', 'Western', 'Western North',
-]
-
-const CURRENCIES = [
-  { code: 'GHS', symbol: '₵', name: 'Ghanaian Cedi' },
-  { code: 'USD', symbol: '$', name: 'US Dollar' },
-  { code: 'EUR', symbol: '€', name: 'Euro' },
-  { code: 'GBP', symbol: '£', name: 'British Pound' },
-  { code: 'NGN', symbol: '₦', name: 'Nigerian Naira' },
-  { code: 'KES', symbol: 'KSh', name: 'Kenyan Shilling' },
-  { code: 'ZAR', symbol: 'R',  name: 'South African Rand' },
 ]

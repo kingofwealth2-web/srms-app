@@ -360,7 +360,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   })
   const overdueCount = enriched.filter(r=>r.isOverdue).length
   const totalOwed = fees.reduce((s,f)=>s+Number(f.amount||0),0)
-  const totalPaid = fees.reduce((s,f)=>s+Number(f.paid||0),0)
+  const totalPaid = enriched.reduce((s,r)=>s+r.effectivePaid,0)
   const openAdd = ()=>{setForm({student_id:'',fee_type:'',amount:'',due_date:'',period:''});setModal(true)}
   const [editFeeModal,setEditFeeModal] = useState(false)
   const [editFeeRow,setEditFeeRow]     = useState(null)
@@ -397,8 +397,6 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
   const delFee = async id=>{
     setConfirmState({title:'Remove fee record?',body:'This will also delete all payment history for this fee.',icon:'🗑',danger:true,onConfirm:async()=>{
-    // Delete payments first (no cascade on fees → payments)
-    await supabase.from('payments').delete().eq('fee_id',id).eq('school_id',profile?.school_id)
     const {error}=await supabase.from('fees').delete().eq('id',id).eq('school_id',profile?.school_id)
     if(error)toast(error.message,'error')
     else{const fee=fees.find(x=>x.id===id);const s=students.find(x=>x.id===fee?.student_id);setData(p=>({...p,fees:p.fees.filter(f=>f.id!==id),payments:p.payments.filter(p=>p.fee_id!==id)}));auditLog(profile,'Fees','Deleted',`${fullName(s)} · ${fee?.fee_type}`,{},fee,null);toast('Fee record removed')}
@@ -919,7 +917,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                   Select Classes <span style={{color:'var(--gold)',marginLeft:3}}>*</span>
                 </div>
                 <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
-                  {myClasses.map(c=>{
+                  {classesWithStudents.map(c=>{
                     const sel = bulk.selected_classes.includes(c.id)
                     const cnt = activeStudents.filter(s=>s.class_id===c.id).length
                     return (

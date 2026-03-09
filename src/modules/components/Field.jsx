@@ -8,14 +8,14 @@ export default function Field({ label, value, onChange, type = 'text', placehold
   const inputStyle = {
     width: '100%',
     background: focused ? 'var(--ink4)' : 'var(--ink3)',
-    border: `1px solid ${focused ? 'var(--gold)' : 'var(--line2)'}`,
+    border: `1px solid ${focused ? 'rgba(232,184,75,0.45)' : 'var(--line2)'}`,
     borderRadius: 10,
     padding: isMobile ? '13px 14px' : '9px 13px',
     color: 'var(--white)',
     fontSize: isMobile ? 16 : 13.5,
     lineHeight: 1.5,
     transition: 'border-color var(--t-fast), background var(--t-fast), box-shadow var(--t-fast)',
-    boxShadow: focused ? '0 0 0 3px var(--gold-glow)' : 'none',
+    boxShadow: focused ? '0 0 0 3px rgba(232,184,75,0.07)' : 'none',
   }
 
   const selectStyle = { ...inputStyle, cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', paddingRight: 36 }
@@ -39,7 +39,7 @@ export default function Field({ label, value, onChange, type = 'text', placehold
       {options ? (
         <div style={{ position: 'relative' }}>
           <select
-            value={value || ''}
+            value={value ?? ''}
             onChange={e => onChange(e.target.value)}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
@@ -57,7 +57,7 @@ export default function Field({ label, value, onChange, type = 'text', placehold
         </div>
       ) : rows ? (
         <textarea
-          value={value || ''}
+          value={value ?? ''}
           onChange={e => onChange(e.target.value)}
           rows={rows}
           placeholder={placeholder}
@@ -68,7 +68,7 @@ export default function Field({ label, value, onChange, type = 'text', placehold
       ) : (
         <input
           type={type}
-          value={value || ''}
+          value={value ?? ''}
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
           onFocus={() => setFocused(true)}

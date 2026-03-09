@@ -128,8 +128,10 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     // Write enrolment history
     const enrolmentRows = bulkStudents.map(p=>({school_id:profile?.school_id,student_id:p.student.id,class_id:p.fromClass.id,academic_year:activeYear}))
     await supabase.from('student_year_enrolment').upsert(enrolmentRows,{onConflict:'school_id,student_id,academic_year'})
-    for(const p of toPromote)
+    for(const p of toPromote) {
+      if(!p.destClassId) continue
       await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id).eq('school_id',profile?.school_id)
+    }
     for(const p of toGraduate)
       await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id).eq('school_id',profile?.school_id)
     const destMap     = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
@@ -182,7 +184,6 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     if(toGraduate.length) parts.push(toGraduate.length+' graduated')
     if(toRepeat.length)   parts.push(toRepeat.length+' staying back')
     toast(''+parts.join(', ')+'.')
-    if(onPromotionComplete) onPromotionComplete()
   }
   const saveClass = async ()=>{
     if(!cf.name)return; setSaving(true)

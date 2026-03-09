@@ -604,7 +604,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
               return subjectPool.map(s=>({value:s.id,label:s.name}))
             })()}/>
             <Field label='Period'        value={form.period} onChange={f('period')} options={periods}/>
-            <div style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Academic Year</div><div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>{form.year||settings?.academic_year||'--'}</div></div>
+            <div style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Academic Year</div><div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>{form.year??settings?.academic_year??'--'}</div></div>
           </div>
           <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:18,marginBottom:16}}>
             <SectionTitle>Score Entry</SectionTitle>
