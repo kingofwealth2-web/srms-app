@@ -20,6 +20,17 @@ const G = `
   --gold2:  #f5d07a;
   --gold3:  #c49a2e;
   --gold-glow: rgba(232,184,75,0.15);
+  /* Semantic tints — used for alert banners, badges, state rows */
+  --rose-subtle:    rgba(240,107,122,0.07);
+  --rose-line:      rgba(240,107,122,0.22);
+  --amber-subtle:   rgba(251,159,58,0.07);
+  --amber-line:     rgba(251,159,58,0.25);
+  --emerald-subtle: rgba(45,212,160,0.10);
+  --emerald-line:   rgba(45,212,160,0.25);
+  --sky-subtle:     rgba(91,168,245,0.07);
+  --sky-line:       rgba(91,168,245,0.22);
+  --gold-subtle:    rgba(232,184,75,0.07);
+  --gold-line:      rgba(232,184,75,0.20);
 
   --emerald:#2dd4a0;
   --rose:   #f06b7a;
@@ -75,6 +86,17 @@ body.light{
   --gold2:  #d4a020;
   --gold3:  #8c6508;
   --gold-glow: rgba(184,135,12,0.14);
+  /* Semantic tints — light theme versions */
+  --rose-subtle:    rgba(212,79,94,0.07);
+  --rose-line:      rgba(212,79,94,0.22);
+  --amber-subtle:   rgba(196,98,16,0.07);
+  --amber-line:     rgba(196,98,16,0.22);
+  --emerald-subtle: rgba(10,156,114,0.08);
+  --emerald-line:   rgba(10,156,114,0.22);
+  --sky-subtle:     rgba(34,114,204,0.07);
+  --sky-line:       rgba(34,114,204,0.20);
+  --gold-subtle:    rgba(184,135,12,0.07);
+  --gold-line:      rgba(184,135,12,0.20);
 
   /* Semantic accents — all deepened ~20% for light bg contrast */
   --emerald: #0a9c72;

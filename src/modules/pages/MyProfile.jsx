@@ -68,17 +68,31 @@ export default function MyProfile({profile, setProfile, toast}) {
 
   const pf = k => v => setPassForm(p => ({...p, [k]: v}))
 
-  const eyeBtn = (show, toggle) => (
-    <button onClick={toggle} type='button'
-      style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',color:'var(--mist3)',fontSize:14,padding:2,lineHeight:1}}>
-      {show ? '◡' : '○'}
-    </button>
+  const pwField = (label, key, showKey, toggleKey) => (
+    <div style={{marginBottom:14}}>
+      <label style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6}}>{label}</label>
+      <div style={{position:'relative'}}>
+        <input
+          type={showKey ? 'text' : 'password'}
+          value={passForm[key]}
+          onChange={e => pf(key)(e.target.value)}
+          onKeyDown={key === 'confirm' ? e => e.key === 'Enter' && savePass() : undefined}
+          style={{
+            width:'100%', background:'var(--ink3)', border:`1px solid ${key==='confirm'&&passForm.confirm&&passForm.next!==passForm.confirm?'var(--rose)':'var(--line)'}`,
+            borderRadius:'var(--r-sm)', padding:'9px 36px 9px 14px', color:'var(--white)', fontSize:13, boxSizing:'border-box',
+          }}
+          placeholder={key==='current'?'Your current password':key==='next'?'At least 8 characters':'Repeat new password'}
+        />
+        <button onClick={() => toggleKey(v => !v)} type='button'
+          style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',color:'var(--mist3)',fontSize:14,padding:2,lineHeight:1}}>
+          {showKey ? '◡' : '○'}
+        </button>
+      </div>
+      {key==='confirm' && passForm.confirm && passForm.next !== passForm.confirm && (
+        <div style={{fontSize:11,color:'var(--rose)',marginTop:5}}>Passwords do not match.</div>
+      )}
+    </div>
   )
-
-  const inputStyle = {
-    width:'100%', background:'var(--ink3)', border:'1px solid var(--line)',
-    borderRadius:'var(--r-sm)', padding:'9px 14px', color:'var(--white)', fontSize:13
-  }
 
   return (
     <div>
@@ -107,23 +121,15 @@ export default function MyProfile({profile, setProfile, toast}) {
             This is how your name appears across the system — on report cards, announcements, and records you create.
           </p>
           <div style={{marginBottom:16}}>
-            <label style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6}}>Full Name</label>
-            <input
-              value={nameForm}
-              onChange={e=>setNameForm(e.target.value)}
-              onKeyDown={e=>e.key==='Enter'&&saveName()}
-              style={inputStyle}
-              placeholder='Your full name'
-            />
+            <Field label='Full Name' value={nameForm} onChange={setNameForm} placeholder='Your full name' required
+              onKeyDown={e=>e.key==='Enter'&&saveName()}/>
           </div>
           <div style={{marginBottom:16}}>
-            <label style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6}}>Email</label>
-            <input value={profile?.email||''} disabled style={{...inputStyle,opacity:0.5,cursor:'not-allowed'}}/>
+            <Field label='Email' value={profile?.email||''} disabled/>
             <div style={{fontSize:11,color:'var(--mist3)',marginTop:5}}>Email cannot be changed here. Contact your administrator.</div>
           </div>
           <div style={{marginBottom:16}}>
-            <label style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6}}>Role</label>
-            <input value={rm.label||profile?.role||''} disabled style={{...inputStyle,opacity:0.5,cursor:'not-allowed'}}/>
+            <Field label='Role' value={rm.label||profile?.role||''} disabled/>
             <div style={{fontSize:11,color:'var(--mist3)',marginTop:5}}>Role is assigned by an administrator.</div>
           </div>
           <div style={{display:'flex',justifyContent:'flex-end'}}>
@@ -139,52 +145,9 @@ export default function MyProfile({profile, setProfile, toast}) {
           <p style={{fontSize:12,color:'var(--mist3)',marginBottom:16,lineHeight:1.6}}>
             Choose a strong password of at least 8 characters. You will stay signed in after changing it.
           </p>
-          <div style={{marginBottom:14}}>
-            <label style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6}}>Current Password</label>
-            <div style={{position:'relative'}}>
-              <input
-                type={showCurrent?'text':'password'}
-                value={passForm.current}
-                onChange={e=>pf('current')(e.target.value)}
-                style={{...inputStyle,paddingRight:36}}
-                placeholder='Your current password'
-              />
-              {eyeBtn(showCurrent,()=>setShowCurrent(v=>!v))}
-            </div>
-          </div>
-          <div style={{marginBottom:14}}>
-            <label style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6}}>New Password</label>
-            <div style={{position:'relative'}}>
-              <input
-                type={showNext?'text':'password'}
-                value={passForm.next}
-                onChange={e=>pf('next')(e.target.value)}
-                style={{...inputStyle,paddingRight:36}}
-                placeholder='At least 8 characters'
-              />
-              {eyeBtn(showNext,()=>setShowNext(v=>!v))}
-            </div>
-          </div>
-          <div style={{marginBottom:20}}>
-            <label style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6}}>Confirm New Password</label>
-            <div style={{position:'relative'}}>
-              <input
-                type={showConfirm?'text':'password'}
-                value={passForm.confirm}
-                onChange={e=>pf('confirm')(e.target.value)}
-                onKeyDown={e=>e.key==='Enter'&&savePass()}
-                style={{
-                  ...inputStyle, paddingRight:36,
-                  borderColor: passForm.confirm && passForm.next !== passForm.confirm ? 'var(--rose)' : undefined
-                }}
-                placeholder='Repeat new password'
-              />
-              {eyeBtn(showConfirm,()=>setShowConfirm(v=>!v))}
-            </div>
-            {passForm.confirm && passForm.next !== passForm.confirm && (
-              <div style={{fontSize:11,color:'var(--rose)',marginTop:5}}>Passwords do not match.</div>
-            )}
-          </div>
+          {pwField('Current Password', 'current', showCurrent, setShowCurrent)}
+          {pwField('New Password', 'next', showNext, setShowNext)}
+          {pwField('Confirm New Password', 'confirm', showConfirm, setShowConfirm)}
           {/* Strength indicator */}
           {passForm.next && (() => {
             const len = passForm.next.length
@@ -233,4 +196,3 @@ const ACTION_COLOR = {
   Locked:  'var(--rose)',
   Unlocked:'var(--emerald)',
 }
-

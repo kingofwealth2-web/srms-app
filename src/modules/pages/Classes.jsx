@@ -272,7 +272,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
                     <span style={{color:'var(--line2)',fontSize:12,cursor:'grab'}}>⠿</span>
                     <span style={{fontWeight:600,fontSize:13,flex:1}}>{c.name}</span>
-                    {c.is_terminal && <span style={{fontSize:9,fontWeight:700,color:'var(--rose)',background:'rgba(240,107,122,0.12)',padding:'2px 6px',borderRadius:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>Terminal</span>}
+                    {c.is_terminal && <span style={{fontSize:9,fontWeight:700,color:'var(--rose)',background:'var(--rose-subtle)',padding:'2px 6px',borderRadius:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>Terminal</span>}
                   </div>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <span style={{fontSize:11,color:'var(--mist3)'}}>{ct?ct.full_name:'No class teacher'}</span>
@@ -300,7 +300,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
                   <span style={{color:'var(--line2)',fontSize:14}}>⠿</span>
                   <div className='d' style={{fontSize:17,fontWeight:700,flex:1}}>{c.name}</div>
-                  {c.is_terminal && <span style={{fontSize:9,fontWeight:700,color:'var(--rose)',background:'rgba(240,107,122,0.12)',padding:'2px 6px',borderRadius:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>Terminal</span>}
+                  {c.is_terminal && <span style={{fontSize:9,fontWeight:700,color:'var(--rose)',background:'var(--rose-subtle)',padding:'2px 6px',borderRadius:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>Terminal</span>}
                 </div>
                 <div style={{fontSize:12,color:'var(--mist2)',marginBottom:14}}>{ct?`Class Teacher: ${ct.full_name}`:'No class teacher assigned'}</div>
                 <div style={{display:'flex',gap:16}}>
@@ -349,7 +349,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
         <Modal title={editC?'Edit Class':'New Class'} onClose={()=>setClassModal(false)}>
           <Field label='Class Name' value={cf.name} onChange={fc('name')} placeholder='e.g. Class 6A, JHS 2B, Form 1A' required/>
           <Field label='Class Teacher' value={cf.class_teacher_id} onChange={fc('class_teacher_id')} options={[{value:'',label:'None -- Unassigned'},...teachers.map(t=>({value:t.id,label:t.full_name}))]}/>
-          <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:'rgba(240,107,122,0.04)',border:'1px solid rgba(240,107,122,0.15)',borderRadius:'var(--r-sm)',marginBottom:16}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:'var(--rose-subtle)',border:'1px solid var(--rose-line)',borderRadius:'var(--r-sm)',marginBottom:16}}>
             <button onClick={()=>setCf(p=>({...p,is_terminal:!p.is_terminal}))}
               style={{width:38,height:22,borderRadius:11,background:cf.is_terminal?'var(--rose)':'var(--line2)',border:'none',cursor:'pointer',transition:'background 0.2s',position:'relative',flexShrink:0}}>
               <div style={{width:16,height:16,borderRadius:'50%',background:'white',position:'absolute',top:3,left:cf.is_terminal?19:3,transition:'left 0.2s'}}/>
@@ -385,7 +385,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
             <div>
               {/* Warning if no terminal class */}
               {!orderedClasses.some(c=>c.is_terminal) && (
-                <div style={{padding:'10px 14px',background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--amber)',marginBottom:16,display:'flex',gap:8,alignItems:'center'}}>
+                <div style={{padding:'10px 14px',background:'var(--amber-subtle)',border:'1px solid var(--amber-line)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--amber)',marginBottom:16,display:'flex',gap:8,alignItems:'center'}}>
                   <span>⚠</span>
                   <span>No terminal class set. Students in the last class will default to Graduate. Set a terminal class in Classes to be explicit.</span>
                 </div>
@@ -428,7 +428,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                         <div style={{flex:1,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
                           <span style={{fontSize:13,fontWeight:700,color:'var(--white)'}}>{cls.name}</span>
                           <Badge color='var(--mist3)'>{clsStudents.length} students</Badge>
-                          {cls.is_terminal && <span style={{fontSize:10,fontWeight:700,color:'var(--rose)',background:'rgba(240,107,122,0.12)',padding:'2px 6px',borderRadius:4,textTransform:'uppercase'}}>Terminal</span>}
+                          {cls.is_terminal && <span style={{fontSize:10,fontWeight:700,color:'var(--rose)',background:'var(--rose-subtle)',padding:'2px 6px',borderRadius:4,textTransform:'uppercase'}}>Terminal</span>}
                           {hasOverrides && (
                             <span style={{fontSize:11,color:'var(--amber)'}}>
                               {repeatCount>0 && `${repeatCount} repeating`}
@@ -473,14 +473,14 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                             {clsStudents.map((p,i)=>{
                               const globalIdx = bulkStudents.findIndex(x=>x.student.id===p.student.id)
                               return (
-                                <div key={p.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 16px',borderBottom:i<clsStudents.length-1?'1px solid var(--line)':'none',background:p.action==='graduate'?'rgba(240,107,122,0.04)':p.action==='repeat'?'rgba(251,159,58,0.04)':'transparent'}}>
+                                <div key={p.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 16px',borderBottom:i<clsStudents.length-1?'1px solid var(--line)':'none',background:p.action==='graduate'?'var(--rose-subtle)':p.action==='repeat'?'var(--amber-subtle)':'transparent'}}>
                                   <Avatar name={fullName(p.student)} size={24}/>
                                   <span style={{flex:1,fontSize:13,fontWeight:500}}>{fullName(p.student,true)}</span>
                                   <div style={{display:'flex',gap:5}}>
                                     {['promote','repeat','graduate'].map(a=>(
                                       <button key={a} onClick={()=>setBulkStudents(prev=>prev.map((x,j)=>j===globalIdx?{...x,action:a}:x))}
                                         style={{padding:'3px 9px',fontSize:11,fontWeight:600,borderRadius:'var(--r-sm)',cursor:'pointer',border:'1px solid',
-                                          background:p.action===a?(a==='promote'?'rgba(45,212,160,0.15)':a==='repeat'?'rgba(251,159,58,0.15)':'rgba(240,107,122,0.15)'):'transparent',
+                                          background:p.action===a?(a==='promote'?'var(--emerald-subtle)':a==='repeat'?'var(--amber-subtle)':'var(--rose-subtle)'):'transparent',
                                           color:p.action===a?(a==='promote'?'var(--emerald)':a==='repeat'?'var(--amber)':'var(--rose)'):'var(--mist3)',
                                           borderColor:p.action===a?(a==='promote'?'var(--emerald)':a==='repeat'?'var(--amber)':'var(--rose)'):'var(--line)'}}>
                                         {a.charAt(0).toUpperCase()+a.slice(1)}
@@ -544,10 +544,10 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                   )
                 })}
               </div>
-              <div style={{padding:'10px 14px',background:'rgba(232,184,75,0.06)',border:'1px solid rgba(232,184,75,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--mist2)',marginBottom:10}}>
+              <div style={{padding:'10px 14px',background:'var(--gold-subtle)',border:'1px solid var(--gold-line)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--mist2)',marginBottom:10}}>
                 ⚠ Outstanding fee balances carry over automatically. Archived students' full history is preserved.
               </div>
-              <div style={{padding:'10px 14px',background:'rgba(91,168,245,0.06)',border:'1px solid rgba(91,168,245,0.25)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--mist2)',marginBottom:16,display:'flex',gap:10,alignItems:'flex-start'}}>
+              <div style={{padding:'10px 14px',background:'var(--sky-subtle)',border:'1px solid var(--sky-line)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--mist2)',marginBottom:16,display:'flex',gap:10,alignItems:'flex-start'}}>
                 <span style={{fontSize:14,flexShrink:0}}>🗓</span>
                 <span>Once confirmed, you will be prompted to <strong style={{color:'var(--sky)'}}>start the new academic year</strong>. Make sure all classes are ready before proceeding.</span>
               </div>
@@ -569,14 +569,14 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
               {promoSource && (
                 <>
                   {classes.find(c=>c.id===promoSource)?.is_terminal
-                    ? <div style={{padding:'10px 14px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--rose)',marginBottom:8}}>This is a terminal class — students will default to Graduate.</div>
+                    ? <div style={{padding:'10px 14px',background:'var(--rose-subtle)',border:'1px solid var(--rose-line)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--rose)',marginBottom:8}}>This is a terminal class — students will default to Graduate.</div>
                     : <Field label='Default destination class (optional)' value={promoDest} onChange={setPromoDest}
                         options={[{value:'',label:'Leave blank to default all to Graduate'},...orderedClasses.filter(c=>c.id!==promoSource).map(c=>({value:c.id,label:c.name}))]}/>
                   }
                 </>
               )}
               {promoSource && students.filter(s=>s.class_id===promoSource).length===0 && (
-                <div style={{padding:'12px 16px',background:'rgba(240,107,122,0.08)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:'var(--r-sm)',fontSize:13,color:'var(--rose)',marginTop:8}}>This class has no students.</div>
+                <div style={{padding:'12px 16px',background:'var(--rose-subtle)',border:'1px solid var(--rose-line)',borderRadius:'var(--r-sm)',fontSize:13,color:'var(--rose)',marginTop:8}}>This class has no students.</div>
               )}
               <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:8}}>
                 <Btn variant='ghost' onClick={()=>setPromoModal(false)}>Cancel</Btn>
@@ -593,14 +593,14 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
               </p>
               <div style={{maxHeight:340,overflowY:'auto',display:'flex',flexDirection:'column',gap:6,marginBottom:16}}>
                 {promoStudents.map((p,i)=>(
-                  <div key={p.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${p.action==='graduate'?'rgba(240,107,122,0.3)':p.action==='repeat'?'rgba(251,159,58,0.3)':'var(--line)'}`}}>
+                  <div key={p.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${p.action==='graduate'?'var(--rose-line)':p.action==='repeat'?'var(--amber-line)':'var(--line)'}`}}>
                     <Avatar name={fullName(p.student)} size={28}/>
                     <div style={{flex:1,fontSize:13,fontWeight:500}}>{fullName(p.student,true)}</div>
                     <div style={{display:'flex',gap:6}}>
                       {['promote','repeat','graduate'].map(a=>(
                         <button key={a} onClick={()=>setPromoStudents(prev=>prev.map((x,j)=>j===i?{...x,action:a}:x))}
                           style={{padding:'4px 10px',fontSize:11,fontWeight:600,borderRadius:'var(--r-sm)',cursor:'pointer',border:'1px solid',
-                            background:p.action===a?(a==='promote'?'rgba(45,212,160,0.15)':a==='repeat'?'rgba(251,159,58,0.15)':'rgba(240,107,122,0.15)'):'transparent',
+                            background:p.action===a?(a==='promote'?'var(--emerald-subtle)':a==='repeat'?'var(--amber-subtle)':'var(--rose-subtle)'):'transparent',
                             color:p.action===a?(a==='promote'?'var(--emerald)':a==='repeat'?'var(--amber)':'var(--rose)'):'var(--mist3)',
                             borderColor:p.action===a?(a==='promote'?'var(--emerald)':a==='repeat'?'var(--amber)':'var(--rose)'):'var(--line)'}}>
                           {a.charAt(0).toUpperCase()+a.slice(1)}
@@ -651,7 +651,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                   </div>
                 ))}
               </div>
-              <div style={{padding:'10px 14px',background:'rgba(232,184,75,0.06)',border:'1px solid rgba(232,184,75,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--mist2)',marginBottom:16}}>
+              <div style={{padding:'10px 14px',background:'var(--gold-subtle)',border:'1px solid var(--gold-line)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--mist2)',marginBottom:16}}>
                 (!) Outstanding fee balances carry over automatically. Archived students' full history is preserved.
               </div>
               <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
