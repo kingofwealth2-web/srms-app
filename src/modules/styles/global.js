@@ -45,6 +45,27 @@ const G = `
   --t-spring: 0.5s cubic-bezier(0.34,1.56,0.64,1);
 }
 
+/* ── Light theme ───────────────────────────────────────────── */
+body.light{
+  --ink:    #f0f0f8;
+  --ink2:   #e8e8f2;
+  --ink3:   #dddded;
+  --ink4:   #d0d0e4;
+  --ink5:   #c4c4d8;
+  --ink6:   #b8b8cc;
+
+  --line:   rgba(0,0,0,0.07);
+  --line2:  rgba(0,0,0,0.11);
+  --line3:  rgba(0,0,0,0.16);
+
+  --white:  #0e0e1a;
+  --mist:   #1e1e34;
+  --mist2:  #4a4a6a;
+  --mist3:  #7070a0;
+
+  --gold-glow: rgba(232,184,75,0.12);
+}
+
 html,body,#root{
   height:100%;
   background:var(--ink);
