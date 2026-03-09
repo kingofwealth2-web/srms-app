@@ -5,9 +5,9 @@ export default function Btn({ children, variant = 'primary', size = 'md', onClic
       color: '#0c0c15',
       fontWeight: 700,
       border: 'none',
-      shadow: '0 1px 0 rgba(255,255,255,0.15) inset, 0 4px 12px rgba(232,184,75,0.25)',
+      shadow: '0 1px 0 rgba(255,255,255,0.15) inset, 0 4px 12px rgba(232,184,75,0.22)',
       hoverBg: 'var(--gold2)',
-      hoverShadow: '0 1px 0 rgba(255,255,255,0.15) inset, 0 6px 20px rgba(232,184,75,0.35)',
+      hoverShadow: '0 1px 0 rgba(255,255,255,0.15) inset, 0 6px 20px rgba(232,184,75,0.32)',
     },
     secondary: {
       background: 'var(--ink4)',
@@ -28,12 +28,12 @@ export default function Btn({ children, variant = 'primary', size = 'md', onClic
       hoverShadow: 'none',
     },
     danger: {
-      background: 'rgba(240,107,122,0.08)',
+      background: 'rgba(212,79,94,0.08)',
       color: 'var(--rose)',
       fontWeight: 600,
-      border: '1px solid rgba(240,107,122,0.2)',
+      border: '1px solid rgba(212,79,94,0.22)',
       shadow: 'none',
-      hoverBg: 'rgba(240,107,122,0.15)',
+      hoverBg: 'rgba(212,79,94,0.14)',
       hoverShadow: 'none',
     },
   }[variant] || {}

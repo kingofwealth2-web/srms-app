@@ -51,24 +51,95 @@ const G = `
 }
 
 /* ── Light theme ───────────────────────────────────────────── */
+/*
+   Design intent: warm paper whites, not inverted dark.
+   Gold deepened for readability. Accents shifted for light bg.
+   Text is warm charcoal — never purple or cold grey.
+*/
 body.light{
-  --ink:    #f0f0f8;
-  --ink2:   #e8e8f2;
-  --ink3:   #dddded;
-  --ink4:   #d0d0e4;
-  --ink5:   #c4c4d8;
-  --ink6:   #b8b8cc;
+  /* Backgrounds — warm parchment, not cold lavender */
+  --ink:    #f4f1ec;
+  --ink2:   #ffffff;
+  --ink3:   #edeae3;
+  --ink4:   #e4e1da;
+  --ink5:   #d8d5cd;
+  --ink6:   #cbc8c0;
 
-  --line:   rgba(0,0,0,0.07);
-  --line2:  rgba(0,0,0,0.11);
-  --line3:  rgba(0,0,0,0.16);
+  /* Borders */
+  --line:   rgba(0,0,0,0.08);
+  --line2:  rgba(0,0,0,0.13);
+  --line3:  rgba(0,0,0,0.20);
 
-  --white:  #0e0e1a;
-  --mist:   #1e1e34;
-  --mist2:  #4a4a6a;
-  --mist3:  #7070a0;
+  /* Gold — deepened so it reads on light backgrounds */
+  --gold:   #b8870c;
+  --gold2:  #d4a020;
+  --gold3:  #8c6508;
+  --gold-glow: rgba(184,135,12,0.14);
 
-  --gold-glow: rgba(232,184,75,0.12);
+  /* Semantic accents — all deepened ~20% for light bg contrast */
+  --emerald: #0a9c72;
+  --rose:    #d44f5e;
+  --sky:     #2272cc;
+  --amber:   #c46210;
+  --violet:  #6e4dc4;
+
+  /* Text — warm charcoal hierarchy, zero purple */
+  --white:  #1a1710;
+  --mist:   #2e2b24;
+  --mist2:  #635e54;
+  --mist3:  #9a9488;
+
+  /* Shadows work differently in light — elevation via drop shadow */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.07);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.13), 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-gold: 0 4px 16px rgba(184,135,12,0.22);
+}
+
+/* ── Light mode component-level overrides ────────────────── */
+/* Cards get real shadow separation instead of the dark inner glow */
+body.light .card-surface,
+body.light [class*="card"] {
+  box-shadow: var(--shadow-sm) !important;
+}
+
+/* Select option elements use light bg in light mode */
+body.light select option {
+  background: #ffffff;
+  color: #1a1710;
+}
+
+/* Scrollbar for light mode */
+body.light ::-webkit-scrollbar-thumb { background: var(--ink5); }
+body.light ::-webkit-scrollbar-thumb:hover { background: var(--ink6); }
+
+/* Date picker icon for light */
+body.light input[type=date]::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 0.5;
+}
+
+/* Grain overlay — much lighter on light bg */
+body.light .grain::after { opacity: 0.008; }
+
+/* Sidebar in light gets a warm border */
+body.light [style*="border-right: 1px solid var(--line)"] {
+  border-right-color: rgba(0,0,0,0.1) !important;
+}
+
+/* Top bar border */
+body.light [style*="border-bottom: 1px solid var(--line)"] {
+  border-bottom-color: rgba(0,0,0,0.1) !important;
+}
+
+/* Improve active nav item contrast in light */
+body.light button[style*="rgba(232,184,75,0.1)"] {
+  background: rgba(184,135,12,0.1) !important;
+}
+
+/* Ghost buttons need visible border in light */
+body.light button {
+  -webkit-font-smoothing: subpixel-antialiased;
 }
 
 html,body,#root{
