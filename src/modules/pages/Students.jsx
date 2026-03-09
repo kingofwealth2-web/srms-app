@@ -738,7 +738,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
                 </div>
                 <div style={{display:'flex',flexDirection:'column',gap:6}}>
                   {enrichedFees.map(fee=>{
-                    const sc = FEE_STATUS[fee.status]||{color:'var(--mist2)',bg:'rgba(255,255,255,0.05)'}
+                    const sc = FEE_STATUS[fee.status]||{color:'var(--mist2)',bg:'var(--ink4)'}
                     return (
                       <div key={fee.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${fee.isOverdue?'rgba(240,107,122,0.25)':'var(--line)'}`}}>
                         <div style={{flex:1,minWidth:0}}>

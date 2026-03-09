@@ -15,13 +15,13 @@ export function YearSwitcher({ activeYear, currentYear, selectedYear, setSelecte
       <button onClick={() => setOpen(o => !o)} style={{
         display: 'flex', alignItems: 'center', gap: 5,
         padding: '3px 10px 3px 8px',
-        background: isPast ? 'rgba(251,159,58,0.1)' : 'rgba(255,255,255,0.05)',
+        background: isPast ? 'rgba(251,159,58,0.1)' : 'var(--ink4)',
         border: `1px solid ${isPast ? 'rgba(251,159,58,0.35)' : 'var(--line2)'}`,
         borderRadius: 8, cursor: 'pointer',
         transition: 'all var(--t-fast)',
       }}
-        onMouseEnter={e => { e.currentTarget.style.background = isPast ? 'rgba(251,159,58,0.15)' : 'rgba(255,255,255,0.08)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = isPast ? 'rgba(251,159,58,0.1)' : 'rgba(255,255,255,0.05)' }}
+        onMouseEnter={e => { e.currentTarget.style.background = isPast ? 'rgba(251,159,58,0.15)' : 'var(--ink5)' }}
+        onMouseLeave={e => { e.currentTarget.style.background = isPast ? 'rgba(251,159,58,0.1)' : 'var(--ink4)' }}
       >
         <span style={{ fontSize: 10, color: isPast ? 'var(--amber)' : 'var(--mist3)' }}>📅</span>
         <span style={{ fontSize: 12, fontWeight: 600, color: isPast ? 'var(--amber)' : 'var(--mist2)', letterSpacing: '0.01em' }}>{activeYear}</span>
@@ -53,7 +53,7 @@ export function YearSwitcher({ activeYear, currentYear, selectedYear, setSelecte
                   fontSize: 13, fontWeight: isActive ? 600 : 400, cursor: 'pointer',
                   transition: 'background var(--t-fast)',
                 }}
-                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--ink4)' }}
                   onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
                 >
                   <span>{y}</span>
@@ -89,7 +89,7 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
             boxShadow: '0 4px 16px rgba(232,184,75,0.38), inset 0 1px 0 rgba(255,255,255,0.25)',
             flexShrink: 0,
           }}>
-            <span className='d' style={{ fontSize: 15, fontWeight: 700, color: '#0c0c15' }}>S</span>
+            <span className='d' style={{ fontSize: 15, fontWeight: 700, color: '#12120e' }}>S</span>
           </div>
           <div>
             <div className='d' style={{ fontWeight: 700, fontSize: 14, color: 'var(--white)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>SRMS</div>
@@ -127,7 +127,7 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
                 position: 'relative', textAlign: 'left',
                 boxShadow: isAct ? 'inset 0 1px 0 rgba(232,184,75,0.1)' : 'none',
               }}
-              onMouseEnter={e => { if (!isAct) { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'var(--mist)' } }}
+              onMouseEnter={e => { if (!isAct) { e.currentTarget.style.background = 'var(--ink4)'; e.currentTarget.style.color = 'var(--mist)' } }}
               onMouseLeave={e => { if (!isAct) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--mist2)' } }}
             >
               <span style={{ fontSize: 16, flexShrink: 0, opacity: isAct ? 1 : 0.55, transition: 'opacity var(--t-fast)' }}>{m.icon}</span>
@@ -150,12 +150,12 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
           padding: '10px 12px', borderRadius: 12,
-          background: 'rgba(255,255,255,0.03)',
+          background: 'var(--ink3)',
           border: '1px solid var(--line)',
           transition: 'background var(--t-fast), border-color var(--t-fast)',
         }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.055)'; e.currentTarget.style.borderColor = 'var(--line2)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = 'var(--line)' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--ink3)'; e.currentTarget.style.borderColor = 'var(--line2)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'var(--ink3)'; e.currentTarget.style.borderColor = 'var(--line)' }}
         >
           <button onClick={() => { onNav('myprofile'); if (isMobile) onDrawerClose() }}
             style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, background: 'none', cursor: 'pointer', textAlign: 'left' }}
@@ -226,7 +226,7 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
               onMouseLeave={e => e.currentTarget.style.boxShadow = '0 4px 14px rgba(232,184,75,0.3)'}
               title='Expand sidebar'
             >
-              <span className='d' style={{ fontSize: 15, fontWeight: 700, color: '#0c0c15' }}>S</span>
+              <span className='d' style={{ fontSize: 15, fontWeight: 700, color: '#12120e' }}>S</span>
             </div>
           </div>
           <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '4px 0' }}>
@@ -240,7 +240,7 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
                   color: isAct ? 'var(--gold)' : 'var(--mist3)',
                   fontSize: 16, transition: 'all var(--t-fast)', position: 'relative',
                 }}
-                  onMouseEnter={e => { if (!isAct) { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'var(--mist)' } }}
+                  onMouseEnter={e => { if (!isAct) { e.currentTarget.style.background = 'var(--ink4)'; e.currentTarget.style.color = 'var(--mist)' } }}
                   onMouseLeave={e => { if (!isAct) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--mist3)' } }}
                 >
                   {isAct && <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 3, height: 16, borderRadius: 2, background: 'var(--gold)', boxShadow: '0 0 8px rgba(232,184,75,0.6)' }}/>}

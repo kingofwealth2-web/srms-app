@@ -441,7 +441,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
                   return (
                     <tr key={s.id} style={{
                       borderBottom:'1px solid var(--line)',
-                      background: isSkipped ? 'rgba(255,255,255,0.02)' :
+                      background: isSkipped ? 'var(--ink)' :
                                   isDirty   ? 'rgba(232,184,75,0.04)' :
                                   isExisting? 'rgba(91,168,245,0.04)' : 'transparent',
                       opacity: isSkipped ? 0.4 : 1,

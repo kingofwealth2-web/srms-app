@@ -462,7 +462,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
                       : rankedAcademic.length===0
                         ? <tr><td colSpan={20} style={{padding:48,textAlign:'center',color:'var(--mist3)',fontSize:13}}>No grade records found for this class.</td></tr>
                         : rankedAcademic.map((s,i)=>(
-                            <tr key={s.id} style={{borderBottom:'1px solid var(--line)',background:i%2===0?'transparent':'rgba(255,255,255,0.01)'}}>
+                            <tr key={s.id} style={{borderBottom:'1px solid var(--line)',background:i%2===0?'transparent':'var(--ink3)'}}>
                               <td style={tdStyle}>
                                 <span style={{fontWeight:700,color:s.position<=3?'var(--gold)':'var(--mist2)',fontSize:13}}>{ordinal(s.position)}</span>
                               </td>

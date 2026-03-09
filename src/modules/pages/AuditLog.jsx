@@ -5,6 +5,7 @@ import { ROLE_META } from '../lib/constants'
 import { fmtDate } from '../lib/helpers'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
+import Spinner from '../components/Spinner'
 import Field from '../components/Field'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
@@ -13,6 +14,7 @@ import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 import Avatar from '../components/Avatar'
 import LoadingScreen from '../components/LoadingScreen'
+import Skeleton from '../components/Skeleton'
 
 const MODULE_META = {
   Students:      { icon: '👤', color: 'var(--sky)' },
@@ -40,25 +42,30 @@ const ACTION_COLOR = {
 export default function AuditLog({profile}) {
   const [logs, setLogs]         = useState([])
   const [loading, setLoading]   = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [expanded, setExpanded] = useState(null)
   const [fModule, setFModule]   = useState('')
   const [fUser,   setFUser]     = useState('')
   const [fSearch, setFSearch]   = useState('')
   const [users,   setUsers]     = useState([])
 
-  useEffect(()=>{
-    if(!profile?.school_id) return
+  const fetchLogs = async (isRefresh = false) => {
+    if (!profile?.school_id) return
+    if (isRefresh) setRefreshing(true)
+    else setLoading(true)
     const cutoff = new Date(Date.now() - 50*24*60*60*1000).toISOString()
-    Promise.all([
-      supabase.from('audit_logs').select('*').eq('school_id', profile.school_id).gte('created_at',cutoff).order('created_at',{ascending:false}).limit(500),
+    const [{ data: logsData, error }, { data: usersData }] = await Promise.all([
+      supabase.from('audit_logs').select('*').eq('school_id', profile.school_id).gte('created_at', cutoff).order('created_at', { ascending: false }).limit(500),
       supabase.from('profiles').select('id,full_name,email,role').eq('school_id', profile.school_id)
-    ]).then(([{data:logs,error},{data:users}])=>{
-      if(error) console.error(error)
-      setLogs(logs||[])
-      setUsers(users||[])
-      setLoading(false)
-    })
-  },[profile?.school_id])
+    ])
+    if (error) console.error(error)
+    setLogs(logsData || [])
+    setUsers(usersData || [])
+    if (isRefresh) setRefreshing(false)
+    else setLoading(false)
+  }
+
+  useEffect(() => { fetchLogs() }, [profile?.school_id])
 
   const modules = [...new Set(logs.map(l=>l.module))].sort()
   const filtered = logs.filter(l=>{
@@ -129,11 +136,32 @@ export default function AuditLog({profile}) {
   }
 
   if(profile?.role!=='superadmin') return <div style={{padding:48,textAlign:'center',color:'var(--mist3)'}}>Access restricted to superadmin.</div>
-  if(loading) return <LoadingScreen msg='Loading audit log...'/>
+
+  if(loading) return (
+    <div>
+      <PageHeader title='Audit Log' sub='Loading events...'/>
+      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+        {Array.from({length:6}).map((_,i)=>(
+          <div key={i} style={{background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:'14px 16px',display:'flex',gap:12,alignItems:'center'}}>
+            <Skeleton width={34} height={34} style={{borderRadius:'50%',flexShrink:0}}/>
+            <div style={{flex:1}}>
+              <Skeleton width='40%' height={12} style={{marginBottom:8}}/>
+              <Skeleton width='25%' height={10}/>
+            </div>
+            <Skeleton width={80} height={10}/>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 
   return (
     <div>
-      <PageHeader title='Audit Log' sub={`${filtered.length} events · last 50 days`}/>
+      <PageHeader title='Audit Log' sub={`${filtered.length} events · last 50 days`}>
+        <Btn variant='ghost' size='sm' onClick={() => fetchLogs(true)} disabled={refreshing}>
+          {refreshing ? <><Spinner/> Refreshing...</> : '↻ Refresh'}
+        </Btn>
+      </PageHeader>
 
       {/* Filters */}
       <Card style={{marginBottom:16,padding:'14px 20px'}}>

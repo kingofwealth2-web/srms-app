@@ -733,7 +733,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                           {/* Fee Type */}
                           <td style={{padding:'12px 14px'}}>
                             <div style={{fontSize:13,color:'var(--mist)'}}>{p.fee_type}</div>
-                            {p.period && <Badge color='var(--mist2)' bg='rgba(255,255,255,0.05)'>{p.period}</Badge>}
+                            {p.period && <Badge color='var(--mist2)' bg='var(--ink4)'>{p.period}</Badge>}
                           </td>
                           {/* Amount */}
                           <td style={{padding:'12px 14px'}}>
