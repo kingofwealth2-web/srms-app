@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabase'
 
-import G from './modules/styles/global'
+import G, { initScrollReveal } from './modules/styles/global'
 import { useIsMobile } from './modules/lib/hooks'
 import { ROLE_META } from './modules/lib/constants'
 import { currentYearFromSettings, generateYears } from './modules/lib/helpers'
@@ -105,6 +105,7 @@ export default function App() {
   }, [])
 
   useEffect(() => { setDrawerOpen(false) }, [page])
+  useEffect(() => { const t = setTimeout(initScrollReveal, 80); return () => clearTimeout(t) }, [page])
 
   const loadData = useCallback(async (yr, prof, settingsRow) => {
     const year = yr || currentYearFromSettings(settingsRow)

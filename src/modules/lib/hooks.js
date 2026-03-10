@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768)
@@ -43,6 +43,18 @@ export function useCountUp(target, options = {}) {
   return current
 }
 
+// ── Pagination ──────────────────────────────────────────────────
+// Usage: const { paged, page, setPage, totalPages } = usePagination(items, 50)
+export function usePagination(items, pageSize = 50) {
+  const [page, setPage] = useState(1)
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize))
+  // Reset to page 1 whenever the dataset changes length
+  useEffect(() => { setPage(1) }, [items.length])
+  const clampedPage = Math.min(page, totalPages)
+  const paged = items.slice((clampedPage - 1) * pageSize, clampedPage * pageSize)
+  return { paged, page: clampedPage, setPage, totalPages }
+}
+
 // ── Page transition key ─────────────────────────────────────────
 // Usage: wrap page content in <div key={transitionKey} className="page">
 export function usePageTransition(activePage) {
@@ -57,14 +69,4 @@ export function usePageTransition(activePage) {
   }, [activePage])
 
   return key
-}
-// ── usePagination ──────────────────────────────────────────────
-// Returns paged slice of items plus navigation helpers.
-// Resets to page 1 whenever the source array length changes (e.g. filter applied).
-export function usePagination(items, pageSize = 50) {
-  const [page, setPage] = useState(1)
-  useEffect(() => { setPage(1) }, [items.length])
-  const totalPages = Math.max(1, Math.ceil(items.length / pageSize))
-  const paged = useMemo(() => items.slice((page - 1) * pageSize, page * pageSize), [items, page, pageSize])
-  return { paged, page, setPage, totalPages, total: items.length }
 }

@@ -208,6 +208,10 @@ html,body,#root{
 .fu4{animation-delay:.16s}.fu5{animation-delay:.20s}.fu6{animation-delay:.24s}
 .fu7{animation-delay:.28s}.fu8{animation-delay:.32s}
 
+/* Scroll-reveal — add className="reveal" to any element */
+.reveal{opacity:0;transform:translateY(24px);transition:opacity 0.5s cubic-bezier(.16,1,.3,1),transform 0.5s cubic-bezier(.16,1,.3,1)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
 /* ── Skeleton ──────────────────────────────────────────────── */
 .skeleton{
   background:linear-gradient(90deg,var(--ink4) 25%,var(--ink5) 50%,var(--ink4) 75%);
@@ -266,3 +270,13 @@ a{color:inherit;text-decoration:none}
 }
 `
 export default G
+
+export function initScrollReveal() {
+  if (typeof window === 'undefined') return
+  const observer = new IntersectionObserver(
+    entries => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target) } }),
+    { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+  )
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el))
+  return observer
+}

@@ -47,13 +47,17 @@ export default function DataTable({ columns, data, onRow }) {
               style={{
                 borderBottom: '1px solid var(--line)',
                 cursor: onRow ? 'pointer' : 'default',
-                transition: 'background var(--t-snap)',
-                animation: `fadeIn 0.3s ${i * 0.025}s both`,
+                transition: 'background var(--t-snap), box-shadow var(--t-snap)',
+                animation: `fadeIn 0.3s ${Math.min(i * 0.025, 0.25)}s both`,
               }}
               onMouseEnter={e => {
-                if (onRow) e.currentTarget.style.background = 'var(--ink3)'
+                e.currentTarget.style.background = 'var(--ink3)'
+                if (onRow) e.currentTarget.style.boxShadow = 'inset 3px 0 0 var(--gold)'
               }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
             >
               {columns.map(c => (
                 <td key={c.key} style={{
