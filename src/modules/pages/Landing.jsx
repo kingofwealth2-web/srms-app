@@ -262,7 +262,6 @@ body { background: #09090f !important; }
 }
 .lp-ms-s1 { top:20px; left:50%; transform:translateX(-50%); }
 .lp-ms-s2 { top:50%; right:20px; transform:translateY(-50%); }
-.lp-ms-s3 { bottom:20px; left:50%; transform:translateX(-50%); }
 .lp-ms-s4 { top:50%; left:20px; transform:translateY(-50%); }
 .lp-multi-perm { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #f0efea; margin-bottom: 10px; }
 
