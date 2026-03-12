@@ -4,6 +4,7 @@ export const ROLE_META = {
   admin:       {label:'Administrator',  color:'var(--sky)',     bg:'rgba(91,168,245,0.12)'},
   classteacher:{label:'Class Teacher',  color:'var(--emerald)', bg:'rgba(45,212,160,0.12)'},
   teacher:     {label:'Subject Teacher',color:'var(--amber)',   bg:'rgba(251,159,58,0.12)'},
+  parent:      {label:'Parent',          color:'var(--sky)',     bg:'rgba(91,168,245,0.12)'},
 }
 
 export const STATUS_META = {

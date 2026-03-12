@@ -31,15 +31,36 @@ export default function Users({profile,toast}) {
   const [saving,setSaving]     = useState(false)
 
   const [tempPassword,setTempPassword] = useState('')
+  const [students,setStudents]         = useState([])
+  const [parentLinks,setParentLinks]   = useState([])   // student IDs linked to a parent
+  const [stuSearch,setStuSearch]       = useState('')
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
 
   useEffect(()=>{
     if(!profile?.school_id) return
-    supabase.from('profiles').select('*').eq('school_id', profile?.school_id).then(({data})=>{ if(data) setUsers(data); setLoading(false) })
+    Promise.all([
+      supabase.from('profiles').select('*').eq('school_id', profile?.school_id),
+      supabase.from('students').select('id,first_name,middle_name,last_name,student_id,class_id').eq('school_id', profile?.school_id).eq('archived', false).order('last_name'),
+    ]).then(([{data:usrs},{data:studs}])=>{
+      if(usrs) setUsers(usrs)
+      if(studs) setStudents(studs)
+      setLoading(false)
+    })
   },[profile?.school_id])
 
-  const openAdd  = ()=>{setEdit(null);setForm({full_name:'',email:'',password:'',role:'teacher'});setModal(true)}
-  const openEdit = u=>{setEdit(u);setForm({full_name:u.full_name,email:u.email,role:u.role,password:''});setModal(true)}
+  const openAdd  = ()=>{setEdit(null);setForm({full_name:'',email:'',password:'',role:'teacher'});setParentLinks([]);setStuSearch('');setModal(true)}
+  const openEdit = async u=>{
+    setEdit(u)
+    setForm({full_name:u.full_name,email:u.email,role:u.role,password:''})
+    setStuSearch('')
+    if(u.role==='parent'){
+      const {data:links} = await supabase.from('parent_students').select('student_id').eq('parent_id',u.id)
+      setParentLinks((links||[]).map(l=>l.student_id))
+    } else {
+      setParentLinks([])
+    }
+    setModal(true)
+  }
 
 
 
@@ -58,6 +79,13 @@ export default function Users({profile,toast}) {
       const {data:refreshed} = await supabase.from('profiles').select('*').eq('id',edit.id).single()
       if(refreshed){
         setUsers(p=>p.map(u=>u.id===edit.id?refreshed:u))
+      }
+      // Handle parent link changes on edit
+      if(form.role==='parent'){
+        await supabase.from('parent_students').delete().eq('parent_id',edit.id).eq('school_id',profile?.school_id)
+        if(parentLinks.length>0){
+          await supabase.from('parent_students').insert(parentLinks.map(sid=>({parent_id:edit.id,student_id:sid,school_id:profile?.school_id})))
+        }
       }
       auditLog(profile,'Users','Updated',`${form.full_name} · Role: ${edit.role}→${form.role}`,{},{...edit},{...form})
       toast('User updated')
@@ -88,6 +116,10 @@ export default function Users({profile,toast}) {
       // Fetch the full profile row so all fields are present in local state
       const {data:newProf} = await supabase.from('profiles').select('*').eq('id',uid).single()
       setUsers(p=>[...p, newProf||{id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false}])
+      // Insert parent-student links if parent role
+      if(form.role==='parent' && parentLinks.length>0){
+        await supabase.from('parent_students').insert(parentLinks.map(sid=>({parent_id:uid,student_id:sid,school_id:profile?.school_id})))
+      }
       auditLog(profile,'Users','Created',`${form.full_name} · ${form.role}`,{},null,{id:uid,full_name:form.full_name,email:form.email,role:form.role})
       toast('User created successfully')
       setModal(false)
@@ -149,9 +181,41 @@ export default function Users({profile,toast}) {
                   <span style={{fontSize:11,color:'var(--mist3)'}}>Cannot change your own role</span>
                 </div>
               </div>
-            : <Field label='Role' value={form.role} onChange={f('role')} options={[{value:'admin',label:'Administrator'},{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'}]}/>
+            : <Field label='Role' value={form.role} onChange={f('role')} options={[{value:'admin',label:'Administrator'},{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'},{value:'parent',label:'Parent / Guardian'}]}/>
           }
           {edit && <p style={{fontSize:12,color:'var(--mist3)',marginTop:-8,marginBottom:8}}>To change a password, contact your Super Admin.</p>}
+          {form.role==='parent' && (
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8,fontFamily:"'Clash Display',sans-serif"}}>
+                Linked Children {parentLinks.length>0&&<span style={{color:'var(--gold)'}}>({parentLinks.length} selected)</span>}
+              </div>
+              <input value={stuSearch} onChange={e=>setStuSearch(e.target.value)}
+                placeholder='Search students...'
+                style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--white)',fontSize:13,marginBottom:8,fontFamily:"'Cabinet Grotesk',sans-serif"}}/>
+              <div style={{maxHeight:200,overflowY:'auto',display:'flex',flexDirection:'column',gap:4,border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:8,background:'var(--ink3)'}}>
+                {students.filter(s=>{
+                  const q=stuSearch.toLowerCase()
+                  return !q||(s.first_name+' '+(s.middle_name||'')+' '+s.last_name+' '+s.student_id).toLowerCase().includes(q)
+                }).map(s=>{
+                  const checked=parentLinks.includes(s.id)
+                  return(
+                    <label key={s.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 8px',borderRadius:6,cursor:'pointer',background:checked?'var(--gold-dim)':'transparent',border:`1px solid ${checked?'rgba(232,184,75,0.25)':'transparent'}`}}>
+                      <input type='checkbox' checked={checked}
+                        onChange={()=>setParentLinks(p=>checked?p.filter(x=>x!==s.id):[...p,s.id])}
+                        style={{accentColor:'var(--gold)',width:14,height:14}}/>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:600}}>{s.first_name} {s.middle_name||''} {s.last_name}</div>
+                        <div style={{fontSize:11,color:'var(--mist3)',fontFamily:"'JetBrains Mono',monospace"}}>{s.student_id}</div>
+                      </div>
+                    </label>
+                  )
+                })}
+                {students.filter(s=>{const q=stuSearch.toLowerCase();return !q||(s.first_name+' '+(s.middle_name||'')+' '+s.last_name+' '+s.student_id).toLowerCase().includes(q)}).length===0&&(
+                  <div style={{fontSize:12,color:'var(--mist3)',textAlign:'center',padding:8}}>No students found</div>
+                )}
+              </div>
+            </div>
+          )}
           <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
             <Btn variant='ghost' onClick={()=>setModal(false)}>Cancel</Btn>
             <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving...</>:edit?'Save Changes':'Create User'}</Btn>

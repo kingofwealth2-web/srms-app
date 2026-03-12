@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, CURRENCIES, GHANA_PUBLIC_HOLIDAYS } from '../lib/constants'
@@ -23,9 +23,39 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
   })
   const [saving,setSaving] = useState(false)
   const [weightWarning,setWeightWarning] = useState(false)
+  const [releases,setReleases] = useState([])
+  const [relLoading,setRelLoading] = useState(false)
   const [logoUploading,setLogoUploading] = useState(false)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
   const canAdmin = ['superadmin','admin'].includes(profile?.role)
+
+  useEffect(()=>{
+    if(!profile?.school_id) return
+    supabase.from('grade_releases').select('*').eq('school_id',profile?.school_id)
+      .then(({data})=>{ if(data) setReleases(data) })
+  },[profile?.school_id])
+
+  const periods = settings?.period_type==='term'
+    ? Array.from({length:settings?.period_count||2},(_,i)=>`Term ${i+1}`)
+    : Array.from({length:settings?.period_count||2},(_,i)=>`Semester ${i+1}`)
+
+  const toggleRelease = async (year, period) => {
+    const existing = releases.find(r=>r.academic_year===year&&r.period===period)
+    setRelLoading(true)
+    if(existing){
+      await supabase.from('grade_releases').delete().eq('id',existing.id)
+      setReleases(p=>p.filter(r=>r.id!==existing.id))
+    } else {
+      const {data:row} = await supabase.from('grade_releases').insert({
+        school_id: profile?.school_id,
+        academic_year: year,
+        period,
+        released_by: profile?.id,
+      }).select().single()
+      if(row) setReleases(p=>[...p,row])
+    }
+    setRelLoading(false)
+  }
 
 
   const gradeComponents = form.grade_components || DEFAULT_GRADE_COMPONENTS
@@ -279,6 +309,37 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
           </Card>
         </div>
       </div>
+
+      {/* ── GRADE RELEASES ── */}
+      {canAdmin && (
+        <div style={{marginTop:20}}>
+          <Card>
+            <SectionTitle>Release Grades to Parents</SectionTitle>
+            <p style={{fontSize:12,color:'var(--mist2)',marginBottom:16,lineHeight:1.6}}>
+              Control when parents can view their children's grades. Released grades are visible in the Parent Portal. Unreleasing will hide them again immediately.
+            </p>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {periods.map(period=>{
+                const released = releases.some(r=>r.academic_year===activeYear&&r.period===period)
+                return(
+                  <div key={period} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',background:'var(--ink3)',border:`1px solid ${released?'rgba(45,212,160,0.2)':'var(--line)'}`,borderRadius:'var(--r-sm)'}}>
+                    <div>
+                      <div style={{fontWeight:600,fontSize:14}}>{activeYear} — {period}</div>
+                      <div style={{fontSize:11,color:released?'var(--emerald)':'var(--mist3)',marginTop:2}}>
+                        {released?'✓ Visible to parents':'Not yet released to parents'}
+                      </div>
+                    </div>
+                    <Btn variant={released?'ghost':'primary'} size='sm' disabled={relLoading}
+                      onClick={()=>toggleRelease(activeYear,period)}>
+                      {relLoading?<Spinner/>:released?'Unrelease':'Release Grades →'}
+                    </Btn>
+                  </div>
+                )
+              })}
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* ── ACADEMIC CALENDAR ── */}
       {profile?.role==='superadmin' && (
