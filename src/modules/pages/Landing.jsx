@@ -15,6 +15,8 @@ const CSS = `
 .lp-root h1,.lp-root h2,.lp-root h3 { font-family: 'Syne', sans-serif; letter-spacing: -0.02em; }
 
 /* noise */
+body { background: #09090f !important; }
+
 .lp-noise {
   position: fixed; inset: 0; pointer-events: none; z-index: 1000; opacity: 0.35;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
@@ -173,8 +175,8 @@ const CSS = `
 .lp-features { padding: 100px 0; background: #09090f; position: relative; }
 .lp-feat-grid {
   display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 1px; background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; overflow: hidden; margin-top: 56px;
+  gap: 1px; background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; overflow: hidden; margin-top: 56px;
 }
 .lp-feat-card {
   background: #0f0f1a; padding: 34px 30px; position: relative; overflow: hidden;
@@ -224,8 +226,8 @@ const CSS = `
 .lp-trust { padding: 64px 0; background: #09090f; border-top: 1px solid rgba(255,255,255,0.07); border-bottom: 1px solid rgba(255,255,255,0.07); }
 .lp-trust-grid {
   display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 1px; background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; overflow: hidden;
+  gap: 1px; background: #0c0c14;
+  border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden;
 }
 .lp-trust-item { background: #0f0f1a; padding: 30px 26px; text-align: center; }
 .lp-trust-n { font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800; color: #e8b84b; letter-spacing: -0.04em; display: block; margin-bottom: 6px; }
