@@ -16,6 +16,8 @@ import Field    from './modules/components/Field'
 import Avatar   from './modules/components/Avatar'
 import LoadingScreen from './modules/components/LoadingScreen'
 
+import Landing        from './modules/pages/Landing'
+import ParentPortal   from './modules/pages/ParentPortal'
 import Login          from './modules/pages/Login'
 import ResetPassword  from './modules/pages/ResetPassword'
 import SchoolSetup    from './modules/pages/SchoolSetup'
@@ -57,6 +59,7 @@ function ThemeToggle({ isDark, onToggle, size = 'md' }) {
 
 export default function App() {
   const [session,setSession]       = useState(null)
+  const [showLanding,setShowLanding] = useState(true)
   const [profile,setProfile]       = useState(null)
   const [isRecovery,setIsRecovery] = useState(false)
   const [settings,setSettings]     = useState(null)
@@ -228,10 +231,50 @@ export default function App() {
   }
 
   // ── Early returns ──────────────────────────────────────────────
-  if (isRecovery) return <><style>{G}</style><ResetPassword onDone={() => { setIsRecovery(false); setSession(null) }}/></>
-  if (loading)    return <><style>{G}</style><LoadingScreen msg={session ? 'Loading your workspace...' : 'Initialising...'}/></>
-  if (!session || !profile) return <><style>{G}</style><Login onLogin={p => setProfile(p)}/></>
-  if (!profile.school_id)   return <><style>{G}</style><style>{`@keyframes srms-load{to{width:100%}}`}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null) }}/></>
+  if (isRecovery) {
+    return (
+      <>
+        <style>{G}</style>
+        <ResetPassword onDone={() => { setIsRecovery(false); setSession(null) }}/>
+      </>
+    )
+  }
+  if (loading) {
+    return (
+      <>
+        <style>{G}</style>
+        <LoadingScreen msg={session ? 'Loading your workspace...' : 'Initialising...'}/>
+      </>
+    )
+  }
+  if (showLanding && !session) {
+    return <Landing onEnter={() => setShowLanding(false)}/>
+  }
+  if (!session || !profile) {
+    return (
+      <>
+        <style>{G}</style>
+        <Login onLogin={p => setProfile(p)}/>
+      </>
+    )
+  }
+  if (profile.role === 'parent') {
+    return (
+      <>
+        <style>{G}</style>
+        <ParentPortal profile={profile} onSignOut={async()=>{await supabase.auth.signOut();setProfile(null);setSession(null);setShowLanding(true)}}/>
+      </>
+    )
+  }
+  if (!profile.school_id) {
+    return (
+      <>
+        <style>{G}</style>
+        <style>{`@keyframes srms-load{to{width:100%}}`}</style>
+        <SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null) }}/>
+      </>
+    )
+  }
 
   const currentYear   = currentYearFromSettings(settings)
   const activeYear    = selectedYear || currentYear
