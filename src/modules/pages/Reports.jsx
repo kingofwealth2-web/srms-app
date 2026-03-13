@@ -14,21 +14,8 @@ import Card from '../components/Card'
 import DataTable from '../components/DataTable'
 import KPI from '../components/KPI'
 
-// ── HELPERS ────────────────────────────────────────────────────
-const ordinal = n => {
-  if(n===null||n===undefined||isNaN(n)) return '--'
-  const s=['th','st','nd','rd'], v=n%100
-  return n+(s[(v-20)%10]||s[v]||s[0])
-}
-const abbrSubject = name => {
-  if(!name) return '?'
-  const words = name.trim().split(/\s+/).filter(Boolean)
-  if(words.length>=2) return words.map(w=>w[0].toUpperCase()).join('')
-  return name.slice(0,4).toUpperCase()
-}
-
 // ── REPORTS ────────────────────────────────────────────────────
-export default function Reports({profile,data,settings,activeYear,isViewingPast,toast}) {
+export default function Reports({profile,data,settings,activeYear,isViewingPast}) {
   const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
@@ -232,11 +219,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
             return {...s,scores,total:total||0,avg,letter:avg!==null?getLetter(avg,scale):'--',remark:avg!==null?getGradeRemark(avg,scale):'',pass:avg!==null?avg>=50:null}
           })
           .sort((a,b)=>(b.total||0)-(a.total||0))
-          .reduce((acc,s,i,arr)=>{
-            let rank=i+1
-            if(i>0&&(s.total||0)===(arr[i-1].total||0)) rank=acc[i-1].position
-            acc.push({...s,position:rank}); return acc
-          },[])
+          .map((s,i)=>({...s,position:i+1}))
         csv='Position,Student ID,Student,'+rcClassSubjects.map(s=>`"${csvEscape(s.name)}"`).join(',')+',Total,Average,Grade,Remark,Status\n'
         rcRanked.forEach(s=>{
           csv+=`${ordinal(s.position)},"${csvEscape(s.student_id)}","${csvEscape(fullName(s))}",`
@@ -285,7 +268,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
       const url=URL.createObjectURL(blob)
       const a=document.createElement('a'); a.href=url; a.download=filename; a.click()
       URL.revokeObjectURL(url)
-    } catch(e){ toast('Export failed. Please try again.','error') }
+    } catch(e){}
   }
 
   const scopeLabel = selectedStudent
@@ -699,7 +682,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         <td style="padding:8px 12px;font-size:13px;font-weight:600;border:1px solid #f3f4f6;color:#111827;">${s.last_name}, ${s.first_name}</td>
         ${subjectCells}
         <td style="padding:8px 8px;text-align:center;font-size:13px;font-weight:800;border:1px solid #f3f4f6;background:#dbeafe;color:#1e40af;">${total!==null?total:'—'}</td>
-        <td style="padding:8px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #f3f4f6;background:#dbeafe;color:#1e40af;">${avg!==null?Math.round(avg):'—'}</td>
+        <td style="padding:8px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #f3f4f6;background:#dbeafe;color:#1e40af;">${avg!==null?avg:'—'}</td>
         <td style="padding:8px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #f3f4f6;color:#d97706;">${letter}</td>
         <td style="padding:8px 10px;font-size:11px;border:1px solid #f3f4f6;color:#4b5563;">${remark}</td>
         <td style="padding:8px 10px;text-align:center;font-size:13px;font-weight:800;border:1px solid #f3f4f6;color:${posC};background:${posBg};">${posOrd}</td>
@@ -742,7 +725,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         <div style="font-size:12px;color:#6b7280;">Students: <strong style="color:#111827;">${rankedStudents.length}</strong></div>
         <div style="font-size:12px;color:#6b7280;">Subjects: <strong style="color:#111827;">${classSubjects.length}</strong></div>
         <div style="font-size:12px;color:#6b7280;">Pass Rate: <strong style="color:${rankedStudents.length&&passCount/rankedStudents.length>=0.7?'#16a34a':'#dc2626'};">${rankedStudents.length?Math.round(passCount/rankedStudents.length*100):0}%</strong></div>
-        <div style="font-size:12px;color:#6b7280;">Class Avg: <strong style="color:#1e40af;">${classAvg!==null?fmtScore(classAvg):'--'}</strong></div>
+        <div style="font-size:12px;color:#6b7280;">Class Avg: <strong style="color:#1e40af;">${classAvg!==null?fmtScore(classAvg,settings):'--'}</strong></div>
         <div style="margin-left:auto;font-size:10px;color:#9ca3af;">Generated: ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}</div>
       </div>
       <div style="padding:16px;">
@@ -796,12 +779,11 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
     const rankedBySub = [...classStudents].map(s=>({...s,score:getTotal(s.id,rcSubject)}))
       .sort((a,b)=>(b.score||0)-(a.score||0))
-    let lastScore=null, lastRank=0, seen=0
-    const ranked = rankedBySub.map((s)=>{
+    let rpos=1
+    const ranked = rankedBySub.map((s,i)=>{
       if(s.score===null) return {...s,position:null}
-      seen++
-      if(lastScore===null||s.score!==lastScore){ lastRank=seen; lastScore=s.score }
-      return {...s,position:lastRank}
+      if(i>0&&s.score===rankedBySub[i-1].score) return {...s,position:rankedBySub[i-1].position}
+      const p=rpos; rpos=i+2; return {...s,position:p}
     })
 
     const withScore = ranked.filter(s=>s.score!==null)
@@ -949,7 +931,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     const isLastPeriod = rcPeriod===lastPeriodLabel
 
     return `
-    <div style="background:#fff;border-radius:14px;overflow:hidden;page-break-after:always;max-width:780px;margin:0 auto 24px;box-shadow:0 4px 32px rgba(0,0,0,0.10);">
+    <div class="card" style="background:#fff;border-radius:14px;overflow:hidden;page-break-after:always;page-break-inside:avoid;max-width:780px;margin:0 auto 24px;box-shadow:0 4px 32px rgba(0,0,0,0.10);">
       <div style="height:5px;background:linear-gradient(90deg,#1e3a8a,#3b82f6,#1e3a8a);"></div>
 
       <!-- Header -->
@@ -965,40 +947,50 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         ${photoTag}
       </div>
 
-      <!-- Student info bar -->
-      <div style="background:#f8fafc;border-bottom:2px solid #e5e7eb;padding:14px 28px;display:flex;gap:0;align-items:stretch;flex-wrap:wrap;">
-        <div style="padding:0 20px 0 0;margin-right:20px;border-right:1px solid #e5e7eb;">
-          <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Student Name</div>
-          <div style="font-size:17px;font-weight:700;color:#111827;font-family:'Playfair Display',serif;">${student.first_name}${student.middle_name?' '+student.middle_name:''}  ${student.last_name}</div>
-        </div>
-        <div style="padding:0 20px;border-right:1px solid #e5e7eb;">
-          <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Student ID</div>
-          <div style="font-size:13px;font-weight:600;color:#6b7280;font-family:monospace;">${student.student_id}</div>
-        </div>
-        <div style="padding:0 20px;border-right:1px solid #e5e7eb;">
-          <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Class</div>
-          <div style="font-size:13px;font-weight:600;color:#111827;">${cls?.name||'--'}</div>
-        </div>
-        <div style="padding:0 20px;border-right:1px solid #e5e7eb;">
-          <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Period</div>
-          <div style="font-size:13px;font-weight:600;color:#111827;">${rcPeriod}</div>
-        </div>
-        <div style="padding:0 20px;border-right:1px solid #e5e7eb;">
-          <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Acad. Year</div>
-          <div style="font-size:13px;font-weight:600;color:#111827;">${activeYear}</div>
-        </div>
-        <div style="margin-left:auto;display:flex;align-items:center;gap:14px;padding-left:16px;">
-          <div style="text-align:center;padding:8px 16px;background:#fff;border:2px solid ${gradeC};border-radius:10px;">
-            <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Grade</div>
-            <div style="font-size:22px;font-weight:900;color:${gradeC};">${grandLetter}</div>
-            <div style="font-size:9px;color:#9ca3af;margin-top:1px;">${grandRemark}</div>
-          </div>
-          <div style="text-align:center;padding:8px 16px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border-radius:10px;">
-            <div style="font-size:9px;color:rgba(0,0,0,0.45);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Position</div>
-            <div style="font-size:22px;font-weight:900;color:#111827;">${sPos!=='--'?ordinal(sPos):'--'}</div>
-            <div style="font-size:9px;color:rgba(0,0,0,0.45);">of ${classStudents.length}</div>
-          </div>
-        </div>
+      <!-- Student info bar — table layout for print safety -->
+      <div style="background:#f8fafc;border-bottom:2px solid #e5e7eb;padding:14px 28px;">
+        <table class="info-table">
+          <tr>
+            <td style="padding:0 20px 0 0;border-right:1px solid #e5e7eb;white-space:nowrap;">
+              <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Student Name</div>
+              <div style="font-size:17px;font-weight:700;color:#111827;font-family:'Playfair Display',serif;">${student.first_name}${student.middle_name?' '+student.middle_name:''}  ${student.last_name}</div>
+            </td>
+            <td style="padding:0 16px;border-right:1px solid #e5e7eb;white-space:nowrap;">
+              <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Student ID</div>
+              <div style="font-size:13px;font-weight:600;color:#6b7280;font-family:monospace;">${student.student_id}</div>
+            </td>
+            <td style="padding:0 16px;border-right:1px solid #e5e7eb;white-space:nowrap;">
+              <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Class</div>
+              <div style="font-size:13px;font-weight:600;color:#111827;">${cls?.name||'--'}</div>
+            </td>
+            <td style="padding:0 16px;border-right:1px solid #e5e7eb;white-space:nowrap;">
+              <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Period</div>
+              <div style="font-size:13px;font-weight:600;color:#111827;">${rcPeriod}</div>
+            </td>
+            <td style="padding:0 16px;border-right:1px solid #e5e7eb;white-space:nowrap;">
+              <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Acad. Year</div>
+              <div style="font-size:13px;font-weight:600;color:#111827;">${activeYear}</div>
+            </td>
+            <td style="padding-left:16px;width:1%;">
+              <table style="border-collapse:collapse;"><tr>
+                <td style="padding:0 6px 0 0;vertical-align:middle;">
+                  <div style="text-align:center;padding:8px 14px;background:#fff;border:2px solid ${gradeC};border-radius:10px;">
+                    <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Grade</div>
+                    <div style="font-size:22px;font-weight:900;color:${gradeC};">${grandLetter}</div>
+                    <div style="font-size:9px;color:#9ca3af;margin-top:1px;">${grandRemark}</div>
+                  </div>
+                </td>
+                <td style="vertical-align:middle;">
+                  <div style="text-align:center;padding:8px 14px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border-radius:10px;">
+                    <div style="font-size:9px;color:rgba(0,0,0,0.45);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Position</div>
+                    <div style="font-size:22px;font-weight:900;color:#111827;">${sPos!=='--'?ordinal(sPos):'--'}</div>
+                    <div style="font-size:9px;color:rgba(0,0,0,0.45);">of ${classStudents.length}</div>
+                  </div>
+                </td>
+              </tr></table>
+            </td>
+          </tr>
+        </table>
       </div>
 
       <!-- Body -->
@@ -1033,8 +1025,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           </table>
         </div>
 
-        <!-- Bottom: Attendance, Conduct, Remarks -->
-        <div style="padding:20px 28px 20px 28px;display:grid;grid-template-columns:repeat(3,1fr);gap:24px;">
+        <!-- Bottom: Attendance, Conduct, Remarks — table layout for print safety -->
+        <table class="bottom-table" style="padding:0;width:100%;"><tr><td style="width:33%;padding:20px 14px 20px 28px;vertical-align:top;">
 
           <!-- Attendance -->
           <div>
@@ -1048,17 +1040,18 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
               </div>
               <span style="font-size:16px;font-weight:800;color:${att.rate!==null&&att.rate>=80?'#16a34a':att.rate!==null&&att.rate>=60?'#d97706':'#dc2626'};">${att.rate!==null?att.rate+'%':'—'}</span>
             </div>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-              ${[['Present',att.present,'#16a34a','#f0fdf4'],['Absent',att.absent,'#dc2626','#fef2f2'],['Late',att.late,'#d97706','#fef9ec']].map(([l,v,c,bg])=>`
-              <div style="text-align:center;padding:7px 6px;background:${bg};border-radius:8px;border:1px solid ${c}20;">
+            <table style="width:100%;border-collapse:collapse;">
+              <tr>${[['Present',att.present,'#16a34a','#f0fdf4'],['Absent',att.absent,'#dc2626','#fef2f2'],['Late',att.late,'#d97706','#fef9ec']].map(([l,v,c,bg])=>`
+              <td style="width:33%;text-align:center;padding:7px 4px;background:${bg};border-radius:8px;border:1px solid ${c}20;vertical-align:top;">
                 <div style="font-size:17px;font-weight:900;color:${c};">${v}</div>
                 <div style="font-size:9px;color:#6b7280;margin-top:2px;">${l}</div>
-              </div>`).join('')}
-            </div>
+              </td>`).join('')}
+              </tr>
+            </table>
           </div>
 
-          <!-- Conduct -->
-          <div>
+</td><td style="width:33%;padding:20px 14px;vertical-align:top;border-left:1px solid #f3f4f6;">
+          <!-- Conduct --><div>
             <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
               <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;flex-shrink:0;"></div>
               Conduct
@@ -1075,8 +1068,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             </div>
           </div>
 
-          <!-- Teacher Remark -->
-          <div>
+</div></td><td style="width:33%;padding:20px 28px 20px 14px;vertical-align:top;border-left:1px solid #f3f4f6;">
+          <!-- Teacher Remark --><div>
             <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
               <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;flex-shrink:0;"></div>
               Class Teacher's Remark
@@ -1084,15 +1077,10 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             <div style="padding:10px 14px;background:#f8fafc;border-radius:8px;border-left:4px solid #1e3a8a;font-size:12px;color:#374151;min-height:44px;line-height:1.6;font-style:italic;">${teacherRemark||'<span style="color:#d1d5db;">No remark entered</span>'}</div>
           </div>
 
-          ${rcHeadRemark?`<div style="margin-bottom:14px;">
-            <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px;">Head Teacher's Remark</div>
-            <div style="padding:10px 14px;background:#f8fafc;border-radius:8px;border-left:4px solid #fbbf24;font-size:12px;color:#374151;line-height:1.6;font-style:italic;">${rcHeadRemark}</div>
-          </div>`:''}
-
-          ${rcResumption?`<div style="padding:8px 14px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;font-size:11px;color:#1e3a8a;margin-bottom:10px;"><span style="font-weight:700;">Next Term Resumes:</span> ${rcResumption}</div>`:''}
-
-          ${isLastPeriod?`<div style="padding:8px 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;font-size:11px;color:#4b5563;margin-bottom:10px;"><span style="font-weight:700;color:#111827;">Promoted to:</span> _______________________________</div>`:''}
-        </div>
+          ${rcHeadRemark?`<div style="margin-top:10px;"><div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px;">Head Teacher's Remark</div><div style="padding:10px 14px;background:#f8fafc;border-radius:8px;border-left:4px solid #fbbf24;font-size:12px;color:#374151;line-height:1.6;font-style:italic;">${rcHeadRemark}</div></div>`:''}
+          ${rcResumption?`<div style="margin-top:10px;padding:8px 14px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;font-size:11px;color:#1e3a8a;"><span style="font-weight:700;">Next Term Resumes:</span> ${rcResumption}</div>`:''}
+          ${isLastPeriod?`<div style="margin-top:10px;padding:8px 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;font-size:11px;color:#4b5563;"><span style="font-weight:700;color:#111827;">Promoted to:</span> _______________________________</div>`:''}
+        </div></td></tr></table>
       </div>
 
       <!-- Signatures -->
@@ -1121,7 +1109,18 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Inter',sans-serif;background:#f0f2f5;color:#1a1a2e;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .no-print{display:block}
-    @media print{@page{size:A4 portrait;margin:8mm}body{background:#fff;padding:0}.no-print{display:none!important}}
+    .card{page-break-inside:avoid;page-break-after:always}
+    .info-table{width:100%;border-collapse:collapse}
+    .info-table td{vertical-align:middle;padding:0}
+    .bottom-table{width:100%;border-collapse:collapse}
+    .bottom-table td{vertical-align:top;padding:0}
+    @media print{
+      @page{size:A4 portrait;margin:8mm}
+      body{background:#fff;padding:0}
+      .no-print{display:none!important}
+      .card{box-shadow:none!important;border-radius:0!important}
+      table{border-collapse:collapse}
+    }
     @media screen{body{padding:20px}}
   `
 
