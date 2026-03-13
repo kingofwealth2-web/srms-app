@@ -57,7 +57,7 @@ export const CURRENCIES = [
 // ── NAV CONFIG ─────────────────────────────────────────────────
 export const NAV_ITEMS = {
   superadmin:  ['dashboard','students','classes','grades','attendance','fees','behaviour','reports','announcements','users','settings','auditlog'],
-  admin:       ['dashboard','students','classes','grades','attendance','fees','behaviour','reports','announcements'],
+  admin:       ['dashboard','students','classes','grades','attendance','fees','behaviour','reports','announcements','users'],
   classteacher:['dashboard','students','grades','attendance','behaviour','reports','announcements'],
   teacher:     ['dashboard','students','grades','reports','announcements'],
 }

@@ -30,7 +30,7 @@ export default function Users({profile,toast}) {
   const [form,setForm]         = useState({})
   const [saving,setSaving]     = useState(false)
 
-  const [tempPassword,setTempPassword] = useState('')
+  const [createdUser,setCreatedUser]   = useState(null)  // {name,email,pw} shown in overlay
   const [students,setStudents]         = useState([])
   const [parentLinks,setParentLinks]   = useState([])   // student IDs linked to a parent
   const [stuSearch,setStuSearch]       = useState('')
@@ -48,10 +48,11 @@ export default function Users({profile,toast}) {
     })
   },[profile?.school_id])
 
-  const openAdd  = ()=>{setEdit(null);setForm({full_name:'',email:'',password:'',role:'teacher'});setParentLinks([]);setStuSearch('');setModal(true)}
+  const genPw = ()=>'SRMS'+Math.floor(1000+Math.random()*9000)+'!'
+  const openAdd  = ()=>{setEdit(null);setForm({full_name:'',email:'',role:'teacher'});setParentLinks([]);setStuSearch('');setModal(true)}
   const openEdit = async u=>{
     setEdit(u)
-    setForm({full_name:u.full_name,email:u.email,role:u.role,password:''})
+    setForm({full_name:u.full_name,email:u.email,role:u.role})
     setStuSearch('')
     if(u.role==='parent'){
       const {data:links} = await supabase.from('parent_students').select('student_id').eq('parent_id',u.id)
@@ -91,14 +92,14 @@ export default function Users({profile,toast}) {
       toast('User updated')
       setModal(false)
     } else {
-      if(!form.password)return
       // Use a throwaway client so signUp never touches the SA's current session
+      const pw = genPw()
       const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: { persistSession: false, autoRefreshToken: false }
       })
       const {data:authData,error:authErr} = await tempClient.auth.signUp({
         email: form.email,
-        password: form.password,
+        password: pw,
         options: { data: { full_name: form.full_name, role: form.role } }
       })
       await tempClient.auth.signOut()
@@ -113,6 +114,8 @@ export default function Users({profile,toast}) {
         p_school_id: profile?.school_id,
       })
       if(profErr){ toast(profErr.message,'error'); setSaving(false); return }
+      // Flag this account for forced password change on first login
+      await supabase.from('profiles').update({must_change_password:true}).eq('id',uid)
       // Fetch the full profile row so all fields are present in local state
       const {data:newProf} = await supabase.from('profiles').select('*').eq('id',uid).single()
       setUsers(p=>[...p, newProf||{id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false}])
@@ -121,8 +124,7 @@ export default function Users({profile,toast}) {
         await supabase.from('parent_students').insert(parentLinks.map(sid=>({parent_id:uid,student_id:sid,school_id:profile?.school_id})))
       }
       auditLog(profile,'Users','Created',`${form.full_name} · ${form.role}`,{},null,{id:uid,full_name:form.full_name,email:form.email,role:form.role})
-      toast('User created successfully')
-      setModal(false)
+      setCreatedUser({name:form.full_name,email:form.email,pw})
     }
     setSaving(false)
   }
@@ -158,21 +160,52 @@ export default function Users({profile,toast}) {
           )},
           {key:'role',label:'Role',render:v=>{const m=ROLE_META[v]||{};return<Badge color={m.color} bg={m.bg}>{m.label||v}</Badge>}},
           {key:'locked',label:'Status',render:v=><Badge color={v?'var(--rose)':'var(--emerald)'} bg={v?'rgba(240,107,122,0.1)':'rgba(45,212,160,0.1)'}>{v?'Locked':'Active'}</Badge>},
-          {key:'id',label:'',render:(v,r)=>(
+          {key:'id',label:'',render:(v,r)=>{
+            const isSelf = r.id===profile?.id
+            const viewerIsAdmin = profile?.role==='admin'
+            const targetIsPrivileged = r.role==='superadmin'||r.role==='admin'
+            const canEdit = !viewerIsAdmin || !targetIsPrivileged
+            const canLock = !isSelf && r.role!=='superadmin' && !(viewerIsAdmin && r.role==='admin')
+            return(
             <div style={{display:'flex',gap:8}}>
-              <Btn variant='ghost' size='sm' onClick={()=>openEdit(r)}>Edit</Btn>
-              {r.id!==profile?.id && r.role!=='superadmin' &&
-                <Btn variant='ghost' size='sm' onClick={()=>toggleLock(r.id)}>{r.locked?'Unlock':'Lock'}</Btn>
-              }
+              {canEdit && <Btn variant='ghost' size='sm' onClick={()=>openEdit(r)}>Edit</Btn>}
+              {canLock && <Btn variant='ghost' size='sm' onClick={()=>toggleLock(r.id)}>{r.locked?'Unlock':'Lock'}</Btn>}
             </div>
-          )},
+          )}},
         ]}/>
       </Card>
+      {createdUser && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:16,padding:32,maxWidth:440,width:'100%',boxShadow:'0 24px 80px rgba(0,0,0,0.5)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:24}}>
+              <div style={{width:44,height:44,borderRadius:10,background:'rgba(45,212,160,0.1)',border:'1px solid rgba(45,212,160,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>✓</div>
+              <div>
+                <div style={{fontWeight:700,fontSize:15}}>Account created</div>
+                <div style={{fontSize:12,color:'var(--mist3)',marginTop:2}}>{createdUser.name} · {createdUser.email}</div>
+              </div>
+            </div>
+            <div style={{marginBottom:8,fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',fontFamily:"'Clash Display',sans-serif"}}>Temporary Password</div>
+            <div style={{background:'var(--ink)',border:'1px solid var(--gold)',borderRadius:10,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,gap:12}}>
+              <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:20,fontWeight:700,letterSpacing:'0.08em',color:'var(--gold)'}}>{createdUser.pw}</span>
+              <button onClick={()=>{navigator.clipboard.writeText(createdUser.pw).then(()=>{})}}
+                style={{background:'rgba(232,184,75,0.12)',border:'1px solid rgba(232,184,75,0.3)',borderRadius:7,padding:'7px 14px',color:'var(--gold)',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:"'Cabinet Grotesk',sans-serif"}}>
+                Copy
+              </button>
+            </div>
+            <div style={{background:'rgba(240,107,122,0.07)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:8,padding:'10px 14px',fontSize:12,color:'var(--rose)',lineHeight:1.6,marginBottom:24}}>
+              ⚠ This password will not be shown again. Share it with the user now via WhatsApp or SMS. They will be prompted to change it on first login.
+            </div>
+            <button onClick={()=>{setCreatedUser(null);setModal(false)}}
+              style={{width:'100%',background:'var(--gold)',border:'none',borderRadius:9,padding:'12px',fontSize:14,fontWeight:700,color:'var(--ink)',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>
+              Done
+            </button>
+          </div>
+        </div>
+      )}
       {modal && (
         <Modal title={edit?'Edit User':'Add New User'} subtitle={edit?`Editing ${edit.full_name}`:'Create a login account for a staff member.'} onClose={()=>setModal(false)}>
           <Field label='Full Name' value={form.full_name} onChange={f('full_name')} required/>
           <Field label='Email Address' value={form.email} onChange={f('email')} type='email' required/>
-          {!edit && <Field label='Password' value={form.password} onChange={f('password')} type='password' required/>}
           {edit?.id===profile?.id
             ? <div style={{marginBottom:16}}>
                 <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Role</div>
@@ -181,9 +214,13 @@ export default function Users({profile,toast}) {
                   <span style={{fontSize:11,color:'var(--mist3)'}}>Cannot change your own role</span>
                 </div>
               </div>
-            : <Field label='Role' value={form.role} onChange={f('role')} options={[{value:'admin',label:'Administrator'},{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'},{value:'parent',label:'Parent / Guardian'}]}/>
+            : <Field label='Role' value={form.role} onChange={f('role')} options={
+                profile?.role === 'admin'
+                  ? [{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'},{value:'parent',label:'Parent / Guardian'}]
+                  : [{value:'admin',label:'Administrator'},{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'},{value:'parent',label:'Parent / Guardian'}]
+              }/>
           }
-          {edit && <p style={{fontSize:12,color:'var(--mist3)',marginTop:-8,marginBottom:8}}>To change a password, contact your Super Admin.</p>}
+
           {form.role==='parent' && (
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8,fontFamily:"'Clash Display',sans-serif"}}>

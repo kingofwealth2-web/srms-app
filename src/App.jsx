@@ -57,9 +57,104 @@ function ThemeToggle({ isDark, onToggle, size = 'md' }) {
 }
 
 
+
+// ── FORCE PASSWORD CHANGE ──────────────────────────────────────
+function ForceChangePassword({ profile, onDone, onSignOut }) {
+  const [newPass,setNewPass]   = useState('')
+  const [confirm,setConfirm]   = useState('')
+  const [saving,setSaving]     = useState(false)
+  const [error,setError]       = useState('')
+  const isMobile = useIsMobile()
+
+  const submit = async () => {
+    setError('')
+    if (!newPass || !confirm)  { setError('Please fill in both fields.'); return }
+    if (newPass.length < 8)    { setError('Password must be at least 8 characters.'); return }
+    if (newPass !== confirm)   { setError('Passwords do not match.'); return }
+    setSaving(true)
+    const { error: err } = await supabase.auth.updateUser({ password: newPass })
+    setSaving(false)
+    if (err) { setError(err.message); return }
+    onDone()
+  }
+
+  return (
+    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--ink)', padding:20 }}>
+      <div style={{ position:'absolute', inset:0, backgroundImage:'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)', backgroundSize:'40px 40px', opacity:0.25, maskImage:'radial-gradient(ellipse at center,black 40%,transparent 80%)' }}/>
+      <div style={{ position:'relative', width:'100%', maxWidth:440 }} onKeyDown={e => { if (e.key === 'Enter') submit() }}>
+        <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:40 }}>
+          <div style={{ width:44, height:44, borderRadius:12, background:'var(--gold)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 24px rgba(232,184,75,0.4)' }}>
+            <span className="d" style={{ fontSize:20, fontWeight:700, color:'var(--ink)' }}>S</span>
+          </div>
+          <div>
+            <div className="d" style={{ fontSize:18, fontWeight:700 }}>SRMS</div>
+            <div style={{ fontSize:11, color:'var(--mist3)', marginTop:1 }}>Student Record Management System</div>
+          </div>
+        </div>
+
+        <h1 className="d" style={{ fontSize:32, fontWeight:700, letterSpacing:'-0.03em', lineHeight:1.1, marginBottom:10 }}>Set your<br/>password.</h1>
+        <p style={{ color:'var(--mist2)', fontSize:13, marginBottom:32, lineHeight:1.6 }}>
+          Welcome, {profile?.full_name?.split(' ')[0] || 'there'}. Your account was created by an administrator. Please choose your own password to continue.
+        </p>
+
+        <div style={{ marginBottom:16 }}>
+          <div style={{ fontSize:11, fontWeight:600, color:'var(--mist2)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6, fontFamily:"'Clash Display',sans-serif" }}>New Password</div>
+          <input value={newPass} onChange={e => setNewPass(e.target.value)} type="password" placeholder="Min. 8 characters"
+            style={{ width:'100%', background:'var(--ink3)', border:'1px solid var(--line)', borderRadius:'var(--r-sm)', padding:'10px 14px', color:'var(--white)', fontSize:13, boxSizing:'border-box', outline:'none' }}
+            onFocus={e => { e.target.style.borderColor='var(--gold)'; e.target.style.boxShadow='0 0 0 3px rgba(232,184,75,0.08)' }}
+            onBlur={e  => { e.target.style.borderColor='var(--line)'; e.target.style.boxShadow='none' }}/>
+        </div>
+
+        <div style={{ marginBottom:20 }}>
+          <div style={{ fontSize:11, fontWeight:600, color:'var(--mist2)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6, fontFamily:"'Clash Display',sans-serif" }}>Confirm Password</div>
+          <input value={confirm} onChange={e => setConfirm(e.target.value)} type="password" placeholder="Repeat your new password"
+            style={{ width:'100%', background:'var(--ink3)', border:`1px solid ${confirm && confirm !== newPass ? 'var(--rose)' : 'var(--line)'}`, borderRadius:'var(--r-sm)', padding:'10px 14px', color:'var(--white)', fontSize:13, boxSizing:'border-box', outline:'none' }}
+            onFocus={e => { e.target.style.borderColor=confirm && confirm !== newPass ? 'var(--rose)' : 'var(--gold)'; e.target.style.boxShadow='0 0 0 3px rgba(232,184,75,0.08)' }}
+            onBlur={e  => { e.target.style.borderColor=confirm && confirm !== newPass ? 'var(--rose)' : 'var(--line)'; e.target.style.boxShadow='none' }}/>
+          {confirm && confirm !== newPass && <div style={{ fontSize:11, color:'var(--rose)', marginTop:5 }}>Passwords do not match</div>}
+        </div>
+
+        {newPass && (
+          <div style={{ marginBottom:20 }}>
+            <div style={{ display:'flex', gap:4, marginBottom:5 }}>
+              {[1,2,3,4].map(i => {
+                const s = newPass.length >= 12 && /[A-Z]/.test(newPass) && /[0-9]/.test(newPass) && /[^A-Za-z0-9]/.test(newPass) ? 4
+                  : newPass.length >= 10 && (/[A-Z]/.test(newPass) || /[0-9]/.test(newPass)) ? 3
+                  : newPass.length >= 8 ? 2 : 1
+                const col = s >= 4 ? 'var(--emerald)' : s >= 3 ? 'var(--sky)' : s >= 2 ? 'var(--amber)' : 'var(--rose)'
+                return <div key={i} style={{ flex:1, height:3, borderRadius:2, background: i <= s ? col : 'var(--ink4)', transition:'background 0.2s' }}/>
+              })}
+            </div>
+            <div style={{ fontSize:11, color:'var(--mist3)' }}>
+              {newPass.length < 8 ? 'Too short' : newPass.length >= 12 && /[A-Z]/.test(newPass) && /[0-9]/.test(newPass) && /[^A-Za-z0-9]/.test(newPass) ? 'Strong password 💪' : newPass.length >= 10 ? 'Good — try adding numbers or symbols' : 'Acceptable'}
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div style={{ background:'rgba(240,107,122,0.08)', border:'1px solid rgba(240,107,122,0.25)', borderRadius:'var(--r-sm)', padding:'11px 14px', fontSize:13, color:'var(--rose)', marginBottom:16 }}>{error}</div>
+        )}
+
+        <Btn onClick={submit} disabled={saving || !newPass || newPass !== confirm}
+          style={{ width:'100%', justifyContent:'center', padding:13, fontSize:14, boxShadow: saving ? 'none' : '0 4px 20px rgba(232,184,75,0.25)' }}>
+          {saving ? <><Spinner/> Saving...</> : 'Set Password & Continue →'}
+        </Btn>
+
+        <div style={{ marginTop:16, textAlign:'center' }}>
+          <button onClick={onSignOut}
+            style={{ background:'none', border:'none', color:'var(--mist3)', fontSize:12, cursor:'pointer', fontFamily:"'Cabinet Grotesk',sans-serif" }}>
+            Sign out instead
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [session,setSession]       = useState(null)
   const [showLanding,setShowLanding] = useState(true)
+  const [mustChangePw,setMustChangePw] = useState(false)
   const [profile,setProfile]       = useState(null)
   const [isRecovery,setIsRecovery] = useState(false)
   const [settings,setSettings]     = useState(null)
@@ -158,6 +253,7 @@ export default function App() {
         resolvedProf = newProf
       }
       setProfile(resolvedProf)
+      if (resolvedProf?.must_change_password) setMustChangePw(true)
 
       // Only fetch settings once we have a confirmed school_id
       let settingsRow = null
@@ -232,48 +328,40 @@ export default function App() {
 
   // ── Early returns ──────────────────────────────────────────────
   if (isRecovery) {
+    return <><style>{G}</style><ResetPassword onDone={() => { setIsRecovery(false); setSession(null) }}/></>
+  }
+  if (mustChangePw && session) {
     return (
-      <>
-        <style>{G}</style>
-        <ResetPassword onDone={() => { setIsRecovery(false); setSession(null) }}/>
+      <><style>{G}</style>
+      <ForceChangePassword
+        profile={profile}
+        onDone={async () => {
+          await supabase.from('profiles').update({ must_change_password: false }).eq('id', profile.id)
+          setProfile(p => ({ ...p, must_change_password: false }))
+          setMustChangePw(false)
+        }}
+        onSignOut={async () => {
+          await supabase.auth.signOut()
+          setProfile(null); setSession(null); setMustChangePw(false); setShowLanding(true)
+        }}
+      />
       </>
     )
   }
   if (loading) {
-    return (
-      <>
-        <style>{G}</style>
-        <LoadingScreen msg={session ? 'Loading your workspace...' : 'Initialising...'}/>
-      </>
-    )
+    return <><style>{G}</style><LoadingScreen msg={session ? 'Loading your workspace...' : 'Initialising...'}/></>
   }
   if (showLanding && !session) {
     return <Landing onEnter={() => setShowLanding(false)}/>
   }
   if (!session || !profile) {
-    return (
-      <>
-        <style>{G}</style>
-        <Login onLogin={p => setProfile(p)}/>
-      </>
-    )
+    return <><style>{G}</style><Login onLogin={p => setProfile(p)}/></>
   }
   if (profile.role === 'parent') {
-    return (
-      <>
-        <style>{G}</style>
-        <ParentPortal profile={profile} onSignOut={async()=>{await supabase.auth.signOut();setProfile(null);setSession(null);setShowLanding(true)}}/>
-      </>
-    )
+    return <><style>{G}</style><ParentPortal profile={profile} onSignOut={async()=>{await supabase.auth.signOut();setProfile(null);setSession(null);setShowLanding(true)}}/></>
   }
   if (!profile.school_id) {
-    return (
-      <>
-        <style>{G}</style>
-        <style>{`@keyframes srms-load{to{width:100%}}`}</style>
-        <SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null) }}/>
-      </>
-    )
+    return <><style>{G}</style><style>{`@keyframes srms-load{to{width:100%}}`}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null) }}/></>
   }
 
   const currentYear   = currentYearFromSettings(settings)
