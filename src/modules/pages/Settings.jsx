@@ -13,6 +13,7 @@ import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
+import ConfirmModal from '../components/ConfirmModal'
 
 export default function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}) {
   const [form,setForm]   = useState(()=>{
@@ -26,6 +27,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
   const [releases,setReleases] = useState([])
   const [relLoading,setRelLoading] = useState(false)
   const [logoUploading,setLogoUploading] = useState(false)
+  const [confirmState,setConfirmState]   = useState(null)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
   const canAdmin = ['superadmin','admin'].includes(profile?.role)
 
@@ -126,19 +128,32 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
   }
 
   const handleToggle = async (i) => {
-    let key, label, wasEnabled
-    setForm(p => {
-      const comps = [...(p.grade_components || DEFAULT_GRADE_COMPONENTS)]
-      wasEnabled = comps[i].enabled
-      key = comps[i].key
-      label = comps[i].label
-      comps[i] = {...comps[i], enabled: !wasEnabled}
-      return {...p, grade_components: comps}
-    })
-    if(wasEnabled) {
-      await supabase.from('grades').update({[key]:0}).eq('school_id', profile?.school_id).eq('year', activeYear)
-      auditLog(profile,'Settings','Updated',`Grade component disabled & scores cleared: ${label}`,{component:label},null,null)
-      toast(`${label} disabled -- all scores cleared`)
+    const comp = (form.grade_components || DEFAULT_GRADE_COMPONENTS)[i]
+    if (comp.enabled) {
+      // Disabling clears all scores — require confirmation first
+      setConfirmState({
+        title: `Disable ${comp.label}?`,
+        body: `This will immediately clear all ${comp.label} scores for every student in the current year. This cannot be undone.`,
+        icon: '⚠',
+        danger: true,
+        confirmLabel: 'Disable & Clear Scores',
+        onConfirm: async () => {
+          setForm(p => {
+            const comps = [...(p.grade_components || DEFAULT_GRADE_COMPONENTS)]
+            comps[i] = {...comps[i], enabled: false}
+            return {...p, grade_components: comps}
+          })
+          await supabase.from('grades').update({[comp.key]:0}).eq('school_id', profile?.school_id).eq('year', activeYear)
+          auditLog(profile,'Settings','Updated',`Grade component disabled & scores cleared: ${comp.label}`,{component:comp.label},null,null)
+          toast(`${comp.label} disabled — all scores cleared`)
+        }
+      })
+    } else {
+      setForm(p => {
+        const comps = [...(p.grade_components || DEFAULT_GRADE_COMPONENTS)]
+        comps[i] = {...comps[i], enabled: true}
+        return {...p, grade_components: comps}
+      })
     }
   }
 
@@ -166,12 +181,10 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
             <Field label='School Motto'  value={form.motto}         onChange={f('motto')}/>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Academic Year</div>
-              <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                <select value={form.academic_year||''} onChange={e=>setForm(p=>({...p,academic_year:e.target.value}))}
-                  style={{flex:1,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',color:'var(--white)',fontSize:13,cursor:'pointer'}}>
-                  {generateYears(form.academic_year||activeYear).map(y=><option key={y} value={y}>{y}</option>)}
-                </select>
+              <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>
+                {form.academic_year || activeYear}
               </div>
+              <div style={{fontSize:11,color:'var(--mist3)',marginTop:5}}>Use "Start New Academic Year" below to change this.</div>
             </div>
             {profile?.role==='superadmin' && (
               <div style={{padding:'14px 16px',background:'rgba(45,212,160,0.04)',border:'1px solid rgba(45,212,160,0.15)',borderRadius:'var(--r-sm)',marginBottom:8}}>
@@ -570,6 +583,15 @@ function AcademicCalendar({form, setForm, activeYear}) {
             </Btn>
           </div>
         </Modal>
+      )}
+      {confirmState && (
+        <ConfirmModal
+          title={confirmState.title} body={confirmState.body}
+          icon={confirmState.icon} danger={confirmState.danger}
+          confirmLabel={confirmState.confirmLabel}
+          onConfirm={()=>{ confirmState.onConfirm(); setConfirmState(null) }}
+          onCancel={()=>setConfirmState(null)}
+        />
       )}
     </Card>
   )

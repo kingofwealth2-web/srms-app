@@ -103,8 +103,11 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
     const p2 = periodsWithData[periodsWithData.length-1]
     const g1 = grades.filter(g=>g.student_id===studentId&&g.period===p1)
     const g2 = grades.filter(g=>g.student_id===studentId&&g.period===p2)
-    const t1 = g1.map(g=>calcTotal(g,gradeComps)).reduce((a,b)=>a+b,0)
-    const t2 = g2.map(g=>calcTotal(g,gradeComps)).reduce((a,b)=>a+b,0)
+    const t1vals = g1.map(g=>calcTotal(g,gradeComps)).filter(t=>t!==null)
+    const t2vals = g2.map(g=>calcTotal(g,gradeComps)).filter(t=>t!==null)
+    if(!t1vals.length || !t2vals.length) return null
+    const t1 = t1vals.reduce((a,b)=>a+b,0)
+    const t2 = t2vals.reduce((a,b)=>a+b,0)
     const diff = t2 - t1
     if(diff > 0) return {arrow:'↑', color:'var(--emerald)', diff:`+${diff} vs ${p1}`, p1, p2}
     if(diff < 0) return {arrow:'↓', color:'var(--rose)', diff:`${diff} vs ${p1}`, p1, p2}
@@ -143,7 +146,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast}
         const classStudents = students.filter(s=>s.class_id===selectedStudent.class_id)
         const allAcad = classStudents.map(s=>{
           const sg=grades.filter(g=>g.student_id===s.id&&(!fp||g.period===fp))
-          const tots=sg.map(g=>calcTotal(g,gradeComps))
+          const tots=sg.map(g=>calcTotal(g,gradeComps)).filter(t=>t!==null)
           const total=tots.length?tots.reduce((a,b)=>a+b,0):0
           return {id:s.id,total}
         }).sort((a,b)=>b.total-a.total)

@@ -1,16 +1,18 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useIsMobile } from '../lib/hooks'
 
 export default function Modal({ title, subtitle, onClose, children, width = 520 }) {
   const isMobile = useIsMobile()
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose }, [onClose])
 
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    const onKey = e => { if (e.key === 'Escape') onClose() }
+    const onKey = e => { if (e.key === 'Escape') onCloseRef.current() }
     document.addEventListener('keydown', onKey)
     return () => { document.body.style.overflow = prev; document.removeEventListener('keydown', onKey) }
-  }, [onClose])
+  }, [])
 
   const backdrop = {
     position: 'fixed', inset: 0,

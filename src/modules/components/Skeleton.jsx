@@ -1,48 +1,51 @@
-// Usage:
-//   <Skeleton width={120} height={14}/>
-//   <Skeleton width='60%' height={14} style={{marginBottom:8}}/>
-//   <SkeletonCard rows={4}/> — full card placeholder
+// Skeleton shimmer for loading states
+import { useEffect } from 'react'
 
-export default function Skeleton({ width = '100%', height = 14, style }) {
+function injectSkeletonStyle() {
+  if (typeof document !== 'undefined' && !document.getElementById('skeleton-style')) {
+    const s = document.createElement('style')
+    s.id = 'skeleton-style'
+    s.textContent = `@keyframes skeleton-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`
+    document.head.appendChild(s)
+  }
+}
+
+// Single skeleton line
+export default function Skeleton({ width = '100%', height = 14, style = {} }) {
+  useEffect(() => { injectSkeletonStyle() }, [])
   return (
-    <div className='skeleton' style={{
+    <div style={{
       width, height,
       borderRadius: 6,
+      background: 'linear-gradient(90deg, var(--ink3) 25%, var(--ink4) 50%, var(--ink3) 75%)',
+      backgroundSize: '200% 100%',
+      animation: 'skeleton-shimmer 1.4s infinite',
       ...style,
     }}/>
   )
 }
 
-export function SkeletonCard({ rows = 3, style }) {
-  return (
-    <div style={{
-      background: 'var(--ink2)', border: '1px solid var(--line)',
-      borderRadius: 'var(--r-lg)', padding: 24,
-      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.055)',
-      ...style,
-    }}>
-      <Skeleton width={120} height={11} style={{ marginBottom: 20 }}/>
-      {Array.from({ length: rows }).map((_, i) => (
-        <Skeleton
-          key={i}
-          width={i === rows - 1 ? '55%' : '100%'}
-          height={13}
-          style={{ marginBottom: 10 }}
-        />
-      ))}
-    </div>
-  )
-}
-
-// Skeleton row for table loading
-export function SkeletonRows({ count = 5, cols = 4 }) {
+// Table rows skeleton — drop inside a <tbody>
+// Usage: <SkeletonRows count={8} cols={5}/>
+export function SkeletonRows({ count = 6, cols = 5 }) {
+  useEffect(() => { injectSkeletonStyle() }, [])
   return Array.from({ length: count }).map((_, i) => (
     <tr key={i} style={{ borderBottom: '1px solid var(--line)' }}>
       {Array.from({ length: cols }).map((_, j) => (
-        <td key={j} style={{ padding: '14px 16px' }}>
-          <Skeleton width={j === 1 ? '70%' : j === 0 ? '40%' : '55%'} height={12}/>
+        <td key={j} style={{ padding: '12px 16px' }}>
+          <div style={{
+            height: 12,
+            borderRadius: 6,
+            width: j === 0 ? '60%' : j === cols - 1 ? '40%' : '75%',
+            background: 'linear-gradient(90deg, var(--ink3) 25%, var(--ink4) 50%, var(--ink3) 75%)',
+            backgroundSize: '200% 100%',
+            animation: `skeleton-shimmer 1.4s infinite`,
+            animationDelay: `${i * 0.05}s`,
+          }}/>
         </td>
       ))}
     </tr>
   ))
 }
+
+// SkeletonRows also injects style via Skeleton's useEffect when first Skeleton mounts

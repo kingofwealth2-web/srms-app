@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './supabase'
 
 import G, { initScrollReveal } from './modules/styles/global'
 import { useIsMobile } from './modules/lib/hooks'
-import { ROLE_META } from './modules/lib/constants'
+import { ROLE_META, NAV_ITEMS } from './modules/lib/constants'
 import { currentYearFromSettings, generateYears } from './modules/lib/helpers'
 
 import Sidebar, { YearSwitcher } from './modules/layout/Sidebar'
@@ -177,6 +177,7 @@ export default function App() {
   const [newYearTarget,setNewYearTarget] = useState('')
   const [newYearWorking,setNewYearWorking] = useState(false)
   const isMobile = useIsMobile()
+  const initialLoadDone = useRef(false)
 
   useEffect(() => {
     document.body.classList.toggle('light', !isDark)
@@ -203,7 +204,14 @@ export default function App() {
   }, [])
 
   useEffect(() => { setDrawerOpen(false) }, [page])
-  useEffect(() => { const t = setTimeout(initScrollReveal, 80); return () => clearTimeout(t) }, [page])
+  const scrollObserverRef = useRef(null)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (scrollObserverRef.current) scrollObserverRef.current.disconnect()
+      scrollObserverRef.current = initScrollReveal()
+    }, 80)
+    return () => clearTimeout(t)
+  }, [page])
 
   const loadData = useCallback(async (yr, prof, settingsRow) => {
     const year = yr || currentYearFromSettings(settingsRow)
@@ -270,6 +278,7 @@ export default function App() {
       setSettings(settingsRow)
 
       await loadData(selectedYear, resolvedProf, settingsRow)
+      initialLoadDone.current = true
       setLoading(false)
     }
     loadAll()
@@ -277,10 +286,14 @@ export default function App() {
 
   useEffect(() => {
     if (!session || !settings || !profile) return
+    if (!initialLoadDone.current) return
     loadData(selectedYear, profile, settings)
   }, [selectedYear, loadData, profile, settings])
 
-  const logout = async () => { await supabase.auth.signOut(); setPage('dashboard') }
+  const logout = async () => {
+    await supabase.auth.signOut()
+    setProfile(null); setSession(null); setPage('dashboard'); setShowLanding(true)
+  }
 
   const confirmNewYear = async () => {
     if (!newYearTarget) return
@@ -301,14 +314,33 @@ export default function App() {
 
       const outstanding = data.fees.filter(f => Number(f.amount || 0) - Number(f.paid || 0) > 0)
       if (outstanding.length > 0) {
-        const arrearRows = outstanding.map(f => ({
-          school_id: profile.school_id,
-          student_id: f.student_id,
-          fee_type: f.fee_type + ' (Arrears from ' + activeYear + ')',
-          amount: Number(f.amount || 0) - Number(f.paid || 0),
-          paid: 0, academic_year: newYearTarget, is_arrear: true, arrear_from_year: activeYear,
+        // Guard against double-insertion if wizard is retried after partial failure
+        const { data: existingArrears } = await supabase
+          .from('fees').select('id')
+          .eq('school_id', profile.school_id)
+          .eq('academic_year', newYearTarget)
+          .eq('is_arrear', true)
+          .eq('arrear_from_year', activeYear)
+          .limit(1)
+        if (!existingArrears?.length) {
+          const arrearRows = outstanding.map(f => ({
+            school_id: profile.school_id,
+            student_id: f.student_id,
+            fee_type: f.fee_type + ' (Arrears from ' + activeYear + ')',
+            amount: Number(f.amount || 0) - Number(f.paid || 0),
+            paid: 0, academic_year: newYearTarget, is_arrear: true, arrear_from_year: activeYear,
+          }))
+          await supabase.from('fees').insert(arrearRows)
+        }
+      }
+
+      // Create enrolment rows for the new year from current student class assignments
+      if (activeStudents.length > 0) {
+        const newYearEnrolments = activeStudents.map(s => ({
+          school_id: profile.school_id, student_id: s.id,
+          class_id: s.class_id, academic_year: newYearTarget,
         }))
-        await supabase.from('fees').insert(arrearRows)
+        await supabase.from('student_year_enrolment').insert(newYearEnrolments)
       }
 
       await supabase.from('students').update({ entry_year: activeYear }).is('entry_year', null).eq('school_id', profile.school_id)
@@ -361,7 +393,7 @@ export default function App() {
     return <><style>{G}</style><ParentPortal profile={profile} onSignOut={async()=>{await supabase.auth.signOut();setProfile(null);setSession(null);setShowLanding(true)}}/></>
   }
   if (!profile.school_id) {
-    return <><style>{G}</style><style>{`@keyframes srms-load{to{width:100%}}`}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null) }}/></>
+    return <><style>{G}</style><style>{`@keyframes srms-load{to{width:100%}}`}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null); setSession(null); setShowLanding(true) }}/></>
   }
 
   const currentYear   = currentYearFromSettings(settings)
@@ -370,7 +402,10 @@ export default function App() {
   const props = { profile, data, setData, toast: showToast, settings, activeYear, isViewingPast, reloadData: () => loadData(activeYear, profile, settings) }
 
   const renderPage = () => {
-    switch (page) {
+    const allowedPages = NAV_ITEMS[profile?.role] || []
+    const personalPages = ['myprofile']
+    const safePage = allowedPages.includes(page) || personalPages.includes(page) ? page : 'dashboard'
+    switch (safePage) {
       case 'dashboard':     return <Dashboard    {...props} onNav={setPage} onNavFees={filter => { setFeeFilter(filter); setPage('fees') }}/>
       case 'students':      return <Students     {...props}/>
       case 'classes':       return <Classes      {...props} onPromotionComplete={() => { setNewYearStep(2); setNewYearModal(true) }}/>
@@ -409,7 +444,7 @@ export default function App() {
 
           {/* ── Topbar ── */}
           {isMobile ? (
-            <div style={{ flexShrink: 0, background: 'var(--ink2)', borderBottom: '1px solid var(--line)' }}>
+            <div className='srms-topbar' style={{ flexShrink: 0, background: 'var(--ink2)', borderBottom: '1px solid var(--line)' }}>
               <div style={{ height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', gap: 12 }}>
                 <button onClick={() => setDrawerOpen(true)} style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--ink4)', border: '1px solid var(--line2)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, transition: 'background var(--t-fast)' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--ink5)'}
@@ -435,7 +470,7 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div style={{ height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px', borderBottom: '1px solid var(--line)', background: 'var(--ink2)', flexShrink: 0, gap: 16 }}>
+            <div className='srms-topbar' style={{ height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px', borderBottom: '1px solid var(--line)', background: 'var(--ink2)', flexShrink: 0, gap: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--mist3)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{settings?.school_name || 'SRMS'}</span>
                 <span style={{ color: 'var(--line2)', fontSize: 10 }}>·</span>

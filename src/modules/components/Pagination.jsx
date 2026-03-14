@@ -1,10 +1,10 @@
 // Usage: <Pagination page={page} totalPages={totalPages} total={total} pageSize={50} onPage={setPage}/>
 export default function Pagination({ page, totalPages, total, pageSize, onPage }) {
   if (totalPages <= 1) return null
-  const from = (page - 1) * pageSize + 1
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1
   const to   = Math.min(page * pageSize, total)
 
-  // Show at most 5 page buttons with ellipsis
+  // Show at most 7 page buttons with ellipsis
   const pages = []
   if (totalPages <= 7) {
     for (let i = 1; i <= totalPages; i++) pages.push(i)
@@ -19,10 +19,10 @@ export default function Pagination({ page, totalPages, total, pageSize, onPage }
   const btnStyle = (active) => ({
     minWidth: 32, height: 32, borderRadius: 8,
     border: `1px solid ${active ? 'var(--gold)' : 'var(--line)'}`,
-    background: active ? 'var(--gold-subtle)' : 'transparent',
+    background: active ? 'rgba(232,184,75,0.1)' : 'transparent',
     color: active ? 'var(--gold)' : 'var(--mist2)',
     fontSize: 12, fontWeight: active ? 700 : 500,
-    cursor: 'pointer', transition: 'all var(--t-fast)',
+    cursor: 'pointer', transition: 'all 0.15s',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontFamily: "'Cabinet Grotesk',sans-serif",
   })

@@ -64,15 +64,15 @@ export const NAV_ITEMS = {
 
 export const NAV_META = {
   dashboard:    {icon:'▦',   label:'Dashboard'},
-  students:     {icon:'◈',   label:'Students'},
+  students:     {icon:'◉',   label:'Students'},
   classes:      {icon:'[=]', label:'Classes'},
   grades:       {icon:'◎',   label:'Grades'},
-  attendance:   {icon:'◉',   label:'Attendance'},
-  fees:         {icon:'◈',   label:'Fees'},
+  attendance:   {icon:'◈',   label:'Attendance'},
+  fees:         {icon:'◇',   label:'Fees'},
   behaviour:    {icon:'◐',   label:'Behaviour'},
   reports:      {icon:'⊞',   label:'Reports'},
   announcements:{icon:'◯',   label:'Announcements'},
-  users:        {icon:'◈',   label:'Users'},
+  users:        {icon:'⊕',   label:'Users'},
   settings:     {icon:'◧',   label:'Settings'},
   auditlog:     {icon:'◫',   label:'Audit Log'},
 }

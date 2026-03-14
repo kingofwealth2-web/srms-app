@@ -203,7 +203,7 @@ export default function Users({profile,toast}) {
         </div>
       )}
       {modal && (
-        <Modal title={edit?'Edit User':'Add New User'} subtitle={edit?`Editing ${edit.full_name}`:'Create a login account for a staff member.'} onClose={()=>setModal(false)}>
+        <Modal title={edit?'Edit User':'Add New User'} subtitle={edit?`Editing ${edit.full_name}`:'Create a login account for a staff member.'} onClose={()=>{ setModal(false); setCreatedUser(null) }}>
           <Field label='Full Name' value={form.full_name} onChange={f('full_name')} required/>
           <Field label='Email Address' value={form.email} onChange={f('email')} type='email' required/>
           {edit?.id===profile?.id

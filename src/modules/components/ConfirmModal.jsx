@@ -1,7 +1,8 @@
 import Btn from './Btn'
 
-export default function ConfirmModal({ title, body, icon, danger = false, confirmLabel, onConfirm, onClose }) {
-  const handleConfirm = async () => { await onConfirm(); onClose() }
+export default function ConfirmModal({ title, body, icon, danger = false, confirmLabel, onConfirm, onClose, onCancel }) {
+  const handleClose = onClose || onCancel || (() => {})
+  const handleConfirm = async () => { await onConfirm(); handleClose() }
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 1100,
@@ -33,7 +34,7 @@ export default function ConfirmModal({ title, body, icon, danger = false, confir
           </div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <Btn variant='ghost' onClick={onClose}>Cancel</Btn>
+          <Btn variant='ghost' onClick={handleClose}>Cancel</Btn>
           <Btn onClick={handleConfirm}
             style={danger ? { background: 'var(--rose)', color: '#fff', border: 'none', boxShadow: '0 4px 12px rgba(240,107,122,0.3)' } : {}}>
             {confirmLabel || (danger ? 'Delete' : 'Confirm')}

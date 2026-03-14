@@ -1,6 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-
-export function useIsMobile() {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768)
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth <= 768)
@@ -53,20 +51,4 @@ export function usePagination(items, pageSize = 50) {
   const clampedPage = Math.min(page, totalPages)
   const paged = items.slice((clampedPage - 1) * pageSize, clampedPage * pageSize)
   return { paged, page: clampedPage, setPage, totalPages }
-}
-
-// ── Page transition key ─────────────────────────────────────────
-// Usage: wrap page content in <div key={transitionKey} className="page">
-export function usePageTransition(activePage) {
-  const [key, setKey] = useState(activePage)
-  const prevRef = useRef(activePage)
-
-  useEffect(() => {
-    if (activePage !== prevRef.current) {
-      prevRef.current = activePage
-      setKey(activePage + '_' + Date.now())
-    }
-  }, [activePage])
-
-  return key
 }

@@ -42,12 +42,14 @@ export default function ParentPortal({ profile, onSignOut }) {
         { data: classRows },
         { data: subjectRows },
         { data: annRows },
+        { data: releaseRows },
       ] = await Promise.all([
         supabase.from('parent_students').select('student_id').eq('parent_id', profile.id),
         supabase.from('settings').select('*').eq('school_id', schoolId).single(),
         supabase.from('classes').select('*').eq('school_id', schoolId),
         supabase.from('subjects').select('*').eq('school_id', schoolId),
         supabase.from('announcements').select('*').eq('school_id', schoolId).order('created_at', { ascending: false }).limit(30),
+        supabase.from('grade_releases').select('*').eq('school_id', schoolId),
       ])
 
       const studentIds = (links || []).map(l => l.student_id)
@@ -61,6 +63,7 @@ export default function ParentPortal({ profile, onSignOut }) {
       setClasses(classRows || [])
       setSubjects(subjectRows || [])
       setAnnouncements(annRows || [])
+      setReleases(releaseRows || [])
       setChildren(studentRows)
       if (studentRows.length > 0) setSelectedId(studentRows[0].id)
       setLoading(false)
@@ -78,19 +81,16 @@ export default function ParentPortal({ profile, onSignOut }) {
         { data: attRows },
         { data: feeRows },
         { data: payRows },
-        { data: releaseRows },
       ] = await Promise.all([
         supabase.from('grades').select('*').eq('student_id', selectedId),
         supabase.from('attendance').select('*').eq('student_id', selectedId).order('date', { ascending: false }),
         supabase.from('fees').select('*').eq('student_id', selectedId),
         supabase.from('payments').select('*').eq('student_id', selectedId).order('created_at', { ascending: false }),
-        supabase.from('grade_releases').select('*').eq('school_id', profile?.school_id),
       ])
       setGrades(gradeRows || [])
       setAttendance(attRows || [])
       setFees(feeRows || [])
       setPayments(payRows || [])
-      setReleases(releaseRows || [])
       setDataLoading(false)
     }
     load()
@@ -151,7 +151,7 @@ export default function ParentPortal({ profile, onSignOut }) {
     <div style={{ minHeight: '100vh', background: 'var(--ink)' }}>
 
       {/* ── Top bar ─────────────────────────────────────── */}
-      <div style={{ background: 'var(--ink1)', borderBottom: '1px solid var(--line)', padding: '0 24px', position: 'sticky', top: 0, zIndex: 50 }}>
+      <div style={{ background: 'var(--ink2)', borderBottom: '1px solid var(--line)', padding: '0 24px', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 30, height: 30, background: 'var(--gold)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Clash Display',sans-serif", fontWeight: 800, fontSize: 13, color: 'var(--ink)' }}>S</div>
@@ -440,7 +440,7 @@ export default function ParentPortal({ profile, onSignOut }) {
                           return (
                             <div key={i} style={{ padding: '14px', background: 'var(--ink3)', borderRadius: 10, border: `1px solid ${isPaid ? 'rgba(45,212,160,0.15)' : 'var(--line)'}` }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                                <div style={{ fontWeight: 600, fontSize: 14 }}>{fee.label || fee.description || 'Fee'}</div>
+                                <div style={{ fontWeight: 600, fontSize: 14 }}>{fee.fee_type || 'Fee'}</div>
                                 <Badge color={isPaid ? 'var(--emerald)' : 'var(--rose)'} bg={isPaid ? 'rgba(45,212,160,0.1)' : 'rgba(240,107,122,0.1)'}>
                                   {isPaid ? 'Paid' : 'Outstanding'}
                                 </Badge>

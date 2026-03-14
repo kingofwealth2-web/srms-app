@@ -21,7 +21,6 @@ export default function Login({ onLogin }) {
   const [signupLoading,setSignupLoading] = useState(false)
   const [signupError,setSignupError]   = useState('')
   const schoolName = 'SRMS'
-  const [schoolLogo,setSchoolLogo] = useState(null)
   const now = new Date()
   const acadYear = `${now.getFullYear()}/${now.getFullYear() + 1}`
   const isMobile = useIsMobile()
@@ -57,7 +56,7 @@ export default function Login({ onLogin }) {
   const signUp = async () => {
     if (!signupName.trim()) { setSignupError('Please enter your full name.'); return }
     if (!signupEmail)       { setSignupError('Please enter your email address.'); return }
-    if (signupPass.length < 6) { setSignupError('Password must be at least 6 characters.'); return }
+    if (signupPass.length < 8) { setSignupError('Password must be at least 8 characters.'); return }
     setSignupLoading(true); setSignupError('')
     const { data, error: err } = await supabase.auth.signUp({
       email: signupEmail.trim(),
@@ -194,7 +193,7 @@ export default function Login({ onLogin }) {
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--mist2)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, fontFamily: "'Clash Display',sans-serif" }}>Password <span style={{ color: 'var(--rose)' }}>*</span></div>
                 <input
                   value={signupPass} onChange={e => setSignupPass(e.target.value)}
-                  type='password' placeholder='Min. 6 characters'
+                  type='password' placeholder='Min. 8 characters'
                   onKeyDown={e => e.key === 'Enter' && signUp()}
                   style={{ width: '100%', background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--white)', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
                   onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.style.boxShadow = '0 0 0 3px rgba(232,184,75,0.08)' }}
@@ -273,16 +272,9 @@ export default function Login({ onLogin }) {
         <div style={{ flex: 1, background: 'var(--ink2)', borderLeft: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 80px', position: 'relative', overflow: 'hidden', minHeight: '100vh' }}>
           <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)', backgroundSize: '60px 60px', opacity: 0.35 }}/>
           <div className='fu fu2' style={{ position: 'relative', textAlign: 'center', maxWidth: 400, width: '100%' }}>
-            {schoolLogo && (
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-                <div style={{ width: 80, height: 80, borderRadius: '50%', border: '2px solid rgba(232,184,75,0.4)', boxShadow: '0 0 32px rgba(232,184,75,0.2)', overflow: 'hidden', background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <img src={schoolLogo} alt='School logo' style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
-                </div>
-              </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: schoolLogo ? 20 : 32 }}>
-              <div style={{ width: schoolLogo ? 72 : 96, height: schoolLogo ? 72 : 96, borderRadius: '50%', background: 'rgba(232,184,75,0.06)', border: '1.5px solid rgba(232,184,75,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 5px rgba(232,184,75,0.05), 0 0 24px rgba(232,184,75,0.35)', transition: 'all 0.3s' }}>
-                <svg width={schoolLogo ? 38 : 52} height={schoolLogo ? 38 : 52} viewBox="0 0 64 64" fill="none">
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
+              <div style={{ width: 96, height: 96, borderRadius: '50%', background: 'rgba(232,184,75,0.06)', border: '1.5px solid rgba(232,184,75,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 5px rgba(232,184,75,0.05), 0 0 24px rgba(232,184,75,0.35)', transition: 'all 0.3s' }}>
+                <svg width={52} height={52} viewBox="0 0 64 64" fill="none">
                   <path d="M32 10L4 24L32 38L60 24L32 10Z" fill="rgba(232,184,75,0.9)" stroke="rgba(232,184,75,1)" strokeWidth="1.5" strokeLinejoin="round"/>
                   <path d="M16 31V46C16 46 22 52 32 52C42 52 48 46 48 46V31" stroke="rgba(232,184,75,0.8)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
                   <path d="M60 24V38" stroke="rgba(232,184,75,0.6)" strokeWidth="2.5" strokeLinecap="round"/>

@@ -46,7 +46,8 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
         (!period || g.period===period)
       )
       if(!sg.length) return null
-      const totals = sg.map(g=>calcTotal(g,gradeComps))
+      const totals = sg.map(g=>calcTotal(g,gradeComps)).filter(t=>t!==null)
+      if(!totals.length) return null
       return totals.reduce((a,b)=>a+b,0)/totals.length
     }).filter(v=>v!==null)
     if(!perStudent.length) return {avg:0, passRate:0}
@@ -192,7 +193,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
                 <div style={{display:'flex',flexDirection:'column',gap:6}}>
                   {top.map(({student,total},i)=>(
                     <div key={student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',borderLeft:`3px solid ${['var(--gold)','var(--mist2)','var(--amber)'][i]}`}}>
-                      <div style={{width:20,height:20,borderRadius:'50%',background:['rgba(232,184,75,0.15)','var(--ink5)','rgba(251,159,58,0.12)'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:['var(--gold)','var(--mist2)','var(--amber)'][i],flexShrink:0}}>{i+1}</div>
+                      <div style={{width:20,height:20,borderRadius:'50%',background:['rgba(232,184,75,0.15)','rgba(255,255,255,0.06)','rgba(251,159,58,0.12)'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:['var(--gold)','var(--mist2)','var(--amber)'][i],flexShrink:0}}>{i+1}</div>
                       <Avatar name={fullName(student)} size={26} photo={student.photo}/>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontSize:13,fontWeight:600,color:'var(--white)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{fullName(student,true)}</div>
@@ -220,7 +221,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
                 <div style={{display:'flex',flexDirection:'column',gap:6}}>
                   {top.map(({student,total},i)=>(
                     <div key={student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',borderLeft:`3px solid ${['var(--gold)','var(--mist2)','var(--amber)'][i]}`}}>
-                      <div style={{width:20,height:20,borderRadius:'50%',background:['rgba(232,184,75,0.15)','var(--ink5)','rgba(251,159,58,0.12)'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:['var(--gold)','var(--mist2)','var(--amber)'][i],flexShrink:0}}>{i+1}</div>
+                      <div style={{width:20,height:20,borderRadius:'50%',background:['rgba(232,184,75,0.15)','rgba(255,255,255,0.06)','rgba(251,159,58,0.12)'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:['var(--gold)','var(--mist2)','var(--amber)'][i],flexShrink:0}}>{i+1}</div>
                       <Avatar name={fullName(student)} size={26} photo={student.photo}/>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontSize:13,fontWeight:600,color:'var(--white)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{fullName(student,true)}</div>

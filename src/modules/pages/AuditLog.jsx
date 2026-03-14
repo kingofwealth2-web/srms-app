@@ -48,7 +48,7 @@ export default function AuditLog({profile}) {
 
   useEffect(()=>{
     if(!profile?.school_id) return
-    const cutoff = new Date(Date.now() - 50*24*60*60*1000).toISOString()
+    const cutoff = new Date(Date.now() - 365*24*60*60*1000).toISOString()
     Promise.all([
       supabase.from('audit_logs').select('*').eq('school_id', profile.school_id).gte('created_at',cutoff).order('created_at',{ascending:false}).limit(500),
       supabase.from('profiles').select('id,full_name,email,role').eq('school_id', profile.school_id)

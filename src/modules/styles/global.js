@@ -145,12 +145,12 @@ body.light input[type=date]::-webkit-calendar-picker-indicator {
 body.light .grain::after { opacity: 0.008; }
 
 /* Sidebar in light gets a warm border */
-body.light [style*="border-right: 1px solid var(--line)"] {
+body.light .srms-sidebar {
   border-right-color: rgba(0,0,0,0.1) !important;
 }
 
 /* Top bar border */
-body.light [style*="border-bottom: 1px solid var(--line)"] {
+body.light .srms-topbar {
   border-bottom-color: rgba(0,0,0,0.1) !important;
 }
 

@@ -45,7 +45,7 @@ export default function Field({ label, value, onChange, type = 'text', placehold
             onBlur={() => setFocused(false)}
             style={selectStyle}
           >
-            <option value=''>— Select —</option>
+            <option value='' disabled={required && !!value}>— Select —</option>
             {options.map(o => (
               <option key={o.value ?? o} value={o.value ?? o}>{o.label ?? o}</option>
             ))}

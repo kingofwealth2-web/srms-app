@@ -23,7 +23,7 @@ export const getGradeComponents = settings => settings?.grade_components || DEFA
 export const calcTotal = (g, gradeComponents) => {
   const comps = gradeComponents || DEFAULT_GRADE_COMPONENTS
   const active = comps.filter(c => c.enabled)
-  if (!active.length) return 0
+  if (!active.length) return null
   return Math.round(active.reduce((sum, c) => {
     const raw    = +g[c.key] || 0
     const maxRaw = c.max_score || 1

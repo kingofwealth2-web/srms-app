@@ -48,12 +48,16 @@ export default function Announcements({profile,data,setData,toast,activeYear,isV
     const {error}=await supabase.from('announcements').update({active:!ann.active}).eq('id',id).eq('school_id',profile?.school_id)
     if(error){toast(error.message,'error');return}
     setData(p=>({...p,announcements:p.announcements.map(a=>a.id===id?{...a,active:!a.active}:a)}))
+    auditLog(profile,'Announcements',ann.active?'Deactivated':'Activated',`"${ann.title}"`,{},{...ann},{...ann,active:!ann.active})
+    toast(ann.active ? 'Announcement deactivated.' : 'Announcement activated.')
   }
   const del = async id=>{
     setConfirmState({title:'Delete announcement?',body:'This will permanently remove the announcement for all users.',icon:'🗑',danger:true,onConfirm:async()=>{
+      const ann=announcements.find(a=>a.id===id)
       const {error}=await supabase.from('announcements').delete().eq('id',id).eq('school_id',profile?.school_id)
       if(error){toast(error.message,'error');return}
       setData(p=>({...p,announcements:p.announcements.filter(a=>a.id!==id)}))
+      auditLog(profile,'Announcements','Deleted',`"${ann?.title}"`,{},ann,null)
       toast('Announcement deleted')
     }})
   }
