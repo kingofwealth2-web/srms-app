@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+
+export function useIsMobile() {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768)
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth <= 768)
