@@ -187,7 +187,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     toast(''+parts.join(', ')+'.')
   }
   const saveClass = async ()=>{
-    if(!cf.name)return; setSaving(true)
+    if(!cf.name){toast('Class name is required.','error');return} setSaving(true)
     const cleanName = cf.name.replace(/\b\w/g, c=>c.toUpperCase())
     const newTeacherId = cf.class_teacher_id||null
     const payload = {name:cleanName, class_teacher_id:newTeacherId, is_terminal:!!cf.is_terminal}
@@ -224,7 +224,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     setSaving(false)
   }
   const saveSubject = async ()=>{
-    if(!sf.name||!sf.class_id)return; setSaving(true)
+    if(!sf.name||!sf.class_id){toast('Subject name and class are required.','error');return} setSaving(true)
     if(editS){
       const {error}=await supabase.from('subjects').update({...sf,teacher_id:sf.teacher_id||null}).eq('id',editS.id).eq('school_id',profile?.school_id)
       if(error)toast(error.message,'error')

@@ -39,7 +39,7 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
   const counts   = types.reduce((acc,t)=>({...acc,[t]:behaviour.filter(b=>b.type===t).length}),{})
   const openAdd  = ()=>{setEditRow(null);setForm({student_id:'',type:'Achievement',title:'',description:'',date:new Date().toISOString().split('T')[0]});setModal(true)}
   const save = async ()=>{
-    if(!form.student_id||!form.title)return
+    if(!form.student_id||!form.title){toast('Please select a student and enter a title.','error');return}
     setSaving(true)
     if(editRow){
       const {error}=await supabase.from('behaviour').update({type:form.type,title:form.title,description:form.description,date:form.date}).eq('id',editRow.id).eq('school_id',profile?.school_id)

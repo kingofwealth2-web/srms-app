@@ -388,7 +388,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const openPay = fee=>{setEditFee(fee);setPayForm({amount:fee.balance>0?fee.balance:''});setPayModal(true)}
 
   const saveFee = async ()=>{
-    if(!form.student_id||!form.amount)return
+    if(!form.student_id||!form.amount){toast('Please select a student and enter an amount.','error');return}
     setSaving(true)
     const {data:row,error}=await supabase.from('fees').insert({school_id:profile?.school_id,student_id:form.student_id,fee_type:form.fee_type,amount:parseFloat(form.amount),paid:0,due_date:form.due_date||null,period:form.period||null,academic_year:activeYear}).select().single()
     if(error)toast(error.message,'error')
