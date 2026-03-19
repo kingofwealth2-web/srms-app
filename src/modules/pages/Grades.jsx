@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { supabase } from '../../supabase'
-import { useIsMobile, usePagination } from '../lib/hooks'
+import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, LETTER_COLOR } from '../lib/constants'
 import { calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, fmtDate, csvEscape, ALL_COMPONENTS, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
@@ -14,12 +14,10 @@ import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 import DataTable from '../components/DataTable'
-import { SkeletonRows } from '../components/Skeleton'
-import Pagination from '../components/Pagination'
 import ConfirmModal from '../components/ConfirmModal'
 
 // ── GRADES ─────────────────────────────────────────────────────
-export default function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast,dataLoading}) {
+export default function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
   const {grades=[],students=[],subjects=[],classes=[]} = data
   const scale = settings?.grading_scale || []
   const allComps = getGradeComponents(settings)
@@ -67,8 +65,8 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
   const f = k => v => setForm(p=>({...p,[k]:v}))
 
   const periods = settings?.period_type==='term'
-    ? Array.from({length:settings.period_count||2},(_,i)=>`Term ${i+1}`)
-    : Array.from({length:settings.period_count||2},(_,i)=>`Semester ${i+1}`)
+    ? Array.from({length:settings?.period_count||2},(_,i)=>`Term ${i+1}`)
+    : Array.from({length:settings?.period_count||2},(_,i)=>`Semester ${i+1}`)
 
   // Subjects scoped to selected class in filter
   const fcSubjects = fc
@@ -100,7 +98,6 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
     }
     return (!fs||g.subject_id===fs)&&(!fp||g.period===fp)
   })
-  const { paged, page, setPage, totalPages } = usePagination(filtered, 50)
 
   // Score limit warnings
   const scoreWarnings = allComps.filter(c=>c.enabled && +form[c.key] > c.max_score && c.max_score>0)
@@ -533,12 +530,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
       ) : (
         /* ── NORMAL LIST VIEW ── */
         <Card>
-          {dataLoading ? (
-            <table style={{width:'100%',borderCollapse:'collapse'}}>
-              <tbody><SkeletonRows count={8} cols={6}/></tbody>
-            </table>
-          ) : (<>
-            <DataTable onRow={isViewingPast?null:(g=>mySubjects.some(s=>s.id===g.subject_id)?openEdit(g):null)} data={paged} columns={[
+          <DataTable onRow={isViewingPast?null:(g=>mySubjects.some(s=>s.id===g.subject_id)?openEdit(g):null)} data={filtered} columns={[
             {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?(<div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={fullName(s)} size={28}/><span style={{fontWeight:600}}>{fullName(s,true)}</span></div>):'--'}},
             {key:'subject_id',label:'Subject',render:v=>subjects.find(s=>s.id===v)?.name||'--'},
             {key:'period',label:'Period'},
@@ -555,8 +547,6 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
               </div>
             )}},
           ]}/>
-          <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={50} onPage={setPage}/>
-          </>)}
         </Card>
       )}
       {modal && (
@@ -604,7 +594,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
               return subjectPool.map(s=>({value:s.id,label:s.name}))
             })()}/>
             <Field label='Period'        value={form.period} onChange={f('period')} options={periods}/>
-            <div style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Academic Year</div><div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>{form.year??settings?.academic_year??'--'}</div></div>
+            <div style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Academic Year</div><div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>{form.year||settings?.academic_year||'--'}</div></div>
           </div>
           <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:18,marginBottom:16}}>
             <SectionTitle>Score Entry</SectionTitle>

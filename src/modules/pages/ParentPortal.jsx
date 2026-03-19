@@ -36,15 +36,13 @@ export default function ParentPortal({ profile, onSignOut }) {
       const schoolId = profile?.school_id
       if (!schoolId) { setLoading(false); return }
 
-      const [
-        { data: links },
+      const [\n        { data: links },
         { data: settingsRow },
         { data: classRows },
         { data: subjectRows },
         { data: annRows },
         { data: releaseRows },
-      ] = await Promise.all([
-        supabase.from('parent_students').select('student_id').eq('parent_id', profile.id),
+      ] = await Promise.all([\n        supabase.from('parent_students').select('student_id').eq('parent_id', profile.id),
         supabase.from('settings').select('*').eq('school_id', schoolId).single(),
         supabase.from('classes').select('*').eq('school_id', schoolId),
         supabase.from('subjects').select('*').eq('school_id', schoolId),
@@ -99,8 +97,8 @@ export default function ParentPortal({ profile, onSignOut }) {
   const student    = children.find(c => c.id === selectedId)
   const currency   = getCurrency(settings)
   const periods    = settings?.period_type === 'term'
-    ? Array.from({ length: settings.period_count || 2 }, (_, i) => `Term ${i + 1}`)
-    : Array.from({ length: settings.period_count || 2 }, (_, i) => `Semester ${i + 1}`)
+    ? Array.from({ length: settings?.period_count || 2 }, (_, i) => `Term ${i + 1}`)
+    : Array.from({ length: settings?.period_count || 2 }, (_, i) => `Semester ${i + 1}`)
   const gradeComps = getGradeComponents(settings)
   const activeComps = gradeComps.filter(c => c.enabled)
 
