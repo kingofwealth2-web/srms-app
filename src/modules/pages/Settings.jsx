@@ -366,6 +366,15 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
           />
         </div>
       )}
+      {confirmState && (
+        <ConfirmModal
+          title={confirmState.title} body={confirmState.body}
+          icon={confirmState.icon} danger={confirmState.danger}
+          confirmLabel={confirmState.confirmLabel}
+          onConfirm={()=>{ confirmState.onConfirm(); setConfirmState(null) }}
+          onCancel={()=>setConfirmState(null)}
+        />
+      )}
     </div>
   )
 }
@@ -585,15 +594,6 @@ function AcademicCalendar({form, setForm, activeYear}) {
             </Btn>
           </div>
         </Modal>
-      )}
-      {confirmState && (
-        <ConfirmModal
-          title={confirmState.title} body={confirmState.body}
-          icon={confirmState.icon} danger={confirmState.danger}
-          confirmLabel={confirmState.confirmLabel}
-          onConfirm={()=>{ confirmState.onConfirm(); setConfirmState(null) }}
-          onCancel={()=>setConfirmState(null)}
-        />
       )}
     </Card>
   )

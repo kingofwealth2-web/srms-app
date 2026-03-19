@@ -106,18 +106,18 @@ export default function Users({profile,toast}) {
       if(authErr){ toast(authErr.message,'error'); setSaving(false); return }
       const uid = authData?.user?.id
       if(!uid){ toast('User account created but could not get ID.','error'); setSaving(false); return }
-      // For parent role, insert profile directly (RPC may not accept 'parent' role)
+      // For parent role, update the auto-created profile row (handle_new_user trigger
+      // already inserted a row — inserting again causes duplicate key error)
       let profErr = null
       if(form.role === 'parent') {
-        const {error:pe} = await supabase.from('profiles').insert({
-          id: uid,
+        const {error:pe} = await supabase.from('profiles').update({
           full_name: form.full_name,
           email: form.email,
           role: 'parent',
           school_id: profile?.school_id,
           locked: false,
           must_change_password: true,
-        })
+        }).eq('id', uid)
         profErr = pe
       } else {
         const {error:pe} = await supabase.rpc('create_school_user', {
