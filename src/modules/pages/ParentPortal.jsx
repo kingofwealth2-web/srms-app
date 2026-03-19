@@ -36,13 +36,15 @@ export default function ParentPortal({ profile, onSignOut }) {
       const schoolId = profile?.school_id
       if (!schoolId) { setLoading(false); return }
 
-      const [\n        { data: links },
+      const [
+        { data: links },
         { data: settingsRow },
         { data: classRows },
         { data: subjectRows },
         { data: annRows },
         { data: releaseRows },
-      ] = await Promise.all([\n        supabase.from('parent_students').select('student_id').eq('parent_id', profile.id),
+      ] = await Promise.all([
+        supabase.from('parent_students').select('student_id').eq('parent_id', profile.id),
         supabase.from('settings').select('*').eq('school_id', schoolId).single(),
         supabase.from('classes').select('*').eq('school_id', schoolId),
         supabase.from('subjects').select('*').eq('school_id', schoolId),
