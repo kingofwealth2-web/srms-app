@@ -100,7 +100,7 @@ export default function Users({profile,toast}) {
       const {data:authData,error:authErr} = await tempClient.auth.signUp({
         email: form.email,
         password: pw,
-        options: { data: { full_name: form.full_name, role: form.role } }
+        options: { data: { full_name: form.full_name, role: form.role, school_id: profile?.school_id } }
       })
       await tempClient.auth.signOut()
       if(authErr){ toast(authErr.message,'error'); setSaving(false); return }
