@@ -47,6 +47,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
     if(existing){
       await supabase.from('grade_releases').delete().eq('id',existing.id)
       setReleases(p=>p.filter(r=>r.id!==existing.id))
+      auditLog(profile,'Settings','Grade Unreleased',`${year} · ${period}`,{year,period},null,null)
     } else {
       const {data:row} = await supabase.from('grade_releases').insert({
         school_id: profile?.school_id,
@@ -55,6 +56,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
         released_by: profile?.id,
       }).select().single()
       if(row) setReleases(p=>[...p,row])
+      auditLog(profile,'Settings','Grade Released',`${year} · ${period}`,{year,period},null,null)
     }
     setRelLoading(false)
   }

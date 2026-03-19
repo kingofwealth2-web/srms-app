@@ -121,7 +121,14 @@ export default function Users({profile,toast}) {
       setUsers(p=>[...p, newProf||{id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false}])
       // Insert parent-student links if parent role
       if(form.role==='parent' && parentLinks.length>0){
-        await supabase.from('parent_students').insert(parentLinks.map(sid=>({parent_id:uid,student_id:sid,school_id:profile?.school_id})))
+        const linkRows = parentLinks.map(sid=>({parent_id:uid,student_id:sid,school_id:profile?.school_id}))
+        let {error:linkErr} = await supabase.from('parent_students').insert(linkRows)
+        if(linkErr) {
+          // Profile may not be committed yet — wait 800ms and retry once
+          await new Promise(r=>setTimeout(r,800))
+          const {error:retryErr} = await supabase.from('parent_students').insert(linkRows)
+          if(retryErr) toast('Account created but failed to link children: '+retryErr.message,'error')
+        }
       }
       auditLog(profile,'Users','Created',`${form.full_name} · ${form.role}`,{},null,{id:uid,full_name:form.full_name,email:form.email,role:form.role})
       setCreatedUser({name:form.full_name,email:form.email,pw})
@@ -187,7 +194,7 @@ export default function Users({profile,toast}) {
             <div style={{marginBottom:8,fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',fontFamily:"'Clash Display',sans-serif"}}>Temporary Password</div>
             <div style={{background:'var(--ink)',border:'1px solid var(--gold)',borderRadius:10,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,gap:12}}>
               <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:20,fontWeight:700,letterSpacing:'0.08em',color:'var(--gold)'}}>{createdUser.pw}</span>
-              <button onClick={()=>{navigator.clipboard.writeText(createdUser.pw).then(()=>{})}}
+              <button onClick={()=>{navigator.clipboard.writeText(createdUser.pw).then(()=>toast('Password copied to clipboard.'))}}
                 style={{background:'rgba(232,184,75,0.12)',border:'1px solid rgba(232,184,75,0.3)',borderRadius:7,padding:'7px 14px',color:'var(--gold)',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:"'Cabinet Grotesk',sans-serif"}}>
                 Copy
               </button>

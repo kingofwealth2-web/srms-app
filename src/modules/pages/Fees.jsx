@@ -320,6 +320,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       setData(p=>({...p, fees:[...p.fees,...(inserted||[])]}))
       const {toSkip} = computeBulkPreview()
       const skippedNote = toSkip>0 ? ` (${toSkip} skipped — already existed)` : ''
+      auditLog(profile,'Fees','Bulk Created',`${rows.length} fee record${rows.length!==1?'s':''} · ${bulk.fee_type}${skippedNote}`,{fee_type:bulk.fee_type,count:rows.length},null,null)
       toast(`${rows.length} fee record${rows.length!==1?'s':''} added${skippedNote}`)
       setBulkModal(false)
       setBulkStep(1)

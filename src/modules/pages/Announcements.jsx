@@ -28,7 +28,7 @@ export default function Announcements({profile,data,setData,toast,activeYear,isV
   const openAdd  = ()=>{setEditRow(null);setForm({title:'',body:'',target_role:'all'});setModal(true)}
   const openEdit = a=>{setEditRow(a);setForm({title:a.title,body:a.body,target_role:a.target_role});setModal(true)}
   const save = async ()=>{
-    if(!form.title||!form.body)return
+    if(!form.title?.trim()||!form.body?.trim()){ toast('Please fill in Title and Body before posting.','error'); return }
     setSaving(true)
     if(editRow){
       const {error}=await supabase.from('announcements').update({title:form.title,body:form.body,target_role:form.target_role}).eq('id',editRow.id).eq('school_id',profile?.school_id)
@@ -39,7 +39,7 @@ export default function Announcements({profile,data,setData,toast,activeYear,isV
     } else {
       const {data:row,error}=await supabase.from('announcements').insert({...form,school_id:profile?.school_id,active:true,posted_by_id:profile?.id,posted_by_name:profile?.full_name,academic_year:activeYear}).select().single()
       if(error)toast(error.message,'error')
-      else{setData(p=>({...p,announcements:[row,...p.announcements]}));toast('Announcement posted');setModal(false)}
+      else{setData(p=>({...p,announcements:[row,...p.announcements]}));auditLog(profile,'Announcements','Created',`"${form.title}"`,{},null,row);toast('Announcement posted');setModal(false)}
     }
     setSaving(false)
   }

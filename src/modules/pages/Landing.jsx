@@ -1,581 +1,839 @@
 import { useEffect, useRef } from 'react'
 
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400&family=Space+Mono:wght@400;700&display=swap');
 
-.lp-root {
-  font-family: 'Instrument Sans', sans-serif;
-  background: #09090f;
-  color: #f0efea;
+.lp * { box-sizing: border-box; margin: 0; padding: 0; }
+.lp {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  background: #0c0c15;
+  color: #e8e8f0;
   overflow-x: hidden;
   line-height: 1.6;
-  min-height: 100vh;
-}
-.lp-root *, .lp-root *::before, .lp-root *::after { box-sizing: border-box; margin: 0; padding: 0; }
-.lp-root h1,.lp-root h2,.lp-root h3 { font-family: 'Syne', sans-serif; letter-spacing: -0.02em; }
-
-/* noise */
-body { background: #09090f !important; }
-
-.lp-noise {
-  position: fixed; inset: 0; pointer-events: none; z-index: 1000; opacity: 0.35;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
 }
 
-/* kente grid */
-.lp-kente {
-  position: absolute; inset: 0; pointer-events: none;
-  background-image:
-    repeating-linear-gradient(90deg, rgba(232,184,75,0.03) 0px, rgba(232,184,75,0.03) 1px, transparent 1px, transparent 80px),
-    repeating-linear-gradient(0deg, rgba(232,184,75,0.03) 0px, rgba(232,184,75,0.03) 1px, transparent 1px, transparent 80px),
-    repeating-linear-gradient(45deg, rgba(232,184,75,0.015) 0px, rgba(232,184,75,0.015) 1px, transparent 1px, transparent 40px);
-}
-
-/* nav */
+/* ── NAV ─────────────────────────────────────────────── */
 .lp-nav {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-  padding: 0 28px;
-  transition: background 0.4s, border-color 0.4s;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  transition: background 0.35s, border-color 0.35s;
 }
 .lp-nav.scrolled {
-  background: rgba(9,9,15,0.88);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+  background: rgba(12,12,21,0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .lp-nav-inner {
-  max-width: 1160px; margin: 0 auto; height: 68px;
+  max-width: 1200px; margin: 0 auto;
+  height: 64px; padding: 0 32px;
   display: flex; align-items: center; justify-content: space-between;
 }
-.lp-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.lp-logo { display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .lp-logo-mark {
-  width: 36px; height: 36px; background: #e8b84b; border-radius: 9px;
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  background: linear-gradient(135deg, #c49a2e 0%, #e8b84b 100%);
   display: flex; align-items: center; justify-content: center;
-  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 16px; color: #09090f;
-  box-shadow: 0 0 20px rgba(232,184,75,0.4); flex-shrink: 0;
+  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 15px; color: #0c0c15;
+  box-shadow: 0 4px 14px rgba(232,184,75,0.3);
 }
-.lp-logo-text { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: #f0efea; letter-spacing: -0.01em; }
-.lp-logo-sub { font-size: 10px; color: #8887a4; font-weight: 400; display: block; letter-spacing: 0.04em; }
+.lp-logo-text {
+  font-family: 'Syne', sans-serif; font-weight: 700; font-size: 17px;
+  color: #f0f0fa; letter-spacing: -0.01em;
+}
+.lp-nav-links {
+  display: flex; align-items: center; gap: 32px;
+}
+.lp-nav-link {
+  font-size: 13px; font-weight: 500; color: rgba(232,232,240,0.5);
+  cursor: pointer; transition: color 0.2s; text-decoration: none; background: none; border: none;
+}
+.lp-nav-link:hover { color: #e8e8f0; }
+.lp-nav-actions { display: flex; align-items: center; gap: 10px; }
 .lp-btn-ghost {
-  padding: 8px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);
-  background: transparent; color: #8887a4; font-family: 'Instrument Sans', sans-serif;
-  font-size: 13px; font-weight: 500; cursor: pointer; text-decoration: none; transition: all 0.2s;
+  padding: 8px 20px; background: transparent;
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+  color: rgba(232,232,240,0.65); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s; font-family: 'Plus Jakarta Sans', sans-serif;
 }
-.lp-btn-ghost:hover { color: #f0efea; background: #1c1c2e; }
+.lp-btn-ghost:hover { border-color: rgba(255,255,255,0.2); color: #e8e8f0; }
 .lp-btn-gold {
-  padding: 8px 20px; border-radius: 8px; border: none; background: #e8b84b;
-  color: #09090f; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
-  cursor: pointer; transition: all 0.2s; box-shadow: 0 0 20px rgba(232,184,75,0.3);
+  padding: 8px 22px; background: #e8b84b; border: none; border-radius: 8px;
+  color: #0c0c15; font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: all 0.2s; font-family: 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: 0.01em;
 }
-.lp-btn-gold:hover { background: #f5d07a; box-shadow: 0 0 30px rgba(232,184,75,0.5); transform: translateY(-1px); }
+.lp-btn-gold:hover {
+  background: #f5c84e;
+  box-shadow: 0 4px 20px rgba(232,184,75,0.35);
+  transform: translateY(-1px);
+}
 
-/* hero */
+/* ── HERO ────────────────────────────────────────────── */
 .lp-hero {
-  position: relative; min-height: 100vh;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  text-align: center; padding: 100px 28px 60px; overflow: hidden;
+  min-height: 100vh; position: relative; overflow: hidden;
+  display: flex; align-items: center;
+  padding: 120px 32px 80px;
 }
-.lp-hero-glow {
-  position: absolute; top: -200px; left: 50%; transform: translateX(-50%);
-  width: 800px; height: 800px;
-  background: radial-gradient(ellipse at center, rgba(232,184,75,0.12) 0%, transparent 65%);
-  pointer-events: none;
-  animation: lp-pulse 4s ease-in-out infinite;
+.lp-hero-bg {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 65% 55% at 75% 45%, rgba(232,184,75,0.05) 0%, transparent 65%),
+    radial-gradient(ellipse 45% 45% at 15% 75%, rgba(91,168,245,0.04) 0%, transparent 60%);
+}
+.lp-grid {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(232,184,75,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232,184,75,0.03) 1px, transparent 1px);
+  background-size: 72px 72px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 90% at 50% 50%, black 25%, transparent 80%);
+  mask-image: radial-gradient(ellipse 90% 90% at 50% 50%, black 25%, transparent 80%);
+}
+.lp-hero-inner {
+  position: relative; z-index: 1;
+  max-width: 1200px; margin: 0 auto; width: 100%;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center;
+}
+.lp-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(232,184,75,0.07); border: 1px solid rgba(232,184,75,0.18);
+  border-radius: 100px; padding: 6px 14px 6px 10px; margin-bottom: 28px;
+}
+.lp-pill-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: #e8b84b; flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(232,184,75,0.6);
+  animation: lp-pulse 2.2s ease-in-out infinite;
 }
 @keyframes lp-pulse {
-  0%,100% { opacity:0.6; transform: translateX(-50%) scale(1); }
-  50% { opacity:1; transform: translateX(-50%) scale(1.08); }
+  0%,100% { opacity:1; transform:scale(1); }
+  50% { opacity:0.5; transform:scale(0.8); }
 }
-.lp-badge {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 6px 14px; border: 1px solid rgba(232,184,75,0.3); border-radius: 99px;
-  background: rgba(232,184,75,0.07); font-size: 11px; font-weight: 600; color: #e8b84b;
-  letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 28px;
-  animation: lp-fadeup 0.6s ease both;
+.lp-pill-text {
+  font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 600;
+  color: #e8b84b; letter-spacing: 0.06em; text-transform: uppercase;
 }
-.lp-badge::before {
-  content:''; width:6px; height:6px; border-radius:50%; background:#e8b84b;
-  animation: lp-blink 2s ease infinite;
+.lp-h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: 64px;
+  font-weight: 800;
+  line-height: 1.0;
+  letter-spacing: -0.03em;
+  color: #f0f0fa;
+  margin-bottom: 24px;
 }
-@keyframes lp-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-.lp-title {
-  font-size: clamp(36px, 5.5vw, 68px); font-weight: 800; line-height: 1.0;
-  letter-spacing: -0.04em; margin-bottom: 24px;
-  animation: lp-fadeup 0.6s 0.1s ease both;
-}
-.lp-title .gold-line {
-  display: block;
-  background: linear-gradient(135deg, #e8b84b 0%, #f5d07a 40%, #c8940a 100%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-}
+.lp-h1 .lp-gold { color: #e8b84b; }
+.lp-h1 .lp-dim { color: rgba(240,240,250,0.3); font-weight: 300; }
 .lp-sub {
-  max-width: 500px; font-size: 17px; color: #8887a4; line-height: 1.7; margin-bottom: 40px;
-  animation: lp-fadeup 0.6s 0.2s ease both;
+  font-size: 16px; font-weight: 400;
+  color: rgba(232,232,240,0.5); line-height: 1.75;
+  max-width: 440px; margin-bottom: 36px;
 }
-.lp-sub strong { color: #f0efea; font-weight: 500; }
-.lp-actions {
-  display: flex; align-items: center; gap: 14px; margin-bottom: 64px;
-  animation: lp-fadeup 0.6s 0.3s ease both;
-}
+.lp-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .lp-btn-hero {
-  padding: 14px 32px; border-radius: 10px; border: none; background: #e8b84b;
-  color: #09090f; font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700;
-  cursor: pointer; transition: all 0.25s; display: flex; align-items: center; gap: 8px;
-  box-shadow: 0 0 40px rgba(232,184,75,0.35), 0 4px 16px rgba(0,0,0,0.4);
+  padding: 13px 30px; background: #e8b84b; border: none; border-radius: 10px;
+  color: #0c0c15; font-size: 14px; font-weight: 700; letter-spacing: 0.01em;
+  cursor: pointer; transition: all 0.22s; font-family: 'Plus Jakarta Sans', sans-serif;
+  display: flex; align-items: center; gap: 8px;
 }
-.lp-btn-hero:hover { background:#f5d07a; box-shadow:0 0 60px rgba(232,184,75,0.55); transform:translateY(-2px); }
-.lp-btn-hero-ghost {
-  padding: 14px 28px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12);
-  background: transparent; color: #8887a4; font-family: 'Instrument Sans', sans-serif;
-  font-size: 15px; font-weight: 500; cursor: pointer; transition: all 0.2s;
+.lp-btn-hero:hover {
+  background: #f5c84e;
+  box-shadow: 0 8px 28px rgba(232,184,75,0.3);
+  transform: translateY(-1px);
 }
-.lp-btn-hero-ghost:hover { color: #f0efea; background: #1c1c2e; }
-.lp-stats {
-  display: flex; align-items: center; gap: 36px;
-  animation: lp-fadeup 0.6s 0.4s ease both;
+.lp-btn-outline {
+  padding: 13px 26px; background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.09); border-radius: 10px;
+  color: rgba(232,232,240,0.65); font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s; font-family: 'Plus Jakarta Sans', sans-serif;
 }
-.lp-stat-n {
-  font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; color: #e8b84b;
-  display: block; letter-spacing: -0.03em;
+.lp-btn-outline:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.15);
+  color: #e8e8f0;
 }
-.lp-stat-l { font-size: 11px; color: #8887a4; letter-spacing: 0.06em; text-transform: uppercase; }
-.lp-stat-div { width: 1px; height: 32px; background: rgba(255,255,255,0.12); }
-@keyframes lp-fadeup {
-  from { opacity:0; transform: translateY(20px); }
-  to   { opacity:1; transform: translateY(0); }
+.lp-trust {
+  display: flex; align-items: center; gap: 12px; margin-top: 36px;
+}
+.lp-trust-avatars { display: flex; }
+.lp-trust-av {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid #0c0c15; margin-left: -8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700;
+}
+.lp-trust-av:first-child { margin-left: 0; }
+.lp-trust-text {
+  font-size: 12px; color: rgba(232,232,240,0.4); font-weight: 400;
+}
+.lp-trust-text strong { color: rgba(232,232,240,0.7); font-weight: 600; }
+
+/* ── MOCKUP ──────────────────────────────────────────── */
+.lp-mockup-wrap { position: relative; }
+.lp-mockup-glow {
+  position: absolute; bottom: -60px; left: 50%; transform: translateX(-50%);
+  width: 75%; height: 80px;
+  background: radial-gradient(ellipse, rgba(232,184,75,0.18) 0%, transparent 70%);
+  filter: blur(24px); pointer-events: none;
+}
+.lp-mockup {
+  background: #11111c;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px; overflow: hidden;
+  box-shadow:
+    0 40px 80px rgba(0,0,0,0.65),
+    0 0 0 1px rgba(255,255,255,0.04),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.lp-mock-titlebar {
+  background: #0d0d18; height: 40px; padding: 0 14px;
+  display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.lp-mock-dots { display: flex; gap: 5px; }
+.lp-mock-dot { width: 9px; height: 9px; border-radius: 50%; }
+.lp-mock-url {
+  flex: 1; height: 20px; background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06); border-radius: 5px;
+  max-width: 200px; margin: 0 auto;
+}
+.lp-mock-body { display: flex; }
+.lp-mock-sidebar {
+  width: 52px; background: #0d0d18;
+  border-right: 1px solid rgba(255,255,255,0.055);
+  padding: 14px 0;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.lp-mock-logo {
+  width: 28px; height: 28px; border-radius: 7px;
+  background: #e8b84b; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800; color: #0c0c15;
+  font-family: 'Syne', sans-serif; margin-bottom: 12px;
+}
+.lp-mock-si {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: rgba(232,232,240,0.3);
+  transition: all 0.15s; position: relative;
+}
+.lp-mock-si.act {
+  background: rgba(232,184,75,0.09); color: #e8b84b;
+}
+.lp-mock-si.act::before {
+  content: ''; position: absolute; left: 0; top: 50%;
+  transform: translateY(-50%); width: 2.5px; height: 14px;
+  background: #e8b84b; border-radius: 2px;
+}
+.lp-mock-content { flex: 1; padding: 18px; min-height: 0; overflow: hidden; }
+.lp-mock-pagetitle {
+  font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
+  color: #f0f0fa; margin-bottom: 14px; letter-spacing: -0.01em;
+}
+.lp-mock-kpis { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 14px; }
+.lp-mock-kpi {
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px; padding: 11px 12px;
+}
+.lp-mock-kpi-val {
+  font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700;
+  line-height: 1; color: #f0f0fa;
+}
+.lp-mock-kpi-val.gold { color: #e8b84b; }
+.lp-mock-kpi-val.green { color: #2dd4a0; }
+.lp-mock-kpi-lbl {
+  font-size: 9px; color: rgba(232,232,240,0.3);
+  text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px;
+}
+.lp-mock-table {
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.055);
+  border-radius: 8px; overflow: hidden;
+}
+.lp-mock-thead {
+  display: grid; grid-template-columns: 22px 1fr 40px 30px;
+  gap: 8px; padding: 7px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.lp-mock-th {
+  font-size: 8px; color: rgba(232,232,240,0.22);
+  text-transform: uppercase; letter-spacing: 0.1em;
+}
+.lp-mock-tr {
+  display: grid; grid-template-columns: 22px 1fr 40px 30px;
+  gap: 8px; padding: 8px 12px; align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.lp-mock-tr:last-child { border-bottom: none; }
+.lp-mock-av {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; font-weight: 700; flex-shrink: 0;
+}
+.lp-mock-name {
+  font-size: 11px; font-weight: 500; color: rgba(232,232,240,0.8);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lp-mock-score { font-size: 11px; font-weight: 700; color: #f0f0fa; text-align: right; }
+.lp-mock-grade {
+  font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 12px;
+  text-align: center;
 }
 
-/* marquee */
-.lp-marquee { padding: 18px 0; background: #0f0f1a; border-top: 1px solid rgba(255,255,255,0.07); border-bottom: 1px solid rgba(255,255,255,0.07); overflow: hidden; }
-.lp-marquee-track { display: flex; animation: lp-marquee 28s linear infinite; width: max-content; }
-.lp-marquee-item {
-  display: flex; align-items: center; gap: 10px; padding: 0 28px;
-  font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
-  color: #8887a4; white-space: nowrap;
+/* Float cards */
+.lp-float {
+  position: absolute;
+  background: rgba(17,17,28,0.95); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 14px 18px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+  backdrop-filter: blur(16px); pointer-events: none;
 }
-.lp-marquee-dot { color: #e8b84b; font-size: 14px; }
-@keyframes lp-marquee { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+.lp-float-1 { top: 16px; right: -20px; }
+.lp-float-2 { bottom: 50px; left: -28px; }
+.lp-float-val {
+  font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800;
+  line-height: 1; white-space: nowrap;
+}
+.lp-float-lbl {
+  font-size: 10px; color: rgba(232,232,240,0.4); margin-top: 5px; white-space: nowrap;
+}
 
-/* container */
-.lp-container { max-width: 1160px; margin: 0 auto; padding: 0 28px; }
+/* ── TICKER ──────────────────────────────────────────── */
+.lp-ticker {
+  border-top: 1px solid rgba(255,255,255,0.055);
+  border-bottom: 1px solid rgba(255,255,255,0.055);
+  background: rgba(232,184,75,0.025);
+  padding: 14px 0; overflow: hidden;
+}
+.lp-ticker-track {
+  display: flex; gap: 0;
+  animation: lp-ticker 30s linear infinite;
+  width: max-content;
+}
+.lp-ticker-item {
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 36px;
+  border-right: 1px solid rgba(255,255,255,0.055);
+  font-family: 'Space Mono', monospace; font-size: 10px;
+  color: rgba(232,184,75,0.5); letter-spacing: 0.12em;
+  text-transform: uppercase; white-space: nowrap;
+}
+.lp-ticker-diamond { font-size: 6px; color: rgba(232,184,75,0.35); }
+@keyframes lp-ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
 
-/* section label */
+/* ── FEATURES ────────────────────────────────────────── */
+.lp-features-section {
+  padding: 100px 32px;
+  background: #0c0c15;
+}
+.lp-features-inner { max-width: 1200px; margin: 0 auto; }
 .lp-section-label {
-  display: inline-flex; align-items: center; gap: 8px;
-  font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
-  color: #e8b84b; margin-bottom: 16px;
+  font-family: 'Space Mono', monospace; font-size: 10px;
+  color: #e8b84b; letter-spacing: 0.25em; text-transform: uppercase;
+  margin-bottom: 16px; display: flex; align-items: center; gap: 12px;
 }
-.lp-section-label::before { content:''; width:20px; height:1px; background:#e8b84b; }
+.lp-section-label::before {
+  content: ''; width: 24px; height: 1px; background: #e8b84b; flex-shrink: 0;
+}
 .lp-section-title {
-  font-size: clamp(26px, 3.2vw, 42px); font-weight: 800; line-height: 1.1;
-  letter-spacing: -0.03em; margin-bottom: 14px;
+  font-family: 'Syne', sans-serif; font-size: 40px; font-weight: 800;
+  color: #f0f0fa; letter-spacing: -0.03em; line-height: 1.1;
+  margin-bottom: 12px; max-width: 520px;
 }
-.lp-section-sub { font-size: 16px; color: #8887a4; line-height: 1.7; max-width: 500px; }
-
-/* features */
-.lp-features { padding: 100px 0; background: #09090f; position: relative; }
+.lp-section-sub {
+  font-size: 15px; color: rgba(232,232,240,0.45);
+  margin-bottom: 60px; max-width: 480px; line-height: 1.7; font-weight: 400;
+}
 .lp-feat-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 1px; background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; overflow: hidden; margin-top: 56px;
+  display: grid; grid-template-columns: repeat(4,1fr);
+  border: 1px solid rgba(255,255,255,0.055); border-radius: 14px; overflow: hidden;
 }
-.lp-feat-card {
-  background: #0f0f1a; padding: 34px 30px; position: relative; overflow: hidden;
-  transition: background 0.3s; cursor: default;
+.lp-feat {
+  padding: 36px 28px;
+  border-right: 1px solid rgba(255,255,255,0.055);
+  background: #0c0c15; transition: background 0.25s;
+  position: relative; overflow: hidden;
 }
-.lp-feat-card::before {
-  content:''; position:absolute; inset:0;
-  background: linear-gradient(135deg, rgba(232,184,75,0.1) 0%, transparent 60%);
-  opacity:0; transition: opacity 0.4s;
+.lp-feat:last-child { border-right: none; }
+.lp-feat::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: #e8b84b; transform: scaleX(0); transform-origin: left; transition: transform 0.3s;
 }
-.lp-feat-card:hover { background: #141421; }
-.lp-feat-card:hover::before { opacity:1; }
+.lp-feat:hover { background: rgba(232,184,75,0.03); }
+.lp-feat:hover::before { transform: scaleX(1); }
 .lp-feat-icon {
-  width: 46px; height: 46px; border-radius: 12px;
-  background: rgba(232,184,75,0.1); border: 1px solid rgba(232,184,75,0.2);
+  width: 40px; height: 40px; border-radius: 10px; margin-bottom: 18px;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+}
+.lp-feat-title {
+  font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700;
+  color: #f0f0fa; margin-bottom: 10px; letter-spacing: -0.01em;
+}
+.lp-feat-desc {
+  font-size: 13px; color: rgba(232,232,240,0.4);
+  line-height: 1.7; font-weight: 400;
+}
+
+/* ── STATS STRIP ─────────────────────────────────────── */
+.lp-stats-section {
+  border-top: 1px solid rgba(255,255,255,0.055);
+  border-bottom: 1px solid rgba(255,255,255,0.055);
+  background: #0a0a14;
+}
+.lp-stats-inner {
+  max-width: 1200px; margin: 0 auto;
+  display: grid; grid-template-columns: repeat(4,1fr);
+}
+.lp-stat {
+  padding: 52px 40px;
+  border-right: 1px solid rgba(255,255,255,0.055);
+}
+.lp-stat:last-child { border-right: none; }
+.lp-stat-num {
+  font-family: 'Syne', sans-serif; font-size: 48px; font-weight: 800;
+  color: #f0f0fa; line-height: 1; letter-spacing: -0.03em;
+}
+.lp-stat-num span { color: #e8b84b; font-size: 0.55em; vertical-align: baseline; }
+.lp-stat-lbl {
+  font-size: 13px; color: rgba(232,232,240,0.4);
+  margin-top: 10px; font-weight: 400; line-height: 1.5;
+}
+
+/* ── SECOND FEATURE ROW ──────────────────────────────── */
+.lp-detail-section {
+  padding: 100px 32px;
+  background: #0c0c15;
+}
+.lp-detail-inner {
+  max-width: 1200px; margin: 0 auto;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center;
+}
+.lp-detail-left {}
+.lp-detail-right {}
+.lp-detail-title {
+  font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800;
+  color: #f0f0fa; letter-spacing: -0.03em; line-height: 1.15;
+  margin-bottom: 16px;
+}
+.lp-detail-body {
+  font-size: 15px; color: rgba(232,232,240,0.45); line-height: 1.8;
+  margin-bottom: 32px; font-weight: 400;
+}
+.lp-detail-list { display: flex; flex-direction: column; gap: 14px; }
+.lp-detail-item { display: flex; align-items: flex-start; gap: 12px; }
+.lp-detail-check {
+  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(45,212,160,0.1); border: 1px solid rgba(45,212,160,0.25);
   display: flex; align-items: center; justify-content: center;
-  font-size: 20px; margin-bottom: 18px; transition: all 0.3s;
+  font-size: 10px; color: #2dd4a0; margin-top: 2px;
 }
-.lp-feat-card:hover .lp-feat-icon { background: rgba(232,184,75,0.18); box-shadow: 0 0 20px rgba(232,184,75,0.15); transform: scale(1.05); }
-.lp-feat-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; margin-bottom: 9px; letter-spacing: -0.01em; }
-.lp-feat-desc { font-size: 13px; color: #8887a4; line-height: 1.7; }
-.lp-feat-tag {
-  display: inline-block; margin-top: 14px; padding: 3px 10px; border-radius: 99px;
-  background: rgba(232,184,75,0.1); border: 1px solid rgba(232,184,75,0.15);
-  font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #e8b84b;
+.lp-detail-item-text { font-size: 14px; color: rgba(232,232,240,0.65); line-height: 1.6; }
+.lp-detail-item-text strong { color: #f0f0fa; font-weight: 600; }
+.lp-detail-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.lp-detail-card {
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px; padding: 24px; transition: border-color 0.25s, background 0.25s;
+}
+.lp-detail-card:hover {
+  background: rgba(232,184,75,0.03); border-color: rgba(232,184,75,0.15);
+}
+.lp-detail-card-icon { font-size: 22px; margin-bottom: 12px; display: block; }
+.lp-detail-card-title {
+  font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
+  color: #f0f0fa; margin-bottom: 6px;
+}
+.lp-detail-card-desc {
+  font-size: 12px; color: rgba(232,232,240,0.38); line-height: 1.65;
 }
 
-/* roles */
-.lp-roles { padding: 100px 0; background: #0f0f1a; position: relative; overflow: hidden; }
-.lp-roles-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 56px; }
-.lp-role-card {
-  background: #141421; border: 1px solid rgba(255,255,255,0.07); border-radius: 14px;
-  padding: 26px 22px; transition: all 0.3s;
+/* ── CTA ─────────────────────────────────────────────── */
+.lp-cta-section {
+  padding: 120px 32px;
+  background: #0a0a14;
+  border-top: 1px solid rgba(255,255,255,0.055);
+  position: relative; overflow: hidden;
 }
-.lp-role-card:hover {
-  border-color: rgba(232,184,75,0.3); transform: translateY(-4px);
-  box-shadow: 0 20px 40px rgba(0,0,0,0.4), 0 0 30px rgba(232,184,75,0.07);
+.lp-cta-bg {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 60% 70% at 50% 50%, rgba(232,184,75,0.05) 0%, transparent 65%);
 }
-.lp-role-avatar { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 14px; }
-.lp-role-name { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 7px; }
-.lp-role-desc { font-size: 13px; color: #8887a4; line-height: 1.6; margin-bottom: 14px; }
-.lp-role-perms { display: flex; flex-direction: column; gap: 5px; }
-.lp-perm { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #8887a4; }
-.lp-perm-dot { width: 5px; height: 5px; border-radius: 50%; background: #e8b84b; flex-shrink: 0; }
+.lp-cta-inner {
+  max-width: 680px; margin: 0 auto; text-align: center; position: relative; z-index: 1;
+}
+.lp-cta-title {
+  font-family: 'Syne', sans-serif; font-size: 48px; font-weight: 800;
+  color: #f0f0fa; letter-spacing: -0.03em; line-height: 1.1; margin-bottom: 20px;
+}
+.lp-cta-sub {
+  font-size: 16px; color: rgba(232,232,240,0.45);
+  margin-bottom: 40px; line-height: 1.7; font-weight: 400;
+}
+.lp-cta-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.lp-cta-btn {
+  padding: 15px 40px; background: #e8b84b; border: none; border-radius: 10px;
+  color: #0c0c15; font-size: 15px; font-weight: 700; cursor: pointer;
+  transition: all 0.22s; font-family: 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: 0.01em;
+}
+.lp-cta-btn:hover {
+  background: #f5c84e;
+  box-shadow: 0 10px 36px rgba(232,184,75,0.3);
+  transform: translateY(-1px);
+}
+.lp-cta-sec {
+  padding: 15px 32px; background: transparent;
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+  color: rgba(232,232,240,0.55); font-size: 15px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s; font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.lp-cta-sec:hover {
+  border-color: rgba(255,255,255,0.2); color: #e8e8f0;
+}
 
-/* trust */
-.lp-trust { padding: 64px 0; background: #09090f; border-top: 1px solid rgba(255,255,255,0.07); border-bottom: 1px solid rgba(255,255,255,0.07); }
-.lp-trust-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 1px; background: #0c0c14;
-  border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden;
+/* ── FOOTER ──────────────────────────────────────────── */
+.lp-footer {
+  border-top: 1px solid rgba(255,255,255,0.055);
+  padding: 40px 32px;
+  background: #09090f;
 }
-.lp-trust-item { background: #0f0f1a; padding: 30px 26px; text-align: center; }
-.lp-trust-n { font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800; color: #e8b84b; letter-spacing: -0.04em; display: block; margin-bottom: 6px; }
-.lp-trust-l { font-size: 12px; color: #8887a4; line-height: 1.5; }
-
-/* multi-school */
-.lp-multi { padding: 100px 0; background: #0f0f1a; position: relative; overflow: hidden; }
-.lp-multi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
-.lp-ms-visual { position: relative; height: 300px; display: flex; align-items: center; justify-content: center; }
-.lp-ms-center {
-  position: absolute; width: 76px; height: 76px; border-radius: 50%; background: #e8b84b;
+.lp-footer-inner {
+  max-width: 1200px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  flex-wrap: wrap;
+}
+.lp-footer-logo { display: flex; align-items: center; gap: 8px; }
+.lp-footer-logo-mark {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: linear-gradient(135deg, #c49a2e, #e8b84b);
   display: flex; align-items: center; justify-content: center;
-  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 12px; color: #09090f;
-  box-shadow: 0 0 50px rgba(232,184,75,0.5); z-index: 2;
+  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 12px; color: #0c0c15;
 }
-.lp-ms-ring {
-  position: absolute; border-radius: 50%; border: 1px solid rgba(232,184,75,0.15);
-  animation: lp-spin linear infinite;
+.lp-footer-wordmark {
+  font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px;
+  color: rgba(240,240,250,0.6);
 }
-.lp-ms-ring-1 { width:170px; height:170px; animation-duration:20s; }
-.lp-ms-ring-2 { width:280px; height:280px; animation-duration:35s; animation-direction:reverse; border-style:dashed; }
-.lp-ms-ring-3 { width:400px; height:400px; animation-duration:50s; }
-@keyframes lp-spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-.lp-ms-school {
-  position: absolute; background: #1c1c2e; border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 9px; padding: 8px 14px; font-size: 12px; font-weight: 600; color: #f0efea;
-  white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+.lp-footer-copy {
+  font-size: 12px; color: rgba(232,232,240,0.3); font-weight: 400;
 }
-.lp-ms-school::before {
-  content:''; display:inline-block; width:6px; height:6px; border-radius:50%;
-  background:#e8b84b; margin-right:7px; vertical-align:middle;
+.lp-footer-links { display: flex; gap: 24px; }
+.lp-footer-link {
+  font-size: 12px; color: rgba(232,232,240,0.35); cursor: pointer;
+  transition: color 0.2s; text-decoration: none; background: none; border: none;
 }
-.lp-ms-s1 { top:20px; left:50%; transform:translateX(-50%); }
-.lp-ms-s2 { top:50%; right:20px; transform:translateY(-50%); }
-.lp-ms-s4 { top:50%; left:20px; transform:translateY(-50%); }
-.lp-multi-perm { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #f0efea; margin-bottom: 10px; }
+.lp-footer-link:hover { color: rgba(232,232,240,0.7); }
 
-/* cta */
-.lp-cta { padding: 120px 0; background: #09090f; text-align: center; position: relative; overflow: hidden; }
-.lp-cta-glow {
-  position: absolute; bottom: -200px; left: 50%; transform: translateX(-50%);
-  width: 600px; height: 600px;
-  background: radial-gradient(ellipse, rgba(232,184,75,0.1) 0%, transparent 65%);
-  pointer-events: none;
-}
-.lp-cta-title { font-size: clamp(28px, 4vw, 52px); font-weight: 800; letter-spacing: -0.04em; margin-bottom: 18px; line-height: 1.1; }
-.lp-cta-sub { font-size: 17px; color: #8887a4; margin-bottom: 40px; }
-.lp-cta-actions { display: flex; align-items: center; justify-content: center; gap: 14px; }
-
-/* footer */
-.lp-footer { background: #0f0f1a; border-top: 1px solid rgba(255,255,255,0.07); padding: 32px 0; }
-.lp-footer-inner { display: flex; align-items: center; justify-content: space-between; }
-.lp-footer-copy { font-size: 13px; color: #3a3a52; }
-.lp-footer-copy span { color: #8887a4; }
-.lp-footer-badge {
-  font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #3a3a52;
-  padding: 4px 12px; border: 1px solid rgba(255,255,255,0.07); border-radius: 6px;
-}
-
-/* reveal */
-.lp-reveal { opacity:0; transform:translateY(24px); transition: opacity 0.7s ease, transform 0.7s ease; }
-.lp-reveal.lp-visible { opacity:1; transform:translateY(0); }
-.lp-d1 { transition-delay: 0.1s; }
-.lp-d2 { transition-delay: 0.2s; }
-.lp-d3 { transition-delay: 0.3s; }
-.lp-d4 { transition-delay: 0.4s; }
-
-/* responsive */
+/* ── MOBILE ──────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .lp-feat-grid { grid-template-columns: repeat(2, 1fr); }
-  .lp-roles-grid { grid-template-columns: repeat(2, 1fr); }
-  .lp-trust-grid { grid-template-columns: repeat(2, 1fr); }
-  .lp-multi-grid { grid-template-columns: 1fr; gap: 40px; }
-  .lp-ms-visual { height: 240px; }
-  .lp-ms-ring-3 { width: 320px; height: 320px; }
-  .lp-ms-s2, .lp-ms-s4 { display: none; }
+  .lp-nav-links { display: none; }
+  .lp-hero-inner { grid-template-columns: 1fr; gap: 48px; }
+  .lp-h1 { font-size: 42px; }
+  .lp-mockup-wrap { display: none; }
+  .lp-feat-grid { grid-template-columns: 1fr 1fr; }
+  .lp-feat { border-bottom: 1px solid rgba(255,255,255,0.055); }
+  .lp-stats-inner { grid-template-columns: 1fr 1fr; }
+  .lp-stat { border-bottom: 1px solid rgba(255,255,255,0.055); }
+  .lp-detail-inner { grid-template-columns: 1fr; gap: 48px; }
+  .lp-cta-title { font-size: 34px; }
+  .lp-section-title { font-size: 30px; }
+  .lp-stat-num { font-size: 36px; }
 }
 @media (max-width: 600px) {
   .lp-feat-grid { grid-template-columns: 1fr; }
-  .lp-roles-grid { grid-template-columns: 1fr; }
-  .lp-trust-grid { grid-template-columns: repeat(2, 1fr); }
-  .lp-stats { gap: 18px; }
-  .lp-actions { flex-direction: column; width: 100%; }
-  .lp-btn-hero, .lp-btn-hero-ghost { width: 100%; justify-content: center; }
-  .lp-footer-inner { flex-direction: column; gap: 10px; text-align: center; }
+  .lp-stats-inner { grid-template-columns: 1fr 1fr; }
+  .lp-detail-cards { grid-template-columns: 1fr; }
+  .lp-hero { padding: 100px 20px 60px; }
+  .lp-features-section, .lp-detail-section, .lp-cta-section { padding: 70px 20px; }
+  .lp-h1 { font-size: 36px; }
 }
 `
 
+const TICKER_ITEMS = [
+  'Grades & Assessments', 'Attendance Tracking', 'Fee Management',
+  'Parent Portal', 'PDF Report Cards', 'Audit Logging',
+  'Multi-Role Access', 'Academic Year Wizard', 'Behaviour Records',
+  'Class Broadsheet', 'Subject Reports', 'Multi-School Support',
+]
+
 const FEATURES = [
-  { icon: '🎓', title: 'Student Records', desc: 'Complete student profiles with guardian contacts, admission history, medical notes, and full academic journey from entry to graduation.', tag: 'Archive & Readmit' },
-  { icon: '📊', title: 'Grades & Reports', desc: 'Flexible grade components with custom weights. Auto-ranked academic broadsheets, individual report cards, and PDF export with school branding.', tag: 'PDF & Excel Export' },
-  { icon: '💰', title: 'Fees & Payments', desc: 'Create fee structures, track outstanding balances, record payments with receipts, and carry over arrears across academic years automatically.', tag: 'Printable Receipts' },
-  { icon: '📅', title: 'Attendance', desc: 'Daily attendance marking per class with Present, Absent, Late, and Excused statuses. Historical logs and attendance rate dashboards.', tag: 'Rate Analytics' },
-  { icon: '🔐', title: 'Role-Based Access', desc: 'Four distinct roles — Superadmin, Admin, Class Teacher, Subject Teacher — each with precisely scoped permissions enforced at the database level.', tag: 'Enterprise Security' },
-  { icon: '🏫', title: 'Multi-School', desc: 'Run multiple schools from one platform. Complete data isolation ensures each school only ever sees its own students, staff, and records.', tag: 'Zero Data Leakage' },
+  { icon: '📊', title: 'Grades & Reports', desc: 'Weighted components, automatic totals, class rankings, and printable report cards generated in seconds.' },
+  { icon: '📋', title: 'Attendance', desc: 'Daily batch marking with Ghana public holiday detection, vacation blocking, and full exportable history.' },
+  { icon: '💳', title: 'Fee Management', desc: 'Multi-currency invoicing, bulk assignment, payment recording, arrear carry-forward, and printed receipts.' },
+  { icon: '👥', title: 'Parent Portal', desc: 'A dedicated portal where parents view grades, attendance, fees, and announcements — released on your schedule.' },
 ]
 
-const ROLES = [
-  { icon: '👑', bg: 'rgba(232,184,75,0.1)', name: 'Superadmin', desc: 'Full control over the school. Sets up classes, subjects, staff accounts, academic calendar, and system settings.', perms: ['Manage all staff & roles', 'Configure grading system', 'Full audit log access', 'Academic year management'] },
-  { icon: '🗂️', bg: 'rgba(91,168,245,0.1)', name: 'Admin', desc: 'Day-to-day operations — managing students, recording fees, payments, attendance, and announcements.', perms: ['Student enrolment & records', 'Fee & payment recording', 'Attendance management', 'Announcements'] },
-  { icon: '📋', bg: 'rgba(45,212,160,0.1)', name: 'Class Teacher', desc: 'Manages their class — marks attendance, enters grades, records behaviour notes, and stays informed via announcements.', perms: ['Attendance marking', 'Grade entry & editing', 'Behaviour notes', 'No access to fees'] },
-  { icon: '✏️', bg: 'rgba(167,139,250,0.1)', name: 'Subject Teacher', desc: 'Scoped to their subject — enters and manages grades for their assigned subject only.', perms: ['Grade entry (own subject)', 'Student list access', 'Announcements', 'No fees or settings'] },
+const DETAIL_ITEMS = [
+  { title: 'Role-based access control', desc: 'Super Admin, Admin, Class Teacher, Subject Teacher, and Parent — each with exactly the right access.' },
+  { title: 'Full audit trail', desc: '365 days of searchable logs. Every change recorded with who, what, and when.' },
+  { title: 'Academic year wizard', desc: 'Close one year and open the next — arrears carry over automatically.' },
+  { title: 'Light and dark mode', desc: 'Looks great in both. Preference saved across sessions.' },
 ]
 
-const MARQUEE_ITEMS = ['Student Records', 'Grade Reports', 'Fee Management', 'Attendance Tracking', 'Role-Based Access', 'Multi-School Support', 'Academic Reports', 'Behaviour Tracking', 'Audit Logging', 'PDF & Excel Export']
+const DETAIL_CARDS = [
+  { icon: '🔒', title: 'Secure by default', desc: 'Row-level security on every table. Your data never mixes with another school.' },
+  { icon: '📱', title: 'Mobile friendly', desc: 'Works on any screen. Mark attendance from your phone.' },
+  { icon: '🖨', title: 'Print ready', desc: 'Report cards, broadsheets, and receipts format perfectly for A4.' },
+  { icon: '⚡', title: 'Fast', desc: 'Built on Supabase. Queries in milliseconds, not seconds.' },
+]
 
 export default function Landing({ onEnter }) {
   const navRef = useRef(null)
 
   useEffect(() => {
-    // Sticky nav
-    const onScroll = () => navRef.current?.classList.toggle('scrolled', window.scrollY > 40)
-    window.addEventListener('scroll', onScroll)
-
-    // Scroll reveal
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('lp-visible'); observer.unobserve(e.target) } })
-    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' })
-    document.querySelectorAll('.lp-reveal').forEach(el => observer.observe(el))
-
-    // Counter animation
-    const animateCounter = (el) => {
-      const target = parseInt(el.dataset.count)
-      if (!target) return
-      const start = performance.now()
-      const update = (now) => {
-        const p = Math.min((now - start) / 1500, 1)
-        const eased = 1 - Math.pow(1 - p, 3)
-        el.textContent = Math.floor(eased * target)
-        if (p < 1) requestAnimationFrame(update)
-        else el.textContent = target
+    const onScroll = () => {
+      if (navRef.current) {
+        navRef.current.classList.toggle('scrolled', window.scrollY > 40)
       }
-      requestAnimationFrame(update)
     }
-    const counterObs = new IntersectionObserver((entries) => {
-      entries.forEach(e => { if (e.isIntersecting) { animateCounter(e.target); counterObs.unobserve(e.target) } })
-    }, { threshold: 0.5 })
-    document.querySelectorAll('[data-count]').forEach(el => counterObs.observe(el))
-
-    return () => { window.removeEventListener('scroll', onScroll); observer.disconnect(); counterObs.disconnect() }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  const scrollTo = (id) => { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }) }
+  const doubled = [...TICKER_ITEMS, ...TICKER_ITEMS]
 
   return (
-    <div className="lp-root">
+    <div className="lp">
       <style>{CSS}</style>
-      <div className="lp-noise" />
 
       {/* NAV */}
       <nav className="lp-nav" ref={navRef}>
         <div className="lp-nav-inner">
-          <div className="lp-logo">
+          <div className="lp-logo" onClick={onEnter}>
             <div className="lp-logo-mark">S</div>
-            <div>
-              <div className="lp-logo-text">SRMS</div>
-              <span className="lp-logo-sub">Student Record Management</span>
-            </div>
+            <span className="lp-logo-text">SRMS</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button className="lp-btn-ghost" onClick={() => scrollTo('lp-features')}>Features</button>
-            <button className="lp-btn-gold" onClick={onEnter}>Sign In →</button>
+          <div className="lp-nav-links">
+            <span className="lp-nav-link">Features</span>
+            <span className="lp-nav-link">Roles</span>
+            <span className="lp-nav-link">Pricing</span>
+          </div>
+          <div className="lp-nav-actions">
+            <button className="lp-btn-ghost" onClick={onEnter}>Sign In</button>
+            <button className="lp-btn-gold" onClick={onEnter}>Get Started</button>
           </div>
         </div>
       </nav>
 
       {/* HERO */}
       <section className="lp-hero">
-        <div className="lp-kente" />
-        <div className="lp-hero-glow" />
-        <div className="lp-badge">Built for Ghanaian Schools</div>
-        <h1 className="lp-title">
-          Every Student.<br />
-          <span className="gold-line">Every Record.</span><br />
-          One System.
-        </h1>
-        <p className="lp-sub">
-          A complete <strong>school management platform</strong> built for Ghana —
-          managing students, grades, attendance, fees, and staff with enterprise-grade security.
-        </p>
-        <div className="lp-actions">
-          <button className="lp-btn-hero" onClick={onEnter}>
-            Get Started
-            <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-          </button>
-          <button className="lp-btn-hero-ghost" onClick={() => scrollTo('lp-features')}>See Features</button>
-        </div>
-        <div className="lp-stats">
-          <div style={{ textAlign: 'center' }}>
-            <span className="lp-stat-n" data-count="4">0</span>
-            <span className="lp-stat-l">User Roles</span>
+        <div className="lp-hero-bg" />
+        <div className="lp-grid" />
+        <div className="lp-hero-inner">
+
+          {/* Left */}
+          <div>
+            <div className="lp-pill">
+              <div className="lp-pill-dot" />
+              <span className="lp-pill-text">Built for Schools</span>
+            </div>
+            <h1 className="lp-h1">
+              Every record,<br />
+              <span className="lp-gold">perfectly</span><br />
+              <span className="lp-dim">organised.</span>
+            </h1>
+            <p className="lp-sub">
+              The complete school management platform. Grades, attendance, fees, reports, and a parent portal — all in one system.
+            </p>
+            <div className="lp-actions">
+              <button className="lp-btn-hero" onClick={onEnter}>
+                Get Started Free →
+              </button>
+              <button className="lp-btn-outline" onClick={onEnter}>
+                Sign In
+              </button>
+            </div>
+            <div className="lp-trust">
+              <div className="lp-trust-avatars">
+                <div className="lp-trust-av" style={{ background: 'rgba(232,184,75,0.15)', color: '#e8b84b' }}>KM</div>
+                <div className="lp-trust-av" style={{ background: 'rgba(45,212,160,0.15)', color: '#2dd4a0' }}>AA</div>
+                <div className="lp-trust-av" style={{ background: 'rgba(91,168,245,0.15)', color: '#5ba8f5' }}>EK</div>
+              </div>
+              <span className="lp-trust-text">Trusted by <strong>schools across Ghana</strong></span>
+            </div>
           </div>
-          <div className="lp-stat-div" />
-          <div style={{ textAlign: 'center' }}>
-            <span className="lp-stat-n" data-count="6">0</span>
-            <span className="lp-stat-l">Core Modules</span>
-          </div>
-          <div className="lp-stat-div" />
-          <div style={{ textAlign: 'center' }}>
-            <span className="lp-stat-n">Multi</span>
-            <span className="lp-stat-l">School Support</span>
-          </div>
-          <div className="lp-stat-div" />
-          <div style={{ textAlign: 'center' }}>
-            <span className="lp-stat-n">Real-time</span>
-            <span className="lp-stat-l">Data & Reports</span>
+
+          {/* Right — App Mockup */}
+          <div className="lp-mockup-wrap">
+            <div className="lp-mockup-glow" />
+            <div className="lp-float lp-float-1">
+              <div className="lp-float-val" style={{ color: '#2dd4a0' }}>94.7%</div>
+              <div className="lp-float-lbl">Attendance Rate</div>
+            </div>
+            <div className="lp-float lp-float-2">
+              <div className="lp-float-val" style={{ color: '#e8b84b' }}>₵48,200</div>
+              <div className="lp-float-lbl">Fees Collected</div>
+            </div>
+            <div className="lp-mockup">
+              <div className="lp-mock-titlebar">
+                <div className="lp-mock-dots">
+                  <div className="lp-mock-dot" style={{ background: '#ff5f57' }} />
+                  <div className="lp-mock-dot" style={{ background: '#febc2e' }} />
+                  <div className="lp-mock-dot" style={{ background: '#28c840' }} />
+                </div>
+                <div className="lp-mock-url" />
+              </div>
+              <div className="lp-mock-body">
+                <div className="lp-mock-sidebar">
+                  <div className="lp-mock-logo">S</div>
+                  <div className="lp-mock-si act">▦</div>
+                  <div className="lp-mock-si">◈</div>
+                  <div className="lp-mock-si">[=]</div>
+                  <div className="lp-mock-si">◎</div>
+                  <div className="lp-mock-si">◉</div>
+                  <div className="lp-mock-si">◇</div>
+                </div>
+                <div className="lp-mock-content">
+                  <div className="lp-mock-pagetitle">Dashboard</div>
+                  <div className="lp-mock-kpis">
+                    <div className="lp-mock-kpi">
+                      <div className="lp-mock-kpi-val">38</div>
+                      <div className="lp-mock-kpi-lbl">Students</div>
+                    </div>
+                    <div className="lp-mock-kpi">
+                      <div className="lp-mock-kpi-val gold">₵48k</div>
+                      <div className="lp-mock-kpi-lbl">Collected</div>
+                    </div>
+                    <div className="lp-mock-kpi">
+                      <div className="lp-mock-kpi-val green">94%</div>
+                      <div className="lp-mock-kpi-lbl">Attendance</div>
+                    </div>
+                  </div>
+                  <div className="lp-mock-table">
+                    <div className="lp-mock-thead">
+                      <div className="lp-mock-th" />
+                      <div className="lp-mock-th">Student</div>
+                      <div className="lp-mock-th">Score</div>
+                      <div className="lp-mock-th">Grade</div>
+                    </div>
+                    {[
+                      { init: 'KM', name: 'Kofi Mensah', score: 92, grade: 'A', bg: 'rgba(232,184,75,0.15)', c: '#e8b84b', gc: '#2dd4a0', gb: 'rgba(45,212,160,0.1)' },
+                      { init: 'AA', name: 'Ama Asante', score: 85, grade: 'B', bg: 'rgba(91,168,245,0.15)', c: '#5ba8f5', gc: '#5ba8f5', gb: 'rgba(91,168,245,0.1)' },
+                      { init: 'EK', name: 'Esi Kyei', score: 78, grade: 'B', bg: 'rgba(45,212,160,0.15)', c: '#2dd4a0', gc: '#5ba8f5', gb: 'rgba(91,168,245,0.1)' },
+                    ].map((r, i) => (
+                      <div className="lp-mock-tr" key={i}>
+                        <div className="lp-mock-av" style={{ background: r.bg, color: r.c }}>{r.init}</div>
+                        <div className="lp-mock-name">{r.name}</div>
+                        <div className="lp-mock-score">{r.score}</div>
+                        <div className="lp-mock-grade" style={{ background: r.gb, color: r.gc }}>{r.grade}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* MARQUEE */}
-      <div className="lp-marquee">
-        <div className="lp-marquee-track">
-          {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((item, i) => (
-            <div className="lp-marquee-item" key={i}>
-              <span className="lp-marquee-dot">◆</span> {item}
+      {/* TICKER */}
+      <div className="lp-ticker">
+        <div className="lp-ticker-track">
+          {doubled.map((item, i) => (
+            <div className="lp-ticker-item" key={i}>
+              <span className="lp-ticker-diamond">◆</span>
+              {item}
             </div>
           ))}
         </div>
       </div>
 
       {/* FEATURES */}
-      <section className="lp-features" id="lp-features">
-        <div className="lp-container">
-          <div className="lp-reveal">
-            <div className="lp-section-label">Core Modules</div>
-            <h2 className="lp-section-title">Everything a school needs.<br />Nothing it doesn't.</h2>
-            <p className="lp-section-sub">Six tightly integrated modules that cover the full academic and administrative lifecycle of any school.</p>
-          </div>
+      <section className="lp-features-section">
+        <div className="lp-features-inner">
+          <div className="lp-section-label">What it does</div>
+          <h2 className="lp-section-title">Everything a school needs, nothing it doesn't.</h2>
+          <p className="lp-section-sub">Purpose-built for the full academic cycle — from first enrolment to end-of-year report cards.</p>
           <div className="lp-feat-grid">
             {FEATURES.map((f, i) => (
-              <div className={`lp-feat-card lp-reveal lp-d${(i % 3) + 1}`} key={i}>
+              <div className="lp-feat" key={i}>
                 <div className="lp-feat-icon">{f.icon}</div>
                 <div className="lp-feat-title">{f.title}</div>
-                <p className="lp-feat-desc">{f.desc}</p>
-                <span className="lp-feat-tag">{f.tag}</span>
+                <div className="lp-feat-desc">{f.desc}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ROLES */}
-      <section className="lp-roles">
-        <div className="lp-kente" />
-        <div className="lp-container" style={{ position: 'relative' }}>
-          <div className="lp-reveal">
-            <div className="lp-section-label">User Roles</div>
-            <h2 className="lp-section-title">The right access for<br />the right person.</h2>
-            <p className="lp-section-sub">Every staff member sees exactly what they need — and nothing more. Permissions enforced at the database level.</p>
+      {/* STATS */}
+      <div className="lp-stats-section">
+        <div className="lp-stats-inner">
+          <div className="lp-stat">
+            <div className="lp-stat-num">5<span>+</span></div>
+            <div className="lp-stat-lbl">User roles with scoped access</div>
           </div>
-          <div className="lp-roles-grid">
-            {ROLES.map((r, i) => (
-              <div className={`lp-role-card lp-reveal lp-d${i + 1}`} key={i}>
-                <div className="lp-role-avatar" style={{ background: r.bg }}>{r.icon}</div>
-                <div className="lp-role-name">{r.name}</div>
-                <p className="lp-role-desc">{r.desc}</p>
-                <div className="lp-role-perms">
-                  {r.perms.map((p, j) => (
-                    <div className="lp-perm" key={j}>
-                      <span className="lp-perm-dot" />
-                      {p}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+          <div className="lp-stat">
+            <div className="lp-stat-num">1<span>click</span></div>
+            <div className="lp-stat-lbl">Report card generation</div>
+          </div>
+          <div className="lp-stat">
+            <div className="lp-stat-num">365<span>d</span></div>
+            <div className="lp-stat-lbl">Audit history per school</div>
+          </div>
+          <div className="lp-stat">
+            <div className="lp-stat-num">0</div>
+            <div className="lp-stat-lbl">Data shared between schools</div>
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* TRUST */}
-      <section className="lp-trust">
-        <div className="lp-container">
-          <div className="lp-trust-grid">
-            {[
-              { n: '4', count: 4, l: 'Distinct permission roles\nenforced at database level' },
-              { n: '6', count: 6, l: 'Integrated modules covering\nevery school operation' },
-              { n: '100%', l: 'School data isolation —\nzero cross-school leakage' },
-              { n: '∞', l: 'Schools supported on\na single platform' },
-            ].map((t, i) => (
-              <div className={`lp-trust-item lp-reveal lp-d${i + 1}`} key={i}>
-                <span className="lp-trust-n" {...(t.count ? { 'data-count': t.count } : {})}>{t.n}</span>
-                <div className="lp-trust-l">{t.l}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* MULTI-SCHOOL */}
-      <section className="lp-multi">
-        <div className="lp-kente" />
-        <div className="lp-container" style={{ position: 'relative' }}>
-          <div className="lp-multi-grid">
-            <div className="lp-reveal">
-              <div className="lp-section-label">Multi-Tenant Platform</div>
-              <h2 className="lp-section-title">One platform.<br />Many schools.</h2>
-              <p className="lp-section-sub" style={{ marginBottom: 24 }}>
-                SRMS serves school networks and education managers running multiple schools.
-                Each school operates in a completely isolated environment.
-              </p>
-              {['Separate settings, grading scales, and calendars per school', 'Each superadmin sees only their own school', 'Shared infrastructure, zero shared data', 'Complete isolation between all schools'].map((p, i) => (
-                <div className="lp-multi-perm" key={i}>
-                  <span className="lp-perm-dot" />
-                  {p}
+      {/* DETAIL */}
+      <section className="lp-detail-section">
+        <div className="lp-detail-inner">
+          <div className="lp-detail-left">
+            <div className="lp-section-label">Built right</div>
+            <h2 className="lp-detail-title">Designed for the people who run schools.</h2>
+            <p className="lp-detail-body">Not just a grade book. SRMS handles the full complexity of school administration — access control, audit trails, year transitions, and a separate portal for parents.</p>
+            <div className="lp-detail-list">
+              {DETAIL_ITEMS.map((item, i) => (
+                <div className="lp-detail-item" key={i}>
+                  <div className="lp-detail-check">✓</div>
+                  <div className="lp-detail-item-text">
+                    <strong>{item.title}</strong> — {item.desc}
+                  </div>
                 </div>
               ))}
             </div>
-            <div className="lp-ms-visual lp-reveal lp-d2">
-              <div className="lp-ms-ring lp-ms-ring-1" />
-              <div className="lp-ms-ring lp-ms-ring-2" />
-              <div className="lp-ms-ring lp-ms-ring-3" />
-              <div className="lp-ms-center">SRMS</div>
-              <div className="lp-ms-school lp-ms-s1">Secondary School</div>
-              <div className="lp-ms-school lp-ms-s2">Basic School</div>
-              <div className="lp-ms-school lp-ms-s3">High School</div>
-              <div className="lp-ms-school lp-ms-s4">Junior High</div>
+          </div>
+          <div className="lp-detail-right">
+            <div className="lp-detail-cards">
+              {DETAIL_CARDS.map((card, i) => (
+                <div className="lp-detail-card" key={i}>
+                  <span className="lp-detail-card-icon">{card.icon}</span>
+                  <div className="lp-detail-card-title">{card.title}</div>
+                  <div className="lp-detail-card-desc">{card.desc}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
       {/* CTA */}
-      <section className="lp-cta">
-        <div className="lp-cta-glow" />
-        <div className="lp-container" style={{ position: 'relative' }}>
-          <div className="lp-reveal">
-            <h2 className="lp-cta-title">Ready to bring your<br />school records online?</h2>
-            <p className="lp-cta-sub">Set up your school in minutes. No spreadsheets. No paper trails.</p>
-            <div className="lp-cta-actions">
-              <button className="lp-btn-hero" onClick={onEnter}>
-                Get Started
-                <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-              </button>
-            </div>
+      <section className="lp-cta-section">
+        <div className="lp-cta-bg" />
+        <div className="lp-cta-inner">
+          <h2 className="lp-cta-title">Ready to run a smarter school?</h2>
+          <p className="lp-cta-sub">Set up in minutes. No training needed. Free to start.</p>
+          <div className="lp-cta-actions">
+            <button className="lp-cta-btn" onClick={onEnter}>Get Started Free</button>
+            <button className="lp-cta-sec" onClick={onEnter}>Sign In →</button>
           </div>
         </div>
       </section>
 
       {/* FOOTER */}
       <footer className="lp-footer">
-        <div className="lp-container">
-          <div className="lp-footer-inner">
-            <div className="lp-footer-copy">
-              © 2026 SRMS · Built by <span>Zelva Studios</span> · Ghana
-            </div>
-            <div className="lp-footer-badge">SRMS · v2.0</div>
+        <div className="lp-footer-inner">
+          <div className="lp-footer-logo">
+            <div className="lp-footer-logo-mark">S</div>
+            <span className="lp-footer-wordmark">SRMS</span>
+          </div>
+          <span className="lp-footer-copy">© {new Date().getFullYear()} Zelva Studios. All rights reserved.</span>
+          <div className="lp-footer-links">
+            <button className="lp-footer-link">Privacy Policy</button>
+            <button className="lp-footer-link">Terms</button>
+            <button className="lp-footer-link">Contact</button>
           </div>
         </div>
       </footer>

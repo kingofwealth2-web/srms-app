@@ -5,7 +5,7 @@ import Btn from '../components/Btn'
 import Field from '../components/Field'
 import Spinner from '../components/Spinner'
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, lockedError, onClearLockedError, onBack }) {
   const [email,setEmail]           = useState('')
   const [password,setPassword]     = useState('')
   const [error,setError]           = useState('')
@@ -30,6 +30,7 @@ export default function Login({ onLogin }) {
   const attempt = async () => {
     if (!email || !password) { setError('Please enter your email and password.'); return }
     setLoading(true); setError('')
+    if (onClearLockedError) onClearLockedError()
     const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
     if (err) { setError(err.message); setLoading(false); return }
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single()
@@ -97,7 +98,7 @@ export default function Login({ onLogin }) {
         <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)', backgroundSize: '40px 40px', opacity: 0.3, maskImage: 'radial-gradient(ellipse at center,black 40%,transparent 80%)' }}/>
         <div className='fu' style={{ position: 'relative' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 56 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 24px rgba(232,184,75,0.4)' }}>
+            <div onClick={onBack} style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 24px rgba(232,184,75,0.4)', cursor: onBack ? 'pointer' : 'default' }}>
               <span className='d' style={{ fontSize: 20, fontWeight: 700, color: 'var(--ink)' }}>S</span>
             </div>
             <div>
@@ -105,6 +106,13 @@ export default function Login({ onLogin }) {
               <div style={{ fontSize: 11, color: 'var(--mist3)', marginTop: 1 }}>Student Record Management System</div>
             </div>
           </div>
+
+          {lockedError && (
+            <div className='fi' style={{ background: 'rgba(240,107,122,0.08)', border: '1px solid rgba(240,107,122,0.3)', borderRadius: 'var(--r-sm)', padding: '13px 16px', fontSize: 13, color: 'var(--rose)', marginBottom: 24, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>🔒</span>
+              <span>Your account has been locked. Please contact your administrator to regain access.</span>
+            </div>
+          )}
 
           <h1 className='d' style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.1, marginBottom: 12 }}>
             {view === 'login' ? <>Welcome<br/>back.</> : view === 'signup' ? <>Create<br/>account.</> : view === 'forgot-sent' ? 'Link sent.' : <>Reset<br/>password.</>}

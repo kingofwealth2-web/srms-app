@@ -59,6 +59,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
         await supabase.from('profiles').update({class_id:null}).eq('id',cls.class_teacher_id)
       setData(p=>({...p,classes:p.classes.filter(c=>c.id!==cls.id)}))
       if(selected?.id===cls.id) setSelected(null)
+      auditLog(profile,'Classes','Deleted',`${cls.name}`,{},cls,null)
       toast('"'+cls.name+'" deleted.')
     }})
   }
@@ -80,9 +81,9 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     const reordered = [...orderedClasses]
     const [moved]   = reordered.splice(dragging, 1)
     reordered.splice(idx, 0, moved)
-    // Save new sort_order
+    // Save new sort_order (silent if column not in schema)
     const updates = reordered.map((c,i)=>supabase.from('classes').update({sort_order:i}).eq('id',c.id).eq('school_id',profile?.school_id))
-    await Promise.all(updates)
+    await Promise.all(updates).catch(()=>{})
     setData(p=>({...p, classes: p.classes.map(c=>{ const idx=reordered.findIndex(r=>r.id===c.id); return idx>=0?{...c,sort_order:idx}:c })}))
     setDragging(null)
   }
@@ -190,6 +191,14 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     const cleanName = cf.name.replace(/\b\w/g, c=>c.toUpperCase())
     const newTeacherId = cf.class_teacher_id||null
     const payload = {name:cleanName, class_teacher_id:newTeacherId, is_terminal:!!cf.is_terminal}
+    // Enforce max one terminal class
+    if(cf.is_terminal) {
+      const otherTerminal = classes.find(c => c.is_terminal && c.id !== (editC?.id))
+      if(otherTerminal) {
+        toast(`"${otherTerminal.name}" is already set as the terminal class. Remove that first.`, 'error')
+        setSaving(false); return
+      }
+    }
     if(editC){
       const {error}=await supabase.from('classes').update(payload).eq('id',editC.id).eq('school_id',profile?.school_id)
       if(error){toast(error.message,'error');setSaving(false);return}
@@ -199,16 +208,17 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
       if(newTeacherId)
         await supabase.from('profiles').update({class_id:editC.id}).eq('id',newTeacherId)
       setData(p=>({...p,classes:p.classes.map(c=>c.id===editC.id?{...c,...payload}:c)}))
+      auditLog(profile,'Classes','Updated',`${payload.name}`,{},{...editC},{...payload})
       toast('Class updated');setClassModal(false)
     } else {
-      const maxOrder = Math.max(-1,...classes.map(c=>c.sort_order??-1))
-      const {data:row,error}=await supabase.from('classes').insert({...payload,school_id:profile?.school_id,sort_order:maxOrder+1}).select().single()
+      const {data:row,error}=await supabase.from('classes').insert({...payload,school_id:profile?.school_id}).select().single()
       if(error){toast(error.message,'error');setSaving(false);return}
       if(newTeacherId && row){
         const {error:teacherErr} = await supabase.from('profiles').update({class_id:row.id}).eq('id',newTeacherId)
         if(teacherErr) toast('Class created but failed to assign teacher: '+teacherErr.message,'error')
       }
       setData(p=>({...p,classes:[...p.classes,row]}))
+      auditLog(profile,'Classes','Created',`${row.name}`,{},null,row)
       toast('Class created');setClassModal(false)
     }
     setSaving(false)
@@ -218,11 +228,11 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     if(editS){
       const {error}=await supabase.from('subjects').update({...sf,teacher_id:sf.teacher_id||null}).eq('id',editS.id).eq('school_id',profile?.school_id)
       if(error)toast(error.message,'error')
-      else{setData(p=>({...p,subjects:p.subjects.map(s=>s.id===editS.id?{...s,...sf,teacher_id:sf.teacher_id||null}:s)}));toast('Subject updated');setSubjectModal(false)}
+      else{setData(p=>({...p,subjects:p.subjects.map(s=>s.id===editS.id?{...s,...sf,teacher_id:sf.teacher_id||null}:s)}));auditLog(profile,'Classes','Updated',`Subject: ${sf.name} · ${selected?.name}`,{},{...editS},{...sf});toast('Subject updated');setSubjectModal(false)}
     } else {
       const {data:row,error}=await supabase.from('subjects').insert({...sf,school_id:profile?.school_id,teacher_id:sf.teacher_id||null}).select().single()
       if(error)toast(error.message,'error')
-      else{setData(p=>({...p,subjects:[...p.subjects,row]}));toast('Subject created');setSubjectModal(false)}
+      else{setData(p=>({...p,subjects:[...p.subjects,row]}));auditLog(profile,'Classes','Created',`Subject: ${sf.name} · ${selected?.name}`,{},null,row);toast('Subject created');setSubjectModal(false)}
     }
     setSaving(false)
   }

@@ -155,6 +155,7 @@ export default function App() {
   const [session,setSession]       = useState(null)
   const [showLanding,setShowLanding] = useState(true)
   const [mustChangePw,setMustChangePw] = useState(false)
+  const [lockedError,setLockedError]   = useState(false)
   const [profile,setProfile]       = useState(null)
   const [isRecovery,setIsRecovery] = useState(false)
   const [settings,setSettings]     = useState(null)
@@ -261,6 +262,12 @@ export default function App() {
         resolvedProf = newProf
       }
       setProfile(resolvedProf)
+      if (resolvedProf?.locked) {
+        await supabase.auth.signOut()
+        setProfile(null); setSession(null); setLoading(false)
+        setLockedError(true)
+        return
+      }
       if (resolvedProf?.must_change_password) setMustChangePw(true)
 
       // Only fetch settings once we have a confirmed school_id
@@ -292,7 +299,7 @@ export default function App() {
 
   const logout = async () => {
     await supabase.auth.signOut()
-    setProfile(null); setSession(null); setPage('dashboard'); setShowLanding(true)
+    setProfile(null); setSession(null); setPage('dashboard'); setShowLanding(false)
   }
 
   const confirmNewYear = async () => {
@@ -359,42 +366,28 @@ export default function App() {
   }
 
   // ── Early returns ──────────────────────────────────────────────
-  if (isRecovery) {
-    return <><style>{G}</style><ResetPassword onDone={() => { setIsRecovery(false); setSession(null) }}/></>
-  }
-  if (mustChangePw && session) {
-    return (
-      <><style>{G}</style>
-      <ForceChangePassword
-        profile={profile}
-        onDone={async () => {
-          await supabase.from('profiles').update({ must_change_password: false }).eq('id', profile.id)
-          setProfile(p => ({ ...p, must_change_password: false }))
-          setMustChangePw(false)
-        }}
-        onSignOut={async () => {
-          await supabase.auth.signOut()
-          setProfile(null); setSession(null); setMustChangePw(false); setShowLanding(true)
-        }}
-      />
-      </>
-    )
-  }
-  if (loading) {
-    return <><style>{G}</style><LoadingScreen msg={session ? 'Loading your workspace...' : 'Initialising...'}/></>
-  }
-  if (showLanding && !session) {
-    return <Landing onEnter={() => setShowLanding(false)}/>
-  }
-  if (!session || !profile) {
-    return <><style>{G}</style><Login onLogin={p => setProfile(p)}/></>
-  }
-  if (profile.role === 'parent') {
-    return <><style>{G}</style><ParentPortal profile={profile} onSignOut={async()=>{await supabase.auth.signOut();setProfile(null);setSession(null);setShowLanding(true)}}/></>
-  }
-  if (!profile.school_id) {
-    return <><style>{G}</style><style>{`@keyframes srms-load{to{width:100%}}`}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null); setSession(null); setShowLanding(true) }}/></>
-  }
+  if (isRecovery) return <><style>{G}</style><ResetPassword onDone={() => { setIsRecovery(false); setSession(null) }}/></>
+  if (mustChangePw && session) return (
+    <><style>{G}</style>
+    <ForceChangePassword
+      profile={profile}
+      onDone={async () => {
+        await supabase.from('profiles').update({ must_change_password: false }).eq('id', profile.id)
+        setProfile(p => ({ ...p, must_change_password: false }))
+        setMustChangePw(false)
+      }}
+      onSignOut={async () => {
+        await supabase.auth.signOut()
+        setProfile(null); setSession(null); setMustChangePw(false); setShowLanding(false)
+      }}
+    />
+    </>
+  )
+  if (loading)    return <><style>{G}</style><LoadingScreen msg={session ? 'Loading your workspace...' : 'Initialising...'}/></>
+  if (showLanding && !session) return <Landing onEnter={() => setShowLanding(false)}/>
+  if (!session || !profile) return <><style>{G}</style><Login onLogin={p => setProfile(p)} lockedError={lockedError} onClearLockedError={() => setLockedError(false)} onBack={() => setShowLanding(true)}/>
+  if (profile.role === 'parent') return <><style>{G}</style><ParentPortal profile={profile} onSignOut={async()=>{await supabase.auth.signOut();setProfile(null);setSession(null);setShowLanding(false)}}/></>
+  if (!profile.school_id)   return <><style>{G}</style><style>{`@keyframes srms-load{to{width:100%}}`}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null); setSession(null); setShowLanding(false) }}/></>
 
   const currentYear   = currentYearFromSettings(settings)
   const activeYear    = selectedYear || currentYear

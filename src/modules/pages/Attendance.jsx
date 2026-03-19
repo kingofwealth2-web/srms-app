@@ -77,9 +77,15 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
         .map(s=>({school_id:profile?.school_id,student_id:s.id,class_id:cid,date,status:getStatus(s.id)||null,marked_by:profile?.id,academic_year:activeYear}))
         .filter(m=>m.status)
       if(allMarks.length===0){toast('No students marked -- nothing to save','error');setSaving(false);return}
-      // Upsert instead of delete+insert — prevents data loss if insert fails
+      // Delete existing records for this class+date, then insert fresh
+      const {error:delErr} = await supabase.from('attendance')
+        .delete()
+        .eq('school_id', profile?.school_id)
+        .eq('class_id', cid)
+        .eq('date', date)
+      if(delErr) throw delErr
       const {data:rows,error:insErr} = await supabase.from('attendance')
-        .upsert(allMarks, {onConflict:'school_id,student_id,class_id,date'})
+        .insert(allMarks)
         .select()
       if(insErr) throw insErr
       setData(p=>({...p,attendance:[...p.attendance.filter(a=>!(a.class_id===cid&&a.date===date)),...(rows||[])]}))
@@ -215,12 +221,14 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
                         const cur=getStatus(r.id)===s
                         const isPending=pendingMarks[r.id]===s
                         return (
-                          <button key={s} onClick={()=>markStudent(r.id,s)}
-                            style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:600,cursor:'pointer',transition:'all 0.12s',fontFamily:"'Cabinet Grotesk',sans-serif",
+                          <button key={s} onClick={()=>!isBlocked&&markStudent(r.id,s)}
+                            disabled={isBlocked}
+                            style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:600,cursor:isBlocked?'not-allowed':'pointer',transition:'all 0.12s',fontFamily:"'Cabinet Grotesk',sans-serif",
+                              opacity:isBlocked?0.3:1,
                               background:cur?STATUS_META[s].bg:'transparent',color:cur?STATUS_META[s].color:'var(--mist3)',
                               border:`1px solid ${cur?STATUS_META[s].color:'var(--line)'}`,
                               outline:isPending?`2px solid ${STATUS_META[s].color}`:'none',outlineOffset:1}}
-                            onMouseEnter={e=>{if(!cur){e.currentTarget.style.borderColor=STATUS_META[s].color;e.currentTarget.style.color=STATUS_META[s].color}}}
+                            onMouseEnter={e=>{if(!cur&&!isBlocked){e.currentTarget.style.borderColor=STATUS_META[s].color;e.currentTarget.style.color=STATUS_META[s].color}}}
                             onMouseLeave={e=>{if(!cur){e.currentTarget.style.borderColor='var(--line)';e.currentTarget.style.color='var(--mist3)'}}}>
                             {s}
                           </button>
