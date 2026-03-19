@@ -383,12 +383,13 @@ export default function App() {
     />
     </>
   )
+  if (profile?.role === 'parent') return <><style>{G}</style><ParentPortal profile={profile} onSignOut={async()=>{await supabase.auth.signOut();setProfile(null);setSession(null);setShowLanding(false)}}/></>
   if (loading)    return <><style>{G}</style><LoadingScreen msg={session ? 'Loading your workspace...' : 'Initialising...'}/></>
   if (showLanding && !session) return <Landing onEnter={() => setShowLanding(false)}/>
   if (!session || !profile) return <><style>{G}</style><Login onLogin={p => setProfile(p)} lockedError={lockedError} onClearLockedError={() => setLockedError(false)} onBack={() => setShowLanding(true)}/></>
-  if (profile.role === 'parent') return <><style>{G}</style><ParentPortal profile={profile} onSignOut={async()=>{await supabase.auth.signOut();setProfile(null);setSession(null);setShowLanding(false)}}/></>
   if (!profile.school_id)   return <><style>{G}</style><style>{"@keyframes srms-load{to{width:100%}}"}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null); setSession(null); setShowLanding(false) }}/></>
 
+  if (!settings) return <><style>{G}</style><LoadingScreen msg="Loading settings..."/></>
   const currentYear   = currentYearFromSettings(settings)
   const activeYear    = selectedYear || currentYear
   const isViewingPast = selectedYear && selectedYear !== currentYear
