@@ -106,16 +106,34 @@ export default function Users({profile,toast}) {
       if(authErr){ toast(authErr.message,'error'); setSaving(false); return }
       const uid = authData?.user?.id
       if(!uid){ toast('User account created but could not get ID.','error'); setSaving(false); return }
-      const {error:profErr} = await supabase.rpc('create_school_user', {
-        p_user_id:   uid,
-        p_full_name: form.full_name,
-        p_email:     form.email,
-        p_role:      form.role,
-        p_school_id: profile?.school_id,
-      })
+      // For parent role, insert profile directly (RPC may not accept 'parent' role)
+      let profErr = null
+      if(form.role === 'parent') {
+        const {error:pe} = await supabase.from('profiles').insert({
+          id: uid,
+          full_name: form.full_name,
+          email: form.email,
+          role: 'parent',
+          school_id: profile?.school_id,
+          locked: false,
+          must_change_password: true,
+        })
+        profErr = pe
+      } else {
+        const {error:pe} = await supabase.rpc('create_school_user', {
+          p_user_id:   uid,
+          p_full_name: form.full_name,
+          p_email:     form.email,
+          p_role:      form.role,
+          p_school_id: profile?.school_id,
+        })
+        profErr = pe
+      }
       if(profErr){ toast(profErr.message,'error'); setSaving(false); return }
-      // Flag this account for forced password change on first login
-      await supabase.from('profiles').update({must_change_password:true}).eq('id',uid)
+      // Flag non-parent accounts for forced password change (parents already have it set in insert)
+      if(form.role !== 'parent') {
+        await supabase.from('profiles').update({must_change_password:true}).eq('id',uid)
+      }
       // Fetch the full profile row so all fields are present in local state
       const {data:newProf} = await supabase.from('profiles').select('*').eq('id',uid).single()
       setUsers(p=>[...p, newProf||{id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false}])
