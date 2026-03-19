@@ -129,9 +129,22 @@ export default function Users({profile,toast}) {
         })
         profErr = pe
       }
-      if(profErr){ toast(profErr.message,'error'); setSaving(false); return }
-      // Flag non-parent accounts for forced password change (parents already have it set in insert)
-      if(form.role !== 'parent') {
+      if(profErr){ toast('Profile setup failed: '+profErr.message,'error'); setSaving(false); return }
+      // For parent: verify school_id was saved, fix if not (RLS may have silently blocked it)
+      if(form.role === 'parent') {
+        const {data:check} = await supabase.from('profiles').select('school_id').eq('id',uid).single()
+        if(!check?.school_id) {
+          // RLS blocked the update — try the RPC instead which has elevated permissions
+          await supabase.rpc('create_school_user', {
+            p_user_id:   uid,
+            p_full_name: form.full_name,
+            p_email:     form.email,
+            p_role:      'parent',
+            p_school_id: profile?.school_id,
+          })
+          await supabase.from('profiles').update({must_change_password:true}).eq('id',uid)
+        }
+      } else {
         await supabase.from('profiles').update({must_change_password:true}).eq('id',uid)
       }
       // Fetch the full profile row so all fields are present in local state
