@@ -34,6 +34,7 @@ import Users          from './modules/pages/Users'
 import MyProfile      from './modules/pages/MyProfile'
 import AuditLog       from './modules/pages/AuditLog'
 import Settings       from './modules/pages/Settings'
+import Pricing        from './modules/pages/PricingPage'
 
 // ── Theme Toggle ────────────────────────────────────────────────
 function ThemeToggle({ isDark, onToggle, size = 'md' }) {
