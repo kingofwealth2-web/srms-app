@@ -91,3 +91,74 @@ export const GHANA_PUBLIC_HOLIDAYS = [
   {id:'gh10', name:'Christmas Day',     month:12, day:25},
   {id:'gh11', name:'Boxing Day',        month:12, day:26},
 ]
+
+// ── PRICING PLANS ──────────────────────────────────────────────
+// Edit amounts here — they update everywhere automatically.
+export const PLANS = {
+  starter: {
+    key:            'starter',
+    label:          'Starter',
+    monthlyPrice:   150,
+    annualPrice:    1500,
+    annualMonths:   10,   // how many months annual covers (10 = 2 months free)
+    studentLimit:   80,
+    userLimit:      2,
+    features: {
+      yearSwitcher:     false,
+      feeReceipts:      false,
+      behaviour:        false,
+      announcements:    false,
+      reportsPDF:       true,
+      reportsExcel:     false,
+      parentPortal:     false,
+      auditLog:         false,
+    },
+  },
+  basic: {
+    key:            'basic',
+    label:          'Basic',
+    monthlyPrice:   350,
+    annualPrice:    3150,
+    annualMonths:   9,   // 9 months paid = 3 months free
+    studentLimit:   500,
+    userLimit:      10,
+    features: {
+      yearSwitcher:     false,
+      feeReceipts:      true,
+      behaviour:        true,
+      announcements:    true,
+      reportsPDF:       true,
+      reportsExcel:     true,
+      parentPortal:     false,
+      auditLog:         false,
+    },
+  },
+  pro: {
+    key:            'pro',
+    label:          'Pro',
+    monthlyPrice:   800,
+    annualPrice:    7200,
+    annualMonths:   9,   // 3 months free
+    studentLimit:   null,   // null = unlimited
+    userLimit:      null,
+    features: {
+      yearSwitcher:     true,
+      feeReceipts:      true,
+      behaviour:        true,
+      announcements:    true,
+      reportsPDF:       true,
+      reportsExcel:     true,
+      parentPortal:     true,
+      auditLog:         true,
+    },
+  },
+}
+
+// Trial period in days — change here if needed
+export const TRIAL_DAYS = 14
+
+// Overage grace period in days before new additions are blocked
+export const OVERAGE_GRACE_DAYS = 7
+
+// Days of read-only access after cancellation before data is archived
+export const CANCELLATION_GRACE_DAYS = 30

@@ -213,8 +213,7 @@ html, body, #root { border: none !important; outline: none !important; box-shado
 }
 `
 
-export default function Landing({ onEnter }) {
-  const navRef = useRef(null)
+export default function Landing({ onEnter, onShowPlans }) {  const navRef = useRef(null)
 
   useEffect(() => {
     const onScroll = () => {
@@ -238,8 +237,7 @@ export default function Landing({ onEnter }) {
           <div className="lp-nav-links">
             <button className="lp-nav-link">Features</button>
             <button className="lp-nav-link">Roles</button>
-            <button className="lp-nav-link">Pricing</button>
-          </div>
+            <button className="lp-nav-link" onClick={onShowPlans}>Pricing</button>          </div>
           <div className="lp-nav-actions">
             <button className="lp-btn-ghost" onClick={onEnter}>Sign In</button>
             <button className="lp-btn-gold" onClick={onEnter}>Get Started</button>
