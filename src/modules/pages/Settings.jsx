@@ -86,6 +86,8 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       if(JSON.stringify(settings?.grading_scale) !== JSON.stringify(payload.grading_scale)) changes.push('Grading scale updated')
       if(JSON.stringify(settings?.grade_components) !== JSON.stringify(payload.grade_components)) changes.push('Grade components updated')
       if(settings?.school_logo !== payload.school_logo) changes.push('School logo updated')
+      if(JSON.stringify(settings?.vacations) !== JSON.stringify(payload.vacations)) changes.push('Vacations updated')
+      if(JSON.stringify(settings?.custom_holidays) !== JSON.stringify(payload.custom_holidays)) changes.push('Custom holidays updated')
       const desc = changes.length ? changes.join(' · ') : 'No changes detected'
       // Strip logo from diff — base64 strings are too large for audit storage
       const {school_logo:_bl,...settingsBefore} = settings||{}

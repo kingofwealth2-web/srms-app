@@ -362,7 +362,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const overdueCount = enriched.filter(r=>r.isOverdue).length
   const totalOwed = fees.reduce((s,f)=>s+Number(f.amount||0),0)
   const totalPaid = enriched.reduce((s,r)=>s+r.effectivePaid,0)
-  const openAdd = ()=>{setForm({student_id:'',fee_type:'',amount:'',due_date:'',period:''});setModal(true)}
+  const openAdd = ()=>{ window.scrollTo({top:0,behavior:'smooth'}); setForm({student_id:'',fee_type:'',amount:'',due_date:'',period:''}); setModal(true) }
   const [editFeeModal,setEditFeeModal] = useState(false)
   const [editFeeRow,setEditFeeRow]     = useState(null)
   const [editFeeForm,setEditFeeForm]   = useState({})
@@ -575,7 +575,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           <Btn variant='ghost' onClick={exportFeesCsv}>⬇ Export CSV</Btn>
         )}
         {feeActiveTab==='fees' && !isViewingPast && canBulk && (
-          <Btn variant='secondary' onClick={()=>{setBulkModal(true);setBulkStep(1);setBulk(BULK_INIT)}}>⊞ Bulk Add Fee</Btn>
+          <Btn variant='secondary' onClick={()=>{ window.scrollTo({top:0,behavior:'smooth'}); setBulkModal(true);setBulkStep(1);setBulk(BULK_INIT)}}>⊞ Bulk Add Fee</Btn>
         )}
         {feeActiveTab==='fees' && !isViewingPast && <Btn onClick={openAdd}>+ Add Fee Record</Btn>}
       </PageHeader>

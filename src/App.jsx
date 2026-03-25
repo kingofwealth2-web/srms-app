@@ -64,6 +64,8 @@ function ForceChangePassword({ profile, onDone, onSignOut }) {
   const [confirm,setConfirm]   = useState('')
   const [saving,setSaving]     = useState(false)
   const [error,setError]       = useState('')
+  const [showNew,setShowNew]   = useState(false)
+  const [showCon,setShowCon]   = useState(false)
   const isMobile = useIsMobile()
 
   const submit = async () => {
@@ -99,18 +101,24 @@ function ForceChangePassword({ profile, onDone, onSignOut }) {
 
         <div style={{ marginBottom:16 }}>
           <div style={{ fontSize:11, fontWeight:600, color:'var(--mist2)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6, fontFamily:"'Clash Display',sans-serif" }}>New Password</div>
-          <input value={newPass} onChange={e => setNewPass(e.target.value)} type="password" placeholder="Min. 8 characters"
-            style={{ width:'100%', background:'var(--ink3)', border:'1px solid var(--line)', borderRadius:'var(--r-sm)', padding:'10px 14px', color:'var(--white)', fontSize:13, boxSizing:'border-box', outline:'none' }}
-            onFocus={e => { e.target.style.borderColor='var(--gold)'; e.target.style.boxShadow='0 0 0 3px rgba(232,184,75,0.08)' }}
-            onBlur={e  => { e.target.style.borderColor='var(--line)'; e.target.style.boxShadow='none' }}/>
+          <div style={{ position:'relative' }}>
+            <input value={newPass} onChange={e => setNewPass(e.target.value)} type={showNew ? 'text' : 'password'} placeholder="Min. 8 characters"
+              style={{ width:'100%', background:'var(--ink3)', border:'1px solid var(--line)', borderRadius:'var(--r-sm)', padding:'10px 42px 10px 14px', color:'var(--white)', fontSize:13, boxSizing:'border-box', outline:'none' }}
+              onFocus={e => { e.target.style.borderColor='var(--gold)'; e.target.style.boxShadow='0 0 0 3px rgba(232,184,75,0.08)' }}
+              onBlur={e  => { e.target.style.borderColor='var(--line)'; e.target.style.boxShadow='none' }}/>
+            <button onClick={()=>setShowNew(v=>!v)} type="button" style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--mist3)', fontSize:16, padding:0, lineHeight:1 }}>{showNew ? '🙈' : '👁'}</button>
+          </div>
         </div>
 
         <div style={{ marginBottom:20 }}>
           <div style={{ fontSize:11, fontWeight:600, color:'var(--mist2)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6, fontFamily:"'Clash Display',sans-serif" }}>Confirm Password</div>
-          <input value={confirm} onChange={e => setConfirm(e.target.value)} type="password" placeholder="Repeat your new password"
-            style={{ width:'100%', background:'var(--ink3)', border:`1px solid ${confirm && confirm !== newPass ? 'var(--rose)' : 'var(--line)'}`, borderRadius:'var(--r-sm)', padding:'10px 14px', color:'var(--white)', fontSize:13, boxSizing:'border-box', outline:'none' }}
-            onFocus={e => { e.target.style.borderColor=confirm && confirm !== newPass ? 'var(--rose)' : 'var(--gold)'; e.target.style.boxShadow='0 0 0 3px rgba(232,184,75,0.08)' }}
-            onBlur={e  => { e.target.style.borderColor=confirm && confirm !== newPass ? 'var(--rose)' : 'var(--line)'; e.target.style.boxShadow='none' }}/>
+          <div style={{ position:'relative' }}>
+            <input value={confirm} onChange={e => setConfirm(e.target.value)} type={showCon ? 'text' : 'password'} placeholder="Repeat your new password"
+              style={{ width:'100%', background:'var(--ink3)', border:`1px solid ${confirm && confirm !== newPass ? 'var(--rose)' : 'var(--line)'}`, borderRadius:'var(--r-sm)', padding:'10px 42px 10px 14px', color:'var(--white)', fontSize:13, boxSizing:'border-box', outline:'none' }}
+              onFocus={e => { e.target.style.borderColor=confirm && confirm !== newPass ? 'var(--rose)' : 'var(--gold)'; e.target.style.boxShadow='0 0 0 3px rgba(232,184,75,0.08)' }}
+              onBlur={e  => { e.target.style.borderColor=confirm && confirm !== newPass ? 'var(--rose)' : 'var(--line)'; e.target.style.boxShadow='none' }}/>
+            <button onClick={()=>setShowCon(v=>!v)} type="button" style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--mist3)', fontSize:16, padding:0, lineHeight:1 }}>{showCon ? '🙈' : '👁'}</button>
+          </div>
           {confirm && confirm !== newPass && <div style={{ fontSize:11, color:'var(--rose)', marginTop:5 }}>Passwords do not match</div>}
         </div>
 

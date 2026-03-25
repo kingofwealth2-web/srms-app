@@ -16,8 +16,9 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
 
   const backdrop = {
     position: 'fixed', inset: 0,
-    background: 'rgba(8,8,18,0.82)',
+    background: 'var(--modal-backdrop, rgba(8,8,18,0.82))',
     backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
     display: 'flex', justifyContent: 'center',
     zIndex: 1000,
     animation: 'fadeIn 0.2s ease both',
@@ -54,7 +55,7 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ ...backdrop, alignItems: 'center', padding: 20 }}>
+      style={{ ...backdrop, alignItems: 'flex-start', padding: '5vh 20px 20px' }}>
       <div className='si' style={{
         width: '100%', maxWidth: width,
         background: 'var(--ink2)',
