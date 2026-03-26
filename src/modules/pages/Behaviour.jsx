@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../supabase'
-import { useIsMobile, usePlan } from '../lib/hooks'
+import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, BEHAVIOUR_META } from '../lib/constants'
 import { fmtDate, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
@@ -17,8 +17,7 @@ import Card from '../components/Card'
 import ConfirmModal from '../components/ConfirmModal'
 
 // ── BEHAVIOUR ──────────────────────────────────────────────────
-export default function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
-  const planHook = usePlan(settings)
+export default function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast,planHook}) {
   if (!planHook.can('behaviour')) return (
     <div style={{padding:'40px 24px'}}>
       <PlanGate planHook={planHook} feature='behaviour' mode='block'><></></PlanGate>

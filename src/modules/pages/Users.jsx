@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { supabase } from '../../supabase'
-
-const SUPABASE_URL      = 'https://kfcqkgvuluftnwzeqzmw.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmY3FrZ3Z1bHVmdG53emVxem13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NzkwMTUsImV4cCI6MjA4NzQ1NTAxNX0.dOW3c8XIfFbIq2ls9gEjgowWguIlWLVflR7nErXojDI'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META } from '../lib/constants'
 import { fmtDate } from '../lib/helpers'
@@ -19,6 +16,9 @@ import SectionTitle from '../components/SectionTitle'
 import DataTable from '../components/DataTable'
 import Card from '../components/Card'
 import LoadingScreen from '../components/LoadingScreen'
+
+const SUPABASE_URL      = 'https://kfcqkgvuluftnwzeqzmw.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmY3FrZ3Z1bHVmdG53emVxem13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NzkwMTUsImV4cCI6MjA4NzQ1NTAxNX0.dOW3c8XIfFbIq2ls9gEjgowWguIlWLVflR7nErXojDI'
 
 // ── USERS MODULE ───────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
-import { useIsMobile, usePlan } from '../lib/hooks'
+import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS, CURRENCIES } from '../lib/constants'
 import PlanGate from '../components/PlanGate'
 import { fmtDate, fmtMoney, getCurrency, genRCP, csvEscape, fullName } from '../lib/helpers'
@@ -197,8 +197,7 @@ function printReceipt({fee, feePayments, student, cls, settings, currency}) {
 }
 
 // ── FEES ───────────────────────────────────────────────────────
-export default function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,initialFeeFilter,onFilterConsumed}) {
-  const planHook = usePlan(settings)
+export default function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,initialFeeFilter,onFilterConsumed,planHook}) {
   const {fees=[],students=[],classes=[],payments=[]} = data
   const currency = getCurrency(settings)
   const isMobile = useIsMobile()

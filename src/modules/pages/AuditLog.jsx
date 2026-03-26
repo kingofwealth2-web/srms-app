@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
-import { useIsMobile, usePlan } from '../lib/hooks'
+import { useIsMobile } from '../lib/hooks'
 import { ROLE_META } from '../lib/constants'
 import { fmtDate } from '../lib/helpers'
 import Badge from '../components/Badge'
@@ -38,8 +38,7 @@ const ACTION_COLOR = {
   'Bulk Promote': 'var(--amber)',
 }
 
-export default function AuditLog({profile,settings}) {
-  const planHook = usePlan(settings)
+export default function AuditLog({profile,settings,planHook}) {
   if (!planHook.can('auditLog')) return (
     <div style={{padding:'40px 24px'}}>
       <PlanGate planHook={planHook} feature='auditLog' mode='block'><></></PlanGate>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../supabase'
-import { useIsMobile, usePlan } from '../lib/hooks'
+import { useIsMobile } from '../lib/hooks'
 import { ROLE_META } from '../lib/constants'
 import { fmtDate, canSeeAnnouncement } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
@@ -16,8 +16,7 @@ import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 
 // ── ANNOUNCEMENTS ──────────────────────────────────────────────
-export default function Announcements({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
-  const planHook = usePlan(settings)
+export default function Announcements({profile,data,setData,toast,settings,activeYear,isViewingPast,planHook}) {
   if (!planHook.can('announcements')) return (
     <div style={{padding:'40px 24px'}}>
       <PlanGate planHook={planHook} feature='announcements' mode='block'><></></PlanGate>

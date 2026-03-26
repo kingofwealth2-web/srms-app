@@ -229,27 +229,26 @@ export default function App() {
     const year = yr || currentYearFromSettings(settingsRow)
     const [
       { data: students }, { data: classes }, { data: subjects },
-      { data: grades }, { data: attendance }, { data: fees },
-      { data: payments }, { data: behaviour }, { data: announcements },
       { data: enrolments }, { data: users },
     ] = await Promise.all([
       supabase.from('students').select('*').eq('school_id', prof?.school_id).order('student_id'),
       supabase.from('classes').select('*').eq('school_id', prof?.school_id).order('name'),
       supabase.from('subjects').select('*').eq('school_id', prof?.school_id).order('name'),
-      supabase.from('grades').select('*').eq('school_id', prof?.school_id).eq('year', year),
-      supabase.from('attendance').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('date', { ascending: false }),
-      supabase.from('fees').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
-      supabase.from('payments').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('created_at', { ascending: false }),
-      supabase.from('behaviour').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('created_at', { ascending: false }),
-      supabase.from('announcements').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('created_at', { ascending: false }),
       supabase.from('student_year_enrolment').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
       supabase.from('profiles').select('*').eq('school_id', prof?.school_id),
     ])
     setData({
-      students: students || [], classes: classes || [], subjects: subjects || [],
-      grades: grades || [], attendance: attendance || [], fees: fees || [],
-      payments: payments || [], behaviour: behaviour || [], announcements: announcements || [],
-      enrolments: enrolments || [], users: users || [],
+      students:      students  || [],
+      classes:       classes   || [],
+      subjects:      subjects  || [],
+      grades:        [],
+      attendance:    [],
+      fees:          [],
+      payments:      [],
+      behaviour:     [],
+      announcements: [],
+      enrolments:    enrolments || [],
+      users:         users     || [],
     })
   }, [])
 
@@ -316,64 +315,24 @@ export default function App() {
   const confirmNewYear = async () => {
     if (!newYearTarget) return
     setNewYearWorking(true)
-    try {
-      await supabase.from('attendance').update({ academic_year: activeYear }).is('academic_year', null).eq('school_id', profile.school_id)
-      await supabase.from('fees').update({ academic_year: activeYear }).is('academic_year', null).eq('school_id', profile.school_id)
-      await supabase.from('behaviour').update({ academic_year: activeYear }).is('academic_year', null).eq('school_id', profile.school_id)
-      await supabase.from('announcements').update({ academic_year: activeYear }).is('academic_year', null).eq('school_id', profile.school_id)
-      await supabase.from('grades').update({ year: activeYear }).is('year', null).eq('school_id', profile.school_id)
-
-      const activeStudents = data.students.filter(s => !s.archived && s.class_id)
-      if (activeStudents.length > 0) {
-        const enrolmentRows = activeStudents.map(s => ({ school_id: profile.school_id, student_id: s.id, class_id: s.class_id, academic_year: activeYear }))
-        await supabase.from('student_year_enrolment').delete().eq('school_id', profile.school_id).eq('academic_year', activeYear)
-        await supabase.from('student_year_enrolment').insert(enrolmentRows)
+    const { error } = await supabase.functions.invoke('start-new-year', {
+      body: {
+        school_id: profile.school_id,
+        old_year:  activeYear,
+        new_year:  newYearTarget,
       }
-
-      const outstanding = data.fees.filter(f => Number(f.amount || 0) - Number(f.paid || 0) > 0)
-      if (outstanding.length > 0) {
-        // Guard against double-insertion if wizard is retried after partial failure
-        const { data: existingArrears } = await supabase
-          .from('fees').select('id')
-          .eq('school_id', profile.school_id)
-          .eq('academic_year', newYearTarget)
-          .eq('is_arrear', true)
-          .eq('arrear_from_year', activeYear)
-          .limit(1)
-        if (!existingArrears?.length) {
-          const arrearRows = outstanding.map(f => ({
-            school_id: profile.school_id,
-            student_id: f.student_id,
-            fee_type: f.fee_type + ' (Arrears from ' + activeYear + ')',
-            amount: Number(f.amount || 0) - Number(f.paid || 0),
-            paid: 0, academic_year: newYearTarget, is_arrear: true, arrear_from_year: activeYear,
-          }))
-          await supabase.from('fees').insert(arrearRows)
-        }
-      }
-
-      // Create enrolment rows for the new year from current student class assignments
-      if (activeStudents.length > 0) {
-        const newYearEnrolments = activeStudents.map(s => ({
-          school_id: profile.school_id, student_id: s.id,
-          class_id: s.class_id, academic_year: newYearTarget,
-        }))
-        await supabase.from('student_year_enrolment').insert(newYearEnrolments)
-      }
-
-      await supabase.from('students').update({ entry_year: activeYear }).is('entry_year', null).eq('school_id', profile.school_id)
-      await supabase.from('settings').update({ academic_year: newYearTarget }).eq('id', settings.id).eq('school_id', profile.school_id)
-
-      setSettings(p => ({ ...p, academic_year: newYearTarget }))
-      setSelectedYear(null)
-      setNewYearModal(false)
-      setNewYearStep(1)
-      setNewYearTarget('')
-      showToast('New academic year ' + newYearTarget + ' started successfully.')
-    } catch (err) {
-      showToast('Error: ' + err.message, 'error')
-    }
+    })
     setNewYearWorking(false)
+    if (error) {
+      showToast('Year transition failed: ' + error.message, 'error')
+      return
+    }
+    setSettings(p => ({ ...p, academic_year: newYearTarget }))
+    setSelectedYear(null)
+    setNewYearModal(false)
+    setNewYearStep(1)
+    setNewYearTarget('')
+    showToast('Academic year ' + newYearTarget + ' started successfully.')
   }
 
   // ── Early returns ──────────────────────────────────────────────
@@ -418,14 +377,14 @@ export default function App() {
       case 'classes':       return <Classes      {...props} onPromotionComplete={() => { setNewYearStep(2); setNewYearModal(true) }}/>
       case 'grades':        return <Grades       {...props}/>
       case 'attendance':    return <Attendance   {...props}/>
-      case 'fees':          return <Fees         {...props} initialFeeFilter={feeFilter} onFilterConsumed={() => setFeeFilter('')}/>
-      case 'behaviour':     return <Behaviour    {...props}/>
-      case 'reports':       return <Reports      {...props}/>
-      case 'announcements': return <Announcements {...props}/>
+      case 'fees':          return <Fees         {...props} planHook={planHook} initialFeeFilter={feeFilter} onFilterConsumed={() => setFeeFilter('')}/>
+      case 'behaviour':     return <Behaviour    {...props} planHook={planHook}/>
+      case 'reports':       return <Reports      {...props} planHook={planHook}/>
+      case 'announcements': return <Announcements {...props} planHook={planHook}/>
       case 'users':         return <Users        {...props} planHook={planHook}/>
       case 'settings':      return <Settings     profile={profile} settings={settings} setSettings={setSettings} toast={showToast} activeYear={activeYear} onStartNewYear={() => setNewYearModal(true)}/>
       case 'myprofile':     return <MyProfile    profile={profile} setProfile={setProfile} toast={showToast}/>
-      case 'auditlog':      return <AuditLog     profile={profile} settings={settings}/>
+      case 'auditlog':      return <AuditLog     {...props} planHook={planHook}/>
       default:              return <Dashboard    {...props} onNav={setPage}/>
     }
   }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useIsMobile, usePlan } from '../lib/hooks'
+import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, LETTER_COLOR, FEE_STATUS } from '../lib/constants'
 import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName } from '../lib/helpers'
 import Avatar from '../components/Avatar'
@@ -29,8 +29,7 @@ const abbrSubject = name => {
 }
 
 // ── REPORTS ────────────────────────────────────────────────────
-export default function Reports({profile,data,settings,activeYear,isViewingPast,toast}) {
-  const planHook = usePlan(settings)
+export default function Reports({profile,data,settings,activeYear,isViewingPast,toast,planHook}) {
   const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
