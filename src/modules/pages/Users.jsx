@@ -22,7 +22,7 @@ import LoadingScreen from '../components/LoadingScreen'
 
 // ── USERS MODULE ───────────────────────────────────────────────
 
-export default function Users({profile,toast}) {
+export default function Users({profile,toast,planHook}) {
   const [users,setUsers]       = useState([])
   const [loading,setLoading]   = useState(true)
   const [modal,setModal]       = useState(false)
@@ -49,7 +49,15 @@ export default function Users({profile,toast}) {
   },[profile?.school_id])
 
   const genPw = ()=>'SRMS'+Math.floor(1000+Math.random()*9000)+'!'
-  const openAdd  = ()=>{setEdit(null);setForm({full_name:'',email:'',role:'teacher'});setParentLinks([]);setStuSearch('');setModal(true)}
+
+  const userLimit   = planHook?.userLimit ?? null  // null = unlimited
+  const activeUsers = users
+  const atUserLimit = userLimit !== null && users.length >= userLimit
+
+  const openAdd  = ()=>{
+    if(atUserLimit){ toast(`Your ${planHook?.plan || 'current'} plan is limited to ${userLimit} staff users. Upgrade to add more.`,'error'); return }
+    setEdit(null);setForm({full_name:'',email:'',role:'teacher'});setParentLinks([]);setStuSearch('');setModal(true)
+  }
   const openEdit = async u=>{
     setEdit(u)
     setForm({full_name:u.full_name,email:u.email,role:u.role})
@@ -67,6 +75,7 @@ export default function Users({profile,toast}) {
 
   const save = async ()=>{
     if(!form.full_name||!form.email)return
+    if(!edit && atUserLimit){toast(`User limit of ${userLimit} reached on your current plan. Upgrade to add more.`,'error');return}
     setSaving(true)
     if(edit){
       const {error} = await supabase.from('profiles').update({full_name:form.full_name,email:form.email,role:form.role}).eq('id',edit.id).eq('school_id',profile?.school_id)
@@ -183,7 +192,16 @@ export default function Users({profile,toast}) {
   return (
     <div>
       <PageHeader title='User Management' sub={`${users.length} system users`}>
-        <Btn onClick={openAdd}>+ Add User</Btn>
+        {userLimit !== null && (
+          <div style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:atUserLimit?'var(--rose)':'var(--mist3)',background:atUserLimit?'rgba(240,107,122,0.08)':'rgba(255,255,255,0.04)',border:`1px solid ${atUserLimit?'rgba(240,107,122,0.2)':'var(--line2)'}`,borderRadius:8,padding:'5px 10px'}}>
+            <span style={{fontWeight:600,color:atUserLimit?'var(--rose)':'var(--white)'}}>{activeUsers.length}</span>
+            <span>/</span>
+            <span>{userLimit}</span>
+            <span style={{color:'var(--mist3)'}}>staff users</span>
+            {atUserLimit && <span style={{fontSize:10,fontWeight:700,color:'var(--rose)'}}>LIMIT REACHED</span>}
+          </div>
+        )}
+        <Btn onClick={openAdd} disabled={atUserLimit}>+ Add User</Btn>
       </PageHeader>
       <Card>
         <DataTable data={users} columns={[

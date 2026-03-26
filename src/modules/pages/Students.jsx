@@ -17,7 +17,7 @@ import DataTable from '../components/DataTable'
 import ConfirmModal from '../components/ConfirmModal'
 
 // ── STUDENTS ───────────────────────────────────────────────────
-export default function Students({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
+export default function Students({profile,data,setData,toast,settings,activeYear,isViewingPast,planHook}) {
   const {students=[],classes=[]} = data
   const [search,setSearch] = useState('')
   const [fc,setFc]         = useState('')
@@ -105,11 +105,18 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     setViewStudent(null)  // close profile modal if open
     setSaving(false)
   }
-  const openAdd = ()=>{setEdit(null);setForm({first_name:'',middle_name:'',last_name:'',class_id:'',dob:'',gender:'',phone:'',email:'',address:'',medical_info:'',guardian_name:'',guardian_relation:'',guardian_phone:'',guardian_email:''});setModal(true)}
+  const studentLimit   = planHook?.studentLimit ?? null  // null = unlimited
+  const atStudentLimit = studentLimit !== null && activeStudents.length >= studentLimit
+
+  const openAdd = ()=>{
+    if(atStudentLimit){ toast(`Your ${planHook?.plan || 'current'} plan is limited to ${studentLimit} students. Upgrade to add more.`,'error'); return }
+    setEdit(null);setForm({first_name:'',middle_name:'',last_name:'',class_id:'',dob:'',gender:'',phone:'',email:'',address:'',medical_info:'',guardian_name:'',guardian_relation:'',guardian_phone:'',guardian_email:''});setModal(true)
+  }
   const openEdit = s=>{setEdit(s);setForm({...s});setModal(true)}
   const save = async ()=>{
     if(!form.first_name||!form.last_name||!form.class_id||!form.dob){toast(!form.dob?'Please enter a date of birth ✦':'Please fill all required fields','error');return}
     if(!form.guardian_name||!form.guardian_phone){toast('Please add at least one parent or guardian with a name and phone number','error');return}
+    if(!edit && atStudentLimit){toast(`Student limit of ${studentLimit} reached on your current plan. Upgrade to add more.`,'error');return}
     setSaving(true)
     if(edit){
       const {error} = await supabase.from('students').update({...form,updated_at:new Date()}).eq('id',edit.id)
@@ -362,7 +369,16 @@ export default function Students({profile,data,setData,toast,settings,activeYear
         sub={showArchived
           ? `${filtered.length} of ${archivedStudents.length} archived${fyear?' · '+fyear:''}`
           : `${filtered.length} of ${activeStudents.length} students`}>
-        {canEdit && !showArchived && <Btn onClick={openAdd}>+ New Student</Btn>}
+        {canEdit && !showArchived && studentLimit !== null && (
+          <div style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:atStudentLimit?'var(--rose)':'var(--mist3)',background:atStudentLimit?'rgba(240,107,122,0.08)':'rgba(255,255,255,0.04)',border:`1px solid ${atStudentLimit?'rgba(240,107,122,0.2)':'var(--line2)'}`,borderRadius:8,padding:'5px 10px'}}>
+            <span style={{fontWeight:600,color:atStudentLimit?'var(--rose)':'var(--white)'}}>{activeStudents.length}</span>
+            <span>/</span>
+            <span>{studentLimit}</span>
+            <span style={{color:'var(--mist3)'}}>students</span>
+            {atStudentLimit && <span style={{fontSize:10,fontWeight:700,color:'var(--rose)'}}>LIMIT REACHED</span>}
+          </div>
+        )}
+        {canEdit && !showArchived && <Btn onClick={openAdd} disabled={atStudentLimit}>+ New Student</Btn>}
         {['superadmin','admin'].includes(profile?.role) && (
           <Btn variant='ghost' onClick={exportStudentsCsv}>⬇ Export CSV</Btn>
         )}

@@ -414,7 +414,7 @@ export default function App() {
     const safePage = allowedPages.includes(page) || personalPages.includes(page) ? page : 'dashboard'
     switch (safePage) {
       case 'dashboard':     return <Dashboard    {...props} onNav={setPage} onNavFees={filter => { setFeeFilter(filter); setPage('fees') }}/>
-      case 'students':      return <Students     {...props}/>
+      case 'students':      return <Students     {...props} planHook={planHook}/>
       case 'classes':       return <Classes      {...props} onPromotionComplete={() => { setNewYearStep(2); setNewYearModal(true) }}/>
       case 'grades':        return <Grades       {...props}/>
       case 'attendance':    return <Attendance   {...props}/>
@@ -422,7 +422,7 @@ export default function App() {
       case 'behaviour':     return <Behaviour    {...props}/>
       case 'reports':       return <Reports      {...props}/>
       case 'announcements': return <Announcements {...props}/>
-      case 'users':         return <Users        {...props}/>
+      case 'users':         return <Users        {...props} planHook={planHook}/>
       case 'settings':      return <Settings     profile={profile} settings={settings} setSettings={setSettings} toast={showToast} activeYear={activeYear} onStartNewYear={() => setNewYearModal(true)}/>
       case 'myprofile':     return <MyProfile    profile={profile} setProfile={setProfile} toast={showToast}/>
       case 'auditlog':      return <AuditLog     profile={profile} settings={settings}/>
@@ -446,6 +446,7 @@ export default function App() {
           collapsed={collapsed} onToggle={() => setCollapsed(c => !c)}
           onLogout={logout} isMobile={isMobile}
           drawerOpen={drawerOpen} onDrawerClose={() => setDrawerOpen(false)}
+          planHook={planHook}
         />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--ink)' }}>
 
