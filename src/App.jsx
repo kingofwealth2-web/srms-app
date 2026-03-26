@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './supabase'
 
 import G, { initScrollReveal } from './modules/styles/global'
-import { useIsMobile } from './modules/lib/hooks'
+import { useIsMobile, usePlan } from './modules/lib/hooks'
+import PlanGate from './modules/components/PlanGate'
 import { ROLE_META, NAV_ITEMS } from './modules/lib/constants'
 import { currentYearFromSettings, generateYears } from './modules/lib/helpers'
 
@@ -17,6 +18,7 @@ import Avatar   from './modules/components/Avatar'
 import LoadingScreen from './modules/components/LoadingScreen'
 
 import Landing        from './modules/pages/Landing'
+import Plans          from './modules/pages/Plans'
 import ParentPortal   from './modules/pages/ParentPortal'
 import Login          from './modules/pages/Login'
 import ResetPassword  from './modules/pages/ResetPassword'
@@ -34,7 +36,7 @@ import Users          from './modules/pages/Users'
 import MyProfile      from './modules/pages/MyProfile'
 import AuditLog       from './modules/pages/AuditLog'
 import Settings       from './modules/pages/Settings'
-import Plans          from './modules/pages/Plans'
+
 // ── Theme Toggle ────────────────────────────────────────────────
 function ThemeToggle({ isDark, onToggle, size = 'md' }) {
   const w = size === 'sm' ? 44 : 52
@@ -162,7 +164,7 @@ function ForceChangePassword({ profile, onDone, onSignOut }) {
 export default function App() {
   const [session,setSession]       = useState(null)
   const [showLanding,setShowLanding] = useState(true)
-  const [showPlans,setShowPlans]     = useState(false) 
+  const [showPlans,setShowPlans]     = useState(false)
   const [mustChangePw,setMustChangePw] = useState(false)
   const [lockedError,setLockedError]   = useState(false)
   const [profile,setProfile]       = useState(null)
@@ -394,8 +396,8 @@ export default function App() {
   )
   if (profile?.role === 'parent') return <><style>{G}</style><ParentPortal profile={profile} onSignOut={async()=>{await supabase.auth.signOut();setProfile(null);setSession(null);setShowLanding(false)}}/></>
   if (loading)    return <><style>{G}</style><LoadingScreen msg={session ? 'Loading your workspace...' : 'Initialising...'}/></>
-  if (showPlans)               return <Plans   onEnter={() => { setShowPlans(false); setShowLanding(false) }} onBack={() => setShowPlans(false)} />
-  if (showLanding && !session) return <Landing onEnter={() => setShowLanding(false)} onShowPlans={() => setShowPlans(true)} /> 
+  if (showPlans)               return <><style>{G}</style><Plans   onEnter={() => { setShowPlans(false); setShowLanding(false) }} onBack={() => setShowPlans(false)} /></>
+  if (showLanding && !session) return <Landing onEnter={() => setShowLanding(false)} onShowPlans={() => setShowPlans(true)}/>
   if (!session || !profile) return <><style>{G}</style><Login onLogin={p => setProfile(p)} lockedError={lockedError} onClearLockedError={() => setLockedError(false)} onBack={() => setShowLanding(true)}/></>
   if (!profile.school_id)   return <><style>{G}</style><style>{"@keyframes srms-load{to{width:100%}}"}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null); setSession(null); setShowLanding(false) }}/></>
 
@@ -403,6 +405,7 @@ export default function App() {
   const currentYear   = currentYearFromSettings(settings)
   const activeYear    = selectedYear || currentYear
   const isViewingPast = selectedYear && selectedYear !== currentYear
+  const planHook      = usePlan(settings)
   const props = { profile, data, setData, toast: showToast, settings, activeYear, isViewingPast, reloadData: () => loadData(activeYear, profile, settings) }
 
   const renderPage = () => {
@@ -422,7 +425,7 @@ export default function App() {
       case 'users':         return <Users        {...props}/>
       case 'settings':      return <Settings     profile={profile} settings={settings} setSettings={setSettings} toast={showToast} activeYear={activeYear} onStartNewYear={() => setNewYearModal(true)}/>
       case 'myprofile':     return <MyProfile    profile={profile} setProfile={setProfile} toast={showToast}/>
-      case 'auditlog':      return <AuditLog     profile={profile}/>
+      case 'auditlog':      return <AuditLog     profile={profile} settings={settings}/>
       default:              return <Dashboard    {...props} onNav={setPage}/>
     }
   }
@@ -468,7 +471,7 @@ export default function App() {
                 <span style={{ fontSize: 10, color: 'var(--mist3)' }}>{settings?.school_name || 'SRMS'}</span>
                 <span style={{ color: 'var(--line2)', fontSize: 10 }}>·</span>
                 {profile?.role === 'superadmin'
-                  ? <YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={true}/>
+                  ? <PlanGate planHook={planHook} feature='yearSwitcher' mode='inline'><YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={true}/></PlanGate>
                   : <span style={{ fontSize: 10, color: 'var(--mist3)' }}>{activeYear}</span>}
                 {isViewingPast && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 4, padding: '1px 6px', letterSpacing: '0.06em' }}>READ ONLY</span>}
               </div>
@@ -479,7 +482,7 @@ export default function App() {
                 <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--mist3)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{settings?.school_name || 'SRMS'}</span>
                 <span style={{ color: 'var(--line2)', fontSize: 10 }}>·</span>
                 {profile?.role === 'superadmin'
-                  ? <YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={false}/>
+                  ? <PlanGate planHook={planHook} feature='yearSwitcher' mode='inline'><YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={false}/></PlanGate>
                   : <span style={{ fontSize: 12, color: 'var(--mist3)' }}>{activeYear}</span>}
                 {isViewingPast && (
                   <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 5, padding: '2px 8px', letterSpacing: '0.06em' }}>READ ONLY</span>

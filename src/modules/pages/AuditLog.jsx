@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
-import { useIsMobile } from '../lib/hooks'
+import { useIsMobile, usePlan } from '../lib/hooks'
 import { ROLE_META } from '../lib/constants'
 import { fmtDate } from '../lib/helpers'
 import Badge from '../components/Badge'
@@ -10,6 +10,7 @@ import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
+import PlanGate from '../components/PlanGate'
 import Card from '../components/Card'
 import Avatar from '../components/Avatar'
 import LoadingScreen from '../components/LoadingScreen'
@@ -37,7 +38,13 @@ const ACTION_COLOR = {
   'Bulk Promote': 'var(--amber)',
 }
 
-export default function AuditLog({profile}) {
+export default function AuditLog({profile,settings}) {
+  const planHook = usePlan(settings)
+  if (!planHook.can('auditLog')) return (
+    <div style={{padding:'40px 24px'}}>
+      <PlanGate planHook={planHook} feature='auditLog' mode='block'><></></PlanGate>
+    </div>
+  )
   const [logs, setLogs]         = useState([])
   const [loading, setLoading]   = useState(true)
   const [expanded, setExpanded] = useState(null)

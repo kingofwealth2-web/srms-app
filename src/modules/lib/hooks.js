@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { PLANS, OVERAGE_GRACE_DAYS, CANCELLATION_GRACE_DAYS } from './constants'
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768)
@@ -53,4 +54,99 @@ export function usePagination(items, pageSize = 50) {
   const clampedPage = Math.min(page, totalPages)
   const paged = items.slice((clampedPage - 1) * pageSize, clampedPage * pageSize)
   return { paged, page: clampedPage, setPage, totalPages }
+}
+// ── Plan / subscription status ──────────────────────────────────
+// Usage: const { plan, status, can, isTrialing, isExpired } = usePlan(settings)
+//
+// status values:
+//   'active_trial'       — within 14-day trial
+//   'trial_expired'      — trial ended, no paid plan
+//   'active'             — paid plan, within expiry
+//   'expired'            — paid plan lapsed
+//   'overage_grace'      — over student/user limit, 7-day grace
+//   'cancelled_grace'    — cancelled, within 30-day read-only window
+//   'cancelled_archived' — cancelled, past 30 days
+//
+// can(feature) returns true if the current plan includes that feature.
+// Feature keys match PLANS[x].features keys in constants.js
+
+export function usePlan(settings) {
+  if (!settings) return {
+    plan:       'trial',
+    status:     'active_trial',
+    isTrialing: true,
+    isExpired:  false,
+    isActive:   false,
+    daysLeft:   0,
+    can:        () => true,   // default open until settings loads
+  }
+
+  const now              = new Date()
+  const planKey          = settings.plan          || 'trial'
+  const trialEndsAt      = settings.trial_ends_at  ? new Date(settings.trial_ends_at)  : null
+  const planExpiresAt    = settings.plan_expires_at ? new Date(settings.plan_expires_at) : null
+  const graceEndsAt      = settings.grace_ends_at  ? new Date(settings.grace_ends_at)  : null
+  const cancelledAt      = settings.cancelled_at   ? new Date(settings.cancelled_at)   : null
+
+  // ── Derive status ──
+  let status = 'active'
+
+  if (cancelledAt) {
+    const archiveDate = new Date(cancelledAt)
+    archiveDate.setDate(archiveDate.getDate() + CANCELLATION_GRACE_DAYS)
+    status = now <= archiveDate ? 'cancelled_grace' : 'cancelled_archived'
+  } else if (planKey === 'trial') {
+    status = trialEndsAt && now <= trialEndsAt ? 'active_trial' : 'trial_expired'
+  } else if (graceEndsAt && now <= graceEndsAt) {
+    status = 'overage_grace'
+  } else if (planExpiresAt && now > planExpiresAt) {
+    status = 'expired'
+  } else {
+    status = 'active'
+  }
+
+  // ── Effective plan for feature checks ──
+  // During active trial → treat as pro
+  // Expired / cancelled → treat as starter (most restricted)
+  const effectivePlanKey =
+    status === 'active_trial'                          ? 'pro'
+    : status === 'trial_expired'                       ? 'starter'
+    : status === 'expired'                             ? 'starter'
+    : status === 'cancelled_grace'                     ? planKey    // read-only access to their plan
+    : status === 'cancelled_archived'                  ? 'starter'
+    : planKey
+
+  const planConfig = PLANS[effectivePlanKey] || PLANS.starter
+
+  // ── Days left (for trial or plan expiry banners) ──
+  let daysLeft = 0
+  if (status === 'active_trial' && trialEndsAt) {
+    daysLeft = Math.max(0, Math.ceil((trialEndsAt - now) / (1000 * 60 * 60 * 24)))
+  } else if (status === 'active' && planExpiresAt) {
+    daysLeft = Math.max(0, Math.ceil((planExpiresAt - now) / (1000 * 60 * 60 * 24)))
+  }
+
+  // ── Feature check ──
+  const can = (feature) => {
+    if (status === 'cancelled_archived') return false
+    return planConfig.features?.[feature] === true
+  }
+
+  // ── Limit checks ──
+  const studentLimit = planConfig.studentLimit  // null = unlimited
+  const userLimit    = planConfig.userLimit      // null = unlimited
+
+  return {
+    plan:          effectivePlanKey,
+    rawPlan:       planKey,
+    status,
+    isTrialing:    status === 'active_trial',
+    isExpired:     status === 'trial_expired' || status === 'expired',
+    isCancelled:   status === 'cancelled_grace' || status === 'cancelled_archived',
+    isActive:      status === 'active' || status === 'active_trial' || status === 'overage_grace',
+    daysLeft,
+    studentLimit,
+    userLimit,
+    can,
+  }
 }

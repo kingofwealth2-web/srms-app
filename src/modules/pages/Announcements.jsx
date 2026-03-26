@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../supabase'
-import { useIsMobile } from '../lib/hooks'
+import { useIsMobile, usePlan } from '../lib/hooks'
 import { ROLE_META } from '../lib/constants'
 import { fmtDate, canSeeAnnouncement } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
@@ -8,6 +8,7 @@ import Badge from '../components/Badge'
 import Btn from '../components/Btn'
 import Field from '../components/Field'
 import Modal from '../components/Modal'
+import PlanGate from '../components/PlanGate'
 import ConfirmModal from '../components/ConfirmModal'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
@@ -15,7 +16,13 @@ import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 
 // ── ANNOUNCEMENTS ──────────────────────────────────────────────
-export default function Announcements({profile,data,setData,toast,activeYear,isViewingPast}) {
+export default function Announcements({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
+  const planHook = usePlan(settings)
+  if (!planHook.can('announcements')) return (
+    <div style={{padding:'40px 24px'}}>
+      <PlanGate planHook={planHook} feature='announcements' mode='block'><></></PlanGate>
+    </div>
+  )
   const {announcements=[]} = data
   const canManage = ['superadmin','admin'].includes(profile?.role)
   const [modal,setModal] = useState(false)

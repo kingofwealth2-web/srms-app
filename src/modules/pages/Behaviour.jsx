@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../supabase'
-import { useIsMobile } from '../lib/hooks'
+import { useIsMobile, usePlan } from '../lib/hooks'
 import { ROLE_META, BEHAVIOUR_META } from '../lib/constants'
 import { fmtDate, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
@@ -8,6 +8,7 @@ import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
 import Field from '../components/Field'
+import PlanGate from '../components/PlanGate'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
@@ -17,6 +18,12 @@ import ConfirmModal from '../components/ConfirmModal'
 
 // ── BEHAVIOUR ──────────────────────────────────────────────────
 export default function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
+  const planHook = usePlan(settings)
+  if (!planHook.can('behaviour')) return (
+    <div style={{padding:'40px 24px'}}>
+      <PlanGate planHook={planHook} feature='behaviour' mode='block'><></></PlanGate>
+    </div>
+  )
   const {behaviour=[],students=[],classes=[]} = data
   const activeStudents = students.filter(s=>!s.archived)
   const myClasses = profile?.role==='classteacher' ? classes.filter(c=>c.id===profile.class_id) : classes
@@ -185,4 +192,3 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
     </div>
   )
 }
-

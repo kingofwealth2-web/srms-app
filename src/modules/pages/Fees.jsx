@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
-import { useIsMobile } from '../lib/hooks'
+import { useIsMobile, usePlan } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS, CURRENCIES } from '../lib/constants'
+import PlanGate from '../components/PlanGate'
 import { fmtDate, fmtMoney, getCurrency, genRCP, csvEscape, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
@@ -197,6 +198,7 @@ function printReceipt({fee, feePayments, student, cls, settings, currency}) {
 
 // ── FEES ───────────────────────────────────────────────────────
 export default function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,initialFeeFilter,onFilterConsumed}) {
+  const planHook = usePlan(settings)
   const {fees=[],students=[],classes=[],payments=[]} = data
   const currency = getCurrency(settings)
   const isMobile = useIsMobile()
@@ -445,14 +447,16 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     toast('Payment recorded')
     setSaving(false)
     setPayModal(false)
-    // Auto-open receipt
-    const student = students.find(s=>s.id===editFee.student_id)
-    const cls     = classes.find(c=>c.id===student?.class_id)
-    printReceipt({
-      fee:         updatedFee,
-      feePayments: [payRow, ...feePayments],
-      student, cls, settings, currency,
-    })
+    // Auto-open receipt (plan-gated)
+    if (planHook.can('feeReceipts')) {
+      const student = students.find(s=>s.id===editFee.student_id)
+      const cls     = classes.find(c=>c.id===student?.class_id)
+      printReceipt({
+        fee:         updatedFee,
+        feePayments: [payRow, ...feePayments],
+        student, cls, settings, currency,
+      })
+    }
   }
 
   const openReceipt = (fee) => {
@@ -626,7 +630,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           {key:'id',label:'',render:(_,r)=>isViewingPast?null:(
             <div style={{display:'flex',gap:6,flexWrap:'wrap'}} onClick={e=>e.stopPropagation()}>
               {r.balance>0 && <Btn size='sm' onClick={()=>openPay(r)}>Record Payment</Btn>}
-              {r.hasPayments && <Btn variant='ghost' size='sm' onClick={()=>openReceipt(r)}>⎙ Receipt</Btn>}
+              {r.hasPayments && <PlanGate planHook={planHook} feature='feeReceipts' mode='inline'><Btn variant='ghost' size='sm' onClick={()=>openReceipt(r)}>⎙ Receipt</Btn></PlanGate>}
               {r.balance<=0 && !r.hasPayments && <Badge color='var(--emerald)'>Paid</Badge>}
               <Btn variant='ghost' size='sm' onClick={()=>openEditFee(r)}>Edit</Btn>
               {canBulk && <Btn variant='danger' size='sm' onClick={()=>delFee(r.id)}>Remove</Btn>}
@@ -749,10 +753,12 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                             <div style={{display:'flex',gap:6}}>
                               <Btn size='sm' variant='ghost' onClick={()=>setPhDetail(p)}>Details</Btn>
                               {p.fee_obj && (
-                                <Btn size='sm' variant='ghost' onClick={()=>{
-                                  const feePayments=payments.filter(x=>x.fee_id===p.fee_id)
-                                  printReceipt({fee:p.fee_obj,feePayments,student:p.student_obj,cls:p.cls_obj,settings,currency})
-                                }}>⎙</Btn>
+                                <PlanGate planHook={planHook} feature='feeReceipts' mode='inline'>
+                                  <Btn size='sm' variant='ghost' onClick={()=>{
+                                    const feePayments=payments.filter(x=>x.fee_id===p.fee_id)
+                                    printReceipt({fee:p.fee_obj,feePayments,student:p.student_obj,cls:p.cls_obj,settings,currency})
+                                  }}>⎙</Btn>
+                                </PlanGate>
                               )}
                             </div>
                           </td>
@@ -829,9 +835,11 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
               <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
                 {p.fee_obj && (
-                  <Btn variant='ghost' onClick={()=>{
-                    printReceipt({fee:p.fee_obj,feePayments:feePs,student:p.student_obj,cls:p.cls_obj,settings,currency})
-                  }}>⎙ Print Receipt</Btn>
+                  <PlanGate planHook={planHook} feature='feeReceipts' mode='inline'>
+                    <Btn variant='ghost' onClick={()=>{
+                      printReceipt({fee:p.fee_obj,feePayments:feePs,student:p.student_obj,cls:p.cls_obj,settings,currency})
+                    }}>⎙ Print Receipt</Btn>
+                  </PlanGate>
                 )}
                 <Btn onClick={()=>setPhDetail(null)}>Close</Btn>
               </div>

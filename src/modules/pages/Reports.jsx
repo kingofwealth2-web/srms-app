@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useIsMobile } from '../lib/hooks'
+import { useIsMobile, usePlan } from '../lib/hooks'
 import { ROLE_META, LETTER_COLOR, FEE_STATUS } from '../lib/constants'
 import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName } from '../lib/helpers'
 import Avatar from '../components/Avatar'
@@ -13,6 +13,7 @@ import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 import DataTable from '../components/DataTable'
 import KPI from '../components/KPI'
+import PlanGate from '../components/PlanGate'
 
 // ── HELPERS ────────────────────────────────────────────────────
 const ordinal = n => {
@@ -29,6 +30,7 @@ const abbrSubject = name => {
 
 // ── REPORTS ────────────────────────────────────────────────────
 export default function Reports({profile,data,settings,activeYear,isViewingPast,toast}) {
+  const planHook = usePlan(settings)
   const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
@@ -295,7 +297,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   return (
     <div>
       <PageHeader title='Reports & Analytics' sub={`Viewing: ${scopeLabel}`}>
-        {isAdmin && rtype!=='reportcards' && <Btn variant='ghost' onClick={exportExcel}>⬇ Export Excel</Btn>}
+        {isAdmin && rtype!=='reportcards' && <PlanGate planHook={planHook} feature='reportsExcel' mode='inline'><Btn variant='ghost' onClick={exportExcel}>⬇ Export Excel</Btn></PlanGate>}
       </PageHeader>
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:16,marginBottom:24}}>
@@ -550,6 +552,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
           rcStamp={rcStamp} setRcStamp={setRcStamp}
           rcClassTeacherName={rcClassTeacherName} setRcClassTeacherName={setRcClassTeacherName}
           exportExcel={exportExcel}
+          planHook={planHook}
         />
       )}
     </div>
@@ -560,7 +563,7 @@ const thStyle={padding:'10px 12px',textAlign:'left',fontSize:10,fontWeight:600,c
 const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlign:'middle'}
 
 // ── REPORT CARDS ───────────────────────────────────────────────
-function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,exportExcel}) {
+function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,exportExcel,planHook}) {
   const {students=[],grades=[],attendance=[],behaviour=[],classes=[],subjects=[],users=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
@@ -1254,9 +1257,11 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             </Btn>
           )}
           {rcType==='broadsheet' && isAdmin && (
-            <Btn variant='ghost' onClick={exportExcel} disabled={!canPrintBroadsheet}>
-              ⬇ Export Excel
-            </Btn>
+            <PlanGate planHook={planHook} feature='reportsExcel' mode='inline'>
+              <Btn variant='ghost' onClick={exportExcel} disabled={!canPrintBroadsheet}>
+                ⬇ Export Excel
+              </Btn>
+            </PlanGate>
           )}
           {rcType==='subject' && (
             <Btn onClick={printSubjectReport} disabled={!canPrintSubject}>
