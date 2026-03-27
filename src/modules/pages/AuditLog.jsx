@@ -38,10 +38,10 @@ const ACTION_COLOR = {
   'Bulk Promote': 'var(--amber)',
 }
 
-export default function AuditLog({profile,settings,planHook}) {
+export default function AuditLog({profile,settings,planHook,onShowPlans}) {
   if (!planHook.can('auditLog')) return (
     <div style={{padding:'40px 24px'}}>
-      <PlanGate planHook={planHook} feature='auditLog' mode='block'><></></PlanGate>
+      <PlanGate planHook={planHook} feature='auditLog' mode='block' onUpgrade={onShowPlans}><></></PlanGate>
     </div>
   )
   const [logs, setLogs]         = useState([])

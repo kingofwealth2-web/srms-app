@@ -58,8 +58,6 @@ function ThemeToggle({ isDark, onToggle, size = 'md' }) {
   )
 }
 
-
-
 // ── FORCE PASSWORD CHANGE ──────────────────────────────────────
 function ForceChangePassword({ profile, onDone, onSignOut }) {
   const [newPass,setNewPass]   = useState('')
@@ -98,7 +96,7 @@ function ForceChangePassword({ profile, onDone, onSignOut }) {
 
         <h1 className="d" style={{ fontSize:32, fontWeight:700, letterSpacing:'-0.03em', lineHeight:1.1, marginBottom:10 }}>Set your<br/>password.</h1>
         <p style={{ color:'var(--mist2)', fontSize:13, marginBottom:32, lineHeight:1.6 }}>
-          Welcome, {profile?.full_name?.split(' ')[0] || 'there'}. Your account was created by an administrator. Please choose your own password to continue.
+          Welcome, {profile?.full_name?.split(' ') || 'there'}. Your account was created by an administrator. Please choose your own password to continue.
         </p>
 
         <div style={{ marginBottom:16 }}>
@@ -127,12 +125,12 @@ function ForceChangePassword({ profile, onDone, onSignOut }) {
         {newPass && (
           <div style={{ marginBottom:20 }}>
             <div style={{ display:'flex', gap:4, marginBottom:5 }}>
-              {[1,2,3,4].map(i => {
+              {Array(4).fill().map((_, i) => {
                 const s = newPass.length >= 12 && /[A-Z]/.test(newPass) && /[0-9]/.test(newPass) && /[^A-Za-z0-9]/.test(newPass) ? 4
                   : newPass.length >= 10 && (/[A-Z]/.test(newPass) || /[0-9]/.test(newPass)) ? 3
                   : newPass.length >= 8 ? 2 : 1
                 const col = s >= 4 ? 'var(--emerald)' : s >= 3 ? 'var(--sky)' : s >= 2 ? 'var(--amber)' : 'var(--rose)'
-                return <div key={i} style={{ flex:1, height:3, borderRadius:2, background: i <= s ? col : 'var(--ink4)', transition:'background 0.2s' }}/>
+                return <div key={i} style={{ flex:1, height:3, borderRadius:2, background: i < s ? col : 'var(--ink4)', transition:'background 0.2s' }}/>
               })}
             </div>
             <div style={{ fontSize:11, color:'var(--mist3)' }}>
@@ -353,7 +351,7 @@ export default function App() {
     />
     </>
   )
-  if (profile?.role === 'parent') return <><style>{G}</style><ParentPortal profile={profile} onSignOut={async()=>{await supabase.auth.signOut();setProfile(null);setSession(null);setShowLanding(false)}}/></>
+
   if (loading)    return <><style>{G}</style><LoadingScreen msg={session ? 'Loading your workspace...' : 'Initialising...'}/></>
   if (showPlans)               return <><style>{G}</style><Plans   onEnter={() => { setShowPlans(false); setShowLanding(false) }} onBack={() => setShowPlans(false)} /></>
   if (showLanding && !session) return <Landing onEnter={() => setShowLanding(false)} onShowPlans={() => setShowPlans(true)}/>
@@ -361,11 +359,76 @@ export default function App() {
   if (!profile.school_id)   return <><style>{G}</style><style>{"@keyframes srms-load{to{width:100%}}"}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null); setSession(null); setShowLanding(false) }}/></>
 
   if (!settings) return <><style>{G}</style><LoadingScreen msg="Loading settings..."/></>
+
   const currentYear   = currentYearFromSettings(settings)
   const activeYear    = selectedYear || currentYear
   const isViewingPast = selectedYear && selectedYear !== currentYear
   const planHook      = usePlan(settings)
-  const props = { profile, data, setData, toast: showToast, settings, activeYear, isViewingPast, reloadData: () => loadData(activeYear, profile, settings) }
+
+  // ── PARENT PORTAL GATING ─────────────────────────────────────────
+  if (profile?.role === 'parent') {
+    if (planHook.isExpired) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--ink)', padding: 20 }}>
+          <style>{G}</style>
+          <div style={{ position: 'absolute', top: 20, right: 28 }}>
+            <Btn variant='ghost' size='sm' onClick={logout}>Sign out</Btn>
+          </div>
+          <PlanGate planHook={planHook} feature='parentPortal' mode='block'><></></PlanGate>
+        </div>
+      )
+    }
+    return <><style>{G}</style><ParentPortal profile={profile} onSignOut={logout}/></>
+  }
+  // ─────────────────────────────────────────────────────────────────
+
+  // ── EXPIRED / TRIAL ENDED SCREEN ─────────────────────────────────
+  if (planHook.status === 'trial_expired' || planHook.status === 'expired' || planHook.status === 'cancelled_archived') {
+    const isTrialExpired = planHook.status === 'trial_expired'
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--ink)', padding: 24, position: 'relative' }}>
+        <style>{G}</style>
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px)', backgroundSize: '40px 40px', opacity: 0.2 }}/>
+        <div style={{ position: 'absolute', top: 20, right: 28, display: 'flex', gap: 10 }}>
+          <Btn variant='ghost' size='sm' onClick={logout}>Sign out</Btn>
+        </div>
+        <div style={{ position: 'relative', maxWidth: 480, width: '100%', textAlign: 'center' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(232,184,75,0.08)', border: '1px solid rgba(232,184,75,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, margin: '0 auto 24px' }}>
+            {planHook.status === 'cancelled_archived' ? '📦' : '⏰'}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gold)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>
+            {planHook.status === 'cancelled_archived' ? 'Account Archived' : isTrialExpired ? 'Trial Ended' : 'Plan Expired'}
+          </div>
+          <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, marginBottom: 12, color: 'var(--white)' }}>
+            {planHook.status === 'cancelled_archived'
+              ? 'Your data has been archived'
+              : isTrialExpired
+                ? 'Your 14-day trial has ended'
+                : 'Your plan has expired'}
+          </h1>
+          <p style={{ fontSize: 14, color: 'var(--mist2)', lineHeight: 1.7, marginBottom: 32 }}>
+            {planHook.status === 'cancelled_archived'
+              ? 'Your subscription was cancelled and your data is now in read-only archive mode. Contact us to reactivate your account.'
+              : isTrialExpired
+                ? 'Thank you for trying SRMS. To continue managing your school\'s records, please get in touch to activate a paid plan.'
+                : 'Your subscription has lapsed. Contact us to renew and restore full access to your school\'s data.'}
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
+            <a href='mailto:hello@srms.app' style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 28px', background: 'var(--gold)', color: '#0b0b12', borderRadius: 10, fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'background 0.15s' }}>
+              Contact Us to Activate →
+            </a>
+            <div style={{ fontSize: 12, color: 'var(--mist3)', marginTop: 4 }}>
+              {settings?.school_name && <span>{settings.school_name} · </span>}
+              <span>{profile?.email}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+  // ─────────────────────────────────────────────────────────────────
+
+  const props = { profile, data, setData, toast: showToast, settings, activeYear, isViewingPast, reloadData: () => loadData(activeYear, profile, settings), onShowPlans: () => setShowPlans(true) }
 
   const renderPage = () => {
     const allowedPages = NAV_ITEMS[profile?.role] || []
@@ -417,7 +480,7 @@ export default function App() {
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--ink5)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'var(--ink4)'}
                 >
-                  {[0,1,2].map(i => <div key={i} style={{ width: 16, height: 1.5, background: 'var(--mist2)', borderRadius: 1 }}/>)}
+                  {Array(3).fill().map((_, i) => <div key={i} style={{ width: 16, height: 1.5, background: 'var(--mist2)', borderRadius: 1 }}/>)}
                 </button>
                 <span className='d' style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', flex: 1, textAlign: 'center' }}>{pageTitles[page] || 'SRMS'}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -434,6 +497,12 @@ export default function App() {
                   ? <PlanGate planHook={planHook} feature='yearSwitcher' mode='inline'><YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={true}/></PlanGate>
                   : <span style={{ fontSize: 10, color: 'var(--mist3)' }}>{activeYear}</span>}
                 {isViewingPast && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 4, padding: '1px 6px', letterSpacing: '0.06em' }}>READ ONLY</span>}
+                {planHook.isTrialing && (
+                  <>
+                    <span style={{ color: 'var(--line2)', fontSize: 10 }}>·</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--gold)' }}>{planHook.daysLeft}d left</span>
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -446,6 +515,12 @@ export default function App() {
                   : <span style={{ fontSize: 12, color: 'var(--mist3)' }}>{activeYear}</span>}
                 {isViewingPast && (
                   <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 5, padding: '2px 8px', letterSpacing: '0.06em' }}>READ ONLY</span>
+                )}
+                {planHook.isTrialing && (
+                  <div style={{ background: 'rgba(232,184,75,0.1)', border: '1px solid rgba(232,184,75,0.25)', borderRadius: 20, padding: '2px 10px', display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Trial</span>
+                    <span style={{ fontSize: 11, color: 'var(--white)' }}>{planHook.daysLeft} days left</span>
+                  </div>
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -467,6 +542,50 @@ export default function App() {
                 </button>
                 <Btn variant='ghost' size='sm' onClick={logout}>Sign out</Btn>
               </div>
+            </div>
+          )}
+
+          {/* ── Trial warning banner (≤5 days left) ── */}
+          {planHook.isTrialing && planHook.daysLeft <= 5 && (
+            <div style={{ flexShrink: 0, background: 'rgba(232,184,75,0.07)', borderBottom: '1px solid rgba(232,184,75,0.2)', padding: '10px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 16 }}>⏳</span>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--gold)' }}>
+                    {planHook.daysLeft === 0 ? 'Your trial expires today' : `Your trial expires in ${planHook.daysLeft} day${planHook.daysLeft === 1 ? '' : 's'}`}
+                  </span>
+                  <span style={{ fontSize: 13, color: 'var(--mist2)', marginLeft: 8 }}>— contact us to activate a paid plan and keep your data.</span>
+                </div>
+              </div>
+              <a href='mailto:hello@srms.app' style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', background: 'rgba(232,184,75,0.12)', border: '1px solid rgba(232,184,75,0.25)', borderRadius: 7, padding: '5px 14px', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                Activate Plan →
+              </a>
+            </div>
+          )}
+
+          {/* ── Overage banner ── */}
+          {planHook.status === 'overage_grace' && (
+            <div style={{ flexShrink: 0, background: 'rgba(240,107,122,0.07)', borderBottom: '1px solid rgba(240,107,122,0.2)', padding: '10px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 16 }}>⚠️</span>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--rose)' }}>You're over your plan limits</span>
+                  <span style={{ fontSize: 13, color: 'var(--mist2)', marginLeft: 8 }}>— adding new students or users is paused. Upgrade or remove records within the grace period to avoid restrictions.</span>
+                </div>
+              </div>
+              <button onClick={() => setShowPlans(true)} style={{ fontSize: 12, fontWeight: 700, color: 'var(--rose)', background: 'rgba(240,107,122,0.1)', border: '1px solid rgba(240,107,122,0.25)', borderRadius: 7, padding: '5px 14px', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                Upgrade Plan →
+              </button>
+            </div>
+          )}
+
+          {/* ── Cancelled grace banner ── */}
+          {planHook.status === 'cancelled_grace' && (
+            <div style={{ flexShrink: 0, background: 'rgba(251,159,58,0.07)', borderBottom: '1px solid rgba(251,159,58,0.2)', padding: '10px 28px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 16 }}>📋</span>
+              <span style={{ fontSize: 13, color: 'var(--mist2)' }}>
+                <strong style={{ color: 'var(--amber)' }}>Your subscription has been cancelled.</strong> You have read-only access until the grace period ends. Contact us to reactivate.
+              </span>
             </div>
           )}
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { PLANS, OVERAGE_GRACE_DAYS, CANCELLATION_GRACE_DAYS } from './constants'
+import { PLANS, TRIAL_DAYS, OVERAGE_GRACE_DAYS, CANCELLATION_GRACE_DAYS } from './constants'
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768)
@@ -83,7 +83,11 @@ export function usePlan(settings) {
 
   const now              = new Date()
   const planKey          = settings.plan          || 'trial'
-  const trialEndsAt      = settings.trial_ends_at  ? new Date(settings.trial_ends_at)  : null
+  const trialEndsAt      = settings.trial_ends_at
+    ? new Date(settings.trial_ends_at)
+    : settings.created_at
+      ? new Date(new Date(settings.created_at).getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
+      : new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
   const planExpiresAt    = settings.plan_expires_at ? new Date(settings.plan_expires_at) : null
   const graceEndsAt      = settings.grace_ends_at  ? new Date(settings.grace_ends_at)  : null
   const cancelledAt      = settings.cancelled_at   ? new Date(settings.cancelled_at)   : null

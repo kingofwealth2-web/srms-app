@@ -29,7 +29,7 @@ const abbrSubject = name => {
 }
 
 // ── REPORTS ────────────────────────────────────────────────────
-export default function Reports({profile,data,settings,activeYear,isViewingPast,toast,planHook}) {
+export default function Reports({profile,data,settings,activeYear,isViewingPast,toast,planHook,onShowPlans}) {
   const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
@@ -296,7 +296,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   return (
     <div>
       <PageHeader title='Reports & Analytics' sub={`Viewing: ${scopeLabel}`}>
-        {isAdmin && rtype!=='reportcards' && <PlanGate planHook={planHook} feature='reportsExcel' mode='inline'><Btn variant='ghost' onClick={exportExcel}>⬇ Export Excel</Btn></PlanGate>}
+        {isAdmin && rtype!=='reportcards' && <PlanGate planHook={planHook} feature='reportsExcel' mode='inline' onUpgrade={onShowPlans}><Btn variant='ghost' onClick={exportExcel}>⬇ Export Excel</Btn></PlanGate>}
       </PageHeader>
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:16,marginBottom:24}}>
@@ -1256,7 +1256,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             </Btn>
           )}
           {rcType==='broadsheet' && isAdmin && (
-            <PlanGate planHook={planHook} feature='reportsExcel' mode='inline'>
+            <PlanGate planHook={planHook} feature='reportsExcel' mode='inline' onUpgrade={onShowPlans}>
               <Btn variant='ghost' onClick={exportExcel} disabled={!canPrintBroadsheet}>
                 ⬇ Export Excel
               </Btn>
