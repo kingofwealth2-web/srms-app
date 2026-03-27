@@ -225,12 +225,37 @@ export default function Plans({ onEnter, onBack }) {
 
                 <div className="pl-spacer" style={{minHeight:24}} />
 
-                <button
-                  className={`pl-cta-btn ${isBasic ? 'gold' : 'outline'}`}
-                  onClick={onEnter}
-                >
-                  Start 14-day free trial
-                </button>
+                {plan.key === 'starter' ? (
+                  <button className="pl-cta-btn outline" onClick={onEnter}>
+                    Start 14-day free trial
+                  </button>
+                ) : (
+                  <div style={{ marginTop: 'auto' }}>
+                    <div style={{
+                      background: 'rgba(232,184,75,0.06)', border: '1px solid rgba(232,184,75,0.15)',
+                      borderRadius: 10, padding: '14px 16px', textAlign: 'left',
+                    }}>
+                      <div style={{
+                        fontSize: 10, fontWeight: 700, color: '#e8b84b',
+                        letterSpacing: '0.1em', marginBottom: 10,
+                      }}>
+                        CONTACT US TO SUBSCRIBE
+                      </div>
+                      <a href="tel:+233536759120" style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        fontSize: 12, color: 'rgba(232,232,240,0.75)', textDecoration: 'none', marginBottom: 8,
+                      }}>
+                        <span>📞</span><span>0536 759 120</span>
+                      </a>
+                      <a href="mailto:kofi.william2311@gmail.com" style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        fontSize: 12, color: 'rgba(232,232,240,0.75)', textDecoration: 'none',
+                      }}>
+                        <span>✉️</span><span>kofi.william2311@gmail.com</span>
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -241,6 +266,12 @@ export default function Plans({ onEnter, onBack }) {
           <h2 className="pl-trial-title">Not sure which plan? Start with the trial.</h2>
           <p className="pl-trial-sub">Every new school gets 14 days of full Pro access — no card required. Pick your plan after.</p>
           <button className="pl-trial-btn" onClick={onEnter}>Start Free Trial →</button>
+          <p style={{ marginTop: 16, fontSize: 13, color: 'rgba(232,232,240,0.35)' }}>
+            Ready to subscribe to a paid plan? Call or email us —{' '}
+            <a href="tel:+233536759120" style={{ color: '#e8b84b', textDecoration: 'none' }}>0536 759 120</a>
+            {' '}or{' '}
+            <a href="mailto:kofi.william2311@gmail.com" style={{ color: '#e8b84b', textDecoration: 'none' }}>kofi.william2311@gmail.com</a>
+          </p>
         </div>
 
       </div>

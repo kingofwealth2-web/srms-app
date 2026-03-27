@@ -1,5 +1,34 @@
 import { useState, useEffect, useRef } from 'react'
 import { PLANS, TRIAL_DAYS, OVERAGE_GRACE_DAYS, CANCELLATION_GRACE_DAYS } from './constants'
+import { supabase } from '../../supabase'
+
+// ── Per-page lazy data fetcher ──────────────────────────────────
+// Usage: const { data, setData, loading } = usePageData('fees', profile, activeYear)
+const YEAR_TABLES = ['grades','attendance','fees','payments','behaviour','announcements','student_year_enrolment']
+const YEAR_COL    = { grades: 'year' }  // all others use 'academic_year'
+
+export function usePageData(table, profile, activeYear, extraFilters = {}) {
+  const [data, setData]       = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!profile?.school_id) return
+    setLoading(true)
+    let q = supabase.from(table).select('*').eq('school_id', profile.school_id)
+    if (activeYear && YEAR_TABLES.includes(table)) {
+      const col = YEAR_COL[table] || 'academic_year'
+      q = q.eq(col, activeYear)
+    }
+    Object.entries(extraFilters).forEach(([k, v]) => { q = q.eq(k, v) })
+    q.then(({ data: rows }) => {
+      setData(rows || [])
+      setLoading(false)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table, profile?.school_id, activeYear])
+
+  return { data, setData, loading }
+}
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768)
@@ -133,7 +162,8 @@ export function usePlan(settings) {
   // ── Feature check ──
   const can = (feature) => {
     if (status === 'cancelled_archived') return false
-    return planConfig.features?.[feature] === true
+    if (!(feature in (planConfig.features ?? {}))) return true
+    return planConfig.features[feature] === true
   }
 
   // ── Limit checks ──

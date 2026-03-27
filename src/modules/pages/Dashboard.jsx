@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useIsMobile } from '../lib/hooks'
+import { useIsMobile, usePageData } from '../lib/hooks'
 import { ROLE_META, BEHAVIOUR_META } from '../lib/constants'
 import { fmtDate, getLetter, calcTotal, getGradeComponents, canSeeAnnouncement, getCurrency, fmtMoney , fullName } from '../lib/helpers'
 import Avatar from '../components/Avatar'
@@ -12,7 +12,16 @@ import Badge from '../components/Badge'
 
 export default function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,isViewingPast}) {
   const isMobile = useIsMobile()
-  const {students=[],classes=[],fees=[],attendance=[],grades=[],announcements=[],subjects=[],enrolments=[],payments=[]} = data
+
+  // Global data (students, classes, subjects, enrolments) comes from props.
+  // Year-specific data is fetched here so the Dashboard doesn't depend on loadData for it.
+  const { data: fees }          = usePageData('fees',          profile, activeYear)
+  const { data: payments }      = usePageData('payments',      profile, activeYear)
+  const { data: grades }        = usePageData('grades',        profile, activeYear)
+  const { data: attendance }    = usePageData('attendance',    profile, activeYear)
+  const { data: announcements } = usePageData('announcements', profile, activeYear)
+
+  const {students=[],classes=[],subjects=[],enrolments=[]} = data
   // When viewing past year, use enrolment records to know which students were enrolled
   const enrolledStudentIds = enrolments.length>0 ? new Set(enrolments.map(e=>e.student_id)) : null
   const yearStudents = enrolledStudentIds

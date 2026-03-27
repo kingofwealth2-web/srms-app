@@ -170,7 +170,7 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
 }
 
 // ── Upgrade Modal ──────────────────────────────────────────────
-function UpgradeModal({ featureLabel, featureDesc, targetPlan, currentPlan, onClose }) {
+function UpgradeModal({ featureLabel, featureDesc, targetPlan, onClose }) {
   return (
     <div
       onClick={onClose}
@@ -186,7 +186,7 @@ function UpgradeModal({ featureLabel, featureDesc, targetPlan, currentPlan, onCl
         style={{
           background: 'var(--surface1)', borderRadius: 16,
           border: '1px solid var(--border1)',
-          padding: '32px 28px', maxWidth: 400, width: '100%',
+          padding: '32px 28px', maxWidth: 420, width: '100%',
           textAlign: 'center',
         }}
       >
@@ -204,37 +204,44 @@ function UpgradeModal({ featureLabel, featureDesc, targetPlan, currentPlan, onCl
         <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text1)', marginBottom: 10, lineHeight: 1.2 }}>
           {featureLabel}
         </h2>
-        <p style={{ fontSize: 13, color: 'var(--mist3)', lineHeight: 1.6, marginBottom: 24 }}>
-          {featureDesc} Upgrade to the <strong>{targetPlan?.label}</strong> plan to unlock this.
+        <p style={{ fontSize: 13, color: 'var(--mist3)', lineHeight: 1.6, marginBottom: 20 }}>
+          {featureDesc} This feature is on the <strong>{targetPlan?.label}</strong> plan.
+          Contact us to upgrade your account.
         </p>
 
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-          <button
-            onClick={onClose}
-            style={{
-              padding: '10px 20px', borderRadius: 8, border: '1px solid var(--border1)',
-              background: 'transparent', color: 'var(--mist3)', fontSize: 13,
-              fontWeight: 600, cursor: 'pointer',
-            }}
-          >
-            Maybe later
-          </button>
-          <button
-            onClick={() => {
-              onClose()
-              // TODO: navigate to billing/upgrade page
-              // For now, open the public Plans page
-              window.open(window.location.origin, '_blank')
-            }}
-            style={{
-              padding: '10px 24px', borderRadius: 8, border: 'none',
-              background: '#e8b84b', color: '#0c0c15', fontSize: 13,
-              fontWeight: 700, cursor: 'pointer',
-            }}
-          >
-            View Plans →
-          </button>
+        <div style={{
+          background: 'rgba(232,184,75,0.06)', border: '1px solid rgba(232,184,75,0.15)',
+          borderRadius: 12, padding: '16px 20px', marginBottom: 20, textAlign: 'left',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#e8b84b', letterSpacing: '0.1em', marginBottom: 12 }}>
+            CONTACT US TO UPGRADE
+          </div>
+          <a href="tel:+233536759120" style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            fontSize: 13, color: 'var(--text1)', textDecoration: 'none', marginBottom: 10,
+          }}>
+            <span>📞</span>
+            <span>0536 759 120</span>
+          </a>
+          <a href="mailto:kofi.william2311@gmail.com" style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            fontSize: 13, color: 'var(--text1)', textDecoration: 'none',
+          }}>
+            <span>✉️</span>
+            <span>kofi.william2311@gmail.com</span>
+          </a>
         </div>
+
+        <button
+          onClick={onClose}
+          style={{
+            width: '100%', padding: '11px', borderRadius: 8,
+            border: '1px solid var(--border1)', background: 'transparent',
+            color: 'var(--mist3)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          }}
+        >
+          Close
+        </button>
       </div>
     </div>
   )
