@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { calcTotal, getGradeComponents, getLetter, fmtDate, fmtMoney, getCurrency, fullName } from '../lib/helpers'
 import { STATUS_META } from '../lib/constants'
+import { usePlan } from '../lib/hooks'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
@@ -140,6 +141,25 @@ export default function ParentPortal({ profile, onSignOut }) {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', flexDirection: 'column', gap: 16 }}>
       <Spinner />
       <div style={{ fontSize: 13, color: 'var(--mist3)' }}>Loading portal...</div>
+    </div>
+  )
+
+  // ── Plan gate: block portal if school's plan doesn't include parentPortal ──
+  const planHook = usePlan(settings)
+  if (!planHook.can('parentPortal')) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--ink)', padding: 24, position: 'relative' }}>
+      <div style={{ position: 'absolute', top: 20, right: 24 }}>
+        <Btn variant='ghost' size='sm' onClick={onSignOut}>Sign Out</Btn>
+      </div>
+      <div style={{ textAlign: 'center', maxWidth: 420 }}>
+        <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(232,184,75,0.08)', border: '1px solid rgba(232,184,75,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, margin: '0 auto 20px' }}>🔒</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gold)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Portal Unavailable</div>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--white)', marginBottom: 10, letterSpacing: '-0.02em' }}>Parent Portal not active</h2>
+        <p style={{ fontSize: 13, color: 'var(--mist2)', lineHeight: 1.7, marginBottom: 28 }}>
+          {settings?.school_name || 'This school'} is not currently subscribed to a plan that includes the Parent Portal. Please contact the school for more information.
+        </p>
+        <Btn variant='ghost' onClick={onSignOut}>Sign Out</Btn>
+      </div>
     </div>
   )
 

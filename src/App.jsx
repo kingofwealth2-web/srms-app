@@ -378,8 +378,7 @@ export default function App() {
         </div>
       )
     }
-    return <><style>{G}</style><ParentPortal profile={profile} onSignOut={logout}/></>
-  }
+    return <><style>{G}</style><ParentPortal profile={profile} settings={settings} onSignOut={logout}/></>  }
   // ─────────────────────────────────────────────────────────────────
 
   // ── EXPIRED / TRIAL ENDED SCREEN ─────────────────────────────────
@@ -414,8 +413,11 @@ export default function App() {
                 : 'Your subscription has lapsed. Contact us to renew and restore full access to your school\'s data.'}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
-            <a href='mailto:hello@srms.app' style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 28px', background: 'var(--gold)', color: '#0b0b12', borderRadius: 10, fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'background 0.15s' }}>
-              Contact Us to Activate →
+            <a href='mailto:kofi.william2311@gmail.com' style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 28px', background: 'var(--gold)', color: '#0b0b12', borderRadius: 10, fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'background 0.15s' }}>
+              ✉ Email Us to Activate →
+            </a>
+            <a href='tel:+233536759120' style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 24px', background: 'var(--ink4)', border: '1px solid var(--line2)', color: 'var(--white)', borderRadius: 10, fontSize: 13, fontWeight: 600, textDecoration: 'none', transition: 'background 0.15s' }}>
+              📞 0536 759 120
             </a>
             <div style={{ fontSize: 12, color: 'var(--mist3)', marginTop: 4 }}>
               {settings?.school_name && <span>{settings.school_name} · </span>}
@@ -557,7 +559,7 @@ export default function App() {
                   <span style={{ fontSize: 13, color: 'var(--mist2)', marginLeft: 8 }}>— contact us to activate a paid plan and keep your data.</span>
                 </div>
               </div>
-              <a href='mailto:hello@srms.app' style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', background: 'rgba(232,184,75,0.12)', border: '1px solid rgba(232,184,75,0.25)', borderRadius: 7, padding: '5px 14px', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              <a href='mailto:kofi.william2311@gmail.com' style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', background: 'rgba(232,184,75,0.12)', border: '1px solid rgba(232,184,75,0.25)', borderRadius: 7, padding: '5px 14px', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
                 Activate Plan →
               </a>
             </div>
