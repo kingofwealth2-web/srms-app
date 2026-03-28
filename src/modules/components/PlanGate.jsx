@@ -51,8 +51,7 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
   const targetConfig = PLANS[targetPlan]
 
   const handleClick = () => {
-    if (onUpgrade) onUpgrade(targetPlan)
-    else setShowModal(true)
+    setShowModal(true)
   }
 
   // ── Sidebar mode — slim locked nav item ──
@@ -105,6 +104,7 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
             targetPlan={targetConfig}
             currentPlan={plan}
             onClose={() => setShowModal(false)}
+            onUpgrade={onUpgrade}
           />
         )}
       </>
@@ -138,12 +138,12 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
           background: 'rgba(232,184,75,0.1)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 18,
-        }}>⬡</div>
+        }}>🔒</div>
         <div>
-          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text1)', marginBottom: 4 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--white)', marginBottom: 4 }}>
             {featureLabel}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--mist3)', maxWidth: 260, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: 'var(--mist2)', maxWidth: 260, lineHeight: 1.5 }}>
             {featureDesc}
           </div>
         </div>
@@ -163,6 +163,7 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
           targetPlan={targetConfig}
           currentPlan={plan}
           onClose={() => setShowModal(false)}
+          onUpgrade={onUpgrade}
         />
       )}
     </>
@@ -170,13 +171,13 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
 }
 
 // ── Upgrade Modal ──────────────────────────────────────────────
-function UpgradeModal({ featureLabel, featureDesc, targetPlan, onClose }) {
+function UpgradeModal({ featureLabel, featureDesc, targetPlan, onClose, onUpgrade }) {
   return (
     <div
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
-        background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
+        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 24,
       }}
@@ -184,9 +185,10 @@ function UpgradeModal({ featureLabel, featureDesc, targetPlan, onClose }) {
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: 'var(--surface1)', borderRadius: 16,
-          border: '1px solid var(--border1)',
-          padding: '32px 28px', maxWidth: 420, width: '100%',
+          background: 'var(--ink2)', borderRadius: 16,
+          border: '1px solid var(--line2)',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+          padding: '28px 24px', maxWidth: 420, width: '100%',
           textAlign: 'center',
         }}
       >
@@ -201,11 +203,11 @@ function UpgradeModal({ featureLabel, featureDesc, targetPlan, onClose }) {
           {targetPlan?.label?.toUpperCase()} FEATURE
         </div>
 
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text1)', marginBottom: 10, lineHeight: 1.2 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--white)', marginBottom: 10, lineHeight: 1.2 }}>
           {featureLabel}
         </h2>
-        <p style={{ fontSize: 13, color: 'var(--mist3)', lineHeight: 1.6, marginBottom: 20 }}>
-          {featureDesc} This feature is on the <strong>{targetPlan?.label}</strong> plan.
+        <p style={{ fontSize: 13, color: 'var(--mist2)', lineHeight: 1.6, marginBottom: 20 }}>
+          {featureDesc} This feature is on the <strong style={{ color: 'var(--white)' }}>{targetPlan?.label}</strong> plan.
           Contact us to upgrade your account.
         </p>
 
@@ -218,14 +220,14 @@ function UpgradeModal({ featureLabel, featureDesc, targetPlan, onClose }) {
           </div>
           <a href="tel:+233536759120" style={{
             display: 'flex', alignItems: 'center', gap: 10,
-            fontSize: 13, color: 'var(--text1)', textDecoration: 'none', marginBottom: 10,
+            fontSize: 13, color: 'var(--white)', textDecoration: 'none', marginBottom: 10,
           }}>
             <span>📞</span>
             <span>0536 759 120</span>
           </a>
           <a href="mailto:kofi.william2311@gmail.com" style={{
             display: 'flex', alignItems: 'center', gap: 10,
-            fontSize: 13, color: 'var(--text1)', textDecoration: 'none',
+            fontSize: 13, color: 'var(--white)', textDecoration: 'none',
           }}>
             <span>✉️</span>
             <span>kofi.william2311@gmail.com</span>
@@ -236,8 +238,9 @@ function UpgradeModal({ featureLabel, featureDesc, targetPlan, onClose }) {
           onClick={onClose}
           style={{
             width: '100%', padding: '11px', borderRadius: 8,
-            border: '1px solid var(--border1)', background: 'transparent',
-            color: 'var(--mist3)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            border: '1px solid var(--line2)', background: 'transparent',
+            color: 'var(--mist2)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            fontFamily: 'inherit',
           }}
         >
           Close

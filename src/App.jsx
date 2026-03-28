@@ -365,6 +365,12 @@ export default function App() {
   const isViewingPast = selectedYear && selectedYear !== currentYear
   const planHook      = usePlan(settings)
 
+  const reloadSettings = useCallback(async () => {
+    if (!profile?.school_id) return
+    const { data } = await supabase.from('settings').select('*').eq('school_id', profile.school_id).single()
+    if (data) setSettings(data)
+  }, [profile?.school_id])
+
   // ── PARENT PORTAL GATING ─────────────────────────────────────────
   if (profile?.role === 'parent') {
     if (planHook.isExpired) {
@@ -430,7 +436,7 @@ export default function App() {
   }
   // ─────────────────────────────────────────────────────────────────
 
-  const props = { profile, data, setData, toast: showToast, settings, activeYear, isViewingPast, reloadData: () => loadData(activeYear, profile, settings), onShowPlans: () => setShowPlans(true) }
+  const props = { profile, data, setData, toast: showToast, settings, activeYear, isViewingPast, reloadData: () => loadData(activeYear, profile, settings), onShowPlans: () => setShowPlans(true), reloadSettings }
 
   const renderPage = () => {
     const allowedPages = NAV_ITEMS[profile?.role] || []
