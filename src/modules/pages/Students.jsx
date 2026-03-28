@@ -399,12 +399,12 @@ export default function Students({profile,data,setData,toast,settings,activeYear
           {showArchived ? (
             <>
             <select value={fyear} onChange={e=>setFyear(e.target.value)}
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:140}}>
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 120px'}}>
               <option value=''>All Years</option>
               {graduationYears.map(y=><option key={y} value={y}>{y}</option>)}
             </select>
             <select value={fReason} onChange={e=>setFReason(e.target.value)}
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:150}}>
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>
               <option value=''>All Reasons</option>
               {leavingReasons.map(r=><option key={r} value={r}>{r}</option>)}
             </select>
@@ -485,7 +485,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
               </label>
             </div>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 20px'}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'0 20px'}}>
             <Field label='First Name' value={form.first_name} onChange={f('first_name')} required/>
             <Field label='Middle Name' value={form.middle_name||''} onChange={f('middle_name')} placeholder='Optional'/>
             <Field label='Last Name'  value={form.last_name}  onChange={f('last_name')}  required/>
@@ -502,7 +502,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
               <span>Parent / Guardian</span>
               <span style={{fontSize:10,color:'var(--rose)',background:'rgba(240,107,122,0.1)',border:'1px solid rgba(240,107,122,0.2)',padding:'2px 8px',borderRadius:10}}>Required</span>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 20px'}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'0 20px'}}>
               <Field label='Guardian Name' value={form.guardian_name} onChange={f('guardian_name')} required placeholder='Full name'/>
               <Field label='Relationship' value={form.guardian_relation} onChange={f('guardian_relation')} options={['','Mother','Father','Grandmother','Grandfather','Uncle','Aunt','Sibling','Legal Guardian','Other']}/>
               <Field label='Guardian Phone' value={form.guardian_phone} onChange={f('guardian_phone')} required placeholder='Primary contact number'/>
@@ -625,7 +625,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
                 style={{width:34,height:34,borderRadius:'50%',background:'rgba(91,168,245,0.12)',border:'1px solid rgba(91,168,245,0.3)',color:'var(--sky)',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}}>⎙</button>
             </div>
 
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:24}}>
               {/* Left col */}
               <div>
                 <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Personal Details</div>

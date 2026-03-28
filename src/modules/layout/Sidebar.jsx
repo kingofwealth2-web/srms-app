@@ -44,7 +44,7 @@ export function YearSwitcher({ activeYear, currentYear, selectedYear, setSelecte
             border: '1px solid var(--line2)',
             borderRadius: 12,
             boxShadow: '0 16px 48px rgba(0,0,0,0.7)',
-            minWidth: 180, overflow: 'hidden',
+            minWidth: 160, maxWidth: 'calc(100vw - 32px)', overflow: 'hidden',
             animation: 'fadeDown 0.2s cubic-bezier(.16,1,.3,1) both',
           }}>
             <div style={{ padding: '10px 14px 8px', fontSize: 9, fontWeight: 700, color: 'var(--mist3)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Academic Year</div>

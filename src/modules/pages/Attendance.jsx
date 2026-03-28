@@ -144,7 +144,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
           {['superadmin','admin'].includes(profile?.role) && tab==='mark' && !isBlocked && (
             <select value={cid} onChange={e=>changeContext(e.target.value,undefined)}
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:180}}>
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
               <option value=''>Select a class</option>
               {myClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -245,7 +245,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
                     : <span style={{color:'var(--mist3)'}}>All changes saved</span>
                   }
                 </div>
-                {!isViewingPast && !isBlocked && <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{minWidth:160,justifyContent:'center',boxShadow:hasUnsaved?'0 4px 20px rgba(232,184,75,0.25)':'none'}}>
+                {!isViewingPast && !isBlocked && <Btn onClick={saveAttendance} disabled={saving||!hasUnsaved} style={{justifyContent:'center',boxShadow:hasUnsaved?'0 4px 20px rgba(232,184,75,0.25)':'none'}}>
                   {saving?<><Spinner/> Saving...</>:(unmarkedCount>0?`Save Attendance (${unmarkedCount} unmarked)`:'Save Attendance')}
                 </Btn>}
               </div>

@@ -1,7 +1,7 @@
 export default function DataTable({ columns, data, onRow }) {
   return (
-    <div style={{ overflowX: 'auto', marginInline: -2 }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 500 }}>
+    <div style={{ overflowX: 'auto', marginInline: -2, WebkitOverflowScrolling: 'touch' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
         <thead>
           <tr>
             {columns.map(c => (

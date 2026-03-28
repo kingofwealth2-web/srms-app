@@ -176,7 +176,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
         </div>
       )}
 
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,alignItems:'start'}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:20,alignItems:'start'}}>
         <div>
           <Card style={{marginBottom:20}}>
             <SectionTitle>School Information</SectionTitle>
@@ -555,7 +555,7 @@ function AcademicCalendar({form, setForm, activeYear}) {
             <input value={vacForm.name} onChange={e=>setVacForm(p=>({...p,name:e.target.value}))} placeholder='e.g. Christmas Break'
               style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',color:'var(--white)',fontSize:13,fontFamily:"'Cabinet Grotesk',sans-serif"}}/>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,marginBottom:20}}>
             <div>
               <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Start Date</div>
               <input type='date' value={vacForm.start_date} onChange={e=>setVacForm(p=>({...p,start_date:e.target.value}))}

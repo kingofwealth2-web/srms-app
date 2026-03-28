@@ -116,6 +116,7 @@ body.light{
   --shadow-md: 0 4px 16px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.07);
   --shadow-lg: 0 12px 40px rgba(0,0,0,0.13), 0 4px 12px rgba(0,0,0,0.08);
   --shadow-gold: 0 4px 16px rgba(184,135,12,0.22);
+  --modal-backdrop: rgba(60,55,45,0.45);
 }
 
 /* ── Light mode component-level overrides ────────────────── */

@@ -606,7 +606,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:14}}>⌕</span>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search student...' style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
           </div>
-          <select value={fClassId} onChange={e=>setFClassId(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:180}}>
+          <select value={fClassId} onChange={e=>setFClassId(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
             <option value=''>All Classes</option>
             {myClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
@@ -660,26 +660,26 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                 style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
             </div>
             <select value={phClass} onChange={e=>{setPhClass(e.target.value);setPhStudent('')}}
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>
               <option value=''>All Classes</option>
               {myClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <select value={phStudent} onChange={e=>setPhStudent(e.target.value)}
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:180}}>
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
               <option value=''>All Students</option>
               {phStudentsInClass.sort((a,b)=>a.last_name.localeCompare(b.last_name)).map(s=><option key={s.id} value={s.id}>{fullName(s,true)}</option>)}
             </select>
             <select value={phFeeType} onChange={e=>setPhFeeType(e.target.value)}
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>
               <option value=''>All Fee Types</option>
               {phFeeTypes.map(t=><option key={t} value={t}>{t}</option>)}
             </select>
             <input type='date' value={phDateFrom} onChange={e=>setPhDateFrom(e.target.value)}
               title='From date'
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist)',fontSize:13,minWidth:140}}/>
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist)',fontSize:13,flex:'1 1 120px'}}/>
             <input type='date' value={phDateTo} onChange={e=>setPhDateTo(e.target.value)}
               title='To date'
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist)',fontSize:13,minWidth:140}}/>
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist)',fontSize:13,flex:'1 1 120px'}}/>
             {(phSearch||phClass||phStudent||phFeeType||phDateFrom||phDateTo) && (
               <button onClick={()=>{setPhSearch('');setPhClass('');setPhStudent('');setPhFeeType('');setPhDateFrom('');setPhDateTo('')}}
                 style={{background:'transparent',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist3)',fontSize:12,cursor:'pointer'}}>
@@ -793,7 +793,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
               </div>
 
               {/* Fee info */}
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:10,marginBottom:16}}>
                 {[
                   ['Fee Type',   p.fee_type,                                      'var(--mist)'],
                   ['Period',     p.period||'--',                                  'var(--sky)'],
@@ -912,11 +912,11 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           {bulkStep===1 && (
             <div>
               <Field label='Fee Type' value={bulk.fee_type} onChange={bf('fee_type')} placeholder='e.g. Tuition, Feeding Fee, Books' required/>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 16px'}}>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:'0 16px'}}>
                 <Field label='Period' value={bulk.period} onChange={bf('period')} options={feePeriods.map(p=>({value:p,label:p}))}/>
                 <Field label='Default Amount' value={bulk.default_amount} onChange={bf('default_amount')} type='number' placeholder='0.00' required/>
               </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 16px'}}>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:'0 16px'}}>
                 <Field label='Due Date (optional)' value={bulk.due_date} onChange={bf('due_date')} type='date'/>
                 <div/>
               </div>
@@ -1024,7 +1024,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
               {/* Summary card */}
               <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:20,marginBottom:16}}>
                 <div style={{fontSize:11,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:14,fontFamily:"'Clash Display',sans-serif"}}>Summary</div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 20px'}}>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:'10px 20px'}}>
                   {[
                     ['Fee Type',   bulk.fee_type],
                     ['Period',     bulk.period],

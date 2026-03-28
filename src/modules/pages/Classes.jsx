@@ -18,6 +18,7 @@ import DataTable from '../components/DataTable'
 
 // ── CLASSES ────────────────────────────────────────────────────
 export default function Classes({profile,data,setData,toast,activeYear,isViewingPast,onPromotionComplete}) {
+  const isMobile = useIsMobile()
   const {classes=[],subjects=[],students=[]} = data
   const [allUsers,setAllUsers] = useState([])
   const [selected,setSelected] = useState(null)
@@ -266,7 +267,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
         <Btn variant='ghost' onClick={()=>{setSubjectModal(true);setEditS(null);setSf({name:'',code:'',class_id:selected?.id||'',teacher_id:''})}}>+ Subject</Btn>
         {!isViewingPast && <Btn onClick={()=>{setClassModal(true);setEditC(null);setCf({name:'',class_teacher_id:'',is_terminal:false})}}>+ New Class</Btn>}
       </PageHeader>
-      <div style={{display:'grid',gridTemplateColumns:selected?'260px 1fr':'repeat(auto-fill,minmax(260px,1fr))',gap:16}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':selected?'260px 1fr':'repeat(auto-fill,minmax(260px,1fr))',gap:16}}>
         {selected ? (
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             {orderedClasses.map((c,idx)=>{

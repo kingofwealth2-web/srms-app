@@ -453,7 +453,7 @@ export default function ParentPortal({ profile, onSignOut }) {
                           const cls = classes.find(c => c.id === a.class_id)
                           return (
                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: 'var(--ink3)', borderRadius: 8 }}>
-                              <span style={{ fontSize: 13, color: 'var(--mist)', minWidth: 100 }}>{fmtDate(a.date)}</span>
+                              <span style={{ fontSize: 13, color: 'var(--mist)', minWidth: 80 }}>{fmtDate(a.date)}</span>
                               {cls && <span style={{ fontSize: 12, color: 'var(--mist3)', flex: 1 }}>{cls.name}</span>}
                               <Badge color={m.color} bg={m.bg}>{a.status}</Badge>
                             </div>
@@ -552,7 +552,7 @@ function ProfileRow({ label, value, mono }) {
   if (!value) return null
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--mist3)', textTransform: 'uppercase', letterSpacing: '0.07em', minWidth: 120, paddingTop: 1, fontFamily: "'Clash Display',sans-serif" }}>{label}</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--mist3)', textTransform: 'uppercase', letterSpacing: '0.07em', minWidth: 90, flexShrink: 0, paddingTop: 1, fontFamily: "'Clash Display',sans-serif" }}>{label}</div>
       <div style={{ fontSize: 13, color: 'var(--mist)', flex: 1, fontFamily: mono ? "'JetBrains Mono',monospace" : undefined }}>{value}</div>
     </div>
   )

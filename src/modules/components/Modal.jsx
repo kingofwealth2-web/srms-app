@@ -33,7 +33,7 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
         border: '1px solid var(--line2)',
         borderBottom: 'none',
         maxHeight: '92vh', overflow: 'auto',
-        boxShadow: '0 -16px 60px rgba(0,0,0,0.7)',
+        boxShadow: 'var(--shadow-lg, 0 -16px 60px rgba(0,0,0,0.7))',
         animation: 'slideUp 0.32s cubic-bezier(.16,1,.3,1) both',
       }}>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 6px' }}>
@@ -62,7 +62,7 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
         border: '1px solid var(--line2)',
         borderRadius: 20,
         maxHeight: '90vh', overflow: 'auto',
-        boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04)',
+        boxShadow: 'var(--shadow-lg, 0 32px 80px rgba(0,0,0,0.7))',
       }}>
         {title && (
           <div style={{ padding: '22px 26px 18px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>

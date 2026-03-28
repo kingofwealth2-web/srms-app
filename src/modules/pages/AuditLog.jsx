@@ -144,18 +144,18 @@ export default function AuditLog({profile,settings,planHook,onShowPlans}) {
       {/* Filters */}
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
-          <div style={{position:'relative',flex:1,minWidth:200}}>
+          <div style={{position:'relative',flex:'1 1 160px'}}>
             <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:13}}>⌕</span>
             <input value={fSearch} onChange={e=>setFSearch(e.target.value)} placeholder='Search actions, users, descriptions...'
               style={{width:'100%',paddingLeft:32,paddingRight:12,paddingTop:8,paddingBottom:8,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13,boxSizing:'border-box'}}/>
           </div>
           <select value={fModule} onChange={e=>setFModule(e.target.value)}
-            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:140}}>
+            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 120px'}}>
             <option value=''>All Modules</option>
             {modules.map(m=><option key={m} value={m}>{m}</option>)}
           </select>
           <select value={fUser} onChange={e=>setFUser(e.target.value)}
-            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
+            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>
             <option value=''>All Users</option>
             {users.map(u=><option key={u.id} value={u.id}>{u.full_name||u.email}</option>)}
           </select>

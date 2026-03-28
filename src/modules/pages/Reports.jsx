@@ -366,7 +366,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
           {/* Class filter -- disabled when student selected */}
           {!selectedStudent && !isClassTeacher && (
             <select value={fc} onChange={e=>setFc(e.target.value)}
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:180}}>
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
               <option value=''>All Classes</option>
               {(isTeacher && teacherClassIds ? classes.filter(c=>teacherClassIds.includes(c.id)) : classes).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -381,7 +381,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
           )}
           {rtype==='academic' && isTeacher && effectiveClassId && (
             <select value={fsub} onChange={e=>setFsub(e.target.value)}
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',minWidth:160}}>
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>
               <option value=''>All My Subjects</option>
               {teacherSubjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
@@ -1207,7 +1207,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         </div>
 
         {/* Print details */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,paddingTop:12,borderTop:'1px solid var(--line)'}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,paddingTop:12,borderTop:'1px solid var(--line)'}}>
           <Field label='Class Teacher Name' value={rcClassTeacherName} onChange={setRcClassTeacherName} placeholder='For signature line'/>
           <Field label='Head Teacher Name'  value={rcHeadTeacher}      onChange={setRcHeadTeacher}      placeholder='For signature line'/>
           {rcType==='individual' && <>

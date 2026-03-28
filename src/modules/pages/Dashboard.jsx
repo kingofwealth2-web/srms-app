@@ -171,7 +171,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
         </div>
       )}
       <PageHeader title={`Good ${new Date().getHours()<12?'morning':'afternoon'}, ${profile?.full_name?.split(' ')[0]||'there'}.`} sub={`${settings?.school_name||'SRMS'} . ${activeYear}`}/>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12,marginBottom: isMobile?20:28}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(2,1fr)',gap:12,marginBottom: isMobile?20:28}}>
         {isAdmin && <>
           <KPI label='Total Students'   value={yearStudents.length}      color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
           <KPI label='Attendance Rate'  value={`${schoolAttRate}%`}  color='var(--emerald)' sub={`${schoolAttPresent} of ${schoolAttTotal} records`} index={1}/>
