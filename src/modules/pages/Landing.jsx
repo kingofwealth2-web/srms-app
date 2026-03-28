@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const FEATURES = [
   { icon: '📊', title: 'Grades & Reports', desc: 'Weighted components, automatic totals, class rankings, and printable report cards generated in seconds.' },
@@ -202,8 +202,8 @@ html, body, #root { border: none !important; outline: none !important; box-shado
   .lp-cta-title { font-size: 32px; }
 }
 @media (max-width: 600px) {
-  .lp-hero { padding: 100px 20px 60px; }
-  .lp-h1 { font-size: 36px; }
+  .lp-hero { padding: 80px 20px 40px; min-height: 85vh; }
+  .lp-h1 { font-size: 34px; }
   .lp-features, .lp-detail, .lp-cta { padding: 60px 20px; }
   .lp-feat-grid { grid-template-columns: 1fr; }
   .lp-detail-cards { grid-template-columns: 1fr; }
@@ -211,10 +211,22 @@ html, body, #root { border: none !important; outline: none !important; box-shado
   .lp-stat-num { font-size: 38px; }
   .lp-footer-inner { flex-direction: column; align-items: flex-start; gap: 16px; }
 }
+.lp-hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; background: transparent; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 10px; }
+.lp-hamburger span { display: block; width: 18px; height: 1.5px; background: rgba(232,232,240,0.7); border-radius: 2px; }
+.lp-mobile-menu { display: none; position: fixed; inset: 0; background: rgba(8,8,18,0.97); z-index: 300; flex-direction: column; align-items: center; justify-content: center; gap: 32px; }
+.lp-mobile-menu.open { display: flex; }
+.lp-mobile-menu-link { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 700; color: rgba(232,232,240,0.7); cursor: pointer; background: none; border: none; transition: color 0.2s; }
+.lp-mobile-menu-link:hover { color: #e8b84b; }
+.lp-mobile-menu-close { position: absolute; top: 24px; right: 24px; background: transparent; border: 1px solid rgba(255,255,255,0.1); border-radius: 50%; width: 40px; height: 40px; color: rgba(232,232,240,0.6); font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.lp-mobile-menu-actions { display: flex; flex-direction: column; gap: 12px; width: 200px; }
+@media (max-width: 960px) {
+  .lp-hamburger { display: flex; }
+}
 `
 
 export default function Landing({ onEnter, onShowPlans }) {
-  const navRef = useRef(null)
+  const navRef    = useRef(null)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     const onScroll = () => {
@@ -223,6 +235,12 @@ export default function Landing({ onEnter, onShowPlans }) {
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [menuOpen])
 
   return (
     <div style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", background: '#0c0c15', color: '#e8e8f0', overflowX: 'hidden', lineHeight: '1.6' }}>
@@ -243,9 +261,24 @@ export default function Landing({ onEnter, onShowPlans }) {
           <div className="lp-nav-actions">
             <button className="lp-btn-ghost" onClick={onEnter}>Sign In</button>
             <button className="lp-btn-gold" onClick={onEnter}>Get Started</button>
+            <button className="lp-hamburger" onClick={() => setMenuOpen(true)} aria-label="Menu">
+              <span/><span/><span/>
+            </button>
           </div>
         </div>
       </nav>
+
+      {/* MOBILE MENU */}
+      <div className={`lp-mobile-menu${menuOpen ? ' open' : ''}`}>
+        <button className="lp-mobile-menu-close" onClick={() => setMenuOpen(false)}>×</button>
+        <button className="lp-mobile-menu-link" onClick={() => { setMenuOpen(false); document.querySelector('.lp-features')?.scrollIntoView({ behavior: 'smooth' }) }}>Features</button>
+        <button className="lp-mobile-menu-link" onClick={() => { setMenuOpen(false); document.querySelector('.lp-stats')?.scrollIntoView({ behavior: 'smooth' }) }}>How it works</button>
+        <button className="lp-mobile-menu-link" onClick={() => { setMenuOpen(false); onShowPlans() }}>Pricing</button>
+        <div className="lp-mobile-menu-actions">
+          <button className="lp-btn-ghost" style={{ width: '100%', textAlign: 'center' }} onClick={() => { setMenuOpen(false); onEnter() }}>Sign In</button>
+          <button className="lp-btn-gold" style={{ width: '100%', textAlign: 'center', padding: '12px 22px' }} onClick={() => { setMenuOpen(false); onEnter() }}>Get Started</button>
+        </div>
+      </div>
 
       {/* HERO */}
       <section className="lp-hero">

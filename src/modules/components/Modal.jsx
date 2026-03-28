@@ -14,26 +14,36 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
     return () => { document.body.style.overflow = prev; document.removeEventListener('keydown', onKey) }
   }, [])
 
-  const backdrop = {
+  const backdropStyle = {
     position: 'fixed', inset: 0,
-    background: 'var(--modal-backdrop, rgba(8,8,18,0.82))',
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
+    // Gradient fade — dark at bottom, lighter at top — no hard rectangle edge
+    background: 'linear-gradient(to top, rgba(6,6,14,0.92) 0%, rgba(6,6,14,0.55) 50%, rgba(6,6,14,0.2) 100%)',
     display: 'flex', justifyContent: 'center',
     zIndex: 1000,
     animation: 'fadeIn 0.2s ease both',
   }
 
+  // Desktop backdrop keeps a more uniform tint
+  const desktopBackdropStyle = {
+    ...backdropStyle,
+    background: 'var(--modal-backdrop, rgba(8,8,18,0.72))',
+    backdropFilter: 'blur(6px)',
+    WebkitBackdropFilter: 'blur(6px)',
+  }
+
   if (isMobile) return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ ...backdrop, alignItems: 'flex-end', padding: 0 }}>
+      style={{ ...backdropStyle, alignItems: 'flex-end', padding: 0 }}>
       <div style={{
         width: '100%', background: 'var(--ink2)',
         borderRadius: '20px 20px 0 0',
         border: '1px solid var(--line2)',
         borderBottom: 'none',
-        maxHeight: '92vh', overflow: 'auto',
-        boxShadow: 'var(--shadow-lg, 0 -16px 60px rgba(0,0,0,0.7))',
+        maxHeight: '88vh',
+        overflow: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehavior: 'contain',
+        boxShadow: '0 -8px 40px rgba(0,0,0,0.3)',
         animation: 'slideUp 0.32s cubic-bezier(.16,1,.3,1) both',
       }}>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 6px' }}>
@@ -55,7 +65,7 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ ...backdrop, alignItems: 'flex-start', padding: '5vh 20px 20px' }}>
+      style={{ ...desktopBackdropStyle, alignItems: 'flex-start', padding: '5vh 20px 20px' }}>
       <div className='si' style={{
         width: '100%', maxWidth: width,
         background: 'var(--ink2)',
