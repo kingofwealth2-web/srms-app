@@ -188,6 +188,12 @@ export default function App() {
   const [newYearWorking,setNewYearWorking] = useState(false)
   const isMobile = useIsMobile()
   const initialLoadDone = useRef(false)
+  const planHook = usePlan(settings)
+  const reloadSettings = useCallback(async () => {
+    if (!profile?.school_id) return
+    const { data } = await supabase.from('settings').select('*').eq('school_id', profile.school_id).single()
+    if (data) setSettings(data)
+  }, [profile?.school_id])
 
   useEffect(() => {
     document.body.classList.toggle('light', !isDark)
@@ -363,13 +369,6 @@ export default function App() {
   const currentYear   = currentYearFromSettings(settings)
   const activeYear    = selectedYear || currentYear
   const isViewingPast = selectedYear && selectedYear !== currentYear
-  const planHook      = usePlan(settings)
-
-  const reloadSettings = useCallback(async () => {
-    if (!profile?.school_id) return
-    const { data } = await supabase.from('settings').select('*').eq('school_id', profile.school_id).single()
-    if (data) setSettings(data)
-  }, [profile?.school_id])
 
   // ── PARENT PORTAL GATING ─────────────────────────────────────────
   if (profile?.role === 'parent') {
