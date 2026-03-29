@@ -171,82 +171,133 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
 }
 
 // ── Upgrade Modal ──────────────────────────────────────────────
-function UpgradeModal({ featureLabel, featureDesc, targetPlan, onClose, onUpgrade }) {
+function UpgradeModal({ featureLabel, featureDesc, targetPlan, currentPlan, onClose }) {
+  // Close on Escape
+  if (typeof document !== 'undefined') {
+    const prev = document._pgEsc
+    document._pgEsc && document.removeEventListener('keydown', document._pgEsc)
+    document._pgEsc = e => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', document._pgEsc)
+  }
+
+  const planColors = { starter: 'var(--emerald)', basic: 'var(--gold)', pro: 'var(--amber)' }
+  const planGlows  = { starter: 'rgba(45,212,160,0.12)', basic: 'rgba(232,184,75,0.12)', pro: 'rgba(251,159,58,0.12)' }
+  const planLines  = { starter: 'rgba(45,212,160,0.25)', basic: 'rgba(232,184,75,0.25)', pro: 'rgba(251,159,58,0.25)' }
+  const key        = targetPlan?.key || 'pro'
+  const color      = planColors[key] || 'var(--gold)'
+  const glow       = planGlows[key]  || 'rgba(232,184,75,0.12)'
+  const line       = planLines[key]  || 'rgba(232,184,75,0.25)'
+
+  const backdrop = {
+    position: 'fixed', inset: 0, zIndex: 9999,
+    background: 'rgba(8,8,18,0.78)',
+    backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+    display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+    padding: '5vh 20px 20px',
+    animation: 'pgFadeIn 0.18s ease both',
+  }
+
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
-        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 24,
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: 'var(--ink2)', borderRadius: 16,
+    <>
+      <style>{`
+        @keyframes pgFadeIn { from { opacity:0 } to { opacity:1 } }
+        @keyframes pgSlideIn { from { opacity:0; transform:translateY(-12px) } to { opacity:1; transform:translateY(0) } }
+      `}</style>
+      <div onClick={e => { if (e.target === e.currentTarget) onClose() }} style={backdrop}>
+        <div style={{
+          width: '100%', maxWidth: 440,
+          background: 'var(--ink2)',
           border: '1px solid var(--line2)',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
-          padding: '28px 24px', maxWidth: 420, width: '100%',
-          textAlign: 'center',
-        }}
-      >
-        <div style={{
-          width: 52, height: 52, borderRadius: '50%',
-          background: 'rgba(232,184,75,0.12)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 22, margin: '0 auto 20px',
-        }}>⬡</div>
-
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#e8b84b', letterSpacing: '0.12em', marginBottom: 8 }}>
-          {targetPlan?.label?.toUpperCase()} FEATURE
-        </div>
-
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--white)', marginBottom: 10, lineHeight: 1.2 }}>
-          {featureLabel}
-        </h2>
-        <p style={{ fontSize: 13, color: 'var(--mist2)', lineHeight: 1.6, marginBottom: 20 }}>
-          {featureDesc} This feature is on the <strong style={{ color: 'var(--white)' }}>{targetPlan?.label}</strong> plan.
-          Contact us to upgrade your account.
-        </p>
-
-        <div style={{
-          background: 'rgba(232,184,75,0.06)', border: '1px solid rgba(232,184,75,0.15)',
-          borderRadius: 12, padding: '16px 20px', marginBottom: 20, textAlign: 'left',
+          borderRadius: 'var(--r-xl, 24px)',
+          boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04)',
+          overflow: 'hidden',
+          animation: 'pgSlideIn 0.22s cubic-bezier(.16,1,.3,1) both',
         }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#e8b84b', letterSpacing: '0.1em', marginBottom: 12 }}>
-            CONTACT US TO UPGRADE
-          </div>
-          <a href="tel:+233536759120" style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            fontSize: 13, color: 'var(--white)', textDecoration: 'none', marginBottom: 10,
-          }}>
-            <span>📞</span>
-            <span>0536 759 120</span>
-          </a>
-          <a href="mailto:kofi.william2311@gmail.com" style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            fontSize: 13, color: 'var(--white)', textDecoration: 'none',
-          }}>
-            <span>✉️</span>
-            <span>kofi.william2311@gmail.com</span>
-          </a>
-        </div>
 
-        <button
-          onClick={onClose}
-          style={{
-            width: '100%', padding: '11px', borderRadius: 8,
-            border: '1px solid var(--line2)', background: 'transparent',
-            color: 'var(--mist2)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
-          Close
-        </button>
+          {/* ── Top accent strip ── */}
+          <div style={{ height: 3, background: `linear-gradient(90deg, transparent, ${color}, transparent)`, opacity: 0.7 }} />
+
+          {/* ── Icon + header ── */}
+          <div style={{ padding: '28px 28px 0', textAlign: 'center' }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%',
+              background: glow, border: `1px solid ${line}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 20px', fontSize: 22,
+            }}>⬡</div>
+
+            <div style={{ fontSize: 10, fontWeight: 700, color, letterSpacing: '0.14em', marginBottom: 10, textTransform: 'uppercase' }}>
+              {targetPlan?.label} Feature
+            </div>
+            <h2 className='d' style={{ fontSize: 20, fontWeight: 600, color: 'var(--white)', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.02em' }}>
+              {featureLabel}
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--mist2)', lineHeight: 1.65, marginBottom: 24 }}>
+              {featureDesc}
+            </p>
+          </div>
+
+          {/* ── Plan highlight ── */}
+          <div style={{
+            margin: '0 28px 20px',
+            background: glow, border: `1px solid ${line}`,
+            borderRadius: 'var(--r-sm, 10px)', padding: '14px 18px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>Required plan</div>
+              <div className='d' style={{ fontSize: 16, fontWeight: 600, color: 'var(--white)' }}>{targetPlan?.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--mist2)', marginTop: 2 }}>
+                from ₵{targetPlan?.monthlyPrice}/mo · ₵{targetPlan?.annualPrice}/yr
+              </div>
+            </div>
+            <div style={{
+              fontSize: 10, fontWeight: 700, color,
+              background: `rgba(0,0,0,0.2)`, border: `1px solid ${line}`,
+              borderRadius: 20, padding: '4px 12px', letterSpacing: '0.06em',
+              textTransform: 'uppercase', flexShrink: 0,
+            }}>
+              Upgrade
+            </div>
+          </div>
+
+          {/* ── Contact box ── */}
+          <div style={{ margin: '0 28px 24px', background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm, 10px)', padding: '14px 18px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--mist3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>
+              Contact us to upgrade
+            </div>
+            <a href="tel:+233536759120" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--white)', textDecoration: 'none', marginBottom: 10, fontWeight: 500 }}>
+              <span style={{ fontSize: 15 }}>📞</span>
+              <span>0536 759 120</span>
+            </a>
+            <a href="mailto:kofi.william2311@gmail.com" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--white)', textDecoration: 'none', fontWeight: 500 }}>
+              <span style={{ fontSize: 15 }}>✉️</span>
+              <span>kofi.william2311@gmail.com</span>
+            </a>
+          </div>
+
+          {/* ── Close ── */}
+          <div style={{ padding: '0 28px 28px' }}>
+            <button
+              onClick={onClose}
+              style={{
+                width: '100%', padding: '11px',
+                borderRadius: 'var(--r-sm, 10px)',
+                border: '1px solid var(--line2)',
+                background: 'var(--ink4)',
+                color: 'var(--mist)', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'inherit',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--ink5)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'var(--ink4)'}
+            >
+              Maybe later
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 

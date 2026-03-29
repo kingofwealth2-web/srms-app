@@ -504,12 +504,17 @@ export default function App() {
                   ? <PlanGate planHook={planHook} feature='yearSwitcher' mode='inline'><YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={true}/></PlanGate>
                   : <span style={{ fontSize: 10, color: 'var(--mist3)' }}>{activeYear}</span>}
                 {isViewingPast && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 4, padding: '1px 6px', letterSpacing: '0.06em' }}>READ ONLY</span>}
-                {planHook.isTrialing && (
-                  <>
-                    <span style={{ color: 'var(--line2)', fontSize: 10 }}>·</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--gold)' }}>{planHook.daysLeft}d left</span>
-                  </>
-                )}
+                <>
+                  <span style={{ color: 'var(--line2)', fontSize: 10 }}>·</span>
+                  {(() => {
+                    const planColors = { trial:'var(--sky)', starter:'var(--emerald)', basic:'var(--gold)', pro:'var(--amber)' }
+                    const rawPlan = planHook.rawPlan || 'trial'
+                    const color = planColors[rawPlan] || 'var(--mist3)'
+                    return <span style={{ fontSize: 9, fontWeight: 700, color, textTransform:'uppercase', letterSpacing:'0.06em' }}>
+                      {planHook.isTrialing ? `Trial · ${planHook.daysLeft}d` : rawPlan}
+                    </span>
+                  })()}
+                </>
               </div>
             </div>
           ) : (
@@ -523,12 +528,23 @@ export default function App() {
                 {isViewingPast && (
                   <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 5, padding: '2px 8px', letterSpacing: '0.06em' }}>READ ONLY</span>
                 )}
-                {planHook.isTrialing && (
-                  <div style={{ background: 'rgba(232,184,75,0.1)', border: '1px solid rgba(232,184,75,0.25)', borderRadius: 20, padding: '2px 10px', display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Trial</span>
-                    <span style={{ fontSize: 11, color: 'var(--white)' }}>{planHook.daysLeft} days left</span>
-                  </div>
-                )}
+                {(() => {
+                  const planColors = { trial: 'var(--sky)', starter: 'var(--emerald)', basic: 'var(--gold)', pro: 'var(--amber)' }
+                  const planBg = { trial: 'rgba(91,168,245,0.1)', starter: 'rgba(45,212,160,0.1)', basic: 'rgba(232,184,75,0.1)', pro: 'rgba(251,159,58,0.1)' }
+                  const planBorder = { trial: 'rgba(91,168,245,0.25)', starter: 'rgba(45,212,160,0.25)', basic: 'rgba(232,184,75,0.25)', pro: 'rgba(251,159,58,0.25)' }
+                  const rawPlan = planHook.rawPlan || 'trial'
+                  const color = planColors[rawPlan] || 'var(--mist3)'
+                  const bg = planBg[rawPlan] || 'rgba(255,255,255,0.05)'
+                  const border = planBorder[rawPlan] || 'rgba(255,255,255,0.1)'
+                  return (
+                    <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 20, padding: '2px 10px', display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        {planHook.isTrialing ? 'Trial' : (planHook.rawPlan || 'trial')}
+                      </span>
+                      {planHook.isTrialing && <span style={{ fontSize: 11, color: 'var(--white)' }}>{planHook.daysLeft} days left</span>}
+                    </div>
+                  )
+                })()}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <ThemeToggle isDark={isDark} onToggle={() => setIsDark(d => !d)}/>
