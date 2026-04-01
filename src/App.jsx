@@ -36,6 +36,7 @@ import Users          from './modules/pages/Users'
 import MyProfile      from './modules/pages/MyProfile'
 import AuditLog       from './modules/pages/AuditLog'
 import Settings       from './modules/pages/Settings'
+import FeedbackButton from './modules/components/FeedbackButton'
 
 // ── Theme Toggle ────────────────────────────────────────────────
 function ThemeToggle({ isDark, onToggle, size = 'md' }) {
@@ -368,7 +369,9 @@ export default function App() {
 
   const currentYear   = currentYearFromSettings(settings)
   const activeYear    = selectedYear || currentYear
-  const isViewingPast = selectedYear && selectedYear !== currentYear
+  const isViewingPast = !!(selectedYear && selectedYear !== currentYear)
+    || planHook.status === 'cancelled_grace'
+    || planHook.status === 'expiry_grace'
 
   // ── PARENT PORTAL GATING ─────────────────────────────────────────
   if (profile?.role === 'parent') {
@@ -507,11 +510,13 @@ export default function App() {
                 <>
                   <span style={{ color: 'var(--line2)', fontSize: 10 }}>·</span>
                   {(() => {
-                    const planColors = { trial:'var(--sky)', starter:'var(--emerald)', basic:'var(--gold)', pro:'var(--amber)' }
+                    const planColors = { trial:'var(--sky)', starter:'var(--emerald)', basic:'var(--gold)', pro:'var(--amber)', lifetime:'var(--amber)' }
                     const rawPlan = planHook.rawPlan || 'trial'
-                    const color = planColors[rawPlan] || 'var(--mist3)'
+                    const badgeKey = planHook.isLifetime ? 'lifetime' : rawPlan
+                    const color = planColors[badgeKey] || 'var(--mist3)'
+                    const mobileLabel = planHook.isLifetime ? 'Lifetime' : planHook.isTrialing ? `Trial · ${planHook.daysLeft}d` : rawPlan
                     return <span style={{ fontSize: 9, fontWeight: 700, color, textTransform:'uppercase', letterSpacing:'0.06em' }}>
-                      {planHook.isTrialing ? `Trial · ${planHook.daysLeft}d` : rawPlan}
+                      {mobileLabel}
                     </span>
                   })()}
                 </>
@@ -529,17 +534,19 @@ export default function App() {
                   <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 5, padding: '2px 8px', letterSpacing: '0.06em' }}>READ ONLY</span>
                 )}
                 {(() => {
-                  const planColors = { trial: 'var(--sky)', starter: 'var(--emerald)', basic: 'var(--gold)', pro: 'var(--amber)' }
-                  const planBg = { trial: 'rgba(91,168,245,0.1)', starter: 'rgba(45,212,160,0.1)', basic: 'rgba(232,184,75,0.1)', pro: 'rgba(251,159,58,0.1)' }
-                  const planBorder = { trial: 'rgba(91,168,245,0.25)', starter: 'rgba(45,212,160,0.25)', basic: 'rgba(232,184,75,0.25)', pro: 'rgba(251,159,58,0.25)' }
+                  const planColors = { trial: 'var(--sky)', starter: 'var(--emerald)', basic: 'var(--gold)', pro: 'var(--amber)', lifetime: 'var(--amber)' }
+                  const planBg = { trial: 'rgba(91,168,245,0.1)', starter: 'rgba(45,212,160,0.1)', basic: 'rgba(232,184,75,0.1)', pro: 'rgba(251,159,58,0.1)', lifetime: 'rgba(251,159,58,0.1)' }
+                  const planBorder = { trial: 'rgba(91,168,245,0.25)', starter: 'rgba(45,212,160,0.25)', basic: 'rgba(232,184,75,0.25)', pro: 'rgba(251,159,58,0.25)', lifetime: 'rgba(251,159,58,0.25)' }
                   const rawPlan = planHook.rawPlan || 'trial'
-                  const color = planColors[rawPlan] || 'var(--mist3)'
-                  const bg = planBg[rawPlan] || 'rgba(255,255,255,0.05)'
-                  const border = planBorder[rawPlan] || 'rgba(255,255,255,0.1)'
+                  const badgeKey = planHook.isLifetime ? 'lifetime' : rawPlan
+                  const color = planColors[badgeKey] || 'var(--mist3)'
+                  const bg = planBg[badgeKey] || 'rgba(255,255,255,0.05)'
+                  const border = planBorder[badgeKey] || 'rgba(255,255,255,0.1)'
+                  const badgeLabel = planHook.isLifetime ? 'Lifetime' : planHook.isTrialing ? 'Trial' : rawPlan
                   return (
                     <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 20, padding: '2px 10px', display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
                       <span style={{ fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        {planHook.isTrialing ? 'Trial' : (planHook.rawPlan || 'trial')}
+                        {badgeLabel}
                       </span>
                       {planHook.isTrialing && <span style={{ fontSize: 11, color: 'var(--white)' }}>{planHook.daysLeft} days left</span>}
                     </div>
@@ -612,6 +619,26 @@ export default function App() {
             </div>
           )}
 
+          {/* ── Expiry grace banner ── */}
+          {planHook.status === 'expiry_grace' && (
+            <div style={{ flexShrink: 0, background: 'rgba(240,107,122,0.07)', borderBottom: '1px solid rgba(240,107,122,0.2)', padding: '10px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 16 }}>⏰</span>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--rose)' }}>
+                    {planHook.daysLeft === 0 ? 'Your access ends today' : `${planHook.daysLeft} day${planHook.daysLeft === 1 ? '' : 's'} of access remaining`}
+                  </span>
+                  <span style={{ fontSize: 13, color: 'var(--mist2)', marginLeft: 8 }}>
+                    — your {planHook.rawPlan === 'trial' ? 'trial' : 'plan'} has expired. Contact us to continue.
+                  </span>
+                </div>
+              </div>
+              <a href='mailto:kofi.william2311@gmail.com' style={{ fontSize: 12, fontWeight: 700, color: 'var(--rose)', background: 'rgba(240,107,122,0.1)', border: '1px solid rgba(240,107,122,0.25)', borderRadius: 7, padding: '5px 14px', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                Renew Now →
+              </a>
+            </div>
+          )}
+
           {/* ── Page content ── */}
           <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '20px 16px' : '32px 36px' }}>
             <div key={page} className='page'>{renderPage()}</div>
@@ -620,6 +647,8 @@ export default function App() {
       </div>
 
       {toast && <Toast msg={toast.msg} type={toast.type} isMobile={isMobile}/>}
+
+      <FeedbackButton profile={profile} settings={settings} currentPage={pageTitles[page] || page}/>
 
       {/* ── New Academic Year Modal ── */}
       {newYearModal && (
