@@ -28,6 +28,16 @@ export const LETTER_COLOR = {
   'F':'var(--rose)',
 }
 
+// Number grade colors (BECE-style 1–9)
+export const NUMBER_GRADE_COLOR = {
+  '1':'var(--emerald)', '2':'var(--emerald)',
+  '3':'var(--sky)',
+  '4':'var(--sky)',
+  '5':'var(--amber)',
+  '6':'var(--amber)',
+  '7':'var(--rose)', '8':'var(--rose)', '9':'var(--rose)',
+}
+
 export const FEE_STATUS = {
   Paid:       {color:'var(--emerald)',bg:'rgba(45,212,160,0.12)'},
   Partial:    {color:'var(--amber)',  bg:'rgba(251,159,58,0.12)'},
@@ -157,10 +167,9 @@ export const PLANS = {
 // Feedback webhook — paste a Formspree, Make, Zapier, or n8n URL here
 // to get an email notification every time a school submits feedback.
 // Leave as null to only save to the Supabase feedback table.
-export const FEEDBACK_WEBHOOK_URL = 'https://formspree.io/f/xkopzggw'
-// Overage grace period in days before new additions are blocked
-export const TRIAL_DAYS = 14
+export const FEEDBACK_WEBHOOK_URL = null
 
+// Overage grace period in days before new additions are blocked
 export const OVERAGE_GRACE_DAYS = 7
 
 // Days of read-only access after trial or plan expiry before full lock
