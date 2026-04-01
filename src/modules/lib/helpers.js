@@ -1,4 +1,4 @@
-import { CURRENCIES, GHANA_PUBLIC_HOLIDAYS } from './constants'
+import { CURRENCIES, GHANA_PUBLIC_HOLIDAYS, LETTER_COLOR, NUMBER_GRADE_COLOR } from './constants'
 
 // ── GRADE HELPERS ──────────────────────────────────────────────
 export const ALL_COMPONENTS = ['classwork','homework','midsemester','final_exam','project']
@@ -9,6 +9,24 @@ export const DEFAULT_GRADING_SCALE = [
   {min:50, max:64,  letter:'C', gpa:2.0, remark:'Good'},
   {min:0,  max:49,  letter:'F', gpa:0.0, remark:'Fail'},
 ]
+
+export const DEFAULT_NUMBER_GRADING_SCALE = [
+  {min:90, max:100, letter:'1', gpa:4.0, remark:'Excellent'},
+  {min:80, max:89,  letter:'2', gpa:3.5, remark:'Very Good'},
+  {min:70, max:79,  letter:'3', gpa:3.0, remark:'Good'},
+  {min:60, max:69,  letter:'4', gpa:2.5, remark:'Credit'},
+  {min:50, max:59,  letter:'5', gpa:2.0, remark:'Credit'},
+  {min:45, max:49,  letter:'6', gpa:1.5, remark:'Pass'},
+  {min:35, max:44,  letter:'7', gpa:1.0, remark:'Weak Pass'},
+  {min:0,  max:34,  letter:'8', gpa:0.0, remark:'Fail'},
+]
+
+// Returns the right color for a grade value based on grade system
+export const getGradeColor = (grade, gradeSystem) => {
+  if (!grade || grade === '--') return 'var(--mist2)'
+  if (gradeSystem === 'number') return NUMBER_GRADE_COLOR[String(grade)] || 'var(--mist2)'
+  return LETTER_COLOR[grade] || 'var(--mist2)'
+}
 
 export const DEFAULT_GRADE_COMPONENTS = [
   {key:'classwork',   label:'Classwork',   max_score:10, weight:10, enabled:true},
