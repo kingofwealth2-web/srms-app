@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useRef, useEffect } from 'react'
 import { PLANS } from '../lib/constants'
 
 const G = `
@@ -40,7 +40,10 @@ const G = `
 .pl-trial-icon { font-size: 16px; flex-shrink: 0; }
 
 /* ── CARDS ── */
-.pl-cards { max-width: 1080px; margin: 0 auto; padding: 0 32px 100px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.pl-cards { max-width: 1200px; margin: 0 auto; padding: 0 32px 100px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.pl-card.lifetime { border-color: rgba(251,159,58,0.3); background: rgba(251,159,58,0.03); }
+.pl-tbd { font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800; color: rgba(232,232,240,0.25); letter-spacing: 0.04em; line-height: 1; }
+.pl-tbd-note { font-size: 11px; color: rgba(232,232,240,0.3); margin-bottom: 28px; min-height: 16px; font-style: italic; }
 .pl-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 32px 28px; display: flex; flex-direction: column; gap: 0; position: relative; transition: border-color 0.2s; }
 .pl-card:hover { border-color: rgba(255,255,255,0.13); }
 .pl-card.featured { border-color: rgba(232,184,75,0.35); background: rgba(232,184,75,0.04); }
@@ -78,6 +81,9 @@ const G = `
 .pl-trial-btn { display: inline-block; padding: 13px 40px; background: #e8b84b; border: none; border-radius: 10px; color: #0c0c15; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.22s; font-family: 'Plus Jakarta Sans', sans-serif; }
 .pl-trial-btn:hover { background: #f5c84e; box-shadow: 0 8px 28px rgba(232,184,75,0.3); transform: translateY(-1px); }
 
+@media(max-width:1100px){
+  .pl-cards { grid-template-columns: repeat(2, 1fr); max-width: 720px; }
+}
 @media(max-width:900px){
   .pl-cards { grid-template-columns: 1fr; max-width: 440px; }
   .pl-hero-title { font-size: 36px; }
@@ -103,13 +109,24 @@ const FEATURE_ROWS = [
   { key: 'yearSwitcher',  label: 'Year switcher (history access)',          feat: true },
 ]
 
+const LIFETIME_PLAN = {
+  key:          'lifetime',
+  label:        'Lifetime',
+  studentLimit: null,
+  userLimit:    null,
+  features: {
+    yearSwitcher: true, feeReceipts: true, behaviour: true,
+    announcements: true, reportsPDF: true, reportsExcel: true,
+    parentPortal: true, auditLog: true,
+  },
+}
+
 function planHasFeature(plan, key) {
   if (key === 'students' || key === 'fees') return true
   return plan.features[key] === true
 }
 
 export default function Plans({ onEnter, onBack }) {
-  const [cycle, setCycle] = useState('monthly')
   const navRef = useRef(null)
 
   useEffect(() => {
@@ -145,51 +162,33 @@ export default function Plans({ onEnter, onBack }) {
         <div className="pl-hero">
           <div className="pl-eyebrow">Pricing</div>
           <h1 className="pl-hero-title">Simple plans for<br /><span>every school</span></h1>
-          <p className="pl-hero-sub">14-day full Pro trial on every new school — no payment required.</p>
-
-          {/* billing toggle */}
-          <div className="pl-toggle-wrap">
-            <button
-              className={`pl-toggle-btn${cycle === 'monthly' ? ' active' : ''}`}
-              onClick={() => setCycle('monthly')}
-            >Monthly</button>
-            <button
-              className={`pl-toggle-btn${cycle === 'annual' ? ' active' : ''}`}
-              onClick={() => setCycle('annual')}
-            >
-              Annual <span className="pl-save-badge">Save up to 25%</span>
-            </button>
-          </div>
+          <p className="pl-hero-sub">14-day full Pro trial on every new school — no payment required. Pricing is being finalised — contact us for a quote.</p>
         </div>
 
         {/* CARDS */}
         <div className="pl-cards">
-          {planList.map((plan, i) => {
+          {[...planList, LIFETIME_PLAN].map((plan) => {
             const isBasic    = plan.key === 'basic'
-            const price      = cycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice
-            const monthlyEq  = cycle === 'annual' ? Math.round(plan.annualPrice / 12) : null
-            const saving     = cycle === 'annual'
-              ? `₵${(plan.monthlyPrice * 12 - plan.annualPrice).toLocaleString()} saved — billed annually`
-              : ''
+            const isLifetime = plan.key === 'lifetime'
 
             return (
-              <div key={plan.key} className={`pl-card${isBasic ? ' featured' : ''}`}>
+              <div key={plan.key} className={`pl-card${isBasic ? ' featured' : ''}${isLifetime ? ' lifetime' : ''}`}>
                 {isBasic && <div className="pl-popular">MOST POPULAR</div>}
 
                 <p className="pl-plan-name">{plan.label}</p>
                 <p className="pl-plan-desc">
-                  {plan.key === 'starter' && 'For small schools getting started'}
-                  {plan.key === 'basic'   && 'For established schools, full operations'}
-                  {plan.key === 'pro'     && 'For large schools needing full power'}
+                  {plan.key === 'starter'  && 'For small schools getting started'}
+                  {plan.key === 'basic'    && 'For established schools, full operations'}
+                  {plan.key === 'pro'      && 'For large schools needing full power'}
+                  {plan.key === 'lifetime' && 'Pay once. Use forever. All Pro features included.'}
                 </p>
 
+                {/* TBD price */}
                 <div className="pl-price-row">
-                  <span className="pl-currency">₵</span>
-                  <span className="pl-amount">{price.toLocaleString()}</span>
-                  <span className="pl-period">/{cycle === 'monthly' ? 'mo' : 'yr'}</span>
+                  <span className="pl-tbd">TBD</span>
                 </div>
-                <p className="pl-annual-note">
-                  {cycle === 'annual' ? `₵${monthlyEq}/mo · ${saving}` : '\u00a0'}
+                <p className="pl-tbd-note">
+                  {isLifetime ? 'One-time payment — no renewals' : 'Monthly & annual billing available'}
                 </p>
 
                 {/* limits */}
@@ -225,37 +224,33 @@ export default function Plans({ onEnter, onBack }) {
 
                 <div className="pl-spacer" style={{minHeight:24}} />
 
-                {plan.key === 'starter' ? (
-                  <button className="pl-cta-btn outline" onClick={onEnter}>
-                    Start 14-day free trial
-                  </button>
-                ) : (
-                  <div style={{ marginTop: 'auto' }}>
+                <div style={{ marginTop: 'auto' }}>
+                  <div style={{
+                    background: isLifetime ? 'rgba(251,159,58,0.06)' : 'rgba(232,184,75,0.06)',
+                    border: `1px solid ${isLifetime ? 'rgba(251,159,58,0.2)' : 'rgba(232,184,75,0.15)'}`,
+                    borderRadius: 10, padding: '14px 16px', textAlign: 'left',
+                  }}>
                     <div style={{
-                      background: 'rgba(232,184,75,0.06)', border: '1px solid rgba(232,184,75,0.15)',
-                      borderRadius: 10, padding: '14px 16px', textAlign: 'left',
+                      fontSize: 10, fontWeight: 700,
+                      color: isLifetime ? '#fb9f3a' : '#e8b84b',
+                      letterSpacing: '0.1em', marginBottom: 10,
                     }}>
-                      <div style={{
-                        fontSize: 10, fontWeight: 700, color: '#e8b84b',
-                        letterSpacing: '0.1em', marginBottom: 10,
-                      }}>
-                        CONTACT US TO SUBSCRIBE
-                      </div>
-                      <a href="tel:+233536759120" style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        fontSize: 12, color: 'rgba(232,232,240,0.75)', textDecoration: 'none', marginBottom: 8,
-                      }}>
-                        <span>📞</span><span>0536 759 120</span>
-                      </a>
-                      <a href="mailto:kofi.william2311@gmail.com" style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        fontSize: 12, color: 'rgba(232,232,240,0.75)', textDecoration: 'none',
-                      }}>
-                        <span>✉️</span><span>kofi.william2311@gmail.com</span>
-                      </a>
+                      {isLifetime ? 'GET A QUOTE' : 'CONTACT US TO SUBSCRIBE'}
                     </div>
+                    <a href="tel:+233536759120" style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      fontSize: 12, color: 'rgba(232,232,240,0.75)', textDecoration: 'none', marginBottom: 8,
+                    }}>
+                      <span>📞</span><span>0536 759 120</span>
+                    </a>
+                    <a href="mailto:kofi.william2311@gmail.com" style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      fontSize: 12, color: 'rgba(232,232,240,0.75)', textDecoration: 'none',
+                    }}>
+                      <span>✉️</span><span>kofi.william2311@gmail.com</span>
+                    </a>
                   </div>
-                )}
+                </div>
               </div>
             )
           })}
