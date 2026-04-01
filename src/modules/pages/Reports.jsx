@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useIsMobile } from '../lib/hooks'
-import { ROLE_META, LETTER_COLOR, FEE_STATUS } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName } from '../lib/helpers'
+import { ROLE_META, FEE_STATUS } from '../lib/constants'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
@@ -468,7 +468,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
                               <td style={tdStyle}>{subj?.name||'--'}</td>
                               {gradeComps.filter(c=>c.enabled).map(c=><td key={c.key} style={tdStyle}><span className='mono'>{g[c.key]||0}</span></td>)}
                               <td style={tdStyle}><span className='mono' style={{fontWeight:700,fontSize:14}}>{tot}</span></td>
-                              <td style={tdStyle}><Badge color={LETTER_COLOR[let_]||'var(--mist2)'}>{let_}</Badge></td>
+                              <td style={tdStyle}><Badge color={getGradeColor(let_, settings?.grade_system)||'var(--mist2)'}>{let_}</Badge></td>
                               <td style={tdStyle}><span style={{fontSize:12,color:'var(--mist2)'}}>{getGradeRemark(tot,scale)||'--'}</span></td>
                               <td style={tdStyle}>{tot>=50?<Badge color='var(--emerald)'>Pass</Badge>:<Badge color='var(--rose)'>Fail</Badge>}</td>
                             </tr>
@@ -494,7 +494,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
                               })}
                               <td style={tdStyle}><span className='mono' style={{fontWeight:700}}>{s.total||'--'}</span></td>
                               <td style={tdStyle}><span className='mono'>{s.avg??'--'}</span></td>
-                              <td style={tdStyle}>{s.letter!=='--'?<Badge color={LETTER_COLOR[s.letter]||'var(--mist2)'}>{s.letter}</Badge>:'--'}</td>
+                              <td style={tdStyle}>{s.letter!=='--'?<Badge color={getGradeColor(s.letter, settings?.grade_system)||'var(--mist2)'}>{s.letter}</Badge>:'--'}</td>
                               <td style={tdStyle}><span style={{fontSize:12,color:'var(--mist2)'}}>{s.remark||'--'}</span></td>
                               {!fp && <td style={tdStyle}>{s.trend ? <span style={{fontWeight:700,color:s.trend.color,fontSize:14}} title={s.trend.diff}>{s.trend.arrow}</span> : <span style={{color:'var(--mist3)'}}>--</span>}</td>}
                               <td style={tdStyle}>{s.pass===null?'--':s.pass?<Badge color='var(--emerald)'>Pass</Badge>:<Badge color='var(--rose)'>Fail</Badge>}</td>
