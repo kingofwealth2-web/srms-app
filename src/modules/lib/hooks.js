@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { PLANS, TRIAL_DAYS, OVERAGE_GRACE_DAYS, CANCELLATION_GRACE_DAYS } from './constants'
+import { PLANS, TRIAL_DAYS, OVERAGE_GRACE_DAYS, CANCELLATION_GRACE_DAYS, EXPIRY_GRACE_DAYS } from './constants'
 import { supabase } from '../../supabase'
 
 // ── Per-page lazy data fetcher ──────────────────────────────────
@@ -89,9 +89,10 @@ export function usePagination(items, pageSize = 50) {
 //
 // status values:
 //   'active_trial'       — within 14-day trial
-//   'trial_expired'      — trial ended, no paid plan
+//   'trial_expired'      — trial ended, no paid plan, past grace window
 //   'active'             — paid plan, within expiry
-//   'expired'            — paid plan lapsed
+//   'expired'            — paid plan lapsed, past grace window
+//   'expiry_grace'       — trial or plan just expired, 7-day read-only window
 //   'overage_grace'      — over student/user limit, 7-day grace
 //   'cancelled_grace'    — cancelled, within 30-day read-only window
 //   'cancelled_archived' — cancelled, past 30 days
@@ -112,6 +113,7 @@ export function usePlan(settings) {
 
   const now              = new Date()
   const planKey          = settings.plan          || 'trial'
+  const billingCycle     = settings.billing_cycle || null
   const trialEndsAt      = settings.trial_ends_at
     ? new Date(settings.trial_ends_at)
     : settings.created_at
@@ -129,11 +131,21 @@ export function usePlan(settings) {
     archiveDate.setDate(archiveDate.getDate() + CANCELLATION_GRACE_DAYS)
     status = now <= archiveDate ? 'cancelled_grace' : 'cancelled_archived'
   } else if (planKey === 'trial') {
-    status = trialEndsAt && now <= trialEndsAt ? 'active_trial' : 'trial_expired'
+    if (trialEndsAt && now <= trialEndsAt) {
+      status = 'active_trial'
+    } else {
+      const graceEnd = new Date(trialEndsAt)
+      graceEnd.setDate(graceEnd.getDate() + EXPIRY_GRACE_DAYS)
+      status = now <= graceEnd ? 'expiry_grace' : 'trial_expired'
+    }
   } else if (graceEndsAt && now <= graceEndsAt) {
     status = 'overage_grace'
+  } else if (billingCycle === 'lifetime') {
+    status = 'active'   // lifetime plans never expire
   } else if (planExpiresAt && now > planExpiresAt) {
-    status = 'expired'
+    const graceEnd = new Date(planExpiresAt)
+    graceEnd.setDate(graceEnd.getDate() + EXPIRY_GRACE_DAYS)
+    status = now <= graceEnd ? 'expiry_grace' : 'expired'
   } else {
     status = 'active'
   }
@@ -145,6 +157,7 @@ export function usePlan(settings) {
     status === 'active_trial'                          ? 'pro'
     : status === 'trial_expired'                       ? 'starter'
     : status === 'expired'                             ? 'starter'
+    : status === 'expiry_grace'                        ? planKey    // keep their plan during grace
     : status === 'cancelled_grace'                     ? planKey    // read-only access to their plan
     : status === 'cancelled_archived'                  ? 'starter'
     : planKey
@@ -157,6 +170,13 @@ export function usePlan(settings) {
     daysLeft = Math.max(0, Math.ceil((trialEndsAt - now) / (1000 * 60 * 60 * 24)))
   } else if (status === 'active' && planExpiresAt) {
     daysLeft = Math.max(0, Math.ceil((planExpiresAt - now) / (1000 * 60 * 60 * 24)))
+  } else if (status === 'expiry_grace') {
+    const expiryBase = planKey === 'trial' ? trialEndsAt : planExpiresAt
+    if (expiryBase) {
+      const graceEnd = new Date(expiryBase)
+      graceEnd.setDate(graceEnd.getDate() + EXPIRY_GRACE_DAYS)
+      daysLeft = Math.max(0, Math.ceil((graceEnd - now) / (1000 * 60 * 60 * 24)))
+    }
   }
 
   // ── Feature check ──
@@ -173,11 +193,14 @@ export function usePlan(settings) {
   return {
     plan:          effectivePlanKey,
     rawPlan:       planKey,
+    billingCycle,
     status,
     isTrialing:    status === 'active_trial',
     isExpired:     status === 'trial_expired' || status === 'expired',
+    isGrace:       status === 'expiry_grace',
     isCancelled:   status === 'cancelled_grace' || status === 'cancelled_archived',
     isActive:      status === 'active' || status === 'active_trial' || status === 'overage_grace',
+    isLifetime:    billingCycle === 'lifetime',
     daysLeft,
     studentLimit,
     userLimit,
