@@ -248,7 +248,7 @@ function UpgradeModal({ featureLabel, featureDesc, targetPlan, currentPlan, onCl
               <div style={{ fontSize: 10, fontWeight: 700, color, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>Required plan</div>
               <div className='d' style={{ fontSize: 16, fontWeight: 600, color: 'var(--white)' }}>{targetPlan?.label}</div>
               <div style={{ fontSize: 11, color: 'var(--mist2)', marginTop: 2 }}>
-                from ₵{targetPlan?.monthlyPrice}/mo · ₵{targetPlan?.annualPrice}/yr
+                  Contact us for pricing
               </div>
             </div>
             <div style={{
