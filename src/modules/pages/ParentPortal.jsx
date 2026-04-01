@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
-import { calcTotal, getGradeComponents, getLetter, fmtDate, fmtMoney, getCurrency, fullName } from '../lib/helpers'
+import { calcTotal, getGradeComponents, getLetter, getGradeColor, fmtDate, fmtMoney, getCurrency, fullName } from '../lib/helpers'
 import { STATUS_META } from '../lib/constants'
 import { usePlan } from '../lib/hooks'
 import Avatar from '../components/Avatar'
@@ -406,7 +406,7 @@ export default function ParentPortal({ profile, onSignOut }) {
                                 const subj = subjects.find(s => s.id === g.subject_id)
                                 const total = calcTotal(g, gradeComps)
                                 const letter = getLetter(total, scale)
-                                const gradeColor = total >= 80 ? 'var(--emerald)' : total >= 60 ? 'var(--sky)' : total >= 50 ? 'var(--amber)' : 'var(--rose)'
+                                const gradeColor = getGradeColor(letter, settings?.grade_system)
                                 const gradeBg = total >= 80 ? 'rgba(45,212,160,0.1)' : total >= 60 ? 'rgba(91,168,245,0.1)' : total >= 50 ? 'rgba(251,159,58,0.1)' : 'rgba(240,107,122,0.1)'
                                 return (
                                   <tr key={g.id} style={{ borderBottom: '1px solid var(--line)' }}>
