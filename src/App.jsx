@@ -504,7 +504,9 @@ export default function App() {
                 <span style={{ fontSize: 10, color: 'var(--mist3)' }}>{settings?.school_name || 'SRMS'}</span>
                 <span style={{ color: 'var(--line2)', fontSize: 10 }}>·</span>
                 {profile?.role === 'superadmin'
-                  ? <PlanGate planHook={planHook} feature='yearSwitcher' mode='inline'><YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={true}/></PlanGate>
+                  ? planHook.can('yearSwitcher')
+                    ? <YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={true}/>
+                    : <PlanGate planHook={planHook} feature='yearSwitcher' mode='inline'><span style={{ fontSize: 10, color: 'var(--mist3)' }}>{activeYear} 🔒</span></PlanGate>
                   : <span style={{ fontSize: 10, color: 'var(--mist3)' }}>{activeYear}</span>}
                 {isViewingPast && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 4, padding: '1px 6px', letterSpacing: '0.06em' }}>READ ONLY</span>}
                 <>
@@ -528,7 +530,9 @@ export default function App() {
                 <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--mist3)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{settings?.school_name || 'SRMS'}</span>
                 <span style={{ color: 'var(--line2)', fontSize: 10 }}>·</span>
                 {profile?.role === 'superadmin'
-                  ? <PlanGate planHook={planHook} feature='yearSwitcher' mode='inline'><YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={false}/></PlanGate>
+                  ? planHook.can('yearSwitcher')
+                    ? <YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={false}/>
+                    : <PlanGate planHook={planHook} feature='yearSwitcher' mode='inline'><span style={{ fontSize: 12, color: 'var(--mist3)' }}>{activeYear} 🔒</span></PlanGate>
                   : <span style={{ fontSize: 12, color: 'var(--mist3)' }}>{activeYear}</span>}
                 {isViewingPast && (
                   <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 5, padding: '2px 8px', letterSpacing: '0.06em' }}>READ ONLY</span>
