@@ -154,11 +154,16 @@ export const PLANS = {
   },
 }
 
-// Trial period in days — change here if needed
-export const TRIAL_DAYS = 14
+// Feedback webhook — paste a Formspree, Make, Zapier, or n8n URL here
+// to get an email notification every time a school submits feedback.
+// Leave as null to only save to the Supabase feedback table.
+export const FEEDBACK_WEBHOOK_URL = null
 
 // Overage grace period in days before new additions are blocked
 export const OVERAGE_GRACE_DAYS = 7
+
+// Days of read-only access after trial or plan expiry before full lock
+export const EXPIRY_GRACE_DAYS = 7
 
 // Days of read-only access after cancellation before data is archived
 export const CANCELLATION_GRACE_DAYS = 30
