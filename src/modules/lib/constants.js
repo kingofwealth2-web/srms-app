@@ -159,6 +159,8 @@ export const PLANS = {
 // Leave as null to only save to the Supabase feedback table.
 export const FEEDBACK_WEBHOOK_URL = 'https://formspree.io/f/xkopzggw'
 // Overage grace period in days before new additions are blocked
+export const TRIAL_DAYS = 14
+
 export const OVERAGE_GRACE_DAYS = 7
 
 // Days of read-only access after trial or plan expiry before full lock
