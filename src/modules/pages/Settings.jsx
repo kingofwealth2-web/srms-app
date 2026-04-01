@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, CURRENCIES, GHANA_PUBLIC_HOLIDAYS } from '../lib/constants'
-import { fmtDate, DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, getCurrency, fmtMoney, generateYears } from '../lib/helpers'
+import { fmtDate, DEFAULT_GRADING_SCALE, DEFAULT_NUMBER_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, getCurrency, fmtMoney, generateYears } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -20,6 +20,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
     const base = JSON.parse(JSON.stringify(settings||{}))
     if(!base.grading_scale||base.grading_scale.length===0)
       base.grading_scale = JSON.parse(JSON.stringify(DEFAULT_GRADING_SCALE))
+    if(!base.grade_system) base.grade_system = 'letter'
     return base
   })
   const [saving,setSaving] = useState(false)
@@ -176,7 +177,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
         </div>
       )}
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:20,alignItems:'start'}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:20,alignItems:'start'}}>
         <div>
           <Card style={{marginBottom:20}}>
             <SectionTitle>School Information</SectionTitle>
@@ -297,9 +298,36 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
           </Card>
           <Card>
             <SectionTitle>Grading Scale</SectionTitle>
+            {/* Grade system toggle */}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8,fontFamily:"'Clash Display',sans-serif"}}>Grade Display System</div>
+              <div style={{display:'flex',gap:8}}>
+                {[{key:'letter',label:'Letter (A, B, C)'},{key:'number',label:'Number (1, 2, 3)'}].map(opt=>(
+                  <button key={opt.key} onClick={()=>{
+                    const next = opt.key
+                    const currentSystem = form.grade_system || 'letter'
+                    if(next === currentSystem) return
+                    // Switch to default scale for the chosen system
+                    const defaultScale = next === 'number'
+                      ? JSON.parse(JSON.stringify(DEFAULT_NUMBER_GRADING_SCALE))
+                      : JSON.parse(JSON.stringify(DEFAULT_GRADING_SCALE))
+                    setForm(p=>({...p, grade_system: next, grading_scale: defaultScale}))
+                  }} style={{
+                    padding:'7px 16px', borderRadius:'var(--r-sm)', fontSize:12, fontWeight:600,
+                    cursor:'pointer', fontFamily:'inherit', transition:'all 0.15s',
+                    background: (form.grade_system||'letter')===opt.key ? 'var(--gold)' : 'var(--ink3)',
+                    color:       (form.grade_system||'letter')===opt.key ? 'var(--ink)'  : 'var(--mist2)',
+                    border:      (form.grade_system||'letter')===opt.key ? 'none'        : '1px solid var(--line2)',
+                  }}>{opt.label}</button>
+                ))}
+              </div>
+              <div style={{fontSize:11,color:'var(--mist3)',marginTop:6}}>
+                Switching system loads default scale for that system. Customise the rows below as needed.
+              </div>
+            </div>
             <table style={{width:'100%',borderCollapse:'collapse'}}>
               <thead><tr style={{borderBottom:'1px solid var(--line)'}}>
-                {['Min','Max','Letter','GPA','Remark',''].map(h=><th key={h} style={{padding:8,textAlign:'left',fontSize:10,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',fontFamily:"'Clash Display',sans-serif"}}>{h}</th>)}
+                {['Min','Max',(form.grade_system||'letter')==='number'?'Number':'Letter','GPA','Remark',''].map(h=><th key={h} style={{padding:8,textAlign:'left',fontSize:10,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',fontFamily:"'Clash Display',sans-serif"}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {(form.grading_scale||DEFAULT_GRADING_SCALE).map((row,i)=>(
