@@ -177,7 +177,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
         </div>
       )}
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:20,alignItems:'start'}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:20,alignItems:'start'}}>
         <div>
           <Card style={{marginBottom:20}}>
             <SectionTitle>School Information</SectionTitle>
