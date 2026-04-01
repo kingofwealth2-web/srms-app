@@ -157,8 +157,7 @@ export const PLANS = {
 // Feedback webhook — paste a Formspree, Make, Zapier, or n8n URL here
 // to get an email notification every time a school submits feedback.
 // Leave as null to only save to the Supabase feedback table.
-export const FEEDBACK_WEBHOOK_URL = 'null'
-
+export const FEEDBACK_WEBHOOK_URL = 'https://formspree.io/f/xkopzggw'
 // Overage grace period in days before new additions are blocked
 export const OVERAGE_GRACE_DAYS = 7
 
