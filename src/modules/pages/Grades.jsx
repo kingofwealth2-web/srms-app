@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
-import { ROLE_META, LETTER_COLOR } from '../lib/constants'
-import { calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, fmtDate, csvEscape, ALL_COMPONENTS, fullName } from '../lib/helpers'
+import { ROLE_META } from '../lib/constants'
+import { calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, fmtDate, csvEscape, ALL_COMPONENTS, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -492,8 +492,8 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
                       <td style={{padding:'8px 12px',textAlign:'center'}}>
                         {!isSkipped && total!==null ? (
                           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
-                            <span className='mono' style={{fontSize:15,fontWeight:700,color:LETTER_COLOR[letter]||'var(--mist)'}}>{total}</span>
-                            <Badge color={LETTER_COLOR[letter]||'var(--mist2)'}>{letter}</Badge>
+                            <span className='mono' style={{fontSize:15,fontWeight:700,color:getGradeColor(letter, settings?.grade_system)||'var(--mist)'}}>{total}</span>
+                            <Badge color={getGradeColor(letter, settings?.grade_system)||'var(--mist2)'}>{letter}</Badge>
                           </div>
                         ) : <span style={{color:'var(--mist3)',fontSize:12}}>—</span>}
                       </td>
@@ -542,7 +542,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
             {key:'id',label:'Total',render:(_,r)=>{const t=calcTotal(r,allComps);const l=getLetter(t,scale);return(
               <div style={{display:'flex',gap:8,alignItems:'center'}}>
                 <span className='mono' style={{fontWeight:700,fontSize:14}}>{t}</span>
-                <Badge color={LETTER_COLOR[l]||'var(--mist2)'}>{l}</Badge>
+                <Badge color={getGradeColor(l, settings?.grade_system)||'var(--mist2)'}>{l}</Badge>
                 <span style={{fontSize:11,color:'var(--mist3)'}}>GPA {getGPA(t,scale).toFixed(1)}</span>
               </div>
             )}},
@@ -641,8 +641,8 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
                         <div key={g.id} style={{background:'var(--ink3)',borderRadius:'var(--r-sm)',padding:'8px 12px',minWidth:100}}>
                           <div style={{fontSize:10,color:'var(--mist3)',marginBottom:4,fontWeight:600}}>{g.period}</div>
                           <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:6}}>
-                            <span className='mono' style={{fontSize:18,fontWeight:700,color:LETTER_COLOR[let_]||'var(--white)'}}>{tot}</span>
-                            <Badge color={LETTER_COLOR[let_]||'var(--mist2)'}>{let_}</Badge>
+                            <span className='mono' style={{fontSize:18,fontWeight:700,color:getGradeColor(let_, settings?.grade_system)||'var(--white)'}}>{tot}</span>
+                            <Badge color={getGradeColor(let_, settings?.grade_system)||'var(--mist2)'}>{let_}</Badge>
                           </div>
                           <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                             {allComps.filter(c=>c.enabled).map(c=>(
@@ -672,15 +672,15 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
                 </div>
               </div>
             )}
-            <div style={{marginTop:14,display:'flex',alignItems:'center',gap:20,background:'var(--ink4)',borderRadius:'var(--r-sm)',padding:'14px 18px',border:`1px solid ${scoreWarnings.length?'var(--rose)':LETTER_COLOR[prevL]||'var(--line)'}20`}}>
+            <div style={{marginTop:14,display:'flex',alignItems:'center',gap:20,background:'var(--ink4)',borderRadius:'var(--r-sm)',padding:'14px 18px',border:`1px solid ${scoreWarnings.length?'var(--rose)':getGradeColor(prevL, settings?.grade_system)||'var(--line)'}20`}}>
               <div>
                 <div className='d' style={{fontSize:10,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Total Score</div>
-                <div className='d' style={{fontSize:28,fontWeight:700,color:scoreWarnings.length?'var(--rose)':LETTER_COLOR[prevL]||'var(--mist)',lineHeight:1}}>{prev}<span style={{fontSize:14,color:'var(--mist3)'}}>/100</span></div>
+                <div className='d' style={{fontSize:28,fontWeight:700,color:scoreWarnings.length?'var(--rose)':getGradeColor(prevL, settings?.grade_system)||'var(--mist)',lineHeight:1}}>{prev}<span style={{fontSize:14,color:'var(--mist3)'}}>/100</span></div>
               </div>
               <div style={{width:1,height:40,background:'var(--line)'}}/>
               <div>
                 <div className='d' style={{fontSize:10,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Grade</div>
-                <Badge color={LETTER_COLOR[prevL]||'var(--mist2)'}>{prevL}</Badge>
+                <Badge color={getGradeColor(prevL, settings?.grade_system)||'var(--mist2)'}>{prevL}</Badge>
               </div>
               <div style={{width:1,height:40,background:'var(--line)'}}/>
               <div>
