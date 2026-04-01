@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
-import { ROLE_META, FEE_STATUS, LETTER_COLOR } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getCurrency, fmtMoney, genSID, fullName } from '../lib/helpers'
+import { ROLE_META, FEE_STATUS } from '../lib/constants'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGradeColor, getCurrency, fmtMoney, genSID, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -678,7 +678,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
                       const g = latestGrade(sub.id)
                       const total = g ? calcTotal(g, gradeComps) : null
                       const grade = total!==null ? (scale.find(s=>total>=s.min&&total<=s.max)?.letter||'--') : '--'
-                      const gradeColor = LETTER_COLOR[grade]||'var(--mist3)'
+                      const gradeColor = getGradeColor(grade, settings?.grade_system)||'var(--mist3)'
                       return (
                         <div key={sub.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:6,border:'1px solid var(--line)'}}>
                           <span style={{fontSize:13,color:'var(--mist)'}}>{sub.name}</span>
