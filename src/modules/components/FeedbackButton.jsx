@@ -4,7 +4,7 @@
 // Optionally POSTs to FEEDBACK_WEBHOOK_URL in constants.js (works with
 // Formspree, Make, Zapier, n8n — any URL that accepts a JSON POST).
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { FEEDBACK_WEBHOOK_URL } from '../lib/constants'
 
@@ -21,6 +21,15 @@ export default function FeedbackButton({ profile, settings, currentPage }) {
   const [saving,  setSaving]  = useState(false)
   const [done,    setDone]    = useState(false)
   const [error,   setError]   = useState('')
+
+  // ── Prevent body scroll when modal is open ──
+  useEffect(() => {
+    if (open) {
+      const prev = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => { document.body.style.overflow = prev }
+    }
+  }, [open])
 
   const reset = () => {
     setType('bug'); setDesc(''); setError(''); setDone(false)
@@ -124,8 +133,10 @@ export default function FeedbackButton({ profile, settings, currentPage }) {
           <div style={{
             position: 'fixed', bottom: 80, right: 24, zIndex: 1001,
             width: 380, maxWidth: 'calc(100vw - 32px)',
+            maxHeight: 'calc(100vh - 120px)',
+            overflowY: 'auto',
             background: 'var(--ink2)', border: '1px solid var(--line2)',
-            borderRadius: 'var(--r-xl)', overflow: 'hidden',
+            borderRadius: 'var(--r-xl)',
             boxShadow: '0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03)',
             animation: 'fbSlide 0.22s cubic-bezier(.16,1,.3,1) both',
           }}>
@@ -138,9 +149,9 @@ export default function FeedbackButton({ profile, settings, currentPage }) {
               <div style={{ padding: '36px 28px', textAlign: 'center' }}>
                 <div style={{
                   width: 52, height: 52, borderRadius: '50%',
-                  background: 'var(--emerald-subtle)', border: '1px solid var(--emerald-line)',
+                  background: 'rgba(45,212,160,0.1)', border: '1px solid rgba(45,212,160,0.25)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 22, margin: '0 auto 20px',
+                  fontSize: 22, margin: '0 auto 20px', color: 'var(--emerald)',
                 }}>✓</div>
                 <div className="d" style={{ fontSize: 17, fontWeight: 700, color: 'var(--white)', marginBottom: 8 }}>
                   Thanks for the feedback
@@ -192,9 +203,10 @@ export default function FeedbackButton({ profile, settings, currentPage }) {
                         border: `1px solid ${type === t.key ? 'rgba(232,184,75,0.3)' : 'var(--line2)'}`,
                         cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
                         fontFamily: 'inherit',
+                        color: 'var(--white)',
                       }}
                     >
-                      <span style={{ fontSize: 13 }}>{t.label}</span>
+                      <span style={{ fontSize: 13, color: 'var(--white)' }}>{t.label}</span>
                     </button>
                   ))}
                 </div>
