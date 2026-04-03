@@ -4,53 +4,46 @@ import { useIsMobile } from '../lib/hooks'
 export default function Modal({ title, subtitle, onClose, children, width = 520 }) {
   const isMobile = useIsMobile()
   const onCloseRef = useRef(onClose)
+  const backdropRef = useRef(null)
   useEffect(() => { onCloseRef.current = onClose }, [onClose])
 
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    if (backdropRef.current) backdropRef.current.scrollTop = 0
     const onKey = e => { if (e.key === 'Escape') onCloseRef.current() }
     document.addEventListener('keydown', onKey)
     return () => { document.body.style.overflow = prev; document.removeEventListener('keydown', onKey) }
   }, [])
 
+  // The backdrop is the scroll container — modal content never gets clipped
   const backdropStyle = {
-    position: 'fixed', inset: 0,
-    // Gradient fade — dark at bottom, lighter at top — no hard rectangle edge
-    background: 'linear-gradient(to top, rgba(6,6,14,0.92) 0%, rgba(6,6,14,0.55) 50%, rgba(6,6,14,0.2) 100%)',
-    display: 'flex', justifyContent: 'center',
-    zIndex: 1000,
+    position: 'fixed', inset: 0, zIndex: 1000,
+    background: 'rgba(8,8,18,0.72)',
+    backdropFilter: 'blur(6px)',
+    WebkitBackdropFilter: 'blur(6px)',
+    display: 'flex', justifyContent: 'center', alignItems: 'flex-start',
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch',
     animation: 'fadeIn 0.2s ease both',
   }
 
-  // Desktop backdrop keeps a more uniform tint
-  const desktopBackdropStyle = {
-    ...backdropStyle,
-    background: 'var(--modal-backdrop, rgba(8,8,18,0.72))',
-    backdropFilter: 'blur(6px)',
-    WebkitBackdropFilter: 'blur(6px)',
-  }
-
   if (isMobile) return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ ...backdropStyle, alignItems: 'flex-end', padding: 0 }}>
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      ref={backdropRef} style={{ ...backdropStyle, padding: '5vh 12px 24px' }}
+    >
       <div style={{
-        width: '100%', background: 'var(--ink2)',
-        borderRadius: '20px 20px 0 0',
+        width: '100%',
+        background: 'var(--ink2)',
+        borderRadius: 16,
         border: '1px solid var(--line2)',
-        borderBottom: 'none',
-        maxHeight: '88vh',
-        overflow: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        overscrollBehavior: 'contain',
-        boxShadow: '0 -8px 40px rgba(0,0,0,0.3)',
-        animation: 'slideUp 0.32s cubic-bezier(.16,1,.3,1) both',
+        boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+        animation: 'fadeIn 0.2s ease both',
+        flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 6px' }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--line3)' }}/>
-        </div>
         {title && (
-          <div style={{ padding: '8px 20px 16px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
             <div>
               <h3 className='d' style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em' }}>{title}</h3>
               {subtitle && <p style={{ fontSize: 12, color: 'var(--mist2)', marginTop: 3 }}>{subtitle}</p>}
@@ -58,20 +51,22 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
             <CloseBtn onClick={onClose}/>
           </div>
         )}
-        <div style={{ padding: '20px 20px 32px' }}>{children}</div>
+        <div style={{ padding: '20px 20px 28px' }}>{children}</div>
       </div>
     </div>
   )
 
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ ...desktopBackdropStyle, alignItems: 'flex-start', padding: '5vh 20px 20px' }}>
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      ref={backdropRef} style={{ ...backdropStyle, padding: '5vh 20px 24px' }}
+    >
       <div className='si' style={{
         width: '100%', maxWidth: width,
         background: 'var(--ink2)',
         border: '1px solid var(--line2)',
         borderRadius: 20,
-        maxHeight: '90vh', overflow: 'auto',
+        flexShrink: 0,
         boxShadow: 'var(--shadow-lg, 0 32px 80px rgba(0,0,0,0.7))',
       }}>
         {title && (
