@@ -12,6 +12,7 @@
 //   mode="sidebar"— slim locked state for nav items
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { PLANS } from '../lib/constants'
 
 const PLAN_ORDER = ['starter', 'basic', 'pro']
@@ -97,7 +98,7 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
             {targetConfig?.label?.toUpperCase()}
           </span>
         </div>
-        {showModal && (
+        {showModal && createPortal(
           <UpgradeModal
             featureLabel={featureLabel}
             featureDesc={featureDesc}
@@ -105,7 +106,8 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
             currentPlan={plan}
             onClose={() => setShowModal(false)}
             onUpgrade={onUpgrade}
-          />
+          />,
+          document.body
         )}
       </>
     )
@@ -156,7 +158,7 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
         </div>
       </div>
 
-      {showModal && (
+      {showModal && createPortal(
         <UpgradeModal
           featureLabel={featureLabel}
           featureDesc={featureDesc}
@@ -164,7 +166,8 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
           currentPlan={plan}
           onClose={() => setShowModal(false)}
           onUpgrade={onUpgrade}
-        />
+        />,
+        document.body
       )}
     </>
   )

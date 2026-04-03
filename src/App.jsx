@@ -506,10 +506,10 @@ export default function App() {
                 {profile?.role === 'superadmin'
                   ? planHook.can('yearSwitcher')
                     ? <YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={true}/>
-                    : <PlanGate planHook={planHook} feature='yearSwitcher' mode='inline'><span style={{ fontSize: 10, color: 'var(--mist3)' }}>{activeYear} 🔒</span></PlanGate>
+                    : <span onClick={() => setShowPlans(true)} style={{ fontSize: 10, color: 'var(--mist3)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }} title='Upgrade to use Year Switcher'>{activeYear} 🔒</span>
                   : <span style={{ fontSize: 10, color: 'var(--mist3)' }}>{activeYear}</span>}
                 {isViewingPast && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 4, padding: '1px 6px', letterSpacing: '0.06em' }}>READ ONLY</span>}
-                {planHook.can('yearSwitcher') && (
+                {(
                   <>
                     <span style={{ color: 'var(--line2)', fontSize: 10 }}>·</span>
                     {(() => {
@@ -534,12 +534,12 @@ export default function App() {
                 {profile?.role === 'superadmin'
                   ? planHook.can('yearSwitcher')
                     ? <YearSwitcher activeYear={activeYear} currentYear={currentYear} selectedYear={selectedYear} setSelectedYear={setSelectedYear} isMobile={false}/>
-                    : <PlanGate planHook={planHook} feature='yearSwitcher' mode='inline'><span style={{ fontSize: 12, color: 'var(--mist3)' }}>{activeYear} 🔒</span></PlanGate>
+                    : <span onClick={() => setShowPlans(true)} style={{ fontSize: 12, color: 'var(--mist3)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }} title='Upgrade to use Year Switcher'>{activeYear} 🔒</span>
                   : <span style={{ fontSize: 12, color: 'var(--mist3)' }}>{activeYear}</span>}
                 {isViewingPast && (
                   <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 5, padding: '2px 8px', letterSpacing: '0.06em' }}>READ ONLY</span>
                 )}
-                {planHook.can('yearSwitcher') && (() => {
+                {(() => {
                   const planColors = { trial: 'var(--sky)', starter: 'var(--emerald)', basic: 'var(--gold)', pro: 'var(--amber)', lifetime: 'var(--amber)' }
                   const planBg = { trial: 'rgba(91,168,245,0.1)', starter: 'rgba(45,212,160,0.1)', basic: 'rgba(232,184,75,0.1)', pro: 'rgba(251,159,58,0.1)', lifetime: 'rgba(251,159,58,0.1)' }
                   const planBorder = { trial: 'rgba(91,168,245,0.25)', starter: 'rgba(45,212,160,0.25)', basic: 'rgba(232,184,75,0.25)', pro: 'rgba(251,159,58,0.25)', lifetime: 'rgba(251,159,58,0.25)' }
