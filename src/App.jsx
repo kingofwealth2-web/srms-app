@@ -509,19 +509,21 @@ export default function App() {
                     : <PlanGate planHook={planHook} feature='yearSwitcher' mode='inline'><span style={{ fontSize: 10, color: 'var(--mist3)' }}>{activeYear} 🔒</span></PlanGate>
                   : <span style={{ fontSize: 10, color: 'var(--mist3)' }}>{activeYear}</span>}
                 {isViewingPast && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 4, padding: '1px 6px', letterSpacing: '0.06em' }}>READ ONLY</span>}
-                <>
-                  <span style={{ color: 'var(--line2)', fontSize: 10 }}>·</span>
-                  {(() => {
-                    const planColors = { trial:'var(--sky)', starter:'var(--emerald)', basic:'var(--gold)', pro:'var(--amber)', lifetime:'var(--amber)' }
-                    const rawPlan = planHook.rawPlan || 'trial'
-                    const badgeKey = planHook.isLifetime ? 'lifetime' : rawPlan
-                    const color = planColors[badgeKey] || 'var(--mist3)'
-                    const mobileLabel = planHook.isLifetime ? 'Lifetime' : planHook.isTrialing ? `Trial · ${planHook.daysLeft}d` : rawPlan
-                    return <span style={{ fontSize: 9, fontWeight: 700, color, textTransform:'uppercase', letterSpacing:'0.06em' }}>
-                      {mobileLabel}
-                    </span>
-                  })()}
-                </>
+                {planHook.can('yearSwitcher') && (
+                  <>
+                    <span style={{ color: 'var(--line2)', fontSize: 10 }}>·</span>
+                    {(() => {
+                      const planColors = { trial:'var(--sky)', starter:'var(--emerald)', basic:'var(--gold)', pro:'var(--amber)', lifetime:'var(--amber)' }
+                      const rawPlan = planHook.rawPlan || 'trial'
+                      const badgeKey = planHook.isLifetime ? 'lifetime' : rawPlan
+                      const color = planColors[badgeKey] || 'var(--mist3)'
+                      const mobileLabel = planHook.isLifetime ? 'Lifetime' : planHook.isTrialing ? `Trial · ${planHook.daysLeft}d` : rawPlan
+                      return <span style={{ fontSize: 9, fontWeight: 700, color, textTransform:'uppercase', letterSpacing:'0.06em' }}>
+                        {mobileLabel}
+                      </span>
+                    })()}
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -537,7 +539,7 @@ export default function App() {
                 {isViewingPast && (
                   <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--amber)', background: 'rgba(251,159,58,0.1)', border: '1px solid rgba(251,159,58,0.25)', borderRadius: 5, padding: '2px 8px', letterSpacing: '0.06em' }}>READ ONLY</span>
                 )}
-                {(() => {
+                {planHook.can('yearSwitcher') && (() => {
                   const planColors = { trial: 'var(--sky)', starter: 'var(--emerald)', basic: 'var(--gold)', pro: 'var(--amber)', lifetime: 'var(--amber)' }
                   const planBg = { trial: 'rgba(91,168,245,0.1)', starter: 'rgba(45,212,160,0.1)', basic: 'rgba(232,184,75,0.1)', pro: 'rgba(251,159,58,0.1)', lifetime: 'rgba(251,159,58,0.1)' }
                   const planBorder = { trial: 'rgba(91,168,245,0.25)', starter: 'rgba(45,212,160,0.25)', basic: 'rgba(232,184,75,0.25)', pro: 'rgba(251,159,58,0.25)', lifetime: 'rgba(251,159,58,0.25)' }

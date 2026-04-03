@@ -167,9 +167,9 @@ export function usePlan(settings) {
   // ── Days left (for trial or plan expiry banners) ──
   let daysLeft = 0
   if (status === 'active_trial' && trialEndsAt) {
-    daysLeft = Math.max(0, Math.ceil((trialEndsAt - now) / (1000 * 60 * 60 * 24)))
+    daysLeft = Math.max(0, Math.floor((trialEndsAt - now) / (1000 * 60 * 60 * 24)))
   } else if (status === 'active' && planExpiresAt) {
-    daysLeft = Math.max(0, Math.ceil((planExpiresAt - now) / (1000 * 60 * 60 * 24)))
+    daysLeft = Math.max(0, Math.floor((planExpiresAt - now) / (1000 * 60 * 60 * 24)))
   } else if (status === 'expiry_grace') {
     const expiryBase = planKey === 'trial' ? trialEndsAt : planExpiresAt
     if (expiryBase) {

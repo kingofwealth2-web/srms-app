@@ -85,7 +85,7 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
       <>
         <div
           onClick={handleClick}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', position: 'relative' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', position: 'relative', zIndex: 1 }}
           title={`Upgrade to ${targetConfig?.label} to use this feature`}
         >
           <div style={{ opacity: 0.4, pointerEvents: 'none' }}>{children}</div>
