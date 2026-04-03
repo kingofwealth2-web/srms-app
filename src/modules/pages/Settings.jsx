@@ -279,7 +279,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
                   {!c.enabled && <span style={{fontSize:11,color:'var(--mist3)'}}>Disabled</span>}
                 </div>
                 {c.enabled && (
-                  <div style={{display:'flex',gap:12,flexWrap:'wrap',paddingLeft:48}}>
+                  <div style={{display:'flex',gap:16,flexWrap:'wrap',paddingLeft:48,marginTop:4}}>
                     <div style={{display:'flex',alignItems:'center',gap:6}}>
                       <span style={{fontSize:11,color:'var(--mist3)',whiteSpace:'nowrap'}}>Max score</span>
                       <input type='number' value={c.max_score} onChange={e=>updComponent(i,'max_score',e.target.value)}
@@ -325,7 +325,8 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
                 Switching system loads default scale for that system. Customise the rows below as needed.
               </div>
             </div>
-            <table style={{width:'100%',borderCollapse:'collapse'}}>
+            <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',minWidth:420}}>
               <thead><tr style={{borderBottom:'1px solid var(--line)'}}>
                 {['Min','Max',(form.grade_system||'letter')==='number'?'Number':'Letter','GPA','Remark',''].map(h=><th key={h} style={{padding:8,textAlign:'left',fontSize:10,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',fontFamily:"'Clash Display',sans-serif"}}>{h}</th>)}
               </tr></thead>
@@ -350,6 +351,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
                 ))}
               </tbody>
             </table>
+            </div>
             <button onClick={addGradeRow} style={{marginTop:10,padding:'6px 14px',borderRadius:'var(--r-sm)',background:'var(--ink3)',border:'1px solid var(--line)',color:'var(--mist2)',fontSize:12,cursor:'pointer'}}>+ Add Row</button>
           </Card>
         </div>
