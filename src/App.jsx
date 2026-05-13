@@ -480,7 +480,7 @@ export default function App() {
   return (
     <>
       <style>{G}</style>
-      <div className='grain' style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <div className='grain' style={{ display: 'flex', height: '100vh' }}>
         <Sidebar
           profile={profile} active={page} onNav={setPage}
           collapsed={collapsed} onToggle={() => setCollapsed(c => !c)}
