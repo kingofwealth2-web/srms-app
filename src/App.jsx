@@ -172,6 +172,7 @@ export default function App() {
   const [data,setData]             = useState({
     students:[],classes:[],subjects:[],grades:[],attendance:[],
     fees:[],payments:[],behaviour:[],announcements:[],enrolments:[],users:[],
+    fee_templates:[],fee_periods:[],
   })
   const [page,setPage]             = useState('dashboard')
   const [feeFilter,setFeeFilter]   = useState('')
@@ -237,6 +238,7 @@ export default function App() {
       { data: enrolments }, { data: users },
       { data: grades }, { data: attendance }, { data: fees },
       { data: payments }, { data: behaviour }, { data: announcements },
+      { data: feeTemplates }, { data: feePeriods },
     ] = await Promise.all([
       supabase.from('students').select('*').eq('school_id', prof?.school_id).order('student_id'),
       supabase.from('classes').select('*').eq('school_id', prof?.school_id).order('name'),
@@ -249,6 +251,8 @@ export default function App() {
       supabase.from('payments').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
       supabase.from('behaviour').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
       supabase.from('announcements').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
+      supabase.from('fee_templates').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
+      supabase.from('fee_periods').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
     ])
     setData({
       students:      students      || [],
@@ -262,6 +266,8 @@ export default function App() {
       announcements: announcements || [],
       enrolments:    enrolments    || [],
       users:         users         || [],
+      fee_templates: feeTemplates  || [],
+      fee_periods:   feePeriods    || [],
     })
   }, [])
 
@@ -480,7 +486,7 @@ export default function App() {
   return (
     <>
       <style>{G}</style>
-      <div className='grain' style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <div className='grain' style={{ display: 'flex', height: '100vh' }}>
         <Sidebar
           profile={profile} active={page} onNav={setPage}
           collapsed={collapsed} onToggle={() => setCollapsed(c => !c)}
@@ -488,7 +494,7 @@ export default function App() {
           drawerOpen={drawerOpen} onDrawerClose={() => setDrawerOpen(false)}
           planHook={planHook}
         />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--ink)' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--ink)' }}>
 
           {/* ── Topbar ── */}
           {isMobile ? (
