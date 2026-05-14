@@ -1103,6 +1103,70 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         </div>
       </div>
 
+      <!-- Fee Summary -->
+      ${(()=>{
+        const sf = fees.filter(f=>f.student_id===student.id)
+        if(!sf.length) return ''
+        const termFees   = sf.filter(f=>!f.is_arrear)
+        const arrearFees = sf.filter(f=>f.is_arrear)
+        const termOwed   = termFees.reduce((a,f)=>a+(+f.amount||0),0)
+        const termPaid   = termFees.reduce((a,f)=>a+(+f.paid||0),0)
+        const termBal    = termOwed - termPaid
+        const arrearOwed = arrearFees.reduce((a,f)=>a+(+f.amount||0),0)
+        const arrearPaid = arrearFees.reduce((a,f)=>a+(+f.paid||0),0)
+        const arrearBal  = arrearOwed - arrearPaid
+        const totalBal   = termBal + arrearBal
+        const statusCol  = totalBal<=0?'#16a34a':termPaid>0||arrearPaid>0?'#d97706':'#dc2626'
+        const statusBg   = totalBal<=0?'#f0fdf4':termPaid>0||arrearPaid>0?'#fef9ec':'#fef2f2'
+        const statusTxt  = totalBal<=0?'Fully Paid':termBal>0&&termPaid===0&&arrearBal===0?'Outstanding':'Balance Due'
+        const fmt = (n) => currency+' '+n.toFixed(2)
+        const feeRows = [
+          ...termFees.map(f=>`<tr>
+            <td style="padding:6px 10px;font-size:11px;color:#374151;border-bottom:1px solid #f3f4f6;">${f.fee_type||'School Fees'}${f.period?' ('+f.period+')':''}</td>
+            <td style="padding:6px 10px;font-size:11px;color:#374151;text-align:right;border-bottom:1px solid #f3f4f6;">${fmt(+f.amount||0)}</td>
+            <td style="padding:6px 10px;font-size:11px;color:#16a34a;text-align:right;border-bottom:1px solid #f3f4f6;">${fmt(+f.paid||0)}</td>
+            <td style="padding:6px 10px;font-size:11px;font-weight:600;color:${(+f.amount||0)-(+f.paid||0)<=0?'#16a34a':'#dc2626'};text-align:right;border-bottom:1px solid #f3f4f6;">${fmt((+f.amount||0)-(+f.paid||0))}</td>
+          </tr>`),
+          ...arrearFees.map(f=>`<tr style="background:#fef9ec;">
+            <td style="padding:6px 10px;font-size:11px;color:#92400e;border-bottom:1px solid #fde68a;">↩ Arrear: ${f.fee_type||'School Fees'}${f.arrear_from_year?' ('+f.arrear_from_year+')':''}</td>
+            <td style="padding:6px 10px;font-size:11px;color:#92400e;text-align:right;border-bottom:1px solid #fde68a;">${fmt(+f.amount||0)}</td>
+            <td style="padding:6px 10px;font-size:11px;color:#16a34a;text-align:right;border-bottom:1px solid #fde68a;">${fmt(+f.paid||0)}</td>
+            <td style="padding:6px 10px;font-size:11px;font-weight:600;color:#d97706;text-align:right;border-bottom:1px solid #fde68a;">${fmt((+f.amount||0)-(+f.paid||0))}</td>
+          </tr>`),
+        ].join('')
+        return `<div style="padding:16px 28px;border-top:1px solid #f3f4f6;">
+          <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+            <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;flex-shrink:0;"></div>
+            Fee Summary — \${rcPeriod} \${activeYear}
+          </div>
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="background:#eff6ff;">
+                <th style="padding:6px 10px;text-align:left;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Description</th>
+                <th style="padding:6px 10px;text-align:right;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Charged</th>
+                <th style="padding:6px 10px;text-align:right;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Paid</th>
+                <th style="padding:6px 10px;text-align:right;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border-bottom:2px solid #1e3a8a;">Balance</th>
+              </tr>
+            </thead>
+            <tbody>\${feeRows}</tbody>
+            <tfoot>
+              <tr style="background:\${statusBg};border-top:2px solid \${statusCol};">
+                <td style="padding:8px 10px;font-size:11px;font-weight:700;color:\${statusCol};">Total Outstanding</td>
+                <td style="padding:8px 10px;font-size:11px;font-weight:700;color:#374151;text-align:right;">\${fmt(termOwed+arrearOwed)}</td>
+                <td style="padding:8px 10px;font-size:11px;font-weight:700;color:#16a34a;text-align:right;">\${fmt(termPaid+arrearPaid)}</td>
+                <td style="padding:8px 10px;font-size:13px;font-weight:900;color:\${statusCol};text-align:right;">\${fmt(totalBal)}</td>
+              </tr>
+            </tfoot>
+          </table>
+          <div style="margin-top:8px;display:flex;justify-content:flex-end;">
+            <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 14px;background:\${statusBg};border:1px solid \${statusCol}30;border-radius:20px;">
+              <div style="width:7px;height:7px;border-radius:50%;background:\${statusCol};"></div>
+              <span style="font-size:10px;font-weight:700;color:\${statusCol};">\${statusTxt}</span>
+            </div>
+          </div>
+        </div>`
+      })()}
+
       <!-- Signatures -->
       <div style="padding:16px 28px 20px;border-top:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;">
         <div style="font-size:10px;color:#9ca3af;">Generated ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}</div>
