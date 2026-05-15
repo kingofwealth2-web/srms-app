@@ -696,12 +696,12 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
       // 3 — generate receipt numbers and record payments for each student
       const payRows = []
+      let currentPayments = [...payments]
       for(const r of selected){
         const feeRow = insertedFees.find(f=>f.student_id===r.student.id)
         if(!feeRow) continue
         const amt = parseFloat(r.amount)
-        const {data:rcpt,error:rcptErr}=await supabase.rpc('generate_receipt_no',{p_school_id:profile?.school_id})
-        if(rcptErr) throw rcptErr
+        const rcpt = genRCP(currentPayments)
         const {data:payRow,error:payErr}=await supabase.from('payments').insert({
           school_id:        profile?.school_id,
           academic_year:    activeYear,
@@ -716,6 +716,8 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         if(payErr) throw payErr
         // Update fee.paid
         await supabase.from('fees').update({paid:amt}).eq('id',feeRow.id).eq('school_id',profile?.school_id)
+        // Track so next receipt increments correctly
+        currentPayments = [payRow, ...currentPayments]
         payRows.push(payRow)
       }
 
