@@ -198,7 +198,7 @@ function printReceipt({fee, feePayments, student, cls, settings, currency}) {
 
 // ── FEES ───────────────────────────────────────────────────────
 export default function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,initialFeeFilter,onFilterConsumed,planHook}) {
-  const {fees=[],students=[],classes=[],payments=[]} = data
+  const {fees=[],students=[],classes=[],payments=[],fee_templates=[],fee_periods=[]} = data
   const currency = getCurrency(settings)
   const isMobile = useIsMobile()
   const canBulk = ['superadmin','admin'].includes(profile?.role)
@@ -232,6 +232,24 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   // Per-class amounts: { classId: amount string }
   const [classAmounts,setClassAmounts] = useState({})
   const bf = k=>v=>setBulk(p=>({...p,[k]:v}))
+
+  // ── Recurring state ──
+  const [selectedTemplate, setSelectedTemplate]     = useState(null) // fee_template row
+  const [tmplModal, setTmplModal]                   = useState(false) // new template modal
+  const [tmplForm, setTmplForm]                     = useState({name:'',amount_per_period:''})
+  const [tmplSaving, setTmplSaving]                 = useState(false)
+  const [confirmTmplDelete, setConfirmTmplDelete]   = useState(null)
+  const tf = k=>v=>setTmplForm(p=>({...p,[k]:v}))
+
+  // ── Bulk Record Payment state ──
+  const BRP_INIT = {template_id:'',label:'',period_date:new Date().toISOString().split('T')[0],class_id:'',mode:'same',same_amount:''}
+  const [brpModal, setBrpModal]       = useState(false)
+  const [brpStep, setBrpStep]         = useState(1)
+  const [brp, setBrp]                 = useState(BRP_INIT)
+  const [brpRows, setBrpRows]         = useState([]) // {student, checked, amount, existingBalance}
+  const [brpSaving, setBrpSaving]     = useState(false)
+  const [brpDone, setBrpDone]         = useState(null) // {count, feeRows, payRows, periodRow} after confirm
+  const brf = k=>v=>setBrp(p=>({...p,[k]:v}))
 
   // ── Derived: eligible classes (have at least 1 active non-withdrawn student) ──
   const activeStudents = students.filter(s=>!s.archived)
@@ -562,6 +580,242 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     ? students.filter(s=>!s.archived&&s.class_id===phClass)
     : students.filter(s=>!s.archived)
 
+  // ── Recurring helpers ──
+  const saveTmpl = async () => {
+    if(!tmplForm.name.trim()||!tmplForm.amount_per_period){toast('Name and amount are required','error');return}
+    if(parseFloat(tmplForm.amount_per_period)<=0){toast('Amount must be greater than zero','error');return}
+    setTmplSaving(true)
+    const {data:row,error}=await supabase.from('fee_templates').insert({
+      school_id:profile?.school_id,
+      name:tmplForm.name.trim(),
+      amount_per_period:parseFloat(tmplForm.amount_per_period),
+      academic_year:activeYear,
+      created_by:profile?.id,
+    }).select().single()
+    if(error){toast(error.message,'error');setTmplSaving(false);return}
+    setData(p=>({...p,fee_templates:[...p.fee_templates,row]}))
+    auditLog(profile,'Fees','Recurring Fee Created',`${row.name} · ${fmtMoney(row.amount_per_period,currency)}/period`,{},null,row)
+    toast('Recurring fee created')
+    setTmplSaving(false)
+    setTmplModal(false)
+    setTmplForm({name:'',amount_per_period:''})
+    setSelectedTemplate(row)
+  }
+
+  const deleteTmpl = async (tmpl) => {
+    const hasPeriods = fee_periods.some(p=>p.template_id===tmpl.id)
+    if(hasPeriods){toast('Cannot delete — this fee has existing periods. Remove all periods first.','error');return}
+    setConfirmTmplDelete({
+      title:'Delete recurring fee?',
+      body:`"${tmpl.name}" will be permanently deleted. No periods exist yet so no data will be lost.`,
+      icon:'🗑',danger:true,
+      onConfirm:async()=>{
+        const {error}=await supabase.from('fee_templates').delete().eq('id',tmpl.id).eq('school_id',profile?.school_id)
+        if(error){toast(error.message,'error');return}
+        setData(p=>({...p,fee_templates:p.fee_templates.filter(t=>t.id!==tmpl.id)}))
+        if(selectedTemplate?.id===tmpl.id) setSelectedTemplate(null)
+        auditLog(profile,'Fees','Recurring Fee Deleted',tmpl.name,{},tmpl,null)
+        toast('Recurring fee deleted')
+      }
+    })
+  }
+
+  // Build BRP student rows when template + class changes
+  const buildBrpRows = (templateId, classId) => {
+    const tmpl = fee_templates.find(t=>t.id===templateId)
+    if(!tmpl) return []
+    const pool = classId
+      ? activeStudents.filter(s=>s.class_id===classId)
+      : activeStudents
+    return pool.map(s=>{
+      // Sum outstanding across all periods for this template
+      const studentFees = fees.filter(f=>f.student_id===s.id && f.template_id===templateId)
+      const totalCharged = studentFees.reduce((a,f)=>a+Number(f.amount||0),0)
+      const totalPaidAmt = studentFees.reduce((a,f)=>a+Number(f.paid||0),0)
+      const existingBalance = Math.max(0, totalCharged - totalPaidAmt)
+      return {student:s, checked:true, amount:String(tmpl.amount_per_period), existingBalance}
+    })
+  }
+
+  const openBrpModal = (tmpl) => {
+    setBrp({...BRP_INIT, template_id:tmpl.id, same_amount:String(tmpl.amount_per_period)})
+    setBrpRows(buildBrpRows(tmpl.id,''))
+    setBrpStep(1)
+    setBrpDone(null)
+    setBrpModal(true)
+  }
+
+  const closeBrp = () => {setBrpModal(false);setBrpStep(1);setBrp(BRP_INIT);setBrpRows([]);setBrpDone(null)}
+
+  const brpGoStep2 = () => {
+    if(!brp.label.trim()||!brp.period_date){toast('Period label and date are required','error');return}
+    const tmpl = fee_templates.find(t=>t.id===brp.template_id)
+    if(!tmpl) return
+    // Rebuild rows in case class filter changed
+    const rows = buildBrpRows(brp.template_id, brp.class_id)
+    // Apply same_amount if mode=same
+    const finalRows = brp.mode==='same'
+      ? rows.map(r=>({...r, amount:brp.same_amount||String(tmpl.amount_per_period)}))
+      : rows
+    setBrpRows(finalRows)
+    setBrpStep(2)
+  }
+
+  const confirmBrp = async () => {
+    const tmpl = fee_templates.find(t=>t.id===brp.template_id)
+    if(!tmpl){toast('Template not found','error');return}
+    const selected = brpRows.filter(r=>r.checked && parseFloat(r.amount)>0)
+    if(selected.length===0){toast('No students selected with a valid amount','error');return}
+    setBrpSaving(true)
+    try {
+      // 1 — create the fee_period row
+      const {data:periodRow,error:pErr}=await supabase.from('fee_periods').insert({
+        school_id:    profile?.school_id,
+        template_id:  tmpl.id,
+        label:        brp.label.trim(),
+        period_date:  brp.period_date,
+        academic_year:activeYear,
+        created_by:   profile?.id,
+      }).select().single()
+      if(pErr) throw pErr
+
+      // 2 — create one fee row per selected student
+      const feeRows = selected.map(r=>({
+        school_id:    profile?.school_id,
+        student_id:   r.student.id,
+        fee_type:     tmpl.name,
+        amount:       parseFloat(r.amount),
+        paid:         0,
+        period:       brp.label.trim(),
+        academic_year:activeYear,
+        template_id:  tmpl.id,
+        fee_period_id:periodRow.id,
+      }))
+      const {data:insertedFees,error:fErr}=await supabase.from('fees').insert(feeRows).select()
+      if(fErr) throw fErr
+
+      // 3 — generate receipt numbers and record payments for each student
+      const payRows = []
+      for(const r of selected){
+        const feeRow = insertedFees.find(f=>f.student_id===r.student.id)
+        if(!feeRow) continue
+        const amt = parseFloat(r.amount)
+        const {data:rcpt,error:rcptErr}=await supabase.rpc('generate_receipt_no',{p_school_id:profile?.school_id})
+        if(rcptErr) throw rcptErr
+        const {data:payRow,error:payErr}=await supabase.from('payments').insert({
+          school_id:        profile?.school_id,
+          academic_year:    activeYear,
+          fee_id:           feeRow.id,
+          student_id:       r.student.id,
+          amount:           amt,
+          receipt_no:       rcpt,
+          recorded_by_id:   profile?.id,
+          recorded_by_name: profile?.full_name,
+          fee_period_id:    periodRow.id,
+        }).select().single()
+        if(payErr) throw payErr
+        // Update fee.paid
+        await supabase.from('fees').update({paid:amt}).eq('id',feeRow.id).eq('school_id',profile?.school_id)
+        payRows.push(payRow)
+      }
+
+      // 4 — update local state
+      setData(p=>({
+        ...p,
+        fee_periods:[...p.fee_periods, periodRow],
+        fees:[...p.fees, ...(insertedFees||[]).map(f=>{
+          const paid = parseFloat(brpRows.find(r=>r.student.id===f.student_id)?.amount||0)
+          return {...f, paid}
+        })],
+        payments:[...payRows.reverse(), ...p.payments],
+      }))
+
+      auditLog(profile,'Fees','Bulk Payment Recorded',
+        `${tmpl.name} · ${brp.label} · ${selected.length} students · ${fmtMoney(selected.reduce((a,r)=>a+parseFloat(r.amount||0),0),currency)}`,
+        {},{},{}
+      )
+      toast(`Payments recorded for ${selected.length} student${selected.length!==1?'s':''}`)
+      setBrpDone({count:selected.length, feeRows:insertedFees, payRows, periodRow, selected, tmpl})
+      setBrpStep(3)
+    } catch(err){
+      toast(err.message,'error')
+    }
+    setBrpSaving(false)
+  }
+
+  // Print combined receipt for bulk batch
+  const printBulkCombined = (done) => {
+    const schoolName = settings?.school_name||'School'
+    const schoolLogo = settings?.school_logo||null
+    const logoTag = schoolLogo
+      ? `<img src="${schoolLogo}" style="width:44px;height:44px;object-fit:contain;border-radius:6px;"/>`
+      : `<div style="width:44px;height:44px;border-radius:8px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#e8b84b;">S</div>`
+    const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
+    const rows = done.selected.map(r=>{
+      const pay = done.payRows.find(p=>p.student_id===r.student.id)
+      return `<tr>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#111;">${fullName(r.student,true)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#555;">${classes.find(c=>c.id===r.student.class_id)?.name||'--'}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:700;color:#1a7a4a;text-align:right;">${fmtMoney(parseFloat(r.amount),currency)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;font-family:monospace;color:#888;">${pay?.receipt_no||'--'}</td>
+      </tr>`
+    }).join('')
+    const total = done.selected.reduce((a,r)=>a+parseFloat(r.amount||0),0)
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Bulk Receipt — ${done.tmpl.name}</title>
+    <style>*{box-sizing:border-box;margin:0;padding:0}body{background:#e8e8e8;font-family:'Helvetica Neue',Arial,sans-serif;display:flex;justify-content:center;padding:32px 16px}
+    .card{width:560px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 48px rgba(0,0,0,0.18)}
+    @media print{body{background:#fff;padding:0;display:block}.card{width:100%;box-shadow:none;border-radius:0}.no-print{display:none!important}}</style></head>
+    <body><div class="card">
+    <div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);padding:24px;">
+      <div style="display:flex;align-items:center;gap:14px;">${logoTag}
+        <div><div style="font-size:15px;font-weight:800;color:#fff;">${schoolName}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:4px;text-transform:uppercase;letter-spacing:0.06em;">Bulk Payment Receipt</div></div>
+      </div>
+      <div style="margin-top:16px;height:2px;background:linear-gradient(90deg,transparent,#e8b84b,transparent);"></div>
+      <div style="margin-top:14px;display:flex;gap:24px;flex-wrap:wrap;">
+        <div><div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Fee Type</div><div style="font-size:13px;font-weight:700;color:#fff;">${done.tmpl.name}</div></div>
+        <div><div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Period</div><div style="font-size:13px;font-weight:700;color:#e8b84b;">${done.periodRow.label}</div></div>
+        <div><div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Date</div><div style="font-size:13px;font-weight:700;color:#fff;">${fmtD(done.periodRow.period_date)}</div></div>
+        <div><div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Recorded By</div><div style="font-size:13px;font-weight:700;color:#fff;">${profile?.full_name||'--'}</div></div>
+      </div>
+    </div>
+    <div style="padding:20px 24px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:#f8f8fc;">
+          <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;text-align:left;">Student</th>
+          <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;text-align:left;">Class</th>
+          <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;text-align:right;">Amount</th>
+          <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;text-align:left;">Receipt</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr style="background:#f8f8fc;">
+          <td colspan="2" style="padding:10px;font-size:13px;font-weight:700;color:#111;">Total (${done.count} students)</td>
+          <td style="padding:10px;font-size:15px;font-weight:800;color:#1a7a4a;text-align:right;">${fmtMoney(total,currency)}</td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee;text-align:center;">
+        <div style="font-size:10px;color:#bbb;">Generated ${fmtD(new Date())} · ${schoolName} · SRMS</div>
+      </div>
+    </div>
+    <div class="no-print" style="padding:0 24px 20px;">
+      <button onclick="window.print()" style="width:100%;padding:12px;background:linear-gradient(135deg,#e8b84b,#f5d07a);border:none;border-radius:10px;font-size:14px;font-weight:700;color:#1a1a2e;cursor:pointer;">⎙ Print Receipt</button>
+    </div>
+    </div></body></html>`
+    const w=window.open('','_blank','width=620,height=800')
+    if(w){w.document.write(html);w.document.close()}
+  }
+
+  const printBulkIndividual = (done) => {
+    done.selected.forEach(r=>{
+      const feeRow = done.feeRows.find(f=>f.student_id===r.student.id)
+      const payRow = done.payRows.find(p=>p.student_id===r.student.id)
+      if(!feeRow||!payRow) return
+      const cls = classes.find(c=>c.id===r.student.class_id)
+      printReceipt({fee:{...feeRow,paid:parseFloat(r.amount)},feePayments:[payRow],student:r.student,cls,settings,currency})
+    })
+  }
+
   const tabStyle = (active) => ({
     padding:'8px 22px',borderRadius:10,fontSize:13,fontWeight:600,
     background:active?'var(--ink4)':'transparent',
@@ -580,13 +834,20 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         {feeActiveTab==='fees' && !isViewingPast && canBulk && (
           <Btn variant='secondary' onClick={()=>{ window.scrollTo({top:0,behavior:'smooth'}); setBulkModal(true);setBulkStep(1);setBulk(BULK_INIT)}}>⊞ Bulk Add Fee</Btn>
         )}
+        {feeActiveTab==='recurring' && !isViewingPast && canBulk && selectedTemplate && (
+          <Btn variant='secondary' onClick={()=>openBrpModal(selectedTemplate)}>⊞ Bulk Record Payment</Btn>
+        )}
+        {feeActiveTab==='recurring' && !isViewingPast && canBulk && (
+          <Btn onClick={()=>{setTmplForm({name:'',amount_per_period:''});setTmplModal(true)}}>+ New Recurring Fee</Btn>
+        )}
         {feeActiveTab==='fees' && !isViewingPast && <Btn onClick={openAdd}>+ Add Fee Record</Btn>}
       </PageHeader>
 
       {/* ── Tab switcher ── */}
       <div style={{display:'flex',gap:6,marginBottom:20,background:'var(--ink3)',borderRadius:12,padding:5,width:'fit-content',border:'1px solid var(--line)'}}>
-        <button style={tabStyle(feeActiveTab==='fees')}    onClick={()=>setFeeActiveTab('fees')}>💳 Fees</button>
-        <button style={tabStyle(feeActiveTab==='history')} onClick={()=>setFeeActiveTab('history')}>🧾 Payment History</button>
+        <button style={tabStyle(feeActiveTab==='fees')}      onClick={()=>setFeeActiveTab('fees')}>💳 Fees</button>
+        <button style={tabStyle(feeActiveTab==='recurring')} onClick={()=>setFeeActiveTab('recurring')}>🔁 Recurring</button>
+        <button style={tabStyle(feeActiveTab==='history')}   onClick={()=>setFeeActiveTab('history')}>🧾 Payment History</button>
       </div>
 
       {/* ══════════════ FEES TAB ══════════════ */}
@@ -638,6 +899,261 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         ]}/>
       </Card>
 
+      </>)}
+
+      {/* ══════════════ RECURRING TAB ══════════════ */}
+      {feeActiveTab==='recurring' && (<>
+
+        {/* Template list */}
+        <SectionTitle>Recurring Fee Types</SectionTitle>
+        {fee_templates.filter(t=>t.academic_year===activeYear).length===0 ? (
+          <Card style={{textAlign:'center',padding:'40px 24px',marginBottom:24}}>
+            <div style={{fontSize:32,marginBottom:12}}>🔁</div>
+            <div style={{fontSize:15,fontWeight:600,color:'var(--mist)',marginBottom:6}}>No recurring fees set up yet</div>
+            <div style={{fontSize:13,color:'var(--mist3)',marginBottom:20}}>Create a recurring fee type for things like feeding, transport or hostel charges.</div>
+            {canBulk && !isViewingPast && (
+              <Btn onClick={()=>{setTmplForm({name:'',amount_per_period:''});setTmplModal(true)}}>+ New Recurring Fee</Btn>
+            )}
+          </Card>
+        ) : (
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:24}}>
+            {fee_templates.filter(t=>t.academic_year===activeYear).map(tmpl=>{
+              const tmplPeriods = fee_periods.filter(p=>p.template_id===tmpl.id)
+              const tmplFees    = fees.filter(f=>f.template_id===tmpl.id)
+              const tmplPaid    = tmplFees.reduce((a,f)=>a+Number(f.paid||0),0)
+              const isSelected  = selectedTemplate?.id===tmpl.id
+              return (
+                <div key={tmpl.id}
+                  onClick={()=>setSelectedTemplate(isSelected?null:tmpl)}
+                  style={{background:isSelected?'var(--ink4)':'var(--ink3)',border:`1px solid ${isSelected?'var(--gold)':'var(--line)'}`,borderRadius:'var(--r)',padding:'16px 18px',cursor:'pointer',transition:'all 0.15s'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+                    <div>
+                      <div style={{fontSize:14,fontWeight:700,color:'var(--white)',marginBottom:4}}>{tmpl.name}</div>
+                      <div style={{fontSize:12,color:'var(--gold)',fontWeight:600}}>{fmtMoney(tmpl.amount_per_period,currency)} / period</div>
+                    </div>
+                    {canBulk && !isViewingPast && (
+                      <Btn size='sm' variant='ghost' onClick={e=>{e.stopPropagation();deleteTmpl(tmpl)}}>🗑</Btn>
+                    )}
+                  </div>
+                  <div style={{display:'flex',gap:16,marginTop:12}}>
+                    <div style={{fontSize:11,color:'var(--mist3)'}}>
+                      <span style={{fontWeight:700,color:'var(--mist)',fontSize:14}}>{tmplPeriods.length}</span> period{tmplPeriods.length!==1?'s':''}
+                    </div>
+                    <div style={{fontSize:11,color:'var(--mist3)'}}>
+                      <span style={{fontWeight:700,color:'var(--emerald)',fontSize:14}}>{fmtMoney(tmplPaid,currency)}</span> collected
+                    </div>
+                  </div>
+                  {isSelected && <div style={{marginTop:10,fontSize:11,color:'var(--gold)'}}>▼ Showing periods below</div>}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Period breakdown for selected template */}
+        {selectedTemplate && (() => {
+          const tmplPeriods = fee_periods.filter(p=>p.template_id===selectedTemplate.id).sort((a,b)=>b.period_date.localeCompare(a.period_date))
+          const tmpl = fee_templates.find(t=>t.id===selectedTemplate.id)
+          return (
+            <>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                <SectionTitle style={{margin:0}}>{tmpl?.name} — Periods</SectionTitle>
+                {canBulk && !isViewingPast && (
+                  <Btn variant='secondary' onClick={()=>openBrpModal(selectedTemplate)}>⊞ Bulk Record Payment</Btn>
+                )}
+              </div>
+              {tmplPeriods.length===0 ? (
+                <Card style={{textAlign:'center',padding:'32px 24px',marginBottom:24}}>
+                  <div style={{fontSize:13,color:'var(--mist3)'}}>No periods yet. Click <strong>Bulk Record Payment</strong> to add the first one.</div>
+                </Card>
+              ) : (
+                <div style={{overflowX:'auto',marginBottom:24}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',minWidth:480}}>
+                    <thead>
+                      <tr>
+                        {['Period','Date','Students Charged','Collected','Outstanding',''].map(h=>(
+                          <th key={h} style={{padding:'10px 14px',textAlign:'left',fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',borderBottom:'1px solid var(--line)',whiteSpace:'nowrap'}}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tmplPeriods.map(period=>{
+                        const periodFees = fees.filter(f=>f.fee_period_id===period.id)
+                        const charged    = periodFees.length
+                        const collected  = periodFees.reduce((a,f)=>a+Number(f.paid||0),0)
+                        const outstanding= periodFees.reduce((a,f)=>a+Math.max(0,Number(f.amount||0)-Number(f.paid||0)),0)
+                        const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
+                        return (
+                          <tr key={period.id} style={{borderBottom:'1px solid var(--line)'}}>
+                            <td style={{padding:'12px 14px'}}>
+                              <div style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{period.label}</div>
+                            </td>
+                            <td style={{padding:'12px 14px'}}>
+                              <div style={{fontSize:12,color:'var(--mist2)'}}>{fmtD(period.period_date)}</div>
+                            </td>
+                            <td style={{padding:'12px 14px'}}>
+                              <div style={{fontSize:13,color:'var(--mist)'}}>{charged} student{charged!==1?'s':''}</div>
+                            </td>
+                            <td style={{padding:'12px 14px'}}>
+                              <span style={{fontWeight:700,color:'var(--emerald)',fontFamily:'monospace',fontSize:13}}>{fmtMoney(collected,currency)}</span>
+                            </td>
+                            <td style={{padding:'12px 14px'}}>
+                              {outstanding>0
+                                ? <span style={{fontWeight:700,color:'var(--rose)',fontFamily:'monospace',fontSize:13}}>{fmtMoney(outstanding,currency)}</span>
+                                : <Badge color='var(--emerald)' bg='rgba(52,199,89,0.08)'>All paid</Badge>}
+                            </td>
+                            <td style={{padding:'12px 14px'}}></td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )
+        })()}
+
+        {/* New Template Modal */}
+        {tmplModal && (
+          <Modal title='New Recurring Fee' onClose={()=>setTmplModal(false)}>
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              <Field label='Fee Name' placeholder='e.g. Feeding Fee, Transport Fee' value={tmplForm.name} onChange={tf('name')}/>
+              <Field label='Amount per Period' type='number' placeholder='e.g. 5.00' value={tmplForm.amount_per_period} onChange={tf('amount_per_period')}/>
+              <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:4}}>
+                <Btn variant='ghost' onClick={()=>setTmplModal(false)}>Cancel</Btn>
+                <Btn onClick={saveTmpl} disabled={tmplSaving}>{tmplSaving?<><Spinner/> Saving...</>:'Create Recurring Fee'}</Btn>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {/* Bulk Record Payment Modal */}
+        {brpModal && (
+          <Modal title={brpDone?'Payments Recorded':brpStep===1?'Bulk Record Payment — Setup':brpStep===2?'Bulk Record Payment — Students':''}
+            onClose={closeBrp}>
+            {/* Step 1 — Setup */}
+            {brpStep===1 && (
+              <div style={{display:'flex',flexDirection:'column',gap:14}}>
+                {/* Template selector */}
+                <div>
+                  <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:6}}>Recurring Fee</div>
+                  <select value={brp.template_id} onChange={e=>{brf('template_id')(e.target.value);const t=fee_templates.find(x=>x.id===e.target.value);if(t)brf('same_amount')(String(t.amount_per_period))}}
+                    style={{width:'100%',padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13}}>
+                    <option value=''>Select fee type…</option>
+                    {fee_templates.filter(t=>t.academic_year===activeYear).map(t=>(
+                      <option key={t.id} value={t.id}>{t.name} — {fmtMoney(t.amount_per_period,currency)}/period</option>
+                    ))}
+                  </select>
+                </div>
+                <Field label='Period Label' placeholder='e.g. Monday 19 May, Week 3, Day 12' value={brp.label} onChange={brf('label')}/>
+                <Field label='Period Date' type='date' value={brp.period_date} onChange={brf('period_date')}/>
+                {/* Class filter */}
+                <div>
+                  <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:6}}>Class Filter <span style={{color:'var(--mist3)',fontWeight:400}}>(optional — leave blank for all)</span></div>
+                  <select value={brp.class_id} onChange={e=>brf('class_id')(e.target.value)}
+                    style={{width:'100%',padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13}}>
+                    <option value=''>All classes</option>
+                    {classesWithStudents.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                {/* Mode toggle */}
+                <div>
+                  <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:8}}>Payment Mode</div>
+                  <div style={{display:'flex',gap:8}}>
+                    {[{v:'same',label:'Same amount for all'},{v:'per',label:'Per student'}].map(opt=>(
+                      <button key={opt.v} onClick={()=>brf('mode')(opt.v)}
+                        style={{flex:1,padding:'10px',borderRadius:'var(--r-sm)',fontSize:12,fontWeight:600,cursor:'pointer',transition:'all 0.15s',
+                          background:brp.mode===opt.v?'var(--ink4)':'transparent',
+                          border:`1px solid ${brp.mode===opt.v?'var(--gold)':'var(--line)'}`,
+                          color:brp.mode===opt.v?'var(--gold)':'var(--mist2)'}}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {brp.mode==='same' && (
+                  <Field label='Amount per Student' type='number' value={brp.same_amount} onChange={brf('same_amount')}/>
+                )}
+                <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:4}}>
+                  <Btn variant='ghost' onClick={closeBrp}>Cancel</Btn>
+                  <Btn onClick={brpGoStep2} disabled={!brp.template_id}>Next →</Btn>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2 — Student list */}
+            {brpStep===2 && (
+              <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                <div style={{fontSize:12,color:'var(--mist3)',marginBottom:4}}>
+                  <strong style={{color:'var(--gold)'}}>{brp.label}</strong> · {brp.period_date} · {brpRows.filter(r=>r.checked).length} of {brpRows.length} students selected
+                </div>
+                {brp.mode==='same' && (
+                  <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'10px 14px',display:'flex',alignItems:'center',gap:12,marginBottom:4}}>
+                    <span style={{fontSize:12,color:'var(--mist2)',flex:1}}>Amount for all selected students</span>
+                    <input type='number' value={brp.same_amount}
+                      onChange={e=>{brf('same_amount')(e.target.value);setBrpRows(p=>p.map(r=>({...r,amount:e.target.value})))}}
+                      style={{width:100,padding:'6px 10px',background:'var(--ink)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13,textAlign:'right'}}/>
+                  </div>
+                )}
+                <div style={{maxHeight:360,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
+                  {brpRows.map((r,i)=>{
+                    const cls = classes.find(c=>c.id===r.student.class_id)
+                    return (
+                      <div key={r.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${r.checked?'var(--line)':'rgba(255,255,255,0.04)'}`}}>
+                        <input type='checkbox' checked={r.checked}
+                          onChange={e=>setBrpRows(p=>p.map((x,j)=>j===i?{...x,checked:e.target.checked}:x))}
+                          style={{accentColor:'var(--gold)',width:16,height:16,cursor:'pointer',flexShrink:0}}/>
+                        <Avatar name={fullName(r.student,true)} photo={r.student.photo} size={28}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:600,color:r.checked?'var(--white)':'var(--mist3)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{fullName(r.student,true)}</div>
+                          <div style={{fontSize:11,color:'var(--mist3)'}}>{cls?.name||'--'}{r.existingBalance>0&&<span style={{color:'var(--rose)',marginLeft:6}}>Owes {fmtMoney(r.existingBalance,currency)}</span>}</div>
+                        </div>
+                        {brp.mode==='per' && (
+                          <input type='number' value={r.amount} disabled={!r.checked}
+                            onChange={e=>setBrpRows(p=>p.map((x,j)=>j===i?{...x,amount:e.target.value}:x))}
+                            style={{width:90,padding:'5px 8px',background:'var(--ink)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13,textAlign:'right',opacity:r.checked?1:0.4}}/>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
+                  <div style={{fontSize:12,color:'var(--mist3)'}}>Total: <strong style={{color:'var(--emerald)'}}>{fmtMoney(brpRows.filter(r=>r.checked).reduce((a,r)=>a+parseFloat(r.amount||0),0),currency)}</strong></div>
+                  <div style={{display:'flex',gap:10}}>
+                    <Btn variant='ghost' onClick={()=>setBrpStep(1)}>← Back</Btn>
+                    <Btn onClick={confirmBrp} disabled={brpSaving||brpRows.filter(r=>r.checked).length===0}>
+                      {brpSaving?<><Spinner/> Recording...</>:`Confirm — ${brpRows.filter(r=>r.checked).length} Student${brpRows.filter(r=>r.checked).length!==1?'s':''}`}
+                    </Btn>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3 — Done + receipt prompt */}
+            {brpStep===3 && brpDone && (
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16,padding:'8px 0'}}>
+                <div style={{fontSize:40}}>✅</div>
+                <div style={{fontSize:16,fontWeight:700,color:'var(--white)',textAlign:'center'}}>
+                  Payments recorded for {brpDone.count} student{brpDone.count!==1?'s':''}
+                </div>
+                <div style={{fontSize:13,color:'var(--mist3)',textAlign:'center'}}>
+                  <strong style={{color:'var(--gold)'}}>{brpDone.periodRow.label}</strong> · {brpDone.tmpl.name} · {fmtMoney(brpDone.selected.reduce((a,r)=>a+parseFloat(r.amount||0),0),currency)} total
+                </div>
+                <div style={{fontSize:13,color:'var(--mist2)',fontWeight:600,marginTop:4}}>Print receipts?</div>
+                <div style={{display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center'}}>
+                  <Btn variant='secondary' onClick={()=>printBulkCombined(brpDone)}>⎙ Combined Receipt</Btn>
+                  <PlanGate planHook={planHook} feature='feeReceipts' mode='inline'>
+                    <Btn variant='secondary' onClick={()=>printBulkIndividual(brpDone)}>⎙ Individual Receipts</Btn>
+                  </PlanGate>
+                </div>
+                <Btn variant='ghost' onClick={closeBrp} style={{marginTop:4}}>Done</Btn>
+              </div>
+            )}
+          </Modal>
+        )}
+
+        {confirmTmplDelete && <ConfirmModal {...confirmTmplDelete} onClose={()=>setConfirmTmplDelete(null)}/>}
       </>)}
 
       {/* ══════════════ PAYMENT HISTORY TAB ══════════════ */}
