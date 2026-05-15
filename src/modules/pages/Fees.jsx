@@ -236,7 +236,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   // ── Recurring state ──
   const [selectedTemplate, setSelectedTemplate]     = useState(null) // fee_template row
   const [tmplModal, setTmplModal]                   = useState(false) // new template modal
-  const [tmplForm, setTmplForm]                     = useState({name:'',amount_per_period:''})
+  const [tmplForm, setTmplForm]                     = useState({name:'',amount_per_period:'',class_ids:[]})
   const [tmplSaving, setTmplSaving]                 = useState(false)
   const [confirmTmplDelete, setConfirmTmplDelete]   = useState(null)
   const tf = k=>v=>setTmplForm(p=>({...p,[k]:v}))
@@ -250,6 +250,16 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const [brpSaving, setBrpSaving]     = useState(false)
   const [brpDone, setBrpDone]         = useState(null) // {count, feeRows, payRows, periodRow} after confirm
   const brf = k=>v=>setBrp(p=>({...p,[k]:v}))
+
+  // ── Bulk Collect Payment state (one-time fees) ──
+  const BCP_INIT = {fee_type:'',class_id:'',period:'',same_amount:'',mode:'balance'}
+  const [bcpModal, setBcpModal]   = useState(false)
+  const [bcpStep, setBcpStep]     = useState(1)
+  const [bcpRows, setBcpRows]     = useState([])
+  const [bcpSaving, setBcpSaving] = useState(false)
+  const [bcpDone, setBcpDone]     = useState(null)
+  const [bcp, setBcp]             = useState(BCP_INIT)
+  const bcf = k=>v=>setBcp(p=>({...p,[k]:v}))
 
   // ── Derived: eligible classes (have at least 1 active non-withdrawn student) ──
   const activeStudents = students.filter(s=>!s.archived)
@@ -268,65 +278,80 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     })
   }
 
-  // ── Go to step 2: seed classAmounts with default ──
-  const goToStep2 = () => {
+  const [bulkStudentRows, setBulkStudentRows] = useState([]) // {student, checked, class_id}
+
+  // ── Go to student step: build student list from selected classes ──
+  const goToStudentStep = () => {
     if(!bulk.fee_type||!bulk.period||!bulk.default_amount||bulk.selected_classes.length===0) return
-    const init = {}
-    bulk.selected_classes.forEach(cid=>{ init[cid] = bulk.default_amount })
-    setClassAmounts(init)
+    const rows = []
+    bulk.selected_classes.forEach(cid=>{
+      activeStudents.filter(s=>s.class_id===cid).forEach(s=>{
+        rows.push({student:s, checked:true, class_id:cid})
+      })
+    })
+    setBulkStudentRows(rows)
     setBulkStep(2)
   }
 
-  // ── Step 2 totals ──
+  // ── Go to amount step: seed classAmounts using only checked students ──
+  const goToAmountStep = () => {
+    if(bulkStudentRows.filter(r=>r.checked).length===0){
+      toast('Select at least one student','error'); return
+    }
+    const init = {}
+    bulk.selected_classes.forEach(cid=>{ init[cid] = bulk.default_amount })
+    setClassAmounts(init)
+    setBulkStep(3)
+  }
+
+  const checkedStudents = bulkStudentRows.filter(r=>r.checked).map(r=>r.student)
+
+  // ── Step 3 totals (uses checked students only) ──
   const step2Rows = bulk.selected_classes.map(cid=>{
     const cls = classes.find(c=>c.id===cid)
-    const count = activeStudents.filter(s=>s.class_id===cid).length
+    const count = checkedStudents.filter(s=>s.class_id===cid).length
     return {cid, cls, count, amount: classAmounts[cid]||''}
-  })
+  }).filter(r=>r.count>0)
   const step2TotalStudents = step2Rows.reduce((a,r)=>a+r.count,0)
   const step2TotalAmount   = step2Rows.reduce((a,r)=>a+(parseFloat(r.amount)||0)*r.count,0)
 
-  // ── Step 3: compute duplicates ──
+  // ── Step 4: compute duplicates (checked students only) ──
   const computeBulkPreview = () => {
     let toCreate = 0, toSkip = 0
-    bulk.selected_classes.forEach(cid=>{
-      activeStudents.filter(s=>s.class_id===cid).forEach(s=>{
+    checkedStudents.forEach(s=>{
+      const already = fees.some(f=>
+        f.student_id===s.id &&
+        f.fee_type===bulk.fee_type &&
+        f.period===bulk.period &&
+        f.academic_year===activeYear
+      )
+      if(already) toSkip++; else toCreate++
+    })
+    return {toCreate, toSkip}
+  }
+
+  // ── Confirm bulk add (checked students only) ──
+  const confirmBulk = async () => {
+    setBulkSaving(true)
+    try {
+      const rows = []
+      checkedStudents.forEach(s=>{
+        const amount = parseFloat(classAmounts[s.class_id])||0
         const already = fees.some(f=>
           f.student_id===s.id &&
           f.fee_type===bulk.fee_type &&
           f.period===bulk.period &&
           f.academic_year===activeYear
         )
-        if(already) toSkip++; else toCreate++
-      })
-    })
-    return {toCreate, toSkip}
-  }
-
-  // ── Confirm bulk add ──
-  const confirmBulk = async () => {
-    setBulkSaving(true)
-    try {
-      const rows = []
-      bulk.selected_classes.forEach(cid=>{
-        const amount = parseFloat(classAmounts[cid])||0
-        activeStudents.filter(s=>s.class_id===cid).forEach(s=>{
-          const already = fees.some(f=>
-            f.student_id===s.id &&
-            f.fee_type===bulk.fee_type &&
-            f.period===bulk.period &&
-            f.academic_year===activeYear
-          )
-          if(!already) rows.push({
-            school_id:  profile?.school_id,
-            student_id: s.id,
-            fee_type:   bulk.fee_type,
-            amount,
-            paid:       0,
-            period:     bulk.period,
-            academic_year: activeYear,
-            ...(bulk.due_date ? {due_date: bulk.due_date} : {}),
-          })
+        if(!already) rows.push({
+          school_id:  profile?.school_id,
+          student_id: s.id,
+          fee_type:   bulk.fee_type,
+          amount,
+          paid:       0,
+          period:     bulk.period,
+          academic_year: activeYear,
+          ...(bulk.due_date ? {due_date: bulk.due_date} : {}),
         })
       })
       if(rows.length===0){
@@ -351,7 +376,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     setBulkSaving(false)
   }
 
-  const closeBulk = () => { setBulkModal(false); setBulkStep(1); setBulk(BULK_INIT); setClassAmounts({}) }
+  const closeBulk = () => { setBulkModal(false); setBulkStep(1); setBulk(BULK_INIT); setClassAmounts({}); setBulkStudentRows([]) }
 
   // ── Existing fee helpers ──
   const today = new Date().toISOString().split('T')[0]
@@ -484,10 +509,8 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   }
 
   // ── Step 3 preview values ──
-  const {toCreate, toSkip} = bulkStep===3 ? computeBulkPreview() : {toCreate:0,toSkip:0}
-  const step3TotalAmount = step2Rows.reduce((a,r)=>a+(parseFloat(r.amount)||0)*activeStudents.filter(s=>s.class_id===r.cid).filter(s=>{
-    return !fees.some(f=>f.student_id===s.id&&f.fee_type===bulk.fee_type&&f.period===bulk.period&&f.academic_year===activeYear)
-  }).length, 0)
+  const {toCreate, toSkip} = bulkStep===4 ? computeBulkPreview() : {toCreate:0,toSkip:0}
+  const step3TotalAmount = step2Rows.reduce((a,r)=>a+(parseFloat(r.amount)||0)*r.count, 0)
 
   const step1Valid = bulk.fee_type && bulk.period && bulk.default_amount && bulk.selected_classes.length>0
   const step2Valid = step2Rows.every(r=>r.amount!==''&&parseFloat(r.amount)>0)
@@ -584,11 +607,13 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const saveTmpl = async () => {
     if(!tmplForm.name.trim()||!tmplForm.amount_per_period){toast('Name and amount are required','error');return}
     if(parseFloat(tmplForm.amount_per_period)<=0){toast('Amount must be greater than zero','error');return}
+    if(tmplForm.class_ids.length===0){toast('Select at least one class','error');return}
     setTmplSaving(true)
     const {data:row,error}=await supabase.from('fee_templates').insert({
       school_id:profile?.school_id,
       name:tmplForm.name.trim(),
       amount_per_period:parseFloat(tmplForm.amount_per_period),
+      class_ids:tmplForm.class_ids,
       academic_year:activeYear,
       created_by:profile?.id,
     }).select().single()
@@ -598,7 +623,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     toast('Recurring fee created')
     setTmplSaving(false)
     setTmplModal(false)
-    setTmplForm({name:'',amount_per_period:''})
+    setTmplForm({name:'',amount_per_period:'',class_ids:[]})
     setSelectedTemplate(row)
   }
 
@@ -624,16 +649,19 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const buildBrpRows = (templateId, classId) => {
     const tmpl = fee_templates.find(t=>t.id===templateId)
     if(!tmpl) return []
-    const pool = classId
-      ? activeStudents.filter(s=>s.class_id===classId)
-      : activeStudents
+    // Start with students in the template's assigned classes
+    const tmplClassIds = tmpl.class_ids||[]
+    let pool = activeStudents.filter(s=>tmplClassIds.includes(s.class_id))
+    // Further filter by class if bursar picks a sub-filter
+    if(classId) pool = pool.filter(s=>s.class_id===classId)
     return pool.map(s=>{
-      // Sum outstanding across all periods for this template
       const studentFees = fees.filter(f=>f.student_id===s.id && f.template_id===templateId)
       const totalCharged = studentFees.reduce((a,f)=>a+Number(f.amount||0),0)
       const totalPaidAmt = studentFees.reduce((a,f)=>a+Number(f.paid||0),0)
       const existingBalance = Math.max(0, totalCharged - totalPaidAmt)
-      return {student:s, checked:true, amount:String(tmpl.amount_per_period), existingBalance}
+      // Flag students enrolled after template was created
+      const isNew = tmpl.created_at && s.created_at && new Date(s.created_at) > new Date(tmpl.created_at)
+      return {student:s, checked:true, amount:String(tmpl.amount_per_period), existingBalance, isNew}
     })
   }
 
@@ -647,13 +675,17 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
   const closeBrp = () => {setBrpModal(false);setBrpStep(1);setBrp(BRP_INIT);setBrpRows([]);setBrpDone(null)}
 
+  const [brpDupWarning, setBrpDupWarning] = useState(false)
+
   const brpGoStep2 = () => {
     if(!brp.label.trim()||!brp.period_date){toast('Period label and date are required','error');return}
     const tmpl = fee_templates.find(t=>t.id===brp.template_id)
     if(!tmpl) return
-    // Rebuild rows in case class filter changed
+    // Check for duplicate period on same date
+    const dup = fee_periods.some(p=>p.template_id===brp.template_id && p.period_date===brp.period_date)
+    setBrpDupWarning(dup)
+    // Rebuild rows
     const rows = buildBrpRows(brp.template_id, brp.class_id)
-    // Apply same_amount if mode=same
     const finalRows = brp.mode==='same'
       ? rows.map(r=>({...r, amount:brp.same_amount||String(tmpl.amount_per_period)}))
       : rows
@@ -746,6 +778,44 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   }
 
   // Print combined receipt for bulk batch
+  const deletePeriod = (period) => {
+    const periodFees    = fees.filter(f=>f.fee_period_id===period.id)
+    const periodPayments = payments.filter(p=>p.fee_period_id===period.id)
+    setConfirmTmplDelete({
+      title:'Delete this period?',
+      body:`"${period.label}" will be permanently deleted along with ${periodFees.length} fee record${periodFees.length!==1?'s':''} and ${periodPayments.length} payment${periodPayments.length!==1?'s':''}.`,
+      icon:'🗑', danger:true,
+      onConfirm: async () => {
+        try {
+          // Delete payments first (FK constraint)
+          if(periodPayments.length>0){
+            const {error:payErr}=await supabase.from('payments').delete().eq('fee_period_id',period.id).eq('school_id',profile?.school_id)
+            if(payErr) throw payErr
+          }
+          // Delete fee rows
+          if(periodFees.length>0){
+            const {error:feeErr}=await supabase.from('fees').delete().eq('fee_period_id',period.id).eq('school_id',profile?.school_id)
+            if(feeErr) throw feeErr
+          }
+          // Delete period
+          const {error:pErr}=await supabase.from('fee_periods').delete().eq('id',period.id).eq('school_id',profile?.school_id)
+          if(pErr) throw pErr
+          // Update local state
+          setData(p=>({
+            ...p,
+            fee_periods: p.fee_periods.filter(x=>x.id!==period.id),
+            fees:        p.fees.filter(f=>f.fee_period_id!==period.id),
+            payments:    p.payments.filter(x=>x.fee_period_id!==period.id),
+          }))
+          auditLog(profile,'Fees','Period Deleted',`${period.label}`,{},period,null)
+          toast('Period deleted')
+        } catch(err){
+          toast(err.message,'error')
+        }
+      }
+    })
+  }
+
   const printBulkCombined = (done) => {
     const schoolName = settings?.school_name||'School'
     const schoolLogo = settings?.school_logo||null
@@ -818,6 +888,166 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     })
   }
 
+  // ── Bulk Collect Payment helpers ──
+  const feeTypes = [...new Set(fees.filter(f=>f.academic_year===activeYear&&!f.template_id).map(f=>f.fee_type))].sort()
+  const feePeriodLabels = [...new Set(fees.filter(f=>f.academic_year===activeYear&&!f.template_id).map(f=>f.period))].sort()
+
+  const buildBcpRows = (feeType, classId, period) => {
+    let pool = activeStudents
+    if(classId) pool = pool.filter(s=>s.class_id===classId)
+    return pool.map(s=>{
+      const studentFees = fees.filter(f=>
+        f.student_id===s.id &&
+        f.fee_type===feeType &&
+        f.academic_year===activeYear &&
+        (!period || f.period===period) &&
+        !f.template_id
+      )
+      const totalCharged = studentFees.reduce((a,f)=>a+Number(f.amount||0),0)
+      const totalPaid    = studentFees.reduce((a,f)=>a+Number(f.paid||0),0)
+      const balance      = Math.max(0, totalCharged - totalPaid)
+      const feeId        = studentFees[0]?.id || null
+      // Only show students with an outstanding balance
+      if(balance===0 || !feeId) return null
+      return {student:s, checked:true, amount:String(balance), balance, feeId}
+    }).filter(Boolean)
+  }
+
+  const openBcpModal = () => {
+    setBcp(BCP_INIT); setBcpRows([]); setBcpStep(1); setBcpDone(null); setBcpModal(true)
+  }
+
+  const closeBcp = () => { setBcpModal(false); setBcpStep(1); setBcp(BCP_INIT); setBcpRows([]); setBcpDone(null) }
+
+  const bcpGoStep2 = () => {
+    if(!bcp.fee_type){toast('Select a fee type','error');return}
+    const rows = buildBcpRows(bcp.fee_type, bcp.class_id, bcp.period)
+    if(rows.length===0){toast('No students with outstanding balances for this fee','error');return}
+    setBcpRows(rows)
+    setBcpStep(2)
+  }
+
+  const confirmBcp = async () => {
+    const selected = bcpRows.filter(r=>r.checked && parseFloat(r.amount)>0)
+    if(selected.length===0){toast('No students selected','error');return}
+    setBcpSaving(true)
+    try {
+      const payRows = []
+      let currentPayments = [...payments]
+      for(const r of selected){
+        const amt = parseFloat(r.amount)
+        const rcpt = genRCP(currentPayments)
+        const {data:payRow,error:payErr}=await supabase.from('payments').insert({
+          school_id:        profile?.school_id,
+          academic_year:    activeYear,
+          fee_id:           r.feeId,
+          student_id:       r.student.id,
+          amount:           amt,
+          receipt_no:       rcpt,
+          recorded_by_id:   profile?.id,
+          recorded_by_name: profile?.full_name,
+        }).select().single()
+        if(payErr) throw payErr
+        // Update fee.paid
+        const fee = fees.find(f=>f.id===r.feeId)
+        const newPaid = Number(fee?.paid||0) + amt
+        await supabase.from('fees').update({paid:newPaid}).eq('id',r.feeId).eq('school_id',profile?.school_id)
+        currentPayments = [payRow, ...currentPayments]
+        payRows.push({...payRow, student:r.student, amount:amt, feeId:r.feeId})
+      }
+      // Update local state
+      setData(p=>({
+        ...p,
+        payments: [...payRows.map(r=>({...r})).reverse(), ...p.payments],
+        fees: p.fees.map(f=>{
+          const match = selected.find(r=>r.feeId===f.id)
+          if(!match) return f
+          return {...f, paid: Number(f.paid||0) + parseFloat(match.amount)}
+        })
+      }))
+      auditLog(profile,'Fees','Bulk Payment Collected',
+        `${bcp.fee_type} · ${selected.length} students · ${fmtMoney(selected.reduce((a,r)=>a+parseFloat(r.amount||0),0),currency)}`,{},{},{}
+      )
+      toast(`Payments recorded for ${selected.length} student${selected.length!==1?'s':''}`)
+      setBcpDone({count:selected.length, payRows, selected, feeType:bcp.fee_type})
+      setBcpStep(3)
+    } catch(err){
+      toast(err.message,'error')
+    }
+    setBcpSaving(false)
+  }
+
+  const printBcpCombined = (done) => {
+    const schoolName = settings?.school_name||'School'
+    const schoolLogo = settings?.school_logo||null
+    const logoTag = schoolLogo
+      ? `<img src="${schoolLogo}" style="width:44px;height:44px;object-fit:contain;border-radius:6px;"/>`
+      : `<div style="width:44px;height:44px;border-radius:8px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#e8b84b;">S</div>`
+    const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
+    const rows = done.selected.map(r=>{
+      const pay = done.payRows.find(p=>p.student_id===r.student.id)
+      return `<tr>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#111;">${fullName(r.student,true)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#555;">${classes.find(c=>c.id===r.student.class_id)?.name||'--'}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:700;color:#1a7a4a;text-align:right;">${fmtMoney(parseFloat(r.amount),currency)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;font-family:monospace;color:#888;">${pay?.receipt_no||'--'}</td>
+      </tr>`
+    }).join('')
+    const total = done.selected.reduce((a,r)=>a+parseFloat(r.amount||0),0)
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Bulk Collection — ${done.feeType}</title>
+    <style>*{box-sizing:border-box;margin:0;padding:0}body{background:#e8e8e8;font-family:'Helvetica Neue',Arial,sans-serif;display:flex;justify-content:center;padding:32px 16px}
+    .card{width:560px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 48px rgba(0,0,0,0.18)}
+    @media print{body{background:#fff;padding:0;display:block}.card{width:100%;box-shadow:none;border-radius:0}.no-print{display:none!important}}</style></head>
+    <body><div class="card">
+    <div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);padding:24px;">
+      <div style="display:flex;align-items:center;gap:14px;">${logoTag}
+        <div><div style="font-size:15px;font-weight:800;color:#fff;">${schoolName}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:4px;text-transform:uppercase;letter-spacing:0.06em;">Bulk Collection Receipt</div></div>
+      </div>
+      <div style="margin-top:16px;height:2px;background:linear-gradient(90deg,transparent,#e8b84b,transparent);"></div>
+      <div style="margin-top:14px;display:flex;gap:24px;flex-wrap:wrap;">
+        <div><div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Fee Type</div><div style="font-size:13px;font-weight:700;color:#fff;">${done.feeType}</div></div>
+        <div><div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Date</div><div style="font-size:13px;font-weight:700;color:#fff;">${fmtD(new Date())}</div></div>
+        <div><div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Recorded By</div><div style="font-size:13px;font-weight:700;color:#fff;">${profile?.full_name||'--'}</div></div>
+      </div>
+    </div>
+    <div style="padding:20px 24px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:#f8f8fc;">
+          <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;text-align:left;">Student</th>
+          <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;text-align:left;">Class</th>
+          <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;text-align:right;">Amount</th>
+          <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;text-align:left;">Receipt</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr style="background:#f8f8fc;">
+          <td colspan="2" style="padding:10px;font-size:13px;font-weight:700;color:#111;">Total (${done.count} students)</td>
+          <td style="padding:10px;font-size:15px;font-weight:800;color:#1a7a4a;text-align:right;">${fmtMoney(total,currency)}</td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee;text-align:center;">
+        <div style="font-size:10px;color:#bbb;">Generated ${fmtD(new Date())} · ${schoolName} · SRMS</div>
+      </div>
+    </div>
+    <div class="no-print" style="padding:0 24px 20px;">
+      <button onclick="window.print()" style="width:100%;padding:12px;background:linear-gradient(135deg,#e8b84b,#f5d07a);border:none;border-radius:10px;font-size:14px;font-weight:700;color:#1a1a2e;cursor:pointer;">⎙ Print Receipt</button>
+    </div>
+    </div></body></html>`
+    const w=window.open('','_blank','width=620,height=800')
+    if(w){w.document.write(html);w.document.close()}
+  }
+
+  const printBcpIndividual = (done) => {
+    done.selected.forEach(r=>{
+      const fee = fees.find(f=>f.id===r.feeId)
+      const payRow = done.payRows.find(p=>p.student_id===r.student.id)
+      if(!fee||!payRow) return
+      const cls = classes.find(c=>c.id===r.student.class_id)
+      printReceipt({fee:{...fee,paid:Number(fee.paid||0)+parseFloat(r.amount)},feePayments:[payRow],student:r.student,cls,settings,currency})
+    })
+  }
+
   const tabStyle = (active) => ({
     padding:'8px 22px',borderRadius:10,fontSize:13,fontWeight:600,
     background:active?'var(--ink4)':'transparent',
@@ -836,11 +1066,14 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         {feeActiveTab==='fees' && !isViewingPast && canBulk && (
           <Btn variant='secondary' onClick={()=>{ window.scrollTo({top:0,behavior:'smooth'}); setBulkModal(true);setBulkStep(1);setBulk(BULK_INIT)}}>⊞ Bulk Add Fee</Btn>
         )}
+        {feeActiveTab==='fees' && !isViewingPast && canBulk && (
+          <Btn variant='secondary' onClick={openBcpModal}>💰 Bulk Collect Payment</Btn>
+        )}
         {feeActiveTab==='recurring' && !isViewingPast && canBulk && selectedTemplate && (
           <Btn variant='secondary' onClick={()=>openBrpModal(selectedTemplate)}>⊞ Bulk Record Payment</Btn>
         )}
         {feeActiveTab==='recurring' && !isViewingPast && canBulk && (
-          <Btn onClick={()=>{setTmplForm({name:'',amount_per_period:''});setTmplModal(true)}}>+ New Recurring Fee</Btn>
+          <Btn onClick={()=>{setTmplForm({name:'',amount_per_period:'',class_ids:[]});setTmplModal(true)}}>+ New Recurring Fee</Btn>
         )}
         {feeActiveTab==='fees' && !isViewingPast && <Btn onClick={openAdd}>+ Add Fee Record</Btn>}
       </PageHeader>
@@ -914,16 +1147,17 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             <div style={{fontSize:15,fontWeight:600,color:'var(--mist)',marginBottom:6}}>No recurring fees set up yet</div>
             <div style={{fontSize:13,color:'var(--mist3)',marginBottom:20}}>Create a recurring fee type for things like feeding, transport or hostel charges.</div>
             {canBulk && !isViewingPast && (
-              <Btn onClick={()=>{setTmplForm({name:'',amount_per_period:''});setTmplModal(true)}}>+ New Recurring Fee</Btn>
+              <Btn onClick={()=>{setTmplForm({name:'',amount_per_period:'',class_ids:[]});setTmplModal(true)}}>+ New Recurring Fee</Btn>
             )}
           </Card>
         ) : (
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:24}}>
             {fee_templates.filter(t=>t.academic_year===activeYear).map(tmpl=>{
-              const tmplPeriods = fee_periods.filter(p=>p.template_id===tmpl.id)
-              const tmplFees    = fees.filter(f=>f.template_id===tmpl.id)
-              const tmplPaid    = tmplFees.reduce((a,f)=>a+Number(f.paid||0),0)
-              const isSelected  = selectedTemplate?.id===tmpl.id
+              const tmplPeriods  = fee_periods.filter(p=>p.template_id===tmpl.id)
+              const tmplFees     = fees.filter(f=>f.template_id===tmpl.id)
+              const tmplPaid     = tmplFees.reduce((a,f)=>a+Number(f.paid||0),0)
+              const isSelected   = selectedTemplate?.id===tmpl.id
+              const tmplClasses  = (tmpl.class_ids||[]).map(id=>classes.find(c=>c.id===id)?.name).filter(Boolean)
               return (
                 <div key={tmpl.id}
                   onClick={()=>setSelectedTemplate(isSelected?null:tmpl)}
@@ -937,7 +1171,15 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                       <Btn size='sm' variant='ghost' onClick={e=>{e.stopPropagation();deleteTmpl(tmpl)}}>🗑</Btn>
                     )}
                   </div>
-                  <div style={{display:'flex',gap:16,marginTop:12}}>
+                  {/* Class badges */}
+                  {tmplClasses.length>0 && (
+                    <div style={{display:'flex',flexWrap:'wrap',gap:4,marginTop:10}}>
+                      {tmplClasses.map(name=>(
+                        <span key={name} style={{fontSize:10,fontWeight:600,color:'var(--sky)',background:'rgba(91,168,245,0.1)',border:'1px solid rgba(91,168,245,0.2)',borderRadius:4,padding:'2px 7px'}}>{name}</span>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{display:'flex',gap:16,marginTop:10}}>
                     <div style={{fontSize:11,color:'var(--mist3)'}}>
                       <span style={{fontWeight:700,color:'var(--mist)',fontSize:14}}>{tmplPeriods.length}</span> period{tmplPeriods.length!==1?'s':''}
                     </div>
@@ -1004,7 +1246,11 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                                 ? <span style={{fontWeight:700,color:'var(--rose)',fontFamily:'monospace',fontSize:13}}>{fmtMoney(outstanding,currency)}</span>
                                 : <Badge color='var(--emerald)' bg='rgba(52,199,89,0.08)'>All paid</Badge>}
                             </td>
-                            <td style={{padding:'12px 14px'}}></td>
+                            <td style={{padding:'12px 14px'}}>
+                              {canBulk && !isViewingPast && (
+                                <Btn size='sm' variant='ghost' onClick={()=>deletePeriod(period)}>🗑</Btn>
+                              )}
+                            </td>
                           </tr>
                         )
                       })}
@@ -1022,6 +1268,24 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               <Field label='Fee Name' placeholder='e.g. Feeding Fee, Transport Fee' value={tmplForm.name} onChange={tf('name')}/>
               <Field label='Amount per Period' type='number' placeholder='e.g. 5.00' value={tmplForm.amount_per_period} onChange={tf('amount_per_period')}/>
+              {/* Class selector */}
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:8}}>Applies to Classes ✦</div>
+                <div style={{display:'flex',flexDirection:'column',gap:6,maxHeight:180,overflowY:'auto',padding:'2px 0'}}>
+                  {classesWithStudents.map(c=>{
+                    const checked = tmplForm.class_ids.includes(c.id)
+                    return (
+                      <label key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:checked?'var(--ink4)':'var(--ink3)',border:`1px solid ${checked?'var(--gold)':'var(--line)'}`,borderRadius:'var(--r-sm)',cursor:'pointer',transition:'all 0.15s'}}>
+                        <input type='checkbox' checked={checked}
+                          onChange={e=>tf('class_ids')(e.target.checked ? [...tmplForm.class_ids,c.id] : tmplForm.class_ids.filter(id=>id!==c.id))}
+                          style={{accentColor:'var(--gold)',width:15,height:15,cursor:'pointer',flexShrink:0}}/>
+                        <span style={{fontSize:13,fontWeight:checked?600:400,color:checked?'var(--white)':'var(--mist2)'}}>{c.name}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+                {tmplForm.class_ids.length===0 && <div style={{fontSize:11,color:'var(--rose)',marginTop:6}}>At least one class is required</div>}
+              </div>
               <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:4}}>
                 <Btn variant='ghost' onClick={()=>setTmplModal(false)}>Cancel</Btn>
                 <Btn onClick={saveTmpl} disabled={tmplSaving}>{tmplSaving?<><Spinner/> Saving...</>:'Create Recurring Fee'}</Btn>
@@ -1090,6 +1354,16 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                 <div style={{fontSize:12,color:'var(--mist3)',marginBottom:4}}>
                   <strong style={{color:'var(--gold)'}}>{brp.label}</strong> · {brp.period_date} · {brpRows.filter(r=>r.checked).length} of {brpRows.length} students selected
                 </div>
+                {/* Duplicate warning */}
+                {brpDupWarning && (
+                  <div style={{background:'rgba(251,159,58,0.1)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:'var(--r-sm)',padding:'10px 14px',display:'flex',alignItems:'center',gap:10}}>
+                    <span style={{fontSize:16}}>⚠️</span>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:700,color:'var(--amber)'}}>Possible duplicate</div>
+                      <div style={{fontSize:11,color:'var(--mist3)'}}>A period already exists for this date. You can still proceed if this is intentional.</div>
+                    </div>
+                  </div>
+                )}
                 {brp.mode==='same' && (
                   <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'10px 14px',display:'flex',alignItems:'center',gap:12,marginBottom:4}}>
                     <span style={{fontSize:12,color:'var(--mist2)',flex:1}}>Amount for all selected students</span>
@@ -1109,7 +1383,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                         <Avatar name={fullName(r.student,true)} photo={r.student.photo} size={28}/>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:13,fontWeight:600,color:r.checked?'var(--white)':'var(--mist3)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{fullName(r.student,true)}</div>
-                          <div style={{fontSize:11,color:'var(--mist3)'}}>{cls?.name||'--'}{r.existingBalance>0&&<span style={{color:'var(--rose)',marginLeft:6}}>Owes {fmtMoney(r.existingBalance,currency)}</span>}</div>
+                          <div style={{fontSize:11,color:'var(--mist3)'}}>{cls?.name||'--'}{r.existingBalance>0&&<span style={{color:'var(--rose)',marginLeft:6}}>Owes {fmtMoney(r.existingBalance,currency)}</span>}{r.isNew&&<span style={{color:'var(--sky)',marginLeft:6,fontWeight:600}}>New</span>}</div>
                         </div>
                         {brp.mode==='per' && (
                           <input type='number' value={r.amount} disabled={!r.checked}
@@ -1424,7 +1698,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
       {/* ── Bulk Add Fee Modal ── */}
       {bulkModal && (
-        <Modal title='Bulk Add Fee' subtitle={`Step ${bulkStep} of 3`} onClose={closeBulk} width={560}>
+        <Modal title='Bulk Add Fee' subtitle={`Step ${bulkStep} of 4`} onClose={closeBulk} width={560}>
 
           {/* ── STEP 1 ── */}
           {bulkStep===1 && (
@@ -1476,13 +1750,51 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
               </div>
               <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
                 <Btn variant='ghost' onClick={closeBulk}>Cancel</Btn>
-                <Btn onClick={goToStep2} disabled={!step1Valid}>Next — Set Amounts &rarr;</Btn>
+                <Btn onClick={goToStudentStep} disabled={!step1Valid}>Next — Select Students &rarr;</Btn>
               </div>
             </div>
           )}
 
-          {/* ── STEP 2 ── */}
+          {/* ── STEP 2 — Student Ticker ── */}
           {bulkStep===2 && (
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              <div style={{fontSize:12,color:'var(--mist3)',marginBottom:4}}>
+                <strong style={{color:'var(--white)'}}>{bulkStudentRows.filter(r=>r.checked).length}</strong> of <strong style={{color:'var(--white)'}}>{bulkStudentRows.length}</strong> students selected · Uncheck anyone to exclude from this fee
+              </div>
+              <div style={{maxHeight:400,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
+                {bulk.selected_classes.map(cid=>{
+                  const cls = classes.find(c=>c.id===cid)
+                  const clsRows = bulkStudentRows.filter(r=>r.class_id===cid)
+                  return (
+                    <div key={cid}>
+                      <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',padding:'8px 2px 6px',fontFamily:"'Clash Display',sans-serif"}}>{cls?.name}</div>
+                      {clsRows.map((r,i)=>{
+                        const globalIdx = bulkStudentRows.indexOf(r)
+                        return (
+                          <div key={r.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${r.checked?'var(--line)':'rgba(255,255,255,0.04)'}`,marginBottom:4}}>
+                            <input type='checkbox' checked={r.checked}
+                              onChange={e=>setBulkStudentRows(p=>p.map((x,j)=>j===globalIdx?{...x,checked:e.target.checked}:x))}
+                              style={{accentColor:'var(--gold)',width:16,height:16,cursor:'pointer',flexShrink:0}}/>
+                            <Avatar name={fullName(r.student,true)} photo={r.student.photo} size={28}/>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:13,fontWeight:600,color:r.checked?'var(--white)':'var(--mist3)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{fullName(r.student,true)}</div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',gap:10,marginTop:4}}>
+                <Btn variant='ghost' onClick={()=>setBulkStep(1)}>&larr; Back</Btn>
+                <Btn onClick={goToAmountStep} disabled={bulkStudentRows.filter(r=>r.checked).length===0}>Next — Set Amounts &rarr;</Btn>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 3 ── */}
+          {bulkStep===3 && (
             <div>
               <p style={{fontSize:13,color:'var(--mist2)',marginBottom:16,lineHeight:1.6}}>
                 Each class has been pre-filled with your default amount. Adjust any that differ.
@@ -1530,14 +1842,14 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
               </div>
 
               <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
-                <Btn variant='ghost' onClick={()=>setBulkStep(1)}>&larr; Back</Btn>
-                <Btn onClick={()=>setBulkStep(3)} disabled={!step2Valid}>Next — Preview &rarr;</Btn>
+                <Btn variant='ghost' onClick={()=>setBulkStep(2)}>&larr; Back</Btn>
+                <Btn onClick={()=>setBulkStep(4)} disabled={!step2Valid}>Next — Preview &rarr;</Btn>
               </div>
             </div>
           )}
 
-          {/* ── STEP 3 ── */}
-          {bulkStep===3 && (
+          {/* ── STEP 4 ── */}
+          {bulkStep===4 && (
             <div>
               {/* Summary card */}
               <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:20,marginBottom:16}}>
@@ -1597,7 +1909,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
               )}
 
               <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
-                <Btn variant='ghost' onClick={()=>setBulkStep(2)}>&larr; Back</Btn>
+                <Btn variant='ghost' onClick={()=>setBulkStep(3)}>&larr; Back</Btn>
                 <Btn onClick={confirmBulk} disabled={bulkSaving||toCreate===0}>
                   {bulkSaving?<><Spinner/> Adding...</>:`Confirm — Add ${toCreate} Record${toCreate!==1?'s':''}`}
                 </Btn>
@@ -1606,6 +1918,113 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           )}
         </Modal>
       )}
+
+      {/* ── Bulk Collect Payment Modal ── */}
+      {bcpModal && (
+        <Modal title='Bulk Collect Payment' subtitle={`Step ${bcpStep} of 3`} onClose={closeBcp} width={560}>
+
+          {/* Step 1 — Fee type + filters */}
+          {bcpStep===1 && (
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:6}}>Fee Type ✦</div>
+                <select value={bcp.fee_type} onChange={e=>bcf('fee_type')(e.target.value)}
+                  style={{width:'100%',padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:bcp.fee_type?'var(--white)':'var(--mist3)',fontSize:13}}>
+                  <option value=''>Select fee type…</option>
+                  {feeTypes.map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:6}}>Period <span style={{color:'var(--mist3)',fontWeight:400}}>(optional)</span></div>
+                <select value={bcp.period} onChange={e=>bcf('period')(e.target.value)}
+                  style={{width:'100%',padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13}}>
+                  <option value=''>All periods</option>
+                  {feePeriodLabels.map(p=><option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:6}}>Class <span style={{color:'var(--mist3)',fontWeight:400}}>(optional)</span></div>
+                <select value={bcp.class_id} onChange={e=>bcf('class_id')(e.target.value)}
+                  style={{width:'100%',padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13}}>
+                  <option value=''>All classes</option>
+                  {classesWithStudents.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:4}}>
+                <Btn variant='ghost' onClick={closeBcp}>Cancel</Btn>
+                <Btn onClick={bcpGoStep2} disabled={!bcp.fee_type}>Next — Select Students &rarr;</Btn>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2 — Student list */}
+          {bcpStep===2 && (
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              <div style={{fontSize:12,color:'var(--mist3)',marginBottom:4}}>
+                Showing <strong style={{color:'var(--white)'}}>{bcpRows.length}</strong> students with outstanding balances for <strong style={{color:'var(--gold)'}}>{bcp.fee_type}</strong>
+              </div>
+              {/* Same amount override */}
+              <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'10px 14px',display:'flex',alignItems:'center',gap:12}}>
+                <span style={{fontSize:12,color:'var(--mist2)',flex:1}}>Override amount for all <span style={{color:'var(--mist3)'}}>(leave blank to use individual balances)</span></span>
+                <input type='number' value={bcp.same_amount} placeholder='—'
+                  onChange={e=>{bcf('same_amount')(e.target.value);setBcpRows(p=>p.map(r=>({...r,amount:e.target.value||String(r.balance)})))}}
+                  style={{width:100,padding:'6px 10px',background:'var(--ink)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13,textAlign:'right'}}/>
+              </div>
+              <div style={{maxHeight:360,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
+                {bcpRows.map((r,i)=>{
+                  const cls = classes.find(c=>c.id===r.student.class_id)
+                  return (
+                    <div key={r.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${r.checked?'var(--line)':'rgba(255,255,255,0.04)'}`}}>
+                      <input type='checkbox' checked={r.checked}
+                        onChange={e=>setBcpRows(p=>p.map((x,j)=>j===i?{...x,checked:e.target.checked}:x))}
+                        style={{accentColor:'var(--gold)',width:16,height:16,cursor:'pointer',flexShrink:0}}/>
+                      <Avatar name={fullName(r.student,true)} photo={r.student.photo} size={28}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:r.checked?'var(--white)':'var(--mist3)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{fullName(r.student,true)}</div>
+                        <div style={{fontSize:11,color:'var(--mist3)'}}>{cls?.name||'--'} · <span style={{color:'var(--rose)'}}>Owes {fmtMoney(r.balance,currency)}</span></div>
+                      </div>
+                      <input type='number' value={r.amount} disabled={!r.checked}
+                        onChange={e=>setBcpRows(p=>p.map((x,j)=>j===i?{...x,amount:e.target.value}:x))}
+                        style={{width:90,padding:'5px 8px',background:'var(--ink)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13,textAlign:'right',opacity:r.checked?1:0.4}}/>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
+                <div style={{fontSize:12,color:'var(--mist3)'}}>Total: <strong style={{color:'var(--emerald)'}}>{fmtMoney(bcpRows.filter(r=>r.checked).reduce((a,r)=>a+parseFloat(r.amount||0),0),currency)}</strong></div>
+                <div style={{display:'flex',gap:10}}>
+                  <Btn variant='ghost' onClick={()=>setBcpStep(1)}>← Back</Btn>
+                  <Btn onClick={confirmBcp} disabled={bcpSaving||bcpRows.filter(r=>r.checked).length===0}>
+                    {bcpSaving?<><Spinner/> Recording...</>:`Confirm — ${bcpRows.filter(r=>r.checked).length} Student${bcpRows.filter(r=>r.checked).length!==1?'s':''}`}
+                  </Btn>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3 — Done + receipt prompt */}
+          {bcpStep===3 && bcpDone && (
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16,padding:'8px 0'}}>
+              <div style={{fontSize:40}}>✅</div>
+              <div style={{fontSize:16,fontWeight:700,color:'var(--white)',textAlign:'center'}}>
+                Payments recorded for {bcpDone.count} student{bcpDone.count!==1?'s':''}
+              </div>
+              <div style={{fontSize:13,color:'var(--mist3)',textAlign:'center'}}>
+                <strong style={{color:'var(--gold)'}}>{bcpDone.feeType}</strong> · {fmtMoney(bcpDone.selected.reduce((a,r)=>a+parseFloat(r.amount||0),0),currency)} total
+              </div>
+              <div style={{fontSize:13,color:'var(--mist2)',fontWeight:600,marginTop:4}}>Print receipts?</div>
+              <div style={{display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center'}}>
+                <Btn variant='secondary' onClick={()=>printBcpCombined(bcpDone)}>⎙ Combined Receipt</Btn>
+                <PlanGate planHook={planHook} feature='feeReceipts' mode='inline'>
+                  <Btn variant='secondary' onClick={()=>printBcpIndividual(bcpDone)}>⎙ Individual Receipts</Btn>
+                </PlanGate>
+              </div>
+              <Btn variant='ghost' onClick={closeBcp} style={{marginTop:4}}>Done</Btn>
+            </div>
+          )}
+        </Modal>
+      )}
+
       {confirmState && <ConfirmModal {...confirmState} onClose={()=>setConfirmState(null)}/>}
     </div>
   )
