@@ -948,8 +948,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         f.student_id===s.id &&
         f.fee_type===feeType &&
         f.academic_year===activeYear &&
-        (!period || f.period===period) &&
-        !f.template_id
+        (!period || f.period===period)
       )
       const totalCharged = studentFees.reduce((a,f)=>a+Number(f.amount||0),0)
       const totalPaid    = studentFees.reduce((a,f)=>a+Number(f.paid||0),0)
@@ -989,7 +988,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         const {data:payRow,error:payErr}=await supabase.from('payments').insert({
           school_id:        profile?.school_id,
           academic_year:    activeYear,
-          fee_id:           r._feeId,
+          fee_id:           r.feeId,
           student_id:       r.student.id,
           amount:           amt,
           receipt_no:       rcpt,
@@ -998,9 +997,9 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         }).select().single()
         if(payErr) throw payErr
         // Update fee.paid
-        const fee = fees.find(f=>f.id===r._feeId)
+        const fee = fees.find(f=>f.id===r.feeId)
         const newPaid = Number(fee?.paid||0) + amt
-        await supabase.from('fees').update({paid:newPaid}).eq('id',r._feeId).eq('school_id',profile?.school_id)
+        await supabase.from('fees').update({paid:newPaid}).eq('id',r.feeId).eq('school_id',profile?.school_id)
         currentPayments = [payRow, ...currentPayments]
         payRows.push({...payRow, _student:r.student, _amount:amt, _feeId:r.feeId})
       }
@@ -1009,9 +1008,9 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         ...p,
         payments: [...payRows.map(r=>({...r})).reverse(), ...p.payments],
         fees: p.fees.map(f=>{
-          const match = selected.find(r=>r._feeId===f.id)
+          const match = selected.find(r=>r.feeId===f.id)
           if(!match) return f
-          return {...f, paid: Number(f.paid||0) + parseFloat(match._amount)}
+          return {...f, paid: Number(f.paid||0) + parseFloat(match.amount)}
         })
       }))
       auditLog(profile,'Fees','Bulk Payment Collected',
@@ -1034,15 +1033,15 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       : `<div style="width:44px;height:44px;border-radius:8px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#e8b84b;">S</div>`
     const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
     const rows = done.selected.map(r=>{
-      const pay = done.payRows.find(p=>p.student_id===r._student.id)
+      const pay = done.payRows.find(p=>p.student_id===r.student.id)
       return `<tr>
-        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#111;">${fullName(r._student,true)}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#555;">${classes.find(c=>c.id===r._student.class_id)?.name||'--'}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:700;color:#1a7a4a;text-align:right;">${fmtMoney(parseFloat(r._amount),currency)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#111;">${fullName(r.student,true)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#555;">${classes.find(c=>c.id===r.student.class_id)?.name||'--'}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:700;color:#1a7a4a;text-align:right;">${fmtMoney(parseFloat(r.amount),currency)}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;font-family:monospace;color:#888;">${pay?.receipt_no||'--'}</td>
       </tr>`
     }).join('')
-    const total = done.selected.reduce((a,r)=>a+parseFloat(r._amount||0),0)
+    const total = done.selected.reduce((a,r)=>a+parseFloat(r.amount||0),0)
     const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Bulk Collection — ${done.feeType}</title>
     <style>*{box-sizing:border-box;margin:0;padding:0}body{background:#e8e8e8;font-family:'Helvetica Neue',Arial,sans-serif;display:flex;justify-content:center;padding:32px 16px}
     .card{width:560px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 48px rgba(0,0,0,0.18)}
@@ -1095,12 +1094,12 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       : `<div style="width:36px;height:36px;border-radius:6px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#e8b84b;">S</div>`
     const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
     const pages = done.selected.map(r=>{
-      const fee = fees.find(f=>f.id===r._feeId)
-      const payRow = done.payRows.find(p=>p.student_id===r._student.id)
-      if(!fee||!payRow) return ''
-      const cls = classes.find(c=>c.id===r._student.class_id)
-      const sName = fullName(r._student,true)
-      const amtFormatted = fmtMoney(parseFloat(r._amount||0), currency)
+      const fee = fees.find(f=>f.id===r.feeId)
+      const payRow = done.payRows.find(p=>p.student_id===r.student.id)
+      if(!payRow) return ''
+      const cls = classes.find(c=>c.id===r.student.class_id)
+      const sName = fullName(r.student,true)
+      const amtFormatted = fmtMoney(parseFloat(r.amount||0), currency)
       return `<div style="page-break-after:always;padding:32px 24px;max-width:480px;margin:0 auto;">
         <div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border-radius:12px;padding:20px;margin-bottom:16px;">
           <div style="display:flex;align-items:center;gap:12px;">${logoTag}
@@ -1116,7 +1115,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
             <div><div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:3px;">Student</div><div style="font-size:13px;font-weight:600;color:#111;">${sName}</div></div>
             <div><div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:3px;">Class</div><div style="font-size:13px;color:#333;">${cls?.name||'--'}</div></div>
-            <div><div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:3px;">Fee Type</div><div style="font-size:13px;color:#333;">${fee.fee_type}</div></div>
+            <div><div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:3px;">Fee Type</div><div style="font-size:13px;color:#333;">${fee?.fee_type||done.feeType}</div></div>
             <div><div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:3px;">Date</div><div style="font-size:13px;color:#333;">${fmtD(payRow.created_at)}</div></div>
           </div>
           <div style="height:1px;background:#eee;margin-bottom:12px;"></div>
