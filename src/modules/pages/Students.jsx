@@ -117,12 +117,13 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     if(!form.first_name||!form.last_name||!form.class_id){toast('Please fill all required fields','error');return}
     if(!edit && atStudentLimit){toast(`Student limit of ${studentLimit} reached on your current plan. Upgrade to add more.`,'error');return}
     setSaving(true)
+    const cleanForm = {...form, dob: form.dob||null, guardian_name: form.guardian_name||null, guardian_phone: form.guardian_phone||null, guardian_email: form.guardian_email||null, guardian_relation: form.guardian_relation||null}
     if(edit){
-      const {error} = await supabase.from('students').update({...form,updated_at:new Date()}).eq('id',edit.id)
-      if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));auditLog(profile,'Students','Updated',`${fullName(form)}`,{},{...edit},{...form});toast('Student updated');setModal(false)}
+      const {error} = await supabase.from('students').update({...cleanForm,updated_at:new Date()}).eq('id',edit.id)
+      if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));auditLog(profile,'Students','Updated',`${fullName(cleanForm)}`,{},{...edit},{...cleanForm});toast('Student updated');setModal(false)}
     } else {
       const sid = genSID(students)
-      const {data:row,error} = await supabase.from('students').insert({...form,school_id:profile?.school_id,student_id:sid,created_at:new Date(),entry_year:activeYear}).select().single()
+      const {data:row,error} = await supabase.from('students').insert({...cleanForm,school_id:profile?.school_id,student_id:sid,created_at:new Date(),entry_year:activeYear}).select().single()
       if(error){toast(error.message,'error')}else{setData(p=>({...p,students:[...p.students,row]}));auditLog(profile,'Students','Created',`${fullName(form)}`,{},null,row);toast('Student added');setModal(false)}
     }
     setSaving(false)
@@ -499,7 +500,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
           <div style={{margin:'16px 0 10px',paddingTop:16,borderTop:'1px solid var(--line)'}}>
             <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12,display:'flex',alignItems:'center',gap:8}}>
               <span>Parent / Guardian</span>
-              <span style={{fontSize:10,color:'var(--rose)',background:'rgba(240,107,122,0.1)',border:'1px solid rgba(240,107,122,0.2)',padding:'2px 8px',borderRadius:10}}>Required</span>
+              
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'0 20px'}}>
               <Field label='Guardian Name' value={form.guardian_name} onChange={f('guardian_name')} placeholder='Full name'/>

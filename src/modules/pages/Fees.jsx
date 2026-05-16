@@ -250,7 +250,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const [brpModal, setBrpModal]       = useState(false)
   const [brpStep, setBrpStep]         = useState(1)
   const [brp, setBrp]                 = useState(BRP_INIT)
-  const [brpRows, setBrpRows]         = useState([]) // {student, checked, amount, existingBalance}
+  const [brpRows, setBrpRows]         = useState([]) // {student, state:'paid'|'owes'|'excluded', amount, existingBalance, isNew}
   const [brpSaving, setBrpSaving]     = useState(false)
   const [brpDone, setBrpDone]         = useState(null) // {count, feeRows, payRows, periodRow} after confirm
   const brf = k=>v=>setBrp(p=>({...p,[k]:v}))
@@ -666,7 +666,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       const existingBalance = Math.max(0, totalCharged - totalPaidAmt)
       // Flag students enrolled after template was created
       const isNew = tmpl.created_at && s.created_at && new Date(s.created_at) > new Date(tmpl.created_at)
-      return {student:s, checked:true, amount:String(tmpl.amount_per_period), existingBalance, isNew}
+      return {student:s, state:'paid', amount:String(tmpl.amount_per_period), existingBalance, isNew}
     })
   }
 
@@ -701,8 +701,10 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const confirmBrp = async () => {
     const tmpl = fee_templates.find(t=>t.id===brp.template_id)
     if(!tmpl){toast('Template not found','error');return}
-    const selected = brpRows.filter(r=>r.checked && parseFloat(r.amount)>0)
-    if(selected.length===0){toast('No students selected with a valid amount','error');return}
+    const paidRows  = brpRows.filter(r=>r.state==='paid' && parseFloat(r.amount)>0)
+    const owesRows  = brpRows.filter(r=>r.state==='owes' && parseFloat(r.amount)>0)
+    const chargedRows = [...paidRows, ...owesRows]
+    if(chargedRows.length===0){toast('No students selected','error');return}
     setBrpSaving(true)
     try {
       // 1 — create the fee_period row
@@ -716,8 +718,8 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       }).select().single()
       if(pErr) throw pErr
 
-      // 2 — create one fee row per selected student
-      const feeRows = selected.map(r=>({
+      // 2 — create one fee row per charged student (paid + owes)
+      const feeRows = chargedRows.map(r=>({
         school_id:    profile?.school_id,
         student_id:   r.student.id,
         fee_type:     tmpl.name,
@@ -731,10 +733,10 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       const {data:insertedFees,error:fErr}=await supabase.from('fees').insert(feeRows).select()
       if(fErr) throw fErr
 
-      // 3 — generate receipt numbers and record payments for each student
+      // 3 — record payments only for 'paid' students
       const payRows = []
       let currentPayments = [...payments]
-      for(const r of selected){
+      for(const r of paidRows){
         const feeRow = insertedFees.find(f=>f.student_id===r.student.id)
         if(!feeRow) continue
         const amt = parseFloat(r.amount)
@@ -751,9 +753,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           fee_period_id:    periodRow.id,
         }).select().single()
         if(payErr) throw payErr
-        // Update fee.paid
         await supabase.from('fees').update({paid:amt}).eq('id',feeRow.id).eq('school_id',profile?.school_id)
-        // Track so next receipt increments correctly
         currentPayments = [payRow, ...currentPayments]
         payRows.push(payRow)
       }
@@ -763,18 +763,18 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         ...p,
         fee_periods:[...p.fee_periods, periodRow],
         fees:[...p.fees, ...(insertedFees||[]).map(f=>{
-          const paid = parseFloat(brpRows.find(r=>r.student.id===f.student_id)?.amount||0)
-          return {...f, paid}
+          const paidRow = paidRows.find(r=>r.student.id===f.student_id)
+          return {...f, paid: paidRow ? parseFloat(paidRow.amount) : 0}
         })],
         payments:[...payRows.reverse(), ...p.payments],
       }))
 
       auditLog(profile,'Fees','Bulk Payment Recorded',
-        `${tmpl.name} · ${brp.label} · ${selected.length} students · ${fmtMoney(selected.reduce((a,r)=>a+parseFloat(r.amount||0),0),currency)}`,
+        `${tmpl.name} · ${brp.label} · ${paidRows.length} paid · ${owesRows.length} outstanding · ${brpRows.filter(r=>r.state==='excluded').length} excluded`,
         {},{},{}
       )
-      toast(`Payments recorded for ${selected.length} student${selected.length!==1?'s':''}`)
-      setBrpDone({count:selected.length, feeRows:insertedFees, payRows, periodRow, selected, tmpl})
+      toast(`${paidRows.length} paid · ${owesRows.length} outstanding · ${brpRows.filter(r=>r.state==='excluded').length} excluded`)
+      setBrpDone({count:paidRows.length, owesCount:owesRows.length, feeRows:insertedFees, payRows, periodRow, selected:paidRows, tmpl})
       setBrpStep(3)
     } catch(err){
       toast(err.message,'error')
@@ -1660,7 +1660,12 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             {brpStep===2 && (
               <div style={{display:'flex',flexDirection:'column',gap:12}}>
                 <div style={{fontSize:12,color:'var(--mist3)',marginBottom:4}}>
-                  <strong style={{color:'var(--gold)'}}>{brp.label}</strong> · {brp.period_date} · {brpRows.filter(r=>r.checked).length} of {brpRows.length} students selected
+                  <strong style={{color:'var(--gold)'}}>{brp.label}</strong> · {brp.period_date}
+                  <span style={{marginLeft:8}}>
+                    <span style={{color:'var(--emerald)',fontWeight:600}}>{brpRows.filter(r=>r.state==='paid').length} paid</span>
+                    {brpRows.filter(r=>r.state==='owes').length>0&&<span style={{color:'var(--amber)',fontWeight:600,marginLeft:6}}>{brpRows.filter(r=>r.state==='owes').length} owes</span>}
+                    {brpRows.filter(r=>r.state==='excluded').length>0&&<span style={{color:'var(--mist3)',marginLeft:6}}>{brpRows.filter(r=>r.state==='excluded').length} excluded</span>}
+                  </span>
                 </div>
                 {/* Duplicate warning */}
                 {brpDupWarning && (
@@ -1672,42 +1677,61 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                     </div>
                   </div>
                 )}
+                {/* Legend */}
+                <div style={{display:'flex',gap:16,fontSize:11,color:'var(--mist3)',padding:'4px 0'}}>
+                  <span><span style={{color:'var(--emerald)',fontWeight:700}}>Paid</span> — present & paid</span>
+                  <span><span style={{color:'var(--amber)',fontWeight:700}}>Owes</span> — present, didn't pay</span>
+                  <span><span style={{color:'var(--mist3)',fontWeight:700}}>Out</span> — absent</span>
+                </div>
                 {brp.mode==='same' && (
                   <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'10px 14px',display:'flex',alignItems:'center',gap:12,marginBottom:4}}>
-                    <span style={{fontSize:12,color:'var(--mist2)',flex:1}}>Amount for all selected students</span>
+                    <span style={{fontSize:12,color:'var(--mist2)',flex:1}}>Amount for all charged students</span>
                     <input type='number' value={brp.same_amount}
-                      onChange={e=>{brf('same_amount')(e.target.value);setBrpRows(p=>p.map(r=>({...r,amount:e.target.value})))}}
+                      onChange={e=>{brf('same_amount')(e.target.value);setBrpRows(p=>p.map(r=>r.state!=='excluded'?{...r,amount:e.target.value}:r))}}
                       style={{width:100,padding:'6px 10px',background:'var(--ink)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13,textAlign:'right'}}/>
                   </div>
                 )}
                 <div style={{maxHeight:360,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
                   {brpRows.map((r,i)=>{
                     const cls = classes.find(c=>c.id===r.student.class_id)
+                    const isExcluded = r.state==='excluded'
+                    const borderColor = r.state==='paid'?'var(--line)':r.state==='owes'?'rgba(251,159,58,0.3)':'rgba(255,255,255,0.04)'
                     return (
-                      <div key={r.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${r.checked?'var(--line)':'rgba(255,255,255,0.04)'}`}}>
-                        <input type='checkbox' checked={r.checked}
-                          onChange={e=>setBrpRows(p=>p.map((x,j)=>j===i?{...x,checked:e.target.checked}:x))}
-                          style={{accentColor:'var(--gold)',width:16,height:16,cursor:'pointer',flexShrink:0}}/>
+                      <div key={r.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${borderColor}`,opacity:isExcluded?0.5:1}}>
                         <Avatar name={fullName(r.student,true)} photo={r.student.photo} size={28}/>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:600,color:r.checked?'var(--white)':'var(--mist3)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{fullName(r.student,true)}</div>
-                          <div style={{fontSize:11,color:'var(--mist3)'}}>{cls?.name||'--'}{r.existingBalance>0&&<span style={{color:'var(--rose)',marginLeft:6}}>Owes {fmtMoney(r.existingBalance,currency)}</span>}{r.isNew&&<span style={{color:'var(--sky)',marginLeft:6,fontWeight:600}}>New</span>}</div>
+                          <div style={{fontSize:13,fontWeight:600,color:isExcluded?'var(--mist3)':'var(--white)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{fullName(r.student,true)}</div>
+                          <div style={{fontSize:11,color:'var(--mist3)'}}>{cls?.name||'--'}{r.existingBalance>0&&<span style={{color:'var(--rose)',marginLeft:6}}>Prev. owes {fmtMoney(r.existingBalance,currency)}</span>}{r.isNew&&<span style={{color:'var(--sky)',marginLeft:6,fontWeight:600}}>New</span>}</div>
                         </div>
-                        {brp.mode==='per' && (
-                          <input type='number' value={r.amount} disabled={!r.checked}
+                        {/* 3-way toggle */}
+                        <div style={{display:'flex',borderRadius:8,overflow:'hidden',border:'1px solid var(--line)',flexShrink:0}}>
+                          {[{v:'paid',label:'Paid',color:'var(--emerald)'},{v:'owes',label:'Owes',color:'var(--amber)'},{v:'excluded',label:'Out',color:'var(--mist3)'}].map(opt=>(
+                            <button key={opt.v} onClick={()=>setBrpRows(p=>p.map((x,j)=>j===i?{...x,state:opt.v}:x))}
+                              style={{padding:'5px 10px',fontSize:11,fontWeight:700,cursor:'pointer',transition:'all 0.15s',border:'none',
+                                background:r.state===opt.v?opt.color:'var(--ink)',
+                                color:r.state===opt.v?'var(--ink)':'var(--mist3)'}}>
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        {r.state==='paid' && (
+                          <input type='number' value={r.amount}
                             onChange={e=>setBrpRows(p=>p.map((x,j)=>j===i?{...x,amount:e.target.value}:x))}
-                            style={{width:90,padding:'5px 8px',background:'var(--ink)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13,textAlign:'right',opacity:r.checked?1:0.4}}/>
+                            style={{width:80,padding:'5px 8px',background:'var(--ink)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13,textAlign:'right'}}/>
                         )}
                       </div>
                     )
                   })}
                 </div>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
-                  <div style={{fontSize:12,color:'var(--mist3)'}}>Total: <strong style={{color:'var(--emerald)'}}>{fmtMoney(brpRows.filter(r=>r.checked).reduce((a,r)=>a+parseFloat(r.amount||0),0),currency)}</strong></div>
+                  <div style={{fontSize:12,color:'var(--mist3)'}}>
+                    Collecting: <strong style={{color:'var(--emerald)'}}>{fmtMoney(brpRows.filter(r=>r.state==='paid').reduce((a,r)=>a+parseFloat(r.amount||0),0),currency)}</strong>
+                    {brpRows.filter(r=>r.state==='owes').length>0&&<span style={{marginLeft:8}}>Outstanding: <strong style={{color:'var(--amber)'}}>{fmtMoney(brpRows.filter(r=>r.state==='owes').reduce((a,r)=>a+parseFloat(r.amount||0),0),currency)}</strong></span>}
+                  </div>
                   <div style={{display:'flex',gap:10}}>
                     <Btn variant='ghost' onClick={()=>setBrpStep(1)}>← Back</Btn>
-                    <Btn onClick={confirmBrp} disabled={brpSaving||brpRows.filter(r=>r.checked).length===0}>
-                      {brpSaving?<><Spinner/> Recording...</>:`Confirm — ${brpRows.filter(r=>r.checked).length} Student${brpRows.filter(r=>r.checked).length!==1?'s':''}`}
+                    <Btn onClick={confirmBrp} disabled={brpSaving||brpRows.filter(r=>r.state!=='excluded').length===0}>
+                      {brpSaving?<><Spinner/> Recording...</>:`Confirm — ${brpRows.filter(r=>r.state!=='excluded').length} Student${brpRows.filter(r=>r.state!=='excluded').length!==1?'s':''}`}
                     </Btn>
                   </div>
                 </div>
@@ -1719,10 +1743,10 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
               <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16,padding:'8px 0'}}>
                 <div style={{fontSize:40}}>✅</div>
                 <div style={{fontSize:16,fontWeight:700,color:'var(--white)',textAlign:'center'}}>
-                  Payments recorded for {brpDone.count} student{brpDone.count!==1?'s':''}
+                  {brpDone.count} paid{brpDone.owesCount>0?` · ${brpDone.owesCount} outstanding`:''}
                 </div>
                 <div style={{fontSize:13,color:'var(--mist3)',textAlign:'center'}}>
-                  <strong style={{color:'var(--gold)'}}>{brpDone.periodRow.label}</strong> · {brpDone.tmpl.name} · {fmtMoney(brpDone.selected.reduce((a,r)=>a+parseFloat(r.amount||0),0),currency)} total
+                  <strong style={{color:'var(--gold)'}}>{brpDone.periodRow.label}</strong> · {brpDone.tmpl.name}
                 </div>
                 <div style={{fontSize:13,color:'var(--mist2)',fontWeight:600,marginTop:4}}>Print receipts?</div>
                 <div style={{display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center'}}>
