@@ -237,6 +237,8 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   // ── Recurring state ──
   const [selectedTemplate, setSelectedTemplate]     = useState(null) // fee_template row
   const [selectedPeriod, setSelectedPeriod]         = useState(null) // fee_period row for register
+  const [regClassFilter, setRegClassFilter]         = useState('')
+  const [regStatusFilter, setRegStatusFilter]       = useState('')
   const [tmplModal, setTmplModal]                   = useState(false) // new template modal
   const [tmplForm, setTmplForm]                     = useState({name:'',amount_per_period:'',class_ids:[]})
   const [tmplSaving, setTmplSaving]                 = useState(false)
@@ -1317,7 +1319,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                         const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
                         return (
                           <tr key={period.id}
-                            onClick={()=>setSelectedPeriod(isSelected?null:period)}
+                            onClick={()=>{setSelectedPeriod(isSelected?null:period);setRegClassFilter('');setRegStatusFilter('')}}
                             style={{borderBottom:'1px solid var(--line)',cursor:'pointer',background:isSelected?'rgba(232,184,75,0.04)':'transparent',transition:'background 0.15s'}}>
                             <td style={{padding:'12px 14px'}}>
                               <div style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{period.label}</div>
@@ -1362,8 +1364,6 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           const tmplClassIds = tmpl?.class_ids||[]
           // All students in template's classes
           const allStudents  = activeStudents.filter(s=>tmplClassIds.includes(s.class_id))
-          const [regClassFilter, setRegClassFilter] = React.useState('')
-          const [regStatusFilter, setRegStatusFilter] = React.useState('')
           const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
 
           const registerRows = allStudents.map(s=>{
