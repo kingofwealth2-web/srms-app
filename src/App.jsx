@@ -36,6 +36,7 @@ import Users          from './modules/pages/Users'
 import MyProfile      from './modules/pages/MyProfile'
 import AuditLog       from './modules/pages/AuditLog'
 import Settings       from './modules/pages/Settings'
+import WhatsNew       from './modules/components/WhatsNew'
 import FeedbackButton from './modules/components/FeedbackButton'
 
 // ── Theme Toggle ────────────────────────────────────────────────
@@ -331,9 +332,16 @@ export default function App() {
     setProfile(null); setSession(null); setPage('dashboard'); setShowLanding(false)
   }
 
+  const [newYearSlowMsg, setNewYearSlowMsg] = useState(false)
+
   const confirmNewYear = async () => {
     if (!newYearTarget) return
     setNewYearWorking(true)
+    setNewYearSlowMsg(false)
+
+    // Show slow message after 8 seconds
+    const slowTimer = setTimeout(() => setNewYearSlowMsg(true), 8000)
+
     const { error } = await supabase.functions.invoke('start-new-year', {
       body: {
         school_id: profile.school_id,
@@ -341,17 +349,25 @@ export default function App() {
         new_year:  newYearTarget,
       }
     })
+
+    clearTimeout(slowTimer)
     setNewYearWorking(false)
+    setNewYearSlowMsg(false)
+
     if (error) {
       showToast('Year transition failed: ' + error.message, 'error')
       return
     }
+
     setSettings(p => ({ ...p, academic_year: newYearTarget }))
     setSelectedYear(null)
     setNewYearModal(false)
     setNewYearStep(1)
     setNewYearTarget('')
     showToast('Academic year ' + newYearTarget + ' started successfully.')
+
+    // Reload all data for the new year
+    await loadData(profile, newYearTarget)
   }
 
   // ── Early returns ──────────────────────────────────────────────
@@ -574,6 +590,7 @@ export default function App() {
                 })()}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <WhatsNew/>
                 <ThemeToggle isDark={isDark} onToggle={() => setIsDark(d => !d)}/>
                 <div style={{ width: 1, height: 20, background: 'var(--line2)' }}/>
                 <button onClick={() => setPage('myprofile')}
@@ -729,6 +746,11 @@ export default function App() {
                   {newYearWorking ? <><Spinner/> Processing...</> : 'Confirm — Start New Year'}
                 </Btn>
               </div>
+              {newYearSlowMsg && (
+                <div style={{marginTop:12,fontSize:12,color:'var(--amber)',textAlign:'center'}}>
+                  This is taking a little longer than usual — please wait, don't close this window...
+                </div>
+              )}
             </div>
           )}
         </Modal>
