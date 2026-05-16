@@ -72,8 +72,8 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     if(!showArchived && fGender && s.gender!==fGender) return false
     return true
   }).sort((a,b)=>{
-    const nameA = `${a.first_name} ${a.last_name}`.toLowerCase()
-    const nameB = `${b.first_name} ${b.last_name}`.toLowerCase()
+    const nameA = `${a.last_name} ${a.first_name}`.toLowerCase()
+    const nameB = `${b.last_name} ${b.first_name}`.toLowerCase()
     return sortAlpha==='asc' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA)
   })
   const unarchive = async (student, classId) => {
@@ -129,7 +129,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
       const {error} = await supabase.from('students').update({...cleanForm,updated_at:new Date()}).eq('id',edit.id)
       if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));auditLog(profile,'Students','Updated',`${fullName(cleanForm)}`,{},{...edit},{...cleanForm});toast('Student updated');setModal(false)}
     } else {
-      const sid = genSID(students)
+      const sid = genSID(students, settings?.student_id_prefix||'STU')
       const {data:row,error} = await supabase.from('students').insert({...cleanForm,school_id:profile?.school_id,student_id:sid,created_at:new Date(),entry_year:activeYear}).select().single()
       if(error){toast(error.message,'error')}else{setData(p=>({...p,students:[...p.students,row]}));auditLog(profile,'Students','Created',`${fullName(form)}`,{},null,row);toast('Student added');setModal(false)}
     }
@@ -489,7 +489,13 @@ export default function Students({profile,data,setData,toast,settings,activeYear
       </Card>
       {modal && (
         <Modal title={edit?'Edit Student':'New Student'} subtitle={edit?`ID: ${edit.student_id}`:'A Student ID will be generated automatically.'} onClose={()=>setModal(false)} width={580}>
-          {/* Photo upload */}
+          {/* No prefix warning */}
+          {!edit && !settings?.student_id_prefix && (
+            <div style={{background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.25)',borderRadius:'var(--r-sm)',padding:'10px 14px',display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+              <span style={{fontSize:16,flexShrink:0}}>⚠️</span>
+              <div style={{fontSize:12,color:'var(--mist2)'}}>No Student ID Prefix set. IDs will use the default <strong style={{color:'var(--gold)'}}>STU</strong> (e.g. STU-0001). You can set your school's prefix in <strong>Settings</strong>.</div>
+            </div>
+          )}
           <div style={{display:'flex',alignItems:'center',gap:16,padding:'14px 16px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:20,border:'1px solid var(--line)'}}>
             <div style={{position:'relative',flexShrink:0}}>
               <Avatar name={fullName(form)||'?'} size={56} photo={form.photo}/>

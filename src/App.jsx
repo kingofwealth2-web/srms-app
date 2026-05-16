@@ -469,7 +469,7 @@ export default function App() {
       case 'reports':       return <Reports      {...props} planHook={planHook}/>
       case 'announcements': return <Announcements {...props} planHook={planHook}/>
       case 'users':         return <Users        {...props} planHook={planHook}/>
-      case 'settings':      return <Settings     profile={profile} settings={settings} setSettings={setSettings} toast={showToast} activeYear={activeYear} onStartNewYear={() => setNewYearModal(true)}/>
+      case 'settings':      return <Settings     profile={profile} settings={settings} setSettings={setSettings} toast={showToast} activeYear={activeYear} onStartNewYear={() => setNewYearModal(true)} data={data} setData={setData}/>
       case 'myprofile':     return <MyProfile    profile={profile} setProfile={setProfile} toast={showToast}/>
       case 'auditlog':      return <AuditLog     {...props} planHook={planHook}/>
       default:              return <Dashboard    {...props} onNav={setPage}/>
