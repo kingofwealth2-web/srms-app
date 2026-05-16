@@ -681,7 +681,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     setBrpModal(true)
   }
 
-  const closeBrp = () => {setBrpModal(false);setBrpStep(1);setBrp(BRP_INIT);setBrpRows([]);setBrpDone(null)}
+  const closeBrp = () => {setBrpModal(false);setBrpStep(1);setBrp(BRP_INIT);setBrpRows([]);setBrpDone(null);setBrpDupWarning(false)}
 
   const [brpDupWarning, setBrpDupWarning] = useState(false)
 
@@ -937,6 +937,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
   // ── Bulk Collect Payment helpers ──
   const feeTypes = [...new Set(fees.filter(f=>f.academic_year===activeYear&&!f.template_id).map(f=>f.fee_type))].sort()
+  const allFeeTypes = [...new Set(fees.filter(f=>f.academic_year===activeYear).map(f=>f.fee_type))].sort()
   const feePeriodLabels = [...new Set(fees.filter(f=>f.academic_year===activeYear&&!f.template_id).map(f=>f.period))].sort()
 
   const buildBcpRows = (feeType, classIds, period) => {
@@ -988,7 +989,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         const {data:payRow,error:payErr}=await supabase.from('payments').insert({
           school_id:        profile?.school_id,
           academic_year:    activeYear,
-          fee_id:           r.feeId,
+          fee_id:           r._feeId,
           student_id:       r.student.id,
           amount:           amt,
           receipt_no:       rcpt,
@@ -997,20 +998,20 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         }).select().single()
         if(payErr) throw payErr
         // Update fee.paid
-        const fee = fees.find(f=>f.id===r.feeId)
+        const fee = fees.find(f=>f.id===r._feeId)
         const newPaid = Number(fee?.paid||0) + amt
-        await supabase.from('fees').update({paid:newPaid}).eq('id',r.feeId).eq('school_id',profile?.school_id)
+        await supabase.from('fees').update({paid:newPaid}).eq('id',r._feeId).eq('school_id',profile?.school_id)
         currentPayments = [payRow, ...currentPayments]
-        payRows.push({...payRow, student:r.student, amount:amt, feeId:r.feeId})
+        payRows.push({...payRow, _student:r.student, _amount:amt, _feeId:r.feeId})
       }
       // Update local state
       setData(p=>({
         ...p,
         payments: [...payRows.map(r=>({...r})).reverse(), ...p.payments],
         fees: p.fees.map(f=>{
-          const match = selected.find(r=>r.feeId===f.id)
+          const match = selected.find(r=>r._feeId===f.id)
           if(!match) return f
-          return {...f, paid: Number(f.paid||0) + parseFloat(match.amount)}
+          return {...f, paid: Number(f.paid||0) + parseFloat(match._amount)}
         })
       }))
       auditLog(profile,'Fees','Bulk Payment Collected',
@@ -1033,15 +1034,15 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       : `<div style="width:44px;height:44px;border-radius:8px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#e8b84b;">S</div>`
     const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
     const rows = done.selected.map(r=>{
-      const pay = done.payRows.find(p=>p.student_id===r.student.id)
+      const pay = done.payRows.find(p=>p.student_id===r._student.id)
       return `<tr>
-        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#111;">${fullName(r.student,true)}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#555;">${classes.find(c=>c.id===r.student.class_id)?.name||'--'}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:700;color:#1a7a4a;text-align:right;">${fmtMoney(parseFloat(r.amount),currency)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#111;">${fullName(r._student,true)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#555;">${classes.find(c=>c.id===r._student.class_id)?.name||'--'}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:700;color:#1a7a4a;text-align:right;">${fmtMoney(parseFloat(r._amount),currency)}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;font-family:monospace;color:#888;">${pay?.receipt_no||'--'}</td>
       </tr>`
     }).join('')
-    const total = done.selected.reduce((a,r)=>a+parseFloat(r.amount||0),0)
+    const total = done.selected.reduce((a,r)=>a+parseFloat(r._amount||0),0)
     const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Bulk Collection — ${done.feeType}</title>
     <style>*{box-sizing:border-box;margin:0;padding:0}body{background:#e8e8e8;font-family:'Helvetica Neue',Arial,sans-serif;display:flex;justify-content:center;padding:32px 16px}
     .card{width:560px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 48px rgba(0,0,0,0.18)}
@@ -1094,12 +1095,12 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       : `<div style="width:36px;height:36px;border-radius:6px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#e8b84b;">S</div>`
     const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
     const pages = done.selected.map(r=>{
-      const fee = fees.find(f=>f.id===r.feeId)
-      const payRow = done.payRows.find(p=>p.student_id===r.student.id)
+      const fee = fees.find(f=>f.id===r._feeId)
+      const payRow = done.payRows.find(p=>p.student_id===r._student.id)
       if(!fee||!payRow) return ''
-      const cls = classes.find(c=>c.id===r.student.class_id)
-      const sName = fullName(r.student,true)
-      const amtFormatted = fmtMoney(parseFloat(r.amount||0), currency)
+      const cls = classes.find(c=>c.id===r._student.class_id)
+      const sName = fullName(r._student,true)
+      const amtFormatted = fmtMoney(parseFloat(r._amount||0), currency)
       return `<div style="page-break-after:always;padding:32px 24px;max-width:480px;margin:0 auto;">
         <div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border-radius:12px;padding:20px;margin-bottom:16px;">
           <div style="display:flex;align-items:center;gap:12px;">${logoTag}
@@ -1213,7 +1214,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           </select>
           <select value={fFeeType} onChange={e=>setFFeeType(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
             <option value=''>All Fee Types</option>
-            {feeTypes.map(t=><option key={t} value={t}>{t}</option>)}
+            {allFeeTypes.map(t=><option key={t} value={t}>{t}</option>)}
           </select>
           <select value={fstatus} onChange={e=>setFstatus(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Status</option>
@@ -1428,12 +1429,15 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
               const status  = !feeRow ? 'Excluded' : balance===0 ? 'Paid' : paid>0 ? 'Partial' : 'Outstanding'
               const cls     = classes.find(c=>c.id===s.class_id)
               const sColor  = status==='Paid'?'#1a7a4a':status==='Partial'?'#b45309':status==='Outstanding'?'#c0392b':'#999'
+              const fmtCharged = charged>0 ? fmtMoney(charged,currency) : '—'
+              const fmtPaid    = paid>0    ? fmtMoney(paid,currency)    : '—'
+              const fmtBal     = balance>0 ? fmtMoney(balance,currency) : '—'
               return `<tr style="border-bottom:1px solid #f0f0f0;">
                 <td style="padding:7px 10px;font-size:12px;color:#111;">${fullName(s,true)}</td>
                 <td style="padding:7px 10px;font-size:12px;color:#555;">${cls?.name||'--'}</td>
-                <td style="padding:7px 10px;font-size:12px;text-align:right;color:#333;">${charged>0?feeRow?.amount||'—':'—'}</td>
-                <td style="padding:7px 10px;font-size:12px;text-align:right;color:#1a7a4a;font-weight:600;">${paid>0?paid:'—'}</td>
-                <td style="padding:7px 10px;font-size:12px;text-align:right;color:#c0392b;font-weight:600;">${balance>0?balance:'—'}</td>
+                <td style="padding:7px 10px;font-size:12px;text-align:right;color:#333;">${fmtCharged}</td>
+                <td style="padding:7px 10px;font-size:12px;text-align:right;color:#1a7a4a;font-weight:600;">${fmtPaid}</td>
+                <td style="padding:7px 10px;font-size:12px;text-align:right;color:#c0392b;font-weight:600;">${fmtBal}</td>
                 <td style="padding:7px 10px;font-size:11px;font-weight:700;color:${sColor};">${status}</td>
               </tr>`
             }).join('')
@@ -1827,7 +1831,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             <select value={phStudent} onChange={e=>setPhStudent(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
               <option value=''>All Students</option>
-              {phStudentsInClass.sort((a,b)=>a.last_name.localeCompare(b.last_name)).map(s=><option key={s.id} value={s.id}>{fullName(s,true)}</option>)}
+              {phStudentsInClass.sort((a,b)=>(a.last_name||'').localeCompare(b.last_name||'')).map(s=><option key={s.id} value={s.id}>{fullName(s,true)}</option>)}
             </select>
             <select value={phFeeType} onChange={e=>setPhFeeType(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>

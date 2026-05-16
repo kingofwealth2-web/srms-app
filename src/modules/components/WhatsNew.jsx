@@ -64,14 +64,16 @@ export default function WhatsNew() {
   const storageKey = 'srms_whats_new_seen'
 
   useEffect(() => {
-    const seen = localStorage.getItem(storageKey)
-    if(seen !== LATEST_VERSION) setUnread(true)
+    try {
+      const seen = localStorage.getItem(storageKey)
+      if(seen !== LATEST_VERSION) setUnread(true)
+    } catch { setUnread(true) }
   }, [])
 
   const openModal = () => {
     setOpen(true)
     setUnread(false)
-    localStorage.setItem(storageKey, LATEST_VERSION)
+    try { localStorage.setItem(storageKey, LATEST_VERSION) } catch {}
   }
 
   return (

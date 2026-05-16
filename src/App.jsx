@@ -367,7 +367,7 @@ export default function App() {
     showToast('Academic year ' + newYearTarget + ' started successfully.')
 
     // Reload all data for the new year
-    await loadData(profile, newYearTarget)
+    await loadData(newYearTarget, profile, settings)
   }
 
   // ── Early returns ──────────────────────────────────────────────
