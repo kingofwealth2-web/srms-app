@@ -21,6 +21,8 @@ export default function Students({profile,data,setData,toast,settings,activeYear
   const {students=[],classes=[]} = data
   const [search,setSearch] = useState('')
   const [fc,setFc]         = useState('')
+  const [fGender,setFGender] = useState('')
+  const [sortAlpha,setSortAlpha] = useState('asc')
   const [modal,setModal]   = useState(false)
   const [confirmState,setConfirmState] = useState(null)
   const [edit,setEdit]     = useState(null)
@@ -67,7 +69,12 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     if(showArchived && fyear && s.graduation_year!==fyear) return false
     if(showArchived && fReason && s.leaving_reason!==fReason) return false
     if(!showArchived && fc && s.class_id!==fc) return false
+    if(!showArchived && fGender && s.gender!==fGender) return false
     return true
+  }).sort((a,b)=>{
+    const nameA = `${a.first_name} ${a.last_name}`.toLowerCase()
+    const nameB = `${b.first_name} ${b.last_name}`.toLowerCase()
+    return sortAlpha==='asc' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA)
   })
   const unarchive = async (student, classId) => {
     if(!classId){ toast('Please select a class to re-enrol the student into','error'); return }
@@ -383,7 +390,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
           <Btn variant='ghost' onClick={exportStudentsCsv}>⬇ Export CSV</Btn>
         )}
         {canEdit && (
-          <Btn variant='ghost' onClick={()=>{setShowArchived(v=>!v);setSearch('');setFc('');setFyear('');setFReason('')}}>
+          <Btn variant='ghost' onClick={()=>{setShowArchived(v=>!v);setSearch('');setFc('');setFyear('');setFReason('');setFGender('');setSortAlpha('asc')}}>
             {showArchived?'← Back to Students':'⊡ Archived Students'}
           </Btn>
         )}
@@ -417,6 +424,21 @@ export default function Students({profile,data,setData,toast,settings,activeYear
                 {(profile?.role==='teacher' ? classes.filter(c=>teacherSubjectClassIds.includes(c.id)) : classes).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             )
+          )}
+          {!showArchived && (
+            <>
+              <select value={fGender} onChange={e=>setFGender(e.target.value)}
+                style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 110px'}}>
+                <option value=''>All Genders</option>
+                <option value='Male'>Male</option>
+                <option value='Female'>Female</option>
+              </select>
+              <button onClick={()=>setSortAlpha(v=>v==='asc'?'desc':'asc')}
+                title={sortAlpha==='asc'?'Sorted A→Z (click for Z→A)':'Sorted Z→A (click for A→Z)'}
+                style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist)',fontSize:13,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
+                {sortAlpha==='asc'?'A→Z':'Z→A'}
+              </button>
+            </>
           )}
         </div>
       </Card>

@@ -243,6 +243,9 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const [tmplForm, setTmplForm]                     = useState({name:'',amount_per_period:'',class_ids:[]})
   const [tmplSaving, setTmplSaving]                 = useState(false)
   const [confirmTmplDelete, setConfirmTmplDelete]   = useState(null)
+  const [editPeriodModal, setEditPeriodModal]       = useState(null) // period row being edited
+  const [editPeriodForm, setEditPeriodForm]         = useState({label:'',period_date:''})
+  const [editPeriodSaving, setEditPeriodSaving]     = useState(false)
   const tf = k=>v=>setTmplForm(p=>({...p,[k]:v}))
 
   // ── Bulk Record Payment state ──
@@ -718,12 +721,12 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       }).select().single()
       if(pErr) throw pErr
 
-      // 2 — create one fee row per charged student (paid + owes)
+      // 2 — create one fee row per charged student at FULL template amount
       const feeRows = chargedRows.map(r=>({
         school_id:    profile?.school_id,
         student_id:   r.student.id,
         fee_type:     tmpl.name,
-        amount:       parseFloat(r.amount),
+        amount:       tmpl.amount_per_period, // always full amount
         paid:         0,
         period:       brp.label.trim(),
         academic_year:activeYear,
@@ -764,7 +767,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         fee_periods:[...p.fee_periods, periodRow],
         fees:[...p.fees, ...(insertedFees||[]).map(f=>{
           const paidRow = paidRows.find(r=>r.student.id===f.student_id)
-          return {...f, paid: paidRow ? parseFloat(paidRow.amount) : 0}
+          return {...f, amount: tmpl.amount_per_period, paid: paidRow ? parseFloat(paidRow.amount) : 0}
         })],
         payments:[...payRows.reverse(), ...p.payments],
       }))
@@ -1132,6 +1135,24 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     if(w){w.document.write(html);w.document.close()}
   }
 
+  const savePeriodEdit = async () => {
+    if(!editPeriodForm.label.trim()||!editPeriodForm.period_date){toast('Label and date are required','error');return}
+    setEditPeriodSaving(true)
+    const {error} = await supabase.from('fee_periods')
+      .update({label:editPeriodForm.label.trim(), period_date:editPeriodForm.period_date})
+      .eq('id',editPeriodModal.id).eq('school_id',profile?.school_id)
+    if(error){toast(error.message,'error');setEditPeriodSaving(false);return}
+    setData(p=>({...p, fee_periods:p.fee_periods.map(x=>x.id===editPeriodModal.id?{...x,label:editPeriodForm.label.trim(),period_date:editPeriodForm.period_date}:x)}))
+    // Also update the period label on linked fees
+    await supabase.from('fees').update({period:editPeriodForm.label.trim()}).eq('fee_period_id',editPeriodModal.id).eq('school_id',profile?.school_id)
+    setData(p=>({...p, fees:p.fees.map(f=>f.fee_period_id===editPeriodModal.id?{...f,period:editPeriodForm.label.trim()}:f)}))
+    auditLog(profile,'Fees','Period Edited',`${editPeriodModal.label} → ${editPeriodForm.label.trim()}`,{},{...editPeriodModal},{...editPeriodForm})
+    toast('Period updated')
+    setEditPeriodSaving(false)
+    if(selectedPeriod?.id===editPeriodModal.id) setSelectedPeriod(p=>({...p,label:editPeriodForm.label.trim(),period_date:editPeriodForm.period_date}))
+    setEditPeriodModal(null)
+  }
+
   const tabStyle = (active) => ({
     padding:'8px 22px',borderRadius:10,fontSize:13,fontWeight:600,
     background:active?'var(--ink4)':'transparent',
@@ -1344,9 +1365,10 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                                   : <span style={{fontSize:12,color:'var(--mist3)'}}>—</span>}
                             </td>
                             <td style={{padding:'12px 14px'}} onClick={e=>e.stopPropagation()}>
-                              {canBulk && !isViewingPast && (
+                              {canBulk && !isViewingPast && (<>
+                                <Btn size='sm' variant='ghost' onClick={()=>{setEditPeriodForm({label:period.label,period_date:period.period_date});setEditPeriodModal(period)}}>✏️</Btn>
                                 <Btn size='sm' variant='ghost' onClick={()=>deletePeriod(period)}>🗑</Btn>
-                              )}
+                              </>)}
                             </td>
                           </tr>
                         )
@@ -1552,6 +1574,20 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             </div>
           )
         })()}
+
+        {/* Period Edit Modal */}
+        {editPeriodModal && (
+          <Modal title='Edit Period' onClose={()=>setEditPeriodModal(null)}>
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              <Field label='Period Label' value={editPeriodForm.label} onChange={v=>setEditPeriodForm(p=>({...p,label:v}))} placeholder='e.g. Monday 19 May, Week 3'/>
+              <Field label='Period Date' type='date' value={editPeriodForm.period_date} onChange={v=>setEditPeriodForm(p=>({...p,period_date:v}))}/>
+              <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:4}}>
+                <Btn variant='ghost' onClick={()=>setEditPeriodModal(null)}>Cancel</Btn>
+                <Btn onClick={savePeriodEdit} disabled={editPeriodSaving}>{editPeriodSaving?<><Spinner/> Saving...</>:'Save Changes'}</Btn>
+              </div>
+            </div>
+          </Modal>
+        )}
 
         {/* New Template Modal */}
         {tmplModal && (
