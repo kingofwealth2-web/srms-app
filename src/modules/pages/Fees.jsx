@@ -209,6 +209,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   // ── Single add / pay state ──
   const [search,setSearch]     = useState('')
   const [fstatus,setFstatus]   = useState(initialFeeFilter||'')
+  const [fFeeType,setFFeeType] = useState('')
   useEffect(()=>{ if(initialFeeFilter){setFstatus(initialFeeFilter);if(onFilterConsumed)onFilterConsumed()} },[])
   const [fClassId,setFClassId] = useState(profile?.role==='classteacher' ? (profile?.class_id||'') : '')
   const [modal,setModal]       = useState(false)
@@ -235,6 +236,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
   // ── Recurring state ──
   const [selectedTemplate, setSelectedTemplate]     = useState(null) // fee_template row
+  const [selectedPeriod, setSelectedPeriod]         = useState(null) // fee_period row for register
   const [tmplModal, setTmplModal]                   = useState(false) // new template modal
   const [tmplForm, setTmplForm]                     = useState({name:'',amount_per_period:'',class_ids:[]})
   const [tmplSaving, setTmplSaving]                 = useState(false)
@@ -242,7 +244,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const tf = k=>v=>setTmplForm(p=>({...p,[k]:v}))
 
   // ── Bulk Record Payment state ──
-  const BRP_INIT = {template_id:'',label:'',period_date:new Date().toISOString().split('T')[0],class_id:'',mode:'same',same_amount:''}
+  const BRP_INIT = {template_id:'',label:'',period_date:new Date().toISOString().split('T')[0],class_ids:[],mode:'same',same_amount:''}
   const [brpModal, setBrpModal]       = useState(false)
   const [brpStep, setBrpStep]         = useState(1)
   const [brp, setBrp]                 = useState(BRP_INIT)
@@ -252,7 +254,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const brf = k=>v=>setBrp(p=>({...p,[k]:v}))
 
   // ── Bulk Collect Payment state (one-time fees) ──
-  const BCP_INIT = {fee_type:'',class_id:'',period:'',same_amount:'',mode:'balance'}
+  const BCP_INIT = {fee_type:'',class_ids:[],period:'',same_amount:'',mode:'balance'}
   const [bcpModal, setBcpModal]   = useState(false)
   const [bcpStep, setBcpStep]     = useState(1)
   const [bcpRows, setBcpRows]     = useState([])
@@ -398,6 +400,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       const s = activeStudents.find(x=>x.id===r.student_id)
       if(!s || s.class_id!==fClassId) return false
     }
+    if(fFeeType && r.fee_type!==fFeeType) return false
     if(!r.student_name.toLowerCase().includes(search.toLowerCase())) return false
     if(fstatus==='Overdue' && !r.isOverdue) return false
     else if(fstatus && fstatus!=='Overdue' && r.status!==fstatus) return false
@@ -646,14 +649,14 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   }
 
   // Build BRP student rows when template + class changes
-  const buildBrpRows = (templateId, classId) => {
+  const buildBrpRows = (templateId, classIds) => {
     const tmpl = fee_templates.find(t=>t.id===templateId)
     if(!tmpl) return []
     // Start with students in the template's assigned classes
     const tmplClassIds = tmpl.class_ids||[]
     let pool = activeStudents.filter(s=>tmplClassIds.includes(s.class_id))
-    // Further filter by class if bursar picks a sub-filter
-    if(classId) pool = pool.filter(s=>s.class_id===classId)
+    // Further filter by selected classes if bursar picks a sub-filter
+    if(classIds && classIds.length>0) pool = pool.filter(s=>classIds.includes(s.class_id))
     return pool.map(s=>{
       const studentFees = fees.filter(f=>f.student_id===s.id && f.template_id===templateId)
       const totalCharged = studentFees.reduce((a,f)=>a+Number(f.amount||0),0)
@@ -667,7 +670,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
   const openBrpModal = (tmpl) => {
     setBrp({...BRP_INIT, template_id:tmpl.id, same_amount:String(tmpl.amount_per_period)})
-    setBrpRows(buildBrpRows(tmpl.id,''))
+    setBrpRows(buildBrpRows(tmpl.id,[]))
     setBrpStep(1)
     setBrpDone(null)
     setBrpModal(true)
@@ -685,7 +688,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     const dup = fee_periods.some(p=>p.template_id===brp.template_id && p.period_date===brp.period_date)
     setBrpDupWarning(dup)
     // Rebuild rows
-    const rows = buildBrpRows(brp.template_id, brp.class_id)
+    const rows = buildBrpRows(brp.template_id, brp.class_ids||[])
     const finalRows = brp.mode==='same'
       ? rows.map(r=>({...r, amount:brp.same_amount||String(tmpl.amount_per_period)}))
       : rows
@@ -879,22 +882,60 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   }
 
   const printBulkIndividual = (done) => {
-    done.selected.forEach(r=>{
+    const schoolName = settings?.school_name||'School'
+    const schoolLogo = settings?.school_logo||null
+    const logoTag = schoolLogo
+      ? `<img src="${schoolLogo}" style="width:36px;height:36px;object-fit:contain;border-radius:5px;"/>`
+      : `<div style="width:36px;height:36px;border-radius:6px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#e8b84b;">S</div>`
+    const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
+    const pages = done.selected.map(r=>{
       const feeRow = done.feeRows.find(f=>f.student_id===r.student.id)
       const payRow = done.payRows.find(p=>p.student_id===r.student.id)
-      if(!feeRow||!payRow) return
+      if(!feeRow||!payRow) return ''
       const cls = classes.find(c=>c.id===r.student.class_id)
-      printReceipt({fee:{...feeRow,paid:parseFloat(r.amount)},feePayments:[payRow],student:r.student,cls,settings,currency})
-    })
+      const sName = fullName(r.student,true)
+      return `<div style="page-break-after:always;padding:32px 24px;max-width:480px;margin:0 auto;">
+        <div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border-radius:12px;padding:20px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:12px;">${logoTag}
+            <div><div style="font-size:14px;font-weight:800;color:#fff;">${schoolName}</div>
+            <div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.06em;margin-top:2px;">Payment Receipt</div></div>
+            <div style="margin-left:auto;text-align:right;">
+              <div style="font-size:10px;color:rgba(255,255,255,0.4);">Receipt No.</div>
+              <div style="font-size:13px;font-weight:700;color:#e8b84b;font-family:monospace;">${payRow.receipt_no||'--'}</div>
+            </div>
+          </div>
+        </div>
+        <div style="border:1px solid #eee;border-radius:10px;padding:16px;font-family:'Helvetica Neue',Arial,sans-serif;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+            <div><div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:3px;">Student</div><div style="font-size:13px;font-weight:600;color:#111;">${sName}</div></div>
+            <div><div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:3px;">Class</div><div style="font-size:13px;color:#333;">${cls?.name||'--'}</div></div>
+            <div><div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:3px;">Fee Type</div><div style="font-size:13px;color:#333;">${feeRow.fee_type}</div></div>
+            <div><div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:3px;">Date</div><div style="font-size:13px;color:#333;">${fmtD(payRow.created_at)}</div></div>
+          </div>
+          <div style="height:1px;background:#eee;margin-bottom:12px;"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-size:12px;font-weight:600;color:#555;">Amount Paid</div>
+            <div style="font-size:20px;font-weight:800;color:#1a7a4a;">${fmtD(null)||''}${typeof fmtMoney==='function'?'':r.amount}</div>
+          </div>
+          <div style="margin-top:12px;font-size:10px;color:#bbb;text-align:center;">Recorded by ${payRow.recorded_by_name||'--'} · ${schoolName} · SRMS</div>
+        </div>
+      </div>`
+    }).filter(Boolean).join('')
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Receipts</title>
+    <style>*{box-sizing:border-box;margin:0;padding:0}body{background:#e8e8e8;font-family:'Helvetica Neue',Arial,sans-serif;}
+    @media print{body{background:#fff;}div[style*="page-break-after:always"]:last-child{page-break-after:avoid!important}}</style></head>
+    <body>${pages}</body></html>`
+    const w = window.open('','_blank','width=600,height=800')
+    if(w){w.document.write(html);w.document.close()}
   }
 
   // ── Bulk Collect Payment helpers ──
   const feeTypes = [...new Set(fees.filter(f=>f.academic_year===activeYear&&!f.template_id).map(f=>f.fee_type))].sort()
   const feePeriodLabels = [...new Set(fees.filter(f=>f.academic_year===activeYear&&!f.template_id).map(f=>f.period))].sort()
 
-  const buildBcpRows = (feeType, classId, period) => {
+  const buildBcpRows = (feeType, classIds, period) => {
     let pool = activeStudents
-    if(classId) pool = pool.filter(s=>s.class_id===classId)
+    if(classIds && classIds.length>0) pool = pool.filter(s=>classIds.includes(s.class_id))
     return pool.map(s=>{
       const studentFees = fees.filter(f=>
         f.student_id===s.id &&
@@ -907,7 +948,6 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       const totalPaid    = studentFees.reduce((a,f)=>a+Number(f.paid||0),0)
       const balance      = Math.max(0, totalCharged - totalPaid)
       const feeId        = studentFees[0]?.id || null
-      // Only show students with an outstanding balance
       if(balance===0 || !feeId) return null
       return {student:s, checked:true, amount:String(balance), balance, feeId}
     }).filter(Boolean)
@@ -921,7 +961,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
   const bcpGoStep2 = () => {
     if(!bcp.fee_type){toast('Select a fee type','error');return}
-    const rows = buildBcpRows(bcp.fee_type, bcp.class_id, bcp.period)
+    const rows = buildBcpRows(bcp.fee_type, bcp.class_ids, bcp.period)
     if(rows.length===0){toast('No students with outstanding balances for this fee','error');return}
     setBcpRows(rows)
     setBcpStep(2)
@@ -930,6 +970,8 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const confirmBcp = async () => {
     const selected = bcpRows.filter(r=>r.checked && parseFloat(r.amount)>0)
     if(selected.length===0){toast('No students selected','error');return}
+    const overpaying = selected.filter(r=>parseFloat(r.amount)>r.balance)
+    if(overpaying.length>0){toast(`${overpaying.length} student${overpaying.length!==1?'s':''} have amounts exceeding their balance. Please correct before confirming.`,'error');return}
     setBcpSaving(true)
     try {
       const payRows = []
@@ -1039,13 +1081,51 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   }
 
   const printBcpIndividual = (done) => {
-    done.selected.forEach(r=>{
+    const schoolName = settings?.school_name||'School'
+    const schoolLogo = settings?.school_logo||null
+    const logoTag = schoolLogo
+      ? `<img src="${schoolLogo}" style="width:36px;height:36px;object-fit:contain;border-radius:5px;"/>`
+      : `<div style="width:36px;height:36px;border-radius:6px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#e8b84b;">S</div>`
+    const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
+    const pages = done.selected.map(r=>{
       const fee = fees.find(f=>f.id===r.feeId)
       const payRow = done.payRows.find(p=>p.student_id===r.student.id)
-      if(!fee||!payRow) return
+      if(!fee||!payRow) return ''
       const cls = classes.find(c=>c.id===r.student.class_id)
-      printReceipt({fee:{...fee,paid:Number(fee.paid||0)+parseFloat(r.amount)},feePayments:[payRow],student:r.student,cls,settings,currency})
-    })
+      const sName = fullName(r.student,true)
+      return `<div style="page-break-after:always;padding:32px 24px;max-width:480px;margin:0 auto;">
+        <div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border-radius:12px;padding:20px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:12px;">${logoTag}
+            <div><div style="font-size:14px;font-weight:800;color:#fff;">${schoolName}</div>
+            <div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.06em;margin-top:2px;">Payment Receipt</div></div>
+            <div style="margin-left:auto;text-align:right;">
+              <div style="font-size:10px;color:rgba(255,255,255,0.4);">Receipt No.</div>
+              <div style="font-size:13px;font-weight:700;color:#e8b84b;font-family:monospace;">${payRow.receipt_no||'--'}</div>
+            </div>
+          </div>
+        </div>
+        <div style="border:1px solid #eee;border-radius:10px;padding:16px;font-family:'Helvetica Neue',Arial,sans-serif;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+            <div><div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:3px;">Student</div><div style="font-size:13px;font-weight:600;color:#111;">${sName}</div></div>
+            <div><div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:3px;">Class</div><div style="font-size:13px;color:#333;">${cls?.name||'--'}</div></div>
+            <div><div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:3px;">Fee Type</div><div style="font-size:13px;color:#333;">${fee.fee_type}</div></div>
+            <div><div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:3px;">Date</div><div style="font-size:13px;color:#333;">${fmtD(payRow.created_at)}</div></div>
+          </div>
+          <div style="height:1px;background:#eee;margin-bottom:12px;"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-size:12px;font-weight:600;color:#555;">Amount Paid</div>
+            <div style="font-size:20px;font-weight:800;color:#1a7a4a;">${fmtMoney(parseFloat(r.amount),currency)}</div>
+          </div>
+          <div style="margin-top:12px;font-size:10px;color:#bbb;text-align:center;">Recorded by ${payRow.recorded_by_name||'--'} · ${schoolName} · SRMS</div>
+        </div>
+      </div>`
+    }).filter(Boolean).join('')
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Receipts</title>
+    <style>*{box-sizing:border-box;margin:0;padding:0}body{background:#e8e8e8;font-family:'Helvetica Neue',Arial,sans-serif;}
+    @media print{body{background:#fff;}div[style*="page-break-after:always"]:last-child{page-break-after:avoid!important}}</style></head>
+    <body>${pages}</body></html>`
+    const w = window.open('','_blank','width=600,height=800')
+    if(w){w.document.write(html);w.document.close()}
   }
 
   const tabStyle = (active) => ({
@@ -1105,6 +1185,10 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           <select value={fClassId} onChange={e=>setFClassId(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
             <option value=''>All Classes</option>
             {myClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <select value={fFeeType} onChange={e=>setFFeeType(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
+            <option value=''>All Fee Types</option>
+            {feeTypes.map(t=><option key={t} value={t}>{t}</option>)}
           </select>
           <select value={fstatus} onChange={e=>setFstatus(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Status</option>
@@ -1222,21 +1306,28 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                     </thead>
                     <tbody>
                       {tmplPeriods.map(period=>{
-                        const periodFees = fees.filter(f=>f.fee_period_id===period.id)
-                        const charged    = periodFees.length
-                        const collected  = periodFees.reduce((a,f)=>a+Number(f.paid||0),0)
-                        const outstanding= periodFees.reduce((a,f)=>a+Math.max(0,Number(f.amount||0)-Number(f.paid||0)),0)
+                        const periodFees  = fees.filter(f=>f.fee_period_id===period.id)
+                        const charged     = periodFees.length
+                        const collected   = periodFees.reduce((a,f)=>a+Number(f.paid||0),0)
+                        const outstanding = periodFees.reduce((a,f)=>a+Math.max(0,Number(f.amount||0)-Number(f.paid||0)),0)
+                        const tmpl        = fee_templates.find(t=>t.id===period.template_id)
+                        const totalInClasses = activeStudents.filter(s=>(tmpl?.class_ids||[]).includes(s.class_id)).length
+                        const excluded    = totalInClasses - charged
+                        const isSelected  = selectedPeriod?.id===period.id
                         const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
                         return (
-                          <tr key={period.id} style={{borderBottom:'1px solid var(--line)'}}>
+                          <tr key={period.id}
+                            onClick={()=>setSelectedPeriod(isSelected?null:period)}
+                            style={{borderBottom:'1px solid var(--line)',cursor:'pointer',background:isSelected?'rgba(232,184,75,0.04)':'transparent',transition:'background 0.15s'}}>
                             <td style={{padding:'12px 14px'}}>
                               <div style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{period.label}</div>
+                              {isSelected&&<div style={{fontSize:10,color:'var(--gold)',marginTop:2}}>▼ Register open below</div>}
                             </td>
                             <td style={{padding:'12px 14px'}}>
                               <div style={{fontSize:12,color:'var(--mist2)'}}>{fmtD(period.period_date)}</div>
                             </td>
                             <td style={{padding:'12px 14px'}}>
-                              <div style={{fontSize:13,color:'var(--mist)'}}>{charged} student{charged!==1?'s':''}</div>
+                              <div style={{fontSize:13,color:'var(--mist)'}}>{charged} charged{excluded>0&&<span style={{fontSize:11,color:'var(--mist3)',marginLeft:6}}>· {excluded} excluded</span>}</div>
                             </td>
                             <td style={{padding:'12px 14px'}}>
                               <span style={{fontWeight:700,color:'var(--emerald)',fontFamily:'monospace',fontSize:13}}>{fmtMoney(collected,currency)}</span>
@@ -1244,9 +1335,11 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                             <td style={{padding:'12px 14px'}}>
                               {outstanding>0
                                 ? <span style={{fontWeight:700,color:'var(--rose)',fontFamily:'monospace',fontSize:13}}>{fmtMoney(outstanding,currency)}</span>
-                                : <Badge color='var(--emerald)' bg='rgba(52,199,89,0.08)'>All paid</Badge>}
+                                : charged>0
+                                  ? <Badge color='var(--emerald)' bg='rgba(52,199,89,0.08)'>All paid</Badge>
+                                  : <span style={{fontSize:12,color:'var(--mist3)'}}>—</span>}
                             </td>
-                            <td style={{padding:'12px 14px'}}>
+                            <td style={{padding:'12px 14px'}} onClick={e=>e.stopPropagation()}>
                               {canBulk && !isViewingPast && (
                                 <Btn size='sm' variant='ghost' onClick={()=>deletePeriod(period)}>🗑</Btn>
                               )}
@@ -1259,6 +1352,202 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                 </div>
               )}
             </>
+          )
+        })()}
+
+        {/* ── Period Register ── */}
+        {selectedPeriod && selectedTemplate && (() => {
+          const tmpl       = fee_templates.find(t=>t.id===selectedTemplate.id)
+          const periodFees = fees.filter(f=>f.fee_period_id===selectedPeriod.id)
+          const tmplClassIds = tmpl?.class_ids||[]
+          // All students in template's classes
+          const allStudents  = activeStudents.filter(s=>tmplClassIds.includes(s.class_id))
+          const [regClassFilter, setRegClassFilter] = React.useState('')
+          const [regStatusFilter, setRegStatusFilter] = React.useState('')
+          const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
+
+          const registerRows = allStudents.map(s=>{
+            const feeRow  = periodFees.find(f=>f.student_id===s.id)
+            const charged = Number(feeRow?.amount||0)
+            const paid    = Number(feeRow?.paid||0)
+            const balance = Math.max(0, charged - paid)
+            const status  = !feeRow ? 'Excluded' : balance===0 ? 'Paid' : paid>0 ? 'Partial' : 'Outstanding'
+            return {student:s, feeRow, charged, paid, balance, status}
+          }).filter(r=>{
+            if(regClassFilter && r.student.class_id!==regClassFilter) return false
+            if(regStatusFilter && r.status!==regStatusFilter) return false
+            return true
+          })
+
+          const totalCharged    = registerRows.filter(r=>r.status!=='Excluded').reduce((a,r)=>a+r.charged,0)
+          const totalCollected  = registerRows.reduce((a,r)=>a+r.paid,0)
+          const totalOutstanding= registerRows.reduce((a,r)=>a+r.balance,0)
+          const paidCount       = registerRows.filter(r=>r.status==='Paid').length
+          const outCount        = registerRows.filter(r=>r.status==='Outstanding').length
+          const partialCount    = registerRows.filter(r=>r.status==='Partial').length
+          const excludedCount   = registerRows.filter(r=>r.status==='Excluded').length
+
+          const statusColor = s => s==='Paid'?'var(--emerald)':s==='Partial'?'var(--amber)':s==='Outstanding'?'var(--rose)':'var(--mist3)'
+          const statusBg    = s => s==='Paid'?'rgba(52,199,89,0.08)':s==='Partial'?'rgba(251,159,58,0.08)':s==='Outstanding'?'rgba(240,107,122,0.08)':'rgba(255,255,255,0.04)'
+
+          const printRegister = () => {
+            const schoolName = settings?.school_name||'School'
+            const schoolLogo = settings?.school_logo||null
+            const logoTag = schoolLogo
+              ? `<img src="${schoolLogo}" style="width:40px;height:40px;object-fit:contain;border-radius:5px;"/>`
+              : `<div style="width:40px;height:40px;border-radius:7px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#e8b84b;">S</div>`
+            const allRegRows = allStudents.map(s=>{
+              const feeRow  = periodFees.find(f=>f.student_id===s.id)
+              const charged = Number(feeRow?.amount||0)
+              const paid    = Number(feeRow?.paid||0)
+              const balance = Math.max(0, charged - paid)
+              const status  = !feeRow ? 'Excluded' : balance===0 ? 'Paid' : paid>0 ? 'Partial' : 'Outstanding'
+              const cls     = classes.find(c=>c.id===s.class_id)
+              const sColor  = status==='Paid'?'#1a7a4a':status==='Partial'?'#b45309':status==='Outstanding'?'#c0392b':'#999'
+              return `<tr style="border-bottom:1px solid #f0f0f0;">
+                <td style="padding:7px 10px;font-size:12px;color:#111;">${fullName(s,true)}</td>
+                <td style="padding:7px 10px;font-size:12px;color:#555;">${cls?.name||'--'}</td>
+                <td style="padding:7px 10px;font-size:12px;text-align:right;color:#333;">${charged>0?feeRow?.amount||'—':'—'}</td>
+                <td style="padding:7px 10px;font-size:12px;text-align:right;color:#1a7a4a;font-weight:600;">${paid>0?paid:'—'}</td>
+                <td style="padding:7px 10px;font-size:12px;text-align:right;color:#c0392b;font-weight:600;">${balance>0?balance:'—'}</td>
+                <td style="padding:7px 10px;font-size:11px;font-weight:700;color:${sColor};">${status}</td>
+              </tr>`
+            }).join('')
+            const grandTotal = allStudents.reduce((a,s)=>{const f=periodFees.find(x=>x.student_id===s.id);return a+Number(f?.paid||0)},0)
+            const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Period Register — ${selectedPeriod.label}</title>
+            <style>*{box-sizing:border-box;margin:0;padding:0}body{background:#e8e8e8;font-family:'Helvetica Neue',Arial,sans-serif;display:flex;justify-content:center;padding:32px 16px}
+            .card{width:680px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 48px rgba(0,0,0,0.18)}
+            @media print{body{background:#fff;padding:0;display:block}.card{width:100%;box-shadow:none;border-radius:0}.no-print{display:none!important}}</style></head>
+            <body><div class="card">
+            <div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);padding:24px;">
+              <div style="display:flex;align-items:center;gap:14px;">${logoTag}
+                <div><div style="font-size:15px;font-weight:800;color:#fff;">${schoolName}</div>
+                <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:3px;text-transform:uppercase;letter-spacing:0.06em;">Period Payment Register</div></div>
+              </div>
+              <div style="margin-top:14px;height:2px;background:linear-gradient(90deg,transparent,#e8b84b,transparent);"></div>
+              <div style="margin-top:14px;display:flex;gap:24px;flex-wrap:wrap;">
+                <div><div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Fee</div><div style="font-size:13px;font-weight:700;color:#fff;">${tmpl?.name}</div></div>
+                <div><div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Period</div><div style="font-size:13px;font-weight:700;color:#e8b84b;">${selectedPeriod.label}</div></div>
+                <div><div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Date</div><div style="font-size:13px;font-weight:700;color:#fff;">${fmtD(selectedPeriod.period_date)}</div></div>
+                <div><div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Total Collected</div><div style="font-size:13px;font-weight:700;color:#2dd4a0;">${fmtMoney(grandTotal,currency)}</div></div>
+              </div>
+            </div>
+            <div style="padding:20px 24px;">
+              <table style="width:100%;border-collapse:collapse;">
+                <thead><tr style="background:#f8f8fc;">
+                  <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;text-align:left;">Student</th>
+                  <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;text-align:left;">Class</th>
+                  <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;text-align:right;">Charged</th>
+                  <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;text-align:right;">Paid</th>
+                  <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;text-align:right;">Balance</th>
+                  <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;">Status</th>
+                </tr></thead>
+                <tbody>${allRegRows}</tbody>
+              </table>
+              <div style="margin-top:16px;padding:12px 10px;background:#f8f8fc;border-radius:8px;display:flex;gap:24px;flex-wrap:wrap;">
+                <div style="font-size:12px;color:#555;">Total collected: <strong style="color:#1a7a4a;">${fmtMoney(grandTotal,currency)}</strong></div>
+                <div style="font-size:12px;color:#555;">Paid: <strong>${allStudents.filter(s=>{const f=periodFees.find(x=>x.student_id===s.id);const b=Math.max(0,Number(f?.amount||0)-Number(f?.paid||0));return f&&b===0}).length}</strong></div>
+                <div style="font-size:12px;color:#555;">Outstanding: <strong style="color:#c0392b;">${allStudents.filter(s=>{const f=periodFees.find(x=>x.student_id===s.id);return f&&Number(f.paid||0)===0}).length}</strong></div>
+                <div style="font-size:12px;color:#555;">Excluded: <strong>${allStudents.filter(s=>!periodFees.find(x=>x.student_id===s.id)).length}</strong></div>
+              </div>
+              <div style="margin-top:12px;text-align:center;font-size:10px;color:#bbb;">Generated ${fmtD(new Date())} · ${schoolName} · SRMS</div>
+            </div>
+            <div class="no-print" style="padding:0 24px 20px;">
+              <button onclick="window.print()" style="width:100%;padding:12px;background:linear-gradient(135deg,#e8b84b,#f5d07a);border:none;border-radius:10px;font-size:14px;font-weight:700;color:#1a1a2e;cursor:pointer;">⎙ Print Register</button>
+            </div>
+            </div></body></html>`
+            const w=window.open('','_blank','width=720,height=900')
+            if(w){w.document.write(html);w.document.close()}
+          }
+
+          return (
+            <div style={{marginTop:8,marginBottom:24,background:'var(--ink3)',border:'1px solid var(--gold)',borderRadius:'var(--r)',overflow:'hidden'}}>
+              {/* Register header */}
+              <div style={{background:'rgba(232,184,75,0.06)',borderBottom:'1px solid var(--line)',padding:'14px 18px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:'var(--white)'}}>{selectedPeriod.label} — Register</div>
+                  <div style={{fontSize:11,color:'var(--mist3)',marginTop:2}}>{fmtD(selectedPeriod.period_date)} · {tmpl?.name}</div>
+                </div>
+                <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+                  {/* Class filter */}
+                  <select value={regClassFilter} onChange={e=>setRegClassFilter(e.target.value)}
+                    style={{background:'var(--ink)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'6px 10px',color:'var(--mist)',fontSize:12,cursor:'pointer'}}>
+                    <option value=''>All Classes</option>
+                    {tmplClassIds.map(id=>{const c=classes.find(x=>x.id===id);return c?<option key={id} value={id}>{c.name}</option>:null})}
+                  </select>
+                  {/* Status filter */}
+                  <select value={regStatusFilter} onChange={e=>setRegStatusFilter(e.target.value)}
+                    style={{background:'var(--ink)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'6px 10px',color:'var(--mist)',fontSize:12,cursor:'pointer'}}>
+                    <option value=''>All Statuses</option>
+                    {['Paid','Partial','Outstanding','Excluded'].map(s=><option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <Btn size='sm' onClick={printRegister}>⎙ Print</Btn>
+                  <Btn size='sm' variant='ghost' onClick={()=>setSelectedPeriod(null)}>✕</Btn>
+                </div>
+              </div>
+              {/* Summary pills */}
+              <div style={{padding:'10px 18px',display:'flex',gap:12,flexWrap:'wrap',borderBottom:'1px solid var(--line)'}}>
+                {[
+                  {label:'Paid',count:paidCount,color:'var(--emerald)'},
+                  {label:'Partial',count:partialCount,color:'var(--amber)'},
+                  {label:'Outstanding',count:outCount,color:'var(--rose)'},
+                  {label:'Excluded',count:excludedCount,color:'var(--mist3)'},
+                ].map(p=>(
+                  <div key={p.label} style={{fontSize:12,color:'var(--mist3)'}}>
+                    <span style={{fontWeight:700,color:p.color,fontSize:15}}>{p.count}</span> {p.label}
+                  </div>
+                ))}
+                <div style={{marginLeft:'auto',fontSize:12,color:'var(--mist3)'}}>
+                  Collected: <span style={{fontWeight:700,color:'var(--emerald)'}}>{fmtMoney(totalCollected,currency)}</span>
+                  {totalOutstanding>0&&<> · Outstanding: <span style={{fontWeight:700,color:'var(--rose)'}}>{fmtMoney(totalOutstanding,currency)}</span></>}
+                </div>
+              </div>
+              {/* Register rows */}
+              <div style={{overflowX:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse',minWidth:520}}>
+                  <thead>
+                    <tr>
+                      {['Student','Class','Charged','Paid','Balance','Status'].map(h=>(
+                        <th key={h} style={{padding:'10px 14px',textAlign:h==='Student'||h==='Class'?'left':'right',fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',borderBottom:'1px solid var(--line)',whiteSpace:'nowrap',
+                          ...(h==='Status'?{textAlign:'center'}:{})}}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {registerRows.map(r=>{
+                      const cls = classes.find(c=>c.id===r.student.class_id)
+                      return (
+                        <tr key={r.student.id} style={{borderBottom:'1px solid var(--line)',opacity:r.status==='Excluded'?0.5:1}}>
+                          <td style={{padding:'10px 14px'}}>
+                            <div style={{display:'flex',alignItems:'center',gap:8}}>
+                              <Avatar name={fullName(r.student,true)} photo={r.student.photo} size={24}/>
+                              <span style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{fullName(r.student,true)}</span>
+                            </div>
+                          </td>
+                          <td style={{padding:'10px 14px'}}>
+                            <span style={{fontSize:12,color:'var(--mist2)'}}>{cls?.name||'--'}</span>
+                          </td>
+                          <td style={{padding:'10px 14px',textAlign:'right'}}>
+                            <span style={{fontSize:13,color:'var(--mist)',fontFamily:'monospace'}}>{r.charged>0?fmtMoney(r.charged,currency):'—'}</span>
+                          </td>
+                          <td style={{padding:'10px 14px',textAlign:'right'}}>
+                            <span style={{fontSize:13,fontWeight:r.paid>0?700:400,color:r.paid>0?'var(--emerald)':'var(--mist3)',fontFamily:'monospace'}}>{r.paid>0?fmtMoney(r.paid,currency):'—'}</span>
+                          </td>
+                          <td style={{padding:'10px 14px',textAlign:'right'}}>
+                            <span style={{fontSize:13,fontWeight:r.balance>0?700:400,color:r.balance>0?'var(--rose)':'var(--mist3)',fontFamily:'monospace'}}>{r.balance>0?fmtMoney(r.balance,currency):'—'}</span>
+                          </td>
+                          <td style={{padding:'10px 14px',textAlign:'center'}}>
+                            <span style={{fontSize:11,fontWeight:700,color:statusColor(r.status),background:statusBg(r.status),padding:'3px 10px',borderRadius:20}}>{r.status}</span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )
         })()}
 
@@ -1314,14 +1603,31 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                 </div>
                 <Field label='Period Label' placeholder='e.g. Monday 19 May, Week 3, Day 12' value={brp.label} onChange={brf('label')}/>
                 <Field label='Period Date' type='date' value={brp.period_date} onChange={brf('period_date')}/>
-                {/* Class filter */}
+                {/* Class filter — multi-pill, scoped to template's classes */}
                 <div>
-                  <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:6}}>Class Filter <span style={{color:'var(--mist3)',fontWeight:400}}>(optional — leave blank for all)</span></div>
-                  <select value={brp.class_id} onChange={e=>brf('class_id')(e.target.value)}
-                    style={{width:'100%',padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13}}>
-                    <option value=''>All classes</option>
-                    {classesWithStudents.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:8}}>Class Filter <span style={{color:'var(--mist3)',fontWeight:400}}>(optional — leave blank for all)</span></div>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:8}}>{
+                    (() => {
+                      const tmpl = fee_templates.find(t=>t.id===brp.template_id)
+                      const tmplClassIds = tmpl?.class_ids||[]
+                      const tmplClasses = classesWithStudents.filter(c=>tmplClassIds.includes(c.id))
+                      return tmplClasses.map(c=>{
+                        const sel = (brp.class_ids||[]).includes(c.id)
+                        return (
+                          <button key={c.id} onClick={()=>brf('class_ids')(sel?(brp.class_ids||[]).filter(x=>x!==c.id):[...(brp.class_ids||[]),c.id])}
+                            style={{padding:'6px 14px',borderRadius:20,fontSize:13,fontWeight:600,cursor:'pointer',transition:'all 0.15s',
+                              background:sel?'rgba(232,184,75,0.15)':'var(--ink4)',
+                              color:sel?'var(--gold)':'var(--mist2)',
+                              border:`1px solid ${sel?'var(--gold)':'var(--line)'}`}}>
+                            {c.name}
+                          </button>
+                        )
+                      })
+                    })()
+                  }</div>
+                  {(brp.class_ids||[]).length>0 && (
+                    <div style={{fontSize:11,color:'var(--mist3)',marginTop:6}}>{(brp.class_ids||[]).length} class{(brp.class_ids||[]).length!==1?'es':''} selected · leave blank to include all template classes</div>
+                  )}
                 </div>
                 {/* Mode toggle */}
                 <div>
@@ -1943,12 +2249,24 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                 </select>
               </div>
               <div>
-                <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:6}}>Class <span style={{color:'var(--mist3)',fontWeight:400}}>(optional)</span></div>
-                <select value={bcp.class_id} onChange={e=>bcf('class_id')(e.target.value)}
-                  style={{width:'100%',padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13}}>
-                  <option value=''>All classes</option>
-                  {classesWithStudents.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:8}}>Classes <span style={{color:'var(--mist3)',fontWeight:400}}>(optional — leave blank for all)</span></div>
+                <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+                  {classesWithStudents.map(c=>{
+                    const sel = (bcp.class_ids||[]).includes(c.id)
+                    return (
+                      <button key={c.id} onClick={()=>bcf('class_ids')(sel?(bcp.class_ids||[]).filter(x=>x!==c.id):[...(bcp.class_ids||[]),c.id])}
+                        style={{padding:'6px 14px',borderRadius:20,fontSize:13,fontWeight:600,cursor:'pointer',transition:'all 0.15s',
+                          background:sel?'rgba(232,184,75,0.15)':'var(--ink4)',
+                          color:sel?'var(--gold)':'var(--mist2)',
+                          border:`1px solid ${sel?'var(--gold)':'var(--line)'}`}}>
+                        {c.name}
+                      </button>
+                    )
+                  })}
+                </div>
+                {(bcp.class_ids||[]).length>0 && (
+                  <div style={{fontSize:11,color:'var(--mist3)',marginTop:6}}>{(bcp.class_ids||[]).length} class{(bcp.class_ids||[]).length!==1?'es':''} selected</div>
+                )}
               </div>
               <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:4}}>
                 <Btn variant='ghost' onClick={closeBcp}>Cancel</Btn>
@@ -1965,27 +2283,39 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
               </div>
               {/* Same amount override */}
               <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'10px 14px',display:'flex',alignItems:'center',gap:12}}>
-                <span style={{fontSize:12,color:'var(--mist2)',flex:1}}>Override amount for all <span style={{color:'var(--mist3)'}}>(leave blank to use individual balances)</span></span>
+                <span style={{fontSize:12,color:'var(--mist2)',flex:1}}>Override amount for all <span style={{color:'var(--mist3)'}}>(capped at each student's balance)</span></span>
                 <input type='number' value={bcp.same_amount} placeholder='—'
-                  onChange={e=>{bcf('same_amount')(e.target.value);setBcpRows(p=>p.map(r=>({...r,amount:e.target.value||String(r.balance)})))}}
+                  onChange={e=>{
+                    const val = e.target.value
+                    bcf('same_amount')(val)
+                    setBcpRows(p=>p.map(r=>{
+                      const capped = val ? Math.min(parseFloat(val)||0, r.balance) : r.balance
+                      return {...r, amount:String(capped)}
+                    }))
+                  }}
                   style={{width:100,padding:'6px 10px',background:'var(--ink)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13,textAlign:'right'}}/>
               </div>
               <div style={{maxHeight:360,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
                 {bcpRows.map((r,i)=>{
                   const cls = classes.find(c=>c.id===r.student.class_id)
+                  const isOverpaying = parseFloat(r.amount||0) > r.balance
                   return (
-                    <div key={r.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${r.checked?'var(--line)':'rgba(255,255,255,0.04)'}`}}>
+                    <div key={r.student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${isOverpaying?'var(--rose)':r.checked?'var(--line)':'rgba(255,255,255,0.04)'}`}}>
                       <input type='checkbox' checked={r.checked}
                         onChange={e=>setBcpRows(p=>p.map((x,j)=>j===i?{...x,checked:e.target.checked}:x))}
                         style={{accentColor:'var(--gold)',width:16,height:16,cursor:'pointer',flexShrink:0}}/>
                       <Avatar name={fullName(r.student,true)} photo={r.student.photo} size={28}/>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontSize:13,fontWeight:600,color:r.checked?'var(--white)':'var(--mist3)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{fullName(r.student,true)}</div>
-                        <div style={{fontSize:11,color:'var(--mist3)'}}>{cls?.name||'--'} · <span style={{color:'var(--rose)'}}>Owes {fmtMoney(r.balance,currency)}</span></div>
+                        <div style={{fontSize:11,color:'var(--mist3)'}}>{cls?.name||'--'} · <span style={{color:'var(--rose)'}}>Owes {fmtMoney(r.balance,currency)}</span>{isOverpaying&&<span style={{color:'var(--rose)',marginLeft:6,fontWeight:700}}>⚠ Exceeds balance</span>}</div>
                       </div>
                       <input type='number' value={r.amount} disabled={!r.checked}
-                        onChange={e=>setBcpRows(p=>p.map((x,j)=>j===i?{...x,amount:e.target.value}:x))}
-                        style={{width:90,padding:'5px 8px',background:'var(--ink)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13,textAlign:'right',opacity:r.checked?1:0.4}}/>
+                        onChange={e=>{
+                          const val = parseFloat(e.target.value)||0
+                          const capped = Math.min(val, r.balance)
+                          setBcpRows(p=>p.map((x,j)=>j===i?{...x,amount:String(capped)}:x))
+                        }}
+                        style={{width:90,padding:'5px 8px',background:'var(--ink)',border:`1px solid ${isOverpaying?'var(--rose)':'var(--line)'}`,borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13,textAlign:'right',opacity:r.checked?1:0.4}}/>
                     </div>
                   )
                 })}

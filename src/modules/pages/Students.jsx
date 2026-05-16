@@ -114,7 +114,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
   }
   const openEdit = s=>{setEdit(s);setForm({...s});setModal(true)}
   const save = async ()=>{
-    if(!form.first_name||!form.last_name||!form.class_id||!form.dob){toast(!form.dob?'Please enter a date of birth ✦':'Please fill all required fields','error');return}
+    if(!form.first_name||!form.last_name||!form.class_id){toast('Please fill all required fields','error');return}
     if(!form.guardian_name||!form.guardian_phone){toast('Please add at least one parent or guardian with a name and phone number','error');return}
     if(!edit && atStudentLimit){toast(`Student limit of ${studentLimit} reached on your current plan. Upgrade to add more.`,'error');return}
     setSaving(true)
@@ -491,7 +491,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
             <Field label='Last Name'  value={form.last_name}  onChange={f('last_name')}  required/>
             <Field label='Class' value={form.class_id} onChange={f('class_id')} required options={classes.map(c=>({value:c.id,label:c.name}))}/>
             <Field label='Gender' value={form.gender} onChange={f('gender')} options={['Male','Female']}/>
-            <Field label='Date of Birth ✦' value={form.dob} onChange={f('dob')} type='date' required style={!form.dob&&saving?{borderColor:'var(--rose)'}:{}}/>
+            <Field label='Date of Birth' value={form.dob} onChange={f('dob')} type='date'/>
             <Field label='Phone' value={form.phone} onChange={f('phone')}/>
             <Field label='Email' value={form.email} onChange={f('email')} type='email'/>
             <Field label='Address' value={form.address} onChange={f('address')}/>
@@ -503,9 +503,9 @@ export default function Students({profile,data,setData,toast,settings,activeYear
               <span style={{fontSize:10,color:'var(--rose)',background:'rgba(240,107,122,0.1)',border:'1px solid rgba(240,107,122,0.2)',padding:'2px 8px',borderRadius:10}}>Required</span>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'0 20px'}}>
-              <Field label='Guardian Name' value={form.guardian_name} onChange={f('guardian_name')} required placeholder='Full name'/>
+              <Field label='Guardian Name' value={form.guardian_name} onChange={f('guardian_name')} placeholder='Full name'/>
               <Field label='Relationship' value={form.guardian_relation} onChange={f('guardian_relation')} options={['','Mother','Father','Grandmother','Grandfather','Uncle','Aunt','Sibling','Legal Guardian','Other']}/>
-              <Field label='Guardian Phone' value={form.guardian_phone} onChange={f('guardian_phone')} required placeholder='Primary contact number'/>
+              <Field label='Guardian Phone' value={form.guardian_phone} onChange={f('guardian_phone')} placeholder='Primary contact number'/>
               <Field label='Guardian Email' value={form.guardian_email} onChange={f('guardian_email')} type='email' placeholder='Optional'/>
             </div>
           </div>
