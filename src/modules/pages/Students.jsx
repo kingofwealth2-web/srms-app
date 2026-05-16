@@ -115,7 +115,6 @@ export default function Students({profile,data,setData,toast,settings,activeYear
   const openEdit = s=>{setEdit(s);setForm({...s});setModal(true)}
   const save = async ()=>{
     if(!form.first_name||!form.last_name||!form.class_id){toast('Please fill all required fields','error');return}
-    if(!form.guardian_name||!form.guardian_phone){toast('Please add at least one parent or guardian with a name and phone number','error');return}
     if(!edit && atStudentLimit){toast(`Student limit of ${studentLimit} reached on your current plan. Upgrade to add more.`,'error');return}
     setSaving(true)
     if(edit){

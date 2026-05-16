@@ -896,6 +896,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       if(!feeRow||!payRow) return ''
       const cls = classes.find(c=>c.id===r.student.class_id)
       const sName = fullName(r.student,true)
+      const amtFormatted = fmtMoney(parseFloat(r.amount||0), currency)
       return `<div style="page-break-after:always;padding:32px 24px;max-width:480px;margin:0 auto;">
         <div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border-radius:12px;padding:20px;margin-bottom:16px;">
           <div style="display:flex;align-items:center;gap:12px;">${logoTag}
@@ -917,7 +918,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           <div style="height:1px;background:#eee;margin-bottom:12px;"></div>
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <div style="font-size:12px;font-weight:600;color:#555;">Amount Paid</div>
-            <div style="font-size:20px;font-weight:800;color:#1a7a4a;">${fmtD(null)||''}${typeof fmtMoney==='function'?'':r.amount}</div>
+            <div style="font-size:20px;font-weight:800;color:#1a7a4a;">${amtFormatted}</div>
           </div>
           <div style="margin-top:12px;font-size:10px;color:#bbb;text-align:center;">Recorded by ${payRow.recorded_by_name||'--'} · ${schoolName} · SRMS</div>
         </div>
@@ -1095,6 +1096,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       if(!fee||!payRow) return ''
       const cls = classes.find(c=>c.id===r.student.class_id)
       const sName = fullName(r.student,true)
+      const amtFormatted = fmtMoney(parseFloat(r.amount||0), currency)
       return `<div style="page-break-after:always;padding:32px 24px;max-width:480px;margin:0 auto;">
         <div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border-radius:12px;padding:20px;margin-bottom:16px;">
           <div style="display:flex;align-items:center;gap:12px;">${logoTag}
@@ -1116,7 +1118,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           <div style="height:1px;background:#eee;margin-bottom:12px;"></div>
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <div style="font-size:12px;font-weight:600;color:#555;">Amount Paid</div>
-            <div style="font-size:20px;font-weight:800;color:#1a7a4a;">${fmtMoney(parseFloat(r.amount),currency)}</div>
+            <div style="font-size:20px;font-weight:800;color:#1a7a4a;">${amtFormatted}</div>
           </div>
           <div style="margin-top:12px;font-size:10px;color:#bbb;text-align:center;">Recorded by ${payRow.recorded_by_name||'--'} · ${schoolName} · SRMS</div>
         </div>
@@ -1338,7 +1340,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                               {outstanding>0
                                 ? <span style={{fontWeight:700,color:'var(--rose)',fontFamily:'monospace',fontSize:13}}>{fmtMoney(outstanding,currency)}</span>
                                 : charged>0
-                                  ? <Badge color='var(--emerald)' bg='rgba(52,199,89,0.08)'>All paid</Badge>
+                                  ? <Badge color='var(--emerald)' bg='rgba(52,199,89,0.08)'>Fully collected</Badge>
                                   : <span style={{fontSize:12,color:'var(--mist3)'}}>—</span>}
                             </td>
                             <td style={{padding:'12px 14px'}} onClick={e=>e.stopPropagation()}>
