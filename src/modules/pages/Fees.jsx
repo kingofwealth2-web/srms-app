@@ -412,7 +412,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     return true
   })
   const overdueCount = enriched.filter(r=>r.isOverdue).length
-  const totalOwed = fees.reduce((s,f)=>s+Number(f.amount||0),0)
+  const totalOwed = enriched.reduce((s,r)=>s+Number(r.amount||0),0)
   const totalPaid = enriched.reduce((s,r)=>s+r.effectivePaid,0)
   const openAdd = ()=>{ window.scrollTo({top:0,behavior:'smooth'}); setForm({student_id:'',fee_type:'',amount:'',due_date:'',period:''}); setModal(true) }
   const [editFeeModal,setEditFeeModal] = useState(false)
