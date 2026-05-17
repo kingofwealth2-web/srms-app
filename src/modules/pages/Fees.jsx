@@ -387,7 +387,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
   // ── Existing fee helpers ──
   const today = new Date().toISOString().split('T')[0]
-  const enriched = fees.map(fee=>{
+  const enriched = fees.filter(fee=>!students.find(s=>s.id===fee.student_id)?.archived).map(fee=>{
     const s=students.find(x=>x.id===fee.student_id)
     const feePayments = payments.filter(p=>p.fee_id===fee.id)
     const paymentsPaid = feePayments.reduce((a,p)=>a+Number(p.amount||0),0)
@@ -894,7 +894,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       : `<div style="width:36px;height:36px;border-radius:6px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#e8b84b;">S</div>`
     const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
     const pages = done.selected.map(r=>{
-      const feeRow = done.feeRows.find(f=>f.student_id===r.student.id)
+      const feeRow = fees.find(f=>f.id===r.feeId)
       const payRow = done.payRows.find(p=>p.student_id===r.student.id)
       if(!feeRow||!payRow) return ''
       const cls = classes.find(c=>c.id===r.student.class_id)
@@ -963,7 +963,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     setBcp(BCP_INIT); setBcpRows([]); setBcpStep(1); setBcpDone(null); setBcpModal(true)
   }
 
-  const closeBcp = () => { setBcpModal(false); setBcpStep(1); setBcp(BCP_INIT); setBcpRows([]); setBcpDone(null) }
+  const closeBcp = () => { setBcpModal(false); setBcpStep(1); setBcp(BCP_INIT); setBcpRows([]); setBcpDone(null); setBrpDupWarning(false) }
 
   const bcpGoStep2 = () => {
     if(!bcp.fee_type){toast('Select a fee type','error');return}
@@ -1001,7 +1001,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         const newPaid = Number(fee?.paid||0) + amt
         await supabase.from('fees').update({paid:newPaid}).eq('id',r.feeId).eq('school_id',profile?.school_id)
         currentPayments = [payRow, ...currentPayments]
-        payRows.push({...payRow, _student:r.student, _amount:amt, _feeId:r.feeId})
+        payRows.push({...payRow, student:r.student, amount:amt, feeId:r.feeId})
       }
       // Update local state
       setData(p=>({
@@ -1263,7 +1263,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:24}}>
             {fee_templates.filter(t=>t.academic_year===activeYear).map(tmpl=>{
               const tmplPeriods  = fee_periods.filter(p=>p.template_id===tmpl.id)
-              const tmplFees     = fees.filter(f=>f.template_id===tmpl.id)
+              const tmplFees     = fees.filter(f=>f.template_id===tmpl.id && !students.find(s=>s.id===f.student_id)?.archived)
               const tmplPaid     = tmplFees.reduce((a,f)=>a+Number(f.paid||0),0)
               const isSelected   = selectedTemplate?.id===tmpl.id
               const tmplClasses  = (tmpl.class_ids||[]).map(id=>classes.find(c=>c.id===id)?.name).filter(Boolean)
@@ -1331,13 +1331,13 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                     </thead>
                     <tbody>
                       {tmplPeriods.map(period=>{
-                        const periodFees  = fees.filter(f=>f.fee_period_id===period.id)
+                        const periodFees  = fees.filter(f=>f.fee_period_id===period.id && !students.find(s=>s.id===f.student_id)?.archived)
                         const charged     = periodFees.length
                         const collected   = periodFees.reduce((a,f)=>a+Number(f.paid||0),0)
                         const outstanding = periodFees.reduce((a,f)=>a+Math.max(0,Number(f.amount||0)-Number(f.paid||0)),0)
                         const tmpl        = fee_templates.find(t=>t.id===period.template_id)
                         const totalInClasses = activeStudents.filter(s=>(tmpl?.class_ids||[]).includes(s.class_id)).length
-                        const excluded    = totalInClasses - charged
+                        const excluded    = Math.max(0, totalInClasses - charged)
                         const isSelected  = selectedPeriod?.id===period.id
                         const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
                         return (
@@ -1384,7 +1384,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         {/* ── Period Register ── */}
         {selectedPeriod && selectedTemplate && (() => {
           const tmpl       = fee_templates.find(t=>t.id===selectedTemplate.id)
-          const periodFees = fees.filter(f=>f.fee_period_id===selectedPeriod.id)
+          const periodFees = fees.filter(f=>f.fee_period_id===selectedPeriod.id && !students.find(s=>s.id===f.student_id)?.archived)
           const tmplClassIds = tmpl?.class_ids||[]
           // All students in template's classes
           const allStudents  = activeStudents.filter(s=>tmplClassIds.includes(s.class_id))
