@@ -942,7 +942,11 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   // ── Bulk Collect Payment helpers ──
   const feeTypes = [...new Set(fees.filter(f=>f.academic_year===activeYear&&!f.template_id).map(f=>f.fee_type))].sort()
   const allFeeTypes = [...new Set(fees.filter(f=>f.academic_year===activeYear).map(f=>f.fee_type))].sort()
-  const feePeriodLabels = [...new Set(fees.filter(f=>f.academic_year===activeYear&&!f.template_id).map(f=>f.period))].sort()
+  // Period labels filtered by selected fee type so bursar only sees relevant periods
+  const feePeriodLabels = [...new Set(
+    fees.filter(f=>f.academic_year===activeYear && (!bcp.fee_type || f.fee_type===bcp.fee_type) && f.period)
+      .map(f=>f.period)
+  )].sort()
 
   const buildBcpRows = (feeType, classIds, period) => {
     let pool = activeStudents
@@ -976,8 +980,9 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
   const bcpGoStep2 = () => {
     if(!bcp.fee_type){toast('Select a fee type','error');return}
+    if(!bcp.period){toast('Please select a period to avoid misallocation of payments','error');return}
     const rows = buildBcpRows(bcp.fee_type, bcp.class_ids, bcp.period)
-    if(rows.length===0){toast('No students with outstanding balances for this fee','error');return}
+    if(rows.length===0){toast('No students with outstanding balances for this fee and period','error');return}
     setBcpRows(rows)
     setBcpStep(2)
   }
@@ -2308,17 +2313,17 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               <div>
                 <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:6}}>Fee Type ✦</div>
-                <select value={bcp.fee_type} onChange={e=>bcf('fee_type')(e.target.value)}
+                <select value={bcp.fee_type} onChange={e=>{bcf('fee_type')(e.target.value);bcf('period')('')}}
                   style={{width:'100%',padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:bcp.fee_type?'var(--white)':'var(--mist3)',fontSize:13}}>
                   <option value=''>Select fee type…</option>
                   {feeTypes.map(t=><option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:6}}>Period <span style={{color:'var(--mist3)',fontWeight:400}}>(optional)</span></div>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:6}}>Period ✦</div>
                 <select value={bcp.period} onChange={e=>bcf('period')(e.target.value)}
-                  style={{width:'100%',padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13}}>
-                  <option value=''>All periods</option>
+                  style={{width:'100%',padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:bcp.period?'var(--white)':'var(--mist3)',fontSize:13}}>
+                  <option value=''>Select a period…</option>
                   {feePeriodLabels.map(p=><option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
