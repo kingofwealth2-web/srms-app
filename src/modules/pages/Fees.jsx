@@ -665,7 +665,11 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     return pool.map(s=>{
       const studentFees = fees.filter(f=>f.student_id===s.id && f.template_id===templateId)
       const totalCharged = studentFees.reduce((a,f)=>a+Number(f.amount||0),0)
-      const totalPaidAmt = studentFees.reduce((a,f)=>a+Number(f.paid||0),0)
+      const totalPaidAmt = studentFees.reduce((a,f)=>{
+        const feePayments = payments.filter(p=>p.fee_id===f.id)
+        const paymentsPaid = feePayments.reduce((s,p)=>s+Number(p.amount||0),0)
+        return a + Math.max(Number(f.paid||0), paymentsPaid)
+      },0)
       const existingBalance = Math.max(0, totalCharged - totalPaidAmt)
       // Flag students enrolled after template was created
       const isNew = tmpl.created_at && s.created_at && new Date(s.created_at) > new Date(tmpl.created_at)
@@ -894,9 +898,9 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       : `<div style="width:36px;height:36px;border-radius:6px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#e8b84b;">S</div>`
     const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
     const pages = done.selected.map(r=>{
-      const feeRow = fees.find(f=>f.id===r.feeId)
+      const feeRow = done.feeRows?.find(f=>f.student_id===r.student.id)
       const payRow = done.payRows.find(p=>p.student_id===r.student.id)
-      if(!feeRow||!payRow) return ''
+      if(!payRow) return ''
       const cls = classes.find(c=>c.id===r.student.class_id)
       const sName = fullName(r.student,true)
       const amtFormatted = fmtMoney(parseFloat(r.amount||0), currency)
@@ -951,9 +955,14 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         (!period || f.period===period)
       )
       const totalCharged = studentFees.reduce((a,f)=>a+Number(f.amount||0),0)
-      const totalPaid    = studentFees.reduce((a,f)=>a+Number(f.paid||0),0)
-      const balance      = Math.max(0, totalCharged - totalPaid)
-      const feeId        = studentFees[0]?.id || null
+      // Use effectivePaid (same as enriched) — max of fee.paid vs payments sum
+      const totalPaid = studentFees.reduce((a,f)=>{
+        const feePayments = payments.filter(p=>p.fee_id===f.id)
+        const paymentsPaid = feePayments.reduce((s,p)=>s+Number(p.amount||0),0)
+        return a + Math.max(Number(f.paid||0), paymentsPaid)
+      },0)
+      const balance = Math.max(0, totalCharged - totalPaid)
+      const feeId   = studentFees[0]?.id || null
       if(balance===0 || !feeId) return null
       return {student:s, checked:true, amount:String(balance), balance, feeId}
     }).filter(Boolean)
