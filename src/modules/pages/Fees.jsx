@@ -210,6 +210,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const [search,setSearch]     = useState('')
   const [fstatus,setFstatus]   = useState(initialFeeFilter||'')
   const [fFeeType,setFFeeType] = useState('')
+  const [fPeriod,setFPeriod]   = useState('')
   useEffect(()=>{ if(initialFeeFilter){setFstatus(initialFeeFilter);if(onFilterConsumed)onFilterConsumed()} },[])
   const [fClassId,setFClassId] = useState(profile?.role==='classteacher' ? (profile?.class_id||'') : '')
   const [modal,setModal]       = useState(false)
@@ -406,6 +407,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       if(!s || s.class_id!==fClassId) return false
     }
     if(fFeeType && r.fee_type!==fFeeType) return false
+    if(fPeriod && r.period!==fPeriod) return false
     if(!r.student_name.toLowerCase().includes(search.toLowerCase())) return false
     if(fstatus==='Overdue' && !r.isOverdue) return false
     else if(fstatus && fstatus!=='Overdue' && r.status!==fstatus) return false
@@ -1225,9 +1227,13 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             <option value=''>All Classes</option>
             {myClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <select value={fFeeType} onChange={e=>setFFeeType(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
+          <select value={fFeeType} onChange={e=>{setFFeeType(e.target.value);setFPeriod('')}} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
             <option value=''>All Fee Types</option>
             {allFeeTypes.map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+          <select value={fPeriod} onChange={e=>setFPeriod(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
+            <option value=''>All Periods</option>
+            {[...new Set(fees.filter(f=>f.academic_year===activeYear&&(!fFeeType||f.fee_type===fFeeType)&&f.period).map(f=>f.period))].sort().map(p=><option key={p} value={p}>{p}</option>)}
           </select>
           <select value={fstatus} onChange={e=>setFstatus(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Status</option>
