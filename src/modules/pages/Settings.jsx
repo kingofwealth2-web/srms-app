@@ -15,7 +15,7 @@ import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 import ConfirmModal from '../components/ConfirmModal'
 
-export default function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear}) {
+export default function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear,data,setData}) {
   const [form,setForm]   = useState(()=>{
     const base = JSON.parse(JSON.stringify(settings||{}))
     if(!base.grading_scale||base.grading_scale.length===0)
@@ -73,8 +73,49 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       setWeightWarning(true)
       setTimeout(()=>setWeightWarning(false),4000)
     }
+
+    // Check if prefix changed — if so, confirm migration first
+    const oldPrefix = settings?.student_id_prefix||'STU'
+    const newPrefix = (form.student_id_prefix||'STU').trim().toUpperCase()
+    const students  = data?.students||[]
+    const prefixChanged = newPrefix && newPrefix!==oldPrefix
+
+    if(prefixChanged && students.length>0){
+      setConfirmState({
+        title: 'Rename all Student IDs?',
+        body: `This will update all ${students.length} student ID${students.length!==1?'s':''} from ${oldPrefix}-XXXX to ${newPrefix}-XXXX. Any printed records with old IDs will no longer match. This cannot be undone.`,
+        icon: '🔁',
+        danger: true,
+        confirmLabel: 'Yes, rename all',
+        onConfirm: () => doSave(newPrefix, true)
+      })
+      return
+    }
+
+    doSave(newPrefix, false)
+  }
+
+  const doSave = async (newPrefix, migrateIds) => {
     setSaving(true)
-    const payload = {...form, grade_components: gradeComponents}
+    const payload = {...form, student_id_prefix: newPrefix, grade_components: gradeComponents}
+
+    // Migrate student IDs if prefix changed
+    if(migrateIds){
+      const students = data?.students||[]
+      const updates = students.map(s=>{
+        const num = s.student_id?.split('-').pop()||'0000'
+        return {id:s.id, student_id:`${newPrefix}-${num}`}
+      })
+      for(const u of updates){
+        await supabase.from('students').update({student_id:u.student_id}).eq('id',u.id).eq('school_id',profile?.school_id)
+      }
+      if(setData) setData(p=>({...p, students:p.students.map(s=>{
+        const num = s.student_id?.split('-').pop()||'0000'
+        return {...s, student_id:`${newPrefix}-${num}`}
+      })}))
+      toast(`${updates.length} student ID${updates.length!==1?'s':''} renamed to ${newPrefix}-XXXX`)
+    }
+
     const {error} = await supabase.from('settings').update(payload).eq('id',form.id).eq('school_id',profile?.school_id)
     if(error) toast(error.message,'error')
     else {
@@ -184,6 +225,8 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
             <Field label='School Name'   value={form.school_name}   onChange={f('school_name')} required/>
             <Field label='Address'       value={form.address}       onChange={f('address')}/>
             <Field label='School Motto'  value={form.motto}         onChange={f('motto')}/>
+            <Field label='Student ID Prefix' value={form.student_id_prefix||''} onChange={f('student_id_prefix')} placeholder='e.g. GMS, KASS, STU' style={{textTransform:'uppercase'}}/>
+            <div style={{fontSize:11,color:'var(--mist3)',marginTop:-10,marginBottom:4}}>Used when generating new student IDs — e.g. <strong>GMS</strong>-0001. Only affects new students.</div>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Academic Year</div>
               <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>

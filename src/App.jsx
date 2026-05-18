@@ -36,6 +36,7 @@ import Users          from './modules/pages/Users'
 import MyProfile      from './modules/pages/MyProfile'
 import AuditLog       from './modules/pages/AuditLog'
 import Settings       from './modules/pages/Settings'
+import WhatsNew       from './modules/components/WhatsNew'
 import FeedbackButton from './modules/components/FeedbackButton'
 
 // ── Theme Toggle ────────────────────────────────────────────────
@@ -172,6 +173,7 @@ export default function App() {
   const [data,setData]             = useState({
     students:[],classes:[],subjects:[],grades:[],attendance:[],
     fees:[],payments:[],behaviour:[],announcements:[],enrolments:[],users:[],
+    fee_templates:[],fee_periods:[],
   })
   const [page,setPage]             = useState('dashboard')
   const [feeFilter,setFeeFilter]   = useState('')
@@ -237,6 +239,7 @@ export default function App() {
       { data: enrolments }, { data: users },
       { data: grades }, { data: attendance }, { data: fees },
       { data: payments }, { data: behaviour }, { data: announcements },
+      { data: feeTemplates }, { data: feePeriods },
     ] = await Promise.all([
       supabase.from('students').select('*').eq('school_id', prof?.school_id).order('student_id'),
       supabase.from('classes').select('*').eq('school_id', prof?.school_id).order('name'),
@@ -245,10 +248,12 @@ export default function App() {
       supabase.from('profiles').select('*').eq('school_id', prof?.school_id),
       supabase.from('grades').select('*').eq('school_id', prof?.school_id).eq('year', year),
       supabase.from('attendance').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
-      supabase.from('fees').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
-      supabase.from('payments').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
+      supabase.from('fees').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).limit(5000),
+      supabase.from('payments').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).limit(5000),
       supabase.from('behaviour').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
       supabase.from('announcements').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
+      supabase.from('fee_templates').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
+      supabase.from('fee_periods').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
     ])
     setData({
       students:      students      || [],
@@ -262,6 +267,8 @@ export default function App() {
       announcements: announcements || [],
       enrolments:    enrolments    || [],
       users:         users         || [],
+      fee_templates: feeTemplates  || [],
+      fee_periods:   feePeriods    || [],
     })
   }, [])
 
@@ -325,9 +332,16 @@ export default function App() {
     setProfile(null); setSession(null); setPage('dashboard'); setShowLanding(false)
   }
 
+  const [newYearSlowMsg, setNewYearSlowMsg] = useState(false)
+
   const confirmNewYear = async () => {
     if (!newYearTarget) return
     setNewYearWorking(true)
+    setNewYearSlowMsg(false)
+
+    // Show slow message after 8 seconds
+    const slowTimer = setTimeout(() => setNewYearSlowMsg(true), 8000)
+
     const { error } = await supabase.functions.invoke('start-new-year', {
       body: {
         school_id: profile.school_id,
@@ -335,17 +349,25 @@ export default function App() {
         new_year:  newYearTarget,
       }
     })
+
+    clearTimeout(slowTimer)
     setNewYearWorking(false)
+    setNewYearSlowMsg(false)
+
     if (error) {
       showToast('Year transition failed: ' + error.message, 'error')
       return
     }
+
     setSettings(p => ({ ...p, academic_year: newYearTarget }))
     setSelectedYear(null)
     setNewYearModal(false)
     setNewYearStep(1)
     setNewYearTarget('')
     showToast('Academic year ' + newYearTarget + ' started successfully.')
+
+    // Reload all data for the new year
+    await loadData(newYearTarget, profile, settings)
   }
 
   // ── Early returns ──────────────────────────────────────────────
@@ -463,7 +485,7 @@ export default function App() {
       case 'reports':       return <Reports      {...props} planHook={planHook}/>
       case 'announcements': return <Announcements {...props} planHook={planHook}/>
       case 'users':         return <Users        {...props} planHook={planHook}/>
-      case 'settings':      return <Settings     profile={profile} settings={settings} setSettings={setSettings} toast={showToast} activeYear={activeYear} onStartNewYear={() => setNewYearModal(true)}/>
+      case 'settings':      return <Settings     profile={profile} settings={settings} setSettings={setSettings} toast={showToast} activeYear={activeYear} onStartNewYear={() => setNewYearModal(true)} data={data} setData={setData}/>
       case 'myprofile':     return <MyProfile    profile={profile} setProfile={setProfile} toast={showToast}/>
       case 'auditlog':      return <AuditLog     {...props} planHook={planHook}/>
       default:              return <Dashboard    {...props} onNav={setPage}/>
@@ -488,7 +510,7 @@ export default function App() {
           drawerOpen={drawerOpen} onDrawerClose={() => setDrawerOpen(false)}
           planHook={planHook}
         />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--ink)' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--ink)' }}>
 
           {/* ── Topbar ── */}
           {isMobile ? (
@@ -568,6 +590,7 @@ export default function App() {
                 })()}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <WhatsNew/>
                 <ThemeToggle isDark={isDark} onToggle={() => setIsDark(d => !d)}/>
                 <div style={{ width: 1, height: 20, background: 'var(--line2)' }}/>
                 <button onClick={() => setPage('myprofile')}
@@ -723,6 +746,11 @@ export default function App() {
                   {newYearWorking ? <><Spinner/> Processing...</> : 'Confirm — Start New Year'}
                 </Btn>
               </div>
+              {newYearSlowMsg && (
+                <div style={{marginTop:12,fontSize:12,color:'var(--amber)',textAlign:'center'}}>
+                  This is taking a little longer than usual — please wait, don't close this window...
+                </div>
+              )}
             </div>
           )}
         </Modal>

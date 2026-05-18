@@ -87,9 +87,9 @@ export const fmtMoney = (n, currency) => {
 }
 
 // ── ID GENERATORS ──────────────────────────────────────────────
-export const genSID = arr => {
+export const genSID = (arr, prefix='STU') => {
   const max = arr.reduce((m, s) => Math.max(m, parseInt(s.student_id?.split('-')[1] || 0)), 0)
-  return `STU-${String(max + 1).padStart(4, '0')}`
+  return `${prefix}-${String(max + 1).padStart(4, '0')}`
 }
 
 export const genRCP = arr => {

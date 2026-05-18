@@ -21,6 +21,8 @@ export default function Students({profile,data,setData,toast,settings,activeYear
   const {students=[],classes=[]} = data
   const [search,setSearch] = useState('')
   const [fc,setFc]         = useState('')
+  const [fGender,setFGender] = useState('')
+  const [sortAlpha,setSortAlpha] = useState('asc')
   const [modal,setModal]   = useState(false)
   const [confirmState,setConfirmState] = useState(null)
   const [edit,setEdit]     = useState(null)
@@ -67,7 +69,12 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     if(showArchived && fyear && s.graduation_year!==fyear) return false
     if(showArchived && fReason && s.leaving_reason!==fReason) return false
     if(!showArchived && fc && s.class_id!==fc) return false
+    if(!showArchived && fGender && s.gender!==fGender) return false
     return true
+  }).sort((a,b)=>{
+    const nameA = `${a.last_name} ${a.first_name}`.toLowerCase()
+    const nameB = `${b.last_name} ${b.first_name}`.toLowerCase()
+    return sortAlpha==='asc' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA)
   })
   const unarchive = async (student, classId) => {
     if(!classId){ toast('Please select a class to re-enrol the student into','error'); return }
@@ -114,16 +121,16 @@ export default function Students({profile,data,setData,toast,settings,activeYear
   }
   const openEdit = s=>{setEdit(s);setForm({...s});setModal(true)}
   const save = async ()=>{
-    if(!form.first_name||!form.last_name||!form.class_id||!form.dob){toast(!form.dob?'Please enter a date of birth ✦':'Please fill all required fields','error');return}
-    if(!form.guardian_name||!form.guardian_phone){toast('Please add at least one parent or guardian with a name and phone number','error');return}
+    if(!form.first_name||!form.last_name||!form.class_id){toast('Please fill all required fields','error');return}
     if(!edit && atStudentLimit){toast(`Student limit of ${studentLimit} reached on your current plan. Upgrade to add more.`,'error');return}
     setSaving(true)
+    const cleanForm = {...form, dob: form.dob||null, guardian_name: form.guardian_name||null, guardian_phone: form.guardian_phone||null, guardian_email: form.guardian_email||null, guardian_relation: form.guardian_relation||null}
     if(edit){
-      const {error} = await supabase.from('students').update({...form,updated_at:new Date()}).eq('id',edit.id)
-      if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));auditLog(profile,'Students','Updated',`${fullName(form)}`,{},{...edit},{...form});toast('Student updated');setModal(false)}
+      const {error} = await supabase.from('students').update({...cleanForm,updated_at:new Date()}).eq('id',edit.id)
+      if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));auditLog(profile,'Students','Updated',`${fullName(cleanForm)}`,{},{...edit},{...cleanForm});toast('Student updated');setModal(false)}
     } else {
-      const sid = genSID(students)
-      const {data:row,error} = await supabase.from('students').insert({...form,school_id:profile?.school_id,student_id:sid,created_at:new Date(),entry_year:activeYear}).select().single()
+      const sid = genSID(students, settings?.student_id_prefix||'STU')
+      const {data:row,error} = await supabase.from('students').insert({...cleanForm,school_id:profile?.school_id,student_id:sid,created_at:new Date(),entry_year:activeYear}).select().single()
       if(error){toast(error.message,'error')}else{setData(p=>({...p,students:[...p.students,row]}));auditLog(profile,'Students','Created',`${fullName(form)}`,{},null,row);toast('Student added');setModal(false)}
     }
     setSaving(false)
@@ -383,7 +390,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
           <Btn variant='ghost' onClick={exportStudentsCsv}>⬇ Export CSV</Btn>
         )}
         {canEdit && (
-          <Btn variant='ghost' onClick={()=>{setShowArchived(v=>!v);setSearch('');setFc('');setFyear('');setFReason('')}}>
+          <Btn variant='ghost' onClick={()=>{setShowArchived(v=>!v);setSearch('');setFc('');setFyear('');setFReason('');setFGender('');setSortAlpha('asc')}}>
             {showArchived?'← Back to Students':'⊡ Archived Students'}
           </Btn>
         )}
@@ -417,6 +424,21 @@ export default function Students({profile,data,setData,toast,settings,activeYear
                 {(profile?.role==='teacher' ? classes.filter(c=>teacherSubjectClassIds.includes(c.id)) : classes).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             )
+          )}
+          {!showArchived && (
+            <>
+              <select value={fGender} onChange={e=>setFGender(e.target.value)}
+                style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 110px'}}>
+                <option value=''>All Genders</option>
+                <option value='Male'>Male</option>
+                <option value='Female'>Female</option>
+              </select>
+              <button onClick={()=>setSortAlpha(v=>v==='asc'?'desc':'asc')}
+                title={sortAlpha==='asc'?'Sorted A→Z (click for Z→A)':'Sorted Z→A (click for A→Z)'}
+                style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist)',fontSize:13,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
+                {sortAlpha==='asc'?'A→Z':'Z→A'}
+              </button>
+            </>
           )}
         </div>
       </Card>
@@ -467,7 +489,13 @@ export default function Students({profile,data,setData,toast,settings,activeYear
       </Card>
       {modal && (
         <Modal title={edit?'Edit Student':'New Student'} subtitle={edit?`ID: ${edit.student_id}`:'A Student ID will be generated automatically.'} onClose={()=>setModal(false)} width={580}>
-          {/* Photo upload */}
+          {/* No prefix warning */}
+          {!edit && !settings?.student_id_prefix && (
+            <div style={{background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.25)',borderRadius:'var(--r-sm)',padding:'10px 14px',display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+              <span style={{fontSize:16,flexShrink:0}}>⚠️</span>
+              <div style={{fontSize:12,color:'var(--mist2)'}}>No Student ID Prefix set. IDs will use the default <strong style={{color:'var(--gold)'}}>STU</strong> (e.g. STU-0001). You can set your school's prefix in <strong>Settings</strong>.</div>
+            </div>
+          )}
           <div style={{display:'flex',alignItems:'center',gap:16,padding:'14px 16px',background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:20,border:'1px solid var(--line)'}}>
             <div style={{position:'relative',flexShrink:0}}>
               <Avatar name={fullName(form)||'?'} size={56} photo={form.photo}/>
@@ -491,7 +519,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
             <Field label='Last Name'  value={form.last_name}  onChange={f('last_name')}  required/>
             <Field label='Class' value={form.class_id} onChange={f('class_id')} required options={classes.map(c=>({value:c.id,label:c.name}))}/>
             <Field label='Gender' value={form.gender} onChange={f('gender')} options={['Male','Female']}/>
-            <Field label='Date of Birth ✦' value={form.dob} onChange={f('dob')} type='date' required style={!form.dob&&saving?{borderColor:'var(--rose)'}:{}}/>
+            <Field label='Date of Birth' value={form.dob} onChange={f('dob')} type='date'/>
             <Field label='Phone' value={form.phone} onChange={f('phone')}/>
             <Field label='Email' value={form.email} onChange={f('email')} type='email'/>
             <Field label='Address' value={form.address} onChange={f('address')}/>
@@ -500,12 +528,12 @@ export default function Students({profile,data,setData,toast,settings,activeYear
           <div style={{margin:'16px 0 10px',paddingTop:16,borderTop:'1px solid var(--line)'}}>
             <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12,display:'flex',alignItems:'center',gap:8}}>
               <span>Parent / Guardian</span>
-              <span style={{fontSize:10,color:'var(--rose)',background:'rgba(240,107,122,0.1)',border:'1px solid rgba(240,107,122,0.2)',padding:'2px 8px',borderRadius:10}}>Required</span>
+              
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'0 20px'}}>
-              <Field label='Guardian Name' value={form.guardian_name} onChange={f('guardian_name')} required placeholder='Full name'/>
+              <Field label='Guardian Name' value={form.guardian_name} onChange={f('guardian_name')} placeholder='Full name'/>
               <Field label='Relationship' value={form.guardian_relation} onChange={f('guardian_relation')} options={['','Mother','Father','Grandmother','Grandfather','Uncle','Aunt','Sibling','Legal Guardian','Other']}/>
-              <Field label='Guardian Phone' value={form.guardian_phone} onChange={f('guardian_phone')} required placeholder='Primary contact number'/>
+              <Field label='Guardian Phone' value={form.guardian_phone} onChange={f('guardian_phone')} placeholder='Primary contact number'/>
               <Field label='Guardian Email' value={form.guardian_email} onChange={f('guardian_email')} type='email' placeholder='Optional'/>
             </div>
           </div>
