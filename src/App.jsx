@@ -189,6 +189,7 @@ export default function App() {
   const [newYearStep,setNewYearStep]     = useState(1)
   const [newYearTarget,setNewYearTarget] = useState('')
   const [newYearWorking,setNewYearWorking] = useState(false)
+  const [newYearSlowMsg, setNewYearSlowMsg] = useState(false)
   const isMobile = useIsMobile()
   const initialLoadDone = useRef(false)
   const planHook = usePlan(settings)
@@ -331,8 +332,6 @@ export default function App() {
     await supabase.auth.signOut()
     setProfile(null); setSession(null); setPage('dashboard'); setShowLanding(false)
   }
-
-  const [newYearSlowMsg, setNewYearSlowMsg] = useState(false)
 
   const confirmNewYear = async () => {
     if (!newYearTarget) return
