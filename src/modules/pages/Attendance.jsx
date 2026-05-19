@@ -151,7 +151,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
           )}
           <input type='date' value={date} onChange={e=>changeContext(undefined,e.target.value)}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--white)',fontSize:13}}/>
-          {tab==='mark'&&cls&&!isBlocked&&(
+          {tab==='mark'&&cls&&!isBlocked&&!isViewingPast&&(
             <div style={{display:'flex',gap:6,marginLeft:'auto',flexWrap:'wrap',alignItems:'center'}}>
               <span style={{fontSize:12,color:'var(--mist3)',marginRight:4}}>Mark all:</span>
               {statuses.map(s=>(
@@ -221,10 +221,10 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
                         const cur=getStatus(r.id)===s
                         const isPending=pendingMarks[r.id]===s
                         return (
-                          <button key={s} onClick={()=>!isBlocked&&markStudent(r.id,s)}
-                            disabled={isBlocked}
+                          <button key={s} onClick={()=>!isBlocked&&!isViewingPast&&markStudent(r.id,s)}
+                            disabled={isBlocked||isViewingPast}
                             style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:600,cursor:isBlocked?'not-allowed':'pointer',transition:'all 0.12s',fontFamily:"'Cabinet Grotesk',sans-serif",
-                              opacity:isBlocked?0.3:1,
+                              opacity:(isBlocked||isViewingPast)?0.3:1,
                               background:cur?STATUS_META[s].bg:'transparent',color:cur?STATUS_META[s].color:'var(--mist3)',
                               border:`1px solid ${cur?STATUS_META[s].color:'var(--line)'}`,
                               outline:isPending?`2px solid ${STATUS_META[s].color}`:'none',outlineOffset:1}}

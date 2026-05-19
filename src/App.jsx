@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { supabase } from './supabase'
 
 import G, { initScrollReveal } from './modules/styles/global'
@@ -468,7 +468,20 @@ export default function App() {
   }
   // ─────────────────────────────────────────────────────────────────
 
-  const props = { profile, data, setData, toast: showToast, settings, activeYear, isViewingPast, reloadData: () => loadData(activeYear, profile, settings), onShowPlans: () => setShowPlans(true), reloadSettings }
+  const displayData = useMemo(() => {
+    if (!isViewingPast || !data.enrolments?.length) return data
+    const enrolMap = {}
+    data.enrolments.forEach(e => { enrolMap[e.student_id] = e.class_id })
+    return {
+      ...data,
+      students: data.students.map(s => ({
+        ...s,
+        class_id: enrolMap[s.id] !== undefined ? enrolMap[s.id] : s.class_id
+      }))
+    }
+  }, [isViewingPast, data])
+
+  const props = { profile, data: displayData, setData, toast: showToast, settings, activeYear, isViewingPast, reloadData: () => loadData(activeYear, profile, settings), onShowPlans: () => setShowPlans(true), reloadSettings }
 
   const renderPage = () => {
     const allowedPages = NAV_ITEMS[profile?.role] || []
