@@ -189,7 +189,6 @@ export default function App() {
   const [newYearStep,setNewYearStep]     = useState(1)
   const [newYearTarget,setNewYearTarget] = useState('')
   const [newYearWorking,setNewYearWorking] = useState(false)
-  const [newYearSlowMsg, setNewYearSlowMsg] = useState(false)
   const isMobile = useIsMobile()
   const initialLoadDone = useRef(false)
   const planHook = usePlan(settings)
@@ -333,6 +332,8 @@ export default function App() {
     setProfile(null); setSession(null); setPage('dashboard'); setShowLanding(false)
   }
 
+  const [newYearSlowMsg, setNewYearSlowMsg] = useState(false)
+
   const confirmNewYear = async () => {
     if (!newYearTarget) return
     setNewYearWorking(true)
@@ -369,6 +370,26 @@ export default function App() {
     await loadData(newYearTarget, profile, settings)
   }
 
+  const currentYear   = settings ? currentYearFromSettings(settings) : ''
+  const activeYear    = selectedYear || currentYear
+  const isViewingPast = !!(selectedYear && selectedYear !== currentYear)
+    || planHook.status === 'cancelled_grace'
+    || planHook.status === 'expiry_grace'
+
+  // ── PARENT PORTAL GATING ─────────────────────────────────────────
+  const displayData = useMemo(() => {
+    if (!isViewingPast || !data.enrolments?.length) return data
+    const enrolMap = {}
+    data.enrolments.forEach(e => { enrolMap[e.student_id] = e.class_id })
+    return {
+      ...data,
+      students: data.students.map(s => ({
+        ...s,
+        class_id: enrolMap[s.id] !== undefined ? enrolMap[s.id] : s.class_id
+      }))
+    }
+  }, [isViewingPast, data])
+
   // ── Early returns ──────────────────────────────────────────────
   if (isRecovery) return <><style>{G}</style><ResetPassword onDone={() => { setIsRecovery(false); setSession(null) }}/></>
   if (mustChangePw && session) return (
@@ -396,13 +417,6 @@ export default function App() {
 
   if (!settings) return <><style>{G}</style><LoadingScreen msg="Loading settings..."/></>
 
-  const currentYear   = currentYearFromSettings(settings)
-  const activeYear    = selectedYear || currentYear
-  const isViewingPast = !!(selectedYear && selectedYear !== currentYear)
-    || planHook.status === 'cancelled_grace'
-    || planHook.status === 'expiry_grace'
-
-  // ── PARENT PORTAL GATING ─────────────────────────────────────────
   if (profile?.role === 'parent') {
     if (planHook.isExpired) {
       return (
@@ -466,19 +480,6 @@ export default function App() {
     )
   }
   // ─────────────────────────────────────────────────────────────────
-
-  const displayData = useMemo(() => {
-    if (!isViewingPast || !data.enrolments?.length) return data
-    const enrolMap = {}
-    data.enrolments.forEach(e => { enrolMap[e.student_id] = e.class_id })
-    return {
-      ...data,
-      students: data.students.map(s => ({
-        ...s,
-        class_id: enrolMap[s.id] !== undefined ? enrolMap[s.id] : s.class_id
-      }))
-    }
-  }, [isViewingPast, data])
 
   const props = { profile, data: displayData, setData, toast: showToast, settings, activeYear, isViewingPast, reloadData: () => loadData(activeYear, profile, settings), onShowPlans: () => setShowPlans(true), reloadSettings }
 
