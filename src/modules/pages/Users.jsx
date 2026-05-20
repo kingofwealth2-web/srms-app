@@ -273,7 +273,9 @@ export default function Users({profile,toast,planHook}) {
             : <Field label='Role' value={form.role} onChange={f('role')} options={
                 profile?.role === 'admin'
                   ? [{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'},{value:'parent',label:'Parent / Guardian'}]
-                  : [{value:'admin',label:'Administrator'},{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'},{value:'parent',label:'Parent / Guardian'}]
+                  : profile?.role === 'superadmin'
+                    ? [{value:'superadmin',label:'Super Admin'},{value:'admin',label:'Administrator'},{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'},{value:'parent',label:'Parent / Guardian'}]
+                    : [{value:'admin',label:'Administrator'},{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'},{value:'parent',label:'Parent / Guardian'}]
               }/>
           }
 
