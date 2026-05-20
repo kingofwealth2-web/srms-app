@@ -104,7 +104,7 @@ export default function Users({profile,toast,planHook}) {
       // Use a throwaway client so signUp never touches the SA's current session
       const pw = genPw()
       const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { persistSession: false, autoRefreshToken: false }
+        auth: { persistSession: false, autoRefreshToken: false, storageKey: `srms-temp-${Date.now()}` }
       })
       const {data:authData,error:authErr} = await tempClient.auth.signUp({
         email: form.email,
