@@ -176,13 +176,13 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
             <Card><div style={{padding:60,textAlign:'center',color:'var(--mist3)',fontSize:13}}>Select a class to begin marking attendance.</div></Card>
           ) : (
             <>
-              {!hasUnsaved && alreadyMarkedToday && (
+              {!isViewingPast && !hasUnsaved && alreadyMarkedToday && (
                 <div className='fi' style={{background:'rgba(45,212,160,0.06)',border:'1px solid rgba(45,212,160,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
                   <span style={{fontSize:16}}>done</span>
                   <span style={{fontSize:13,color:'var(--emerald)'}}>Attendance already marked for today. You can still edit and save again.</span>
                 </div>
               )}
-              {!hasUnsaved && !alreadyMarkedToday && savedRecs.length===0 && date===today && (
+              {!isViewingPast && !hasUnsaved && !alreadyMarkedToday && savedRecs.length===0 && date===today && (
                 <div className='fi' style={{background:'rgba(251,159,58,0.06)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
                   <span style={{fontSize:16}}>(!)</span>
                   <span style={{fontSize:13,color:'var(--amber)'}}>Attendance has not been marked yet today for <strong>{cls.name}</strong>.</span>
