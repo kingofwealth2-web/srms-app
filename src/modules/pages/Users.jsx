@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META } from '../lib/constants'
@@ -17,8 +16,6 @@ import DataTable from '../components/DataTable'
 import Card from '../components/Card'
 import LoadingScreen from '../components/LoadingScreen'
 
-const SUPABASE_URL      = 'https://kfcqkgvuluftnwzeqzmw.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmY3FrZ3Z1bHVmdG53emVxem13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NzkwMTUsImV4cCI6MjA4NzQ1NTAxNX0.dOW3c8XIfFbIq2ls9gEjgowWguIlWLVflR7nErXojDI'
 
 // ── USERS MODULE ───────────────────────────────────────────────
 
@@ -101,61 +98,17 @@ export default function Users({profile,toast,planHook}) {
       toast('User updated')
       setModal(false)
     } else {
-      // Use a throwaway client so signUp never touches the SA's current session
+      // Use create_auth_user RPC (SECURITY DEFINER) to create auth + profile atomically
       const pw = genPw()
-      const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { persistSession: false, autoRefreshToken: false, storageKey: `srms-temp-${Date.now()}` }
+      const {data:uid, error:authErr} = await supabase.rpc('create_auth_user', {
+        p_email:     form.email,
+        p_password:  pw,
+        p_full_name: form.full_name,
+        p_role:      form.role,
+        p_school_id: profile?.school_id,
       })
-      const {data:authData,error:authErr} = await tempClient.auth.signUp({
-        email: form.email,
-        password: pw,
-        options: { data: { full_name: form.full_name, role: form.role, school_id: profile?.school_id } }
-      })
-      await tempClient.auth.signOut()
       if(authErr){ toast(authErr.message,'error'); setSaving(false); return }
-      const uid = authData?.user?.id
       if(!uid){ toast('User account created but could not get ID.','error'); setSaving(false); return }
-      // For parent role, update the auto-created profile row (handle_new_user trigger
-      // already inserted a row — inserting again causes duplicate key error)
-      let profErr = null
-      if(form.role === 'parent') {
-        const {error:pe} = await supabase.from('profiles').update({
-          full_name: form.full_name,
-          email: form.email,
-          role: 'parent',
-          school_id: profile?.school_id,
-          locked: false,
-          must_change_password: true,
-        }).eq('id', uid)
-        profErr = pe
-      } else {
-        const {error:pe} = await supabase.rpc('create_school_user', {
-          p_user_id:   uid,
-          p_full_name: form.full_name,
-          p_email:     form.email,
-          p_role:      form.role,
-          p_school_id: profile?.school_id,
-        })
-        profErr = pe
-      }
-      if(profErr){ toast('Profile setup failed: '+profErr.message,'error'); setSaving(false); return }
-      // For parent: verify school_id was saved, fix if not (RLS may have silently blocked it)
-      if(form.role === 'parent') {
-        const {data:check} = await supabase.from('profiles').select('school_id').eq('id',uid).single()
-        if(!check?.school_id) {
-          // RLS blocked the update — try the RPC instead which has elevated permissions
-          await supabase.rpc('create_school_user', {
-            p_user_id:   uid,
-            p_full_name: form.full_name,
-            p_email:     form.email,
-            p_role:      'parent',
-            p_school_id: profile?.school_id,
-          })
-          await supabase.from('profiles').update({must_change_password:true}).eq('id',uid)
-        }
-      } else {
-        await supabase.from('profiles').update({must_change_password:true}).eq('id',uid)
-      }
       // Fetch the full profile row so all fields are present in local state
       const {data:newProf} = await supabase.from('profiles').select('*').eq('id',uid).single()
       setUsers(p=>[...p, newProf||{id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false}])
