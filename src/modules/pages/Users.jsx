@@ -28,6 +28,7 @@ export default function Users({profile,toast,planHook}) {
   const [saving,setSaving]     = useState(false)
 
   const [createdUser,setCreatedUser]   = useState(null)  // {name,email,pw} shown in overlay
+  const [resetPwUser,setResetPwUser]     = useState(null)  // {name,email,pw} shown after password reset
   const [students,setStudents]         = useState([])
   const [parentLinks,setParentLinks]   = useState([])   // student IDs linked to a parent
   const [stuSearch,setStuSearch]       = useState('')
@@ -75,7 +76,13 @@ export default function Users({profile,toast,planHook}) {
     if(!edit && atUserLimit){toast(`User limit of ${userLimit} reached on your current plan. Upgrade to add more.`,'error');return}
     setSaving(true)
     if(edit){
-      const {error} = await supabase.from('profiles').update({full_name:form.full_name,email:form.email,role:form.role}).eq('id',edit.id).eq('school_id',profile?.school_id)
+      // Update auth.users, auth.identities, and profiles atomically via RPC
+      const {error} = await supabase.rpc('update_auth_user', {
+        p_user_id:   edit.id,
+        p_email:     form.email,
+        p_full_name: form.full_name,
+        p_role:      form.role,
+      })
       if(error){ toast(error.message,'error'); setSaving(false); return }
       // If switching away from class teacher, unlink from class
       if(edit.role==='classteacher' && form.role!=='classteacher'){
@@ -129,6 +136,17 @@ export default function Users({profile,toast,planHook}) {
     setSaving(false)
   }
 
+  const resetPassword = async u => {
+    const pw = genPw()
+    const {error} = await supabase.rpc('reset_user_password', {
+      p_user_id:     u.id,
+      p_new_password: pw,
+    })
+    if(error){ toast(error.message,'error'); return }
+    auditLog(profile,'Users','Password Reset',`${u.full_name} · ${u.email}`,{},null,null)
+    setResetPwUser({name:u.full_name, email:u.email, pw})
+  }
+
   const toggleLock = async id=>{
     const u=users.find(x=>x.id===id)
     if(!u) return
@@ -179,6 +197,7 @@ export default function Users({profile,toast,planHook}) {
             <div style={{display:'flex',gap:8}}>
               {canEdit && <Btn variant='ghost' size='sm' onClick={()=>openEdit(r)}>Edit</Btn>}
               {canLock && <Btn variant='ghost' size='sm' onClick={()=>toggleLock(r.id)}>{r.locked?'Unlock':'Lock'}</Btn>}
+              {!isSelf && r.role!=='superadmin' && profile?.role==='superadmin' && <Btn variant='ghost' size='sm' onClick={()=>resetPassword(r)}>Reset PW</Btn>}
             </div>
           )}},
         ]}/>
@@ -205,6 +224,34 @@ export default function Users({profile,toast,planHook}) {
               ⚠ This password will not be shown again. Share it with the user now via WhatsApp or SMS. They will be prompted to change it on first login.
             </div>
             <button onClick={()=>{setCreatedUser(null);setModal(false)}}
+              style={{width:'100%',background:'var(--gold)',border:'none',borderRadius:9,padding:'12px',fontSize:14,fontWeight:700,color:'var(--ink)',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+      {resetPwUser && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:16,padding:32,maxWidth:440,width:'100%',boxShadow:'0 24px 80px rgba(0,0,0,0.5)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:24}}>
+              <div style={{width:44,height:44,borderRadius:10,background:'rgba(45,212,160,0.1)',border:'1px solid rgba(45,212,160,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>🔑</div>
+              <div>
+                <div style={{fontWeight:700,fontSize:15}}>Password Reset</div>
+                <div style={{fontSize:12,color:'var(--mist3)',marginTop:2}}>{resetPwUser.name} · {resetPwUser.email}</div>
+              </div>
+            </div>
+            <div style={{marginBottom:8,fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',fontFamily:"'Clash Display',sans-serif"}}>New Temporary Password</div>
+            <div style={{background:'var(--ink)',border:'1px solid var(--gold)',borderRadius:10,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,gap:12}}>
+              <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:20,fontWeight:700,letterSpacing:'0.08em',color:'var(--gold)'}}>{resetPwUser.pw}</span>
+              <button onClick={()=>{navigator.clipboard.writeText(resetPwUser.pw).then(()=>toast('Password copied to clipboard.'))}}
+                style={{background:'rgba(232,184,75,0.12)',border:'1px solid rgba(232,184,75,0.3)',borderRadius:7,padding:'7px 14px',color:'var(--gold)',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:"'Cabinet Grotesk',sans-serif"}}>
+                Copy
+              </button>
+            </div>
+            <div style={{background:'rgba(240,107,122,0.07)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:8,padding:'10px 14px',fontSize:12,color:'var(--rose)',lineHeight:1.6,marginBottom:24}}>
+              ⚠ This password will not be shown again. Share it with the user now via WhatsApp or SMS. They will be prompted to change it on next login.
+            </div>
+            <button onClick={()=>setResetPwUser(null)}
               style={{width:'100%',background:'var(--gold)',border:'none',borderRadius:9,padding:'12px',fontSize:14,fontWeight:700,color:'var(--ink)',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>
               Done
             </button>
