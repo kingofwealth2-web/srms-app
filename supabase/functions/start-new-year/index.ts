@@ -20,12 +20,16 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   )
 
-  const caller = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
-    global: { headers: { Authorization: authHeader } }
-  })
-  const { data: profile, error: profileErr } = await caller
+  // Verify caller is superadmin using the service role client
+  const { data: { user }, error: userErr } = await sb.auth.getUser(
+    authHeader.replace('Bearer ', '')
+  )
+  if (userErr || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
+
+  const { data: profile, error: profileErr } = await sb
     .from('profiles')
     .select('school_id, role')
+    .eq('id', user.id)
     .single()
 
   if (profileErr || profile?.school_id !== school_id || profile?.role !== 'superadmin')
