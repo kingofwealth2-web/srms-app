@@ -151,7 +151,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
           )}
           <input type='date' value={date} onChange={e=>changeContext(undefined,e.target.value)}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--white)',fontSize:13}}/>
-          {tab==='mark'&&cls&&!isBlocked&&(
+          {tab==='mark'&&cls&&!isBlocked&&!isViewingPast&&(
             <div style={{display:'flex',gap:6,marginLeft:'auto',flexWrap:'wrap',alignItems:'center'}}>
               <span style={{fontSize:12,color:'var(--mist3)',marginRight:4}}>Mark all:</span>
               {statuses.map(s=>(
@@ -176,13 +176,13 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
             <Card><div style={{padding:60,textAlign:'center',color:'var(--mist3)',fontSize:13}}>Select a class to begin marking attendance.</div></Card>
           ) : (
             <>
-              {!hasUnsaved && alreadyMarkedToday && (
+              {!isViewingPast && !hasUnsaved && alreadyMarkedToday && (
                 <div className='fi' style={{background:'rgba(45,212,160,0.06)',border:'1px solid rgba(45,212,160,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
                   <span style={{fontSize:16}}>done</span>
                   <span style={{fontSize:13,color:'var(--emerald)'}}>Attendance already marked for today. You can still edit and save again.</span>
                 </div>
               )}
-              {!hasUnsaved && !alreadyMarkedToday && savedRecs.length===0 && date===today && (
+              {!isViewingPast && !hasUnsaved && !alreadyMarkedToday && savedRecs.length===0 && date===today && (
                 <div className='fi' style={{background:'rgba(251,159,58,0.06)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
                   <span style={{fontSize:16}}>(!)</span>
                   <span style={{fontSize:13,color:'var(--amber)'}}>Attendance has not been marked yet today for <strong>{cls.name}</strong>.</span>
@@ -221,10 +221,10 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
                         const cur=getStatus(r.id)===s
                         const isPending=pendingMarks[r.id]===s
                         return (
-                          <button key={s} onClick={()=>!isBlocked&&markStudent(r.id,s)}
-                            disabled={isBlocked}
+                          <button key={s} onClick={()=>!isBlocked&&!isViewingPast&&markStudent(r.id,s)}
+                            disabled={isBlocked||isViewingPast}
                             style={{padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:600,cursor:isBlocked?'not-allowed':'pointer',transition:'all 0.12s',fontFamily:"'Cabinet Grotesk',sans-serif",
-                              opacity:isBlocked?0.3:1,
+                              opacity:(isBlocked||isViewingPast)?0.3:1,
                               background:cur?STATUS_META[s].bg:'transparent',color:cur?STATUS_META[s].color:'var(--mist3)',
                               border:`1px solid ${cur?STATUS_META[s].color:'var(--line)'}`,
                               outline:isPending?`2px solid ${STATUS_META[s].color}`:'none',outlineOffset:1}}

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META } from '../lib/constants'
@@ -17,8 +16,6 @@ import DataTable from '../components/DataTable'
 import Card from '../components/Card'
 import LoadingScreen from '../components/LoadingScreen'
 
-const SUPABASE_URL      = 'https://kfcqkgvuluftnwzeqzmw.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmY3FrZ3Z1bHVmdG53emVxem13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NzkwMTUsImV4cCI6MjA4NzQ1NTAxNX0.dOW3c8XIfFbIq2ls9gEjgowWguIlWLVflR7nErXojDI'
 
 // ── USERS MODULE ───────────────────────────────────────────────
 
@@ -31,6 +28,7 @@ export default function Users({profile,toast,planHook}) {
   const [saving,setSaving]     = useState(false)
 
   const [createdUser,setCreatedUser]   = useState(null)  // {name,email,pw} shown in overlay
+  const [resetPwUser,setResetPwUser]     = useState(null)  // {name,email,pw} shown after password reset
   const [students,setStudents]         = useState([])
   const [parentLinks,setParentLinks]   = useState([])   // student IDs linked to a parent
   const [stuSearch,setStuSearch]       = useState('')
@@ -78,7 +76,13 @@ export default function Users({profile,toast,planHook}) {
     if(!edit && atUserLimit){toast(`User limit of ${userLimit} reached on your current plan. Upgrade to add more.`,'error');return}
     setSaving(true)
     if(edit){
-      const {error} = await supabase.from('profiles').update({full_name:form.full_name,email:form.email,role:form.role}).eq('id',edit.id).eq('school_id',profile?.school_id)
+      // Update auth.users, auth.identities, and profiles atomically via RPC
+      const {error} = await supabase.rpc('update_auth_user', {
+        p_user_id:   edit.id,
+        p_email:     form.email,
+        p_full_name: form.full_name,
+        p_role:      form.role,
+      })
       if(error){ toast(error.message,'error'); setSaving(false); return }
       // If switching away from class teacher, unlink from class
       if(edit.role==='classteacher' && form.role!=='classteacher'){
@@ -101,61 +105,17 @@ export default function Users({profile,toast,planHook}) {
       toast('User updated')
       setModal(false)
     } else {
-      // Use a throwaway client so signUp never touches the SA's current session
+      // Use create_auth_user RPC (SECURITY DEFINER) to create auth + profile atomically
       const pw = genPw()
-      const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { persistSession: false, autoRefreshToken: false }
+      const {data:uid, error:authErr} = await supabase.rpc('create_auth_user', {
+        p_email:     form.email,
+        p_password:  pw,
+        p_full_name: form.full_name,
+        p_role:      form.role,
+        p_school_id: profile?.school_id,
       })
-      const {data:authData,error:authErr} = await tempClient.auth.signUp({
-        email: form.email,
-        password: pw,
-        options: { data: { full_name: form.full_name, role: form.role, school_id: profile?.school_id } }
-      })
-      await tempClient.auth.signOut()
       if(authErr){ toast(authErr.message,'error'); setSaving(false); return }
-      const uid = authData?.user?.id
       if(!uid){ toast('User account created but could not get ID.','error'); setSaving(false); return }
-      // For parent role, update the auto-created profile row (handle_new_user trigger
-      // already inserted a row — inserting again causes duplicate key error)
-      let profErr = null
-      if(form.role === 'parent') {
-        const {error:pe} = await supabase.from('profiles').update({
-          full_name: form.full_name,
-          email: form.email,
-          role: 'parent',
-          school_id: profile?.school_id,
-          locked: false,
-          must_change_password: true,
-        }).eq('id', uid)
-        profErr = pe
-      } else {
-        const {error:pe} = await supabase.rpc('create_school_user', {
-          p_user_id:   uid,
-          p_full_name: form.full_name,
-          p_email:     form.email,
-          p_role:      form.role,
-          p_school_id: profile?.school_id,
-        })
-        profErr = pe
-      }
-      if(profErr){ toast('Profile setup failed: '+profErr.message,'error'); setSaving(false); return }
-      // For parent: verify school_id was saved, fix if not (RLS may have silently blocked it)
-      if(form.role === 'parent') {
-        const {data:check} = await supabase.from('profiles').select('school_id').eq('id',uid).single()
-        if(!check?.school_id) {
-          // RLS blocked the update — try the RPC instead which has elevated permissions
-          await supabase.rpc('create_school_user', {
-            p_user_id:   uid,
-            p_full_name: form.full_name,
-            p_email:     form.email,
-            p_role:      'parent',
-            p_school_id: profile?.school_id,
-          })
-          await supabase.from('profiles').update({must_change_password:true}).eq('id',uid)
-        }
-      } else {
-        await supabase.from('profiles').update({must_change_password:true}).eq('id',uid)
-      }
       // Fetch the full profile row so all fields are present in local state
       const {data:newProf} = await supabase.from('profiles').select('*').eq('id',uid).single()
       setUsers(p=>[...p, newProf||{id:uid,full_name:form.full_name,email:form.email,role:form.role,locked:false}])
@@ -174,6 +134,17 @@ export default function Users({profile,toast,planHook}) {
       setCreatedUser({name:form.full_name,email:form.email,pw})
     }
     setSaving(false)
+  }
+
+  const resetPassword = async u => {
+    const pw = genPw()
+    const {error} = await supabase.rpc('reset_user_password', {
+      p_user_id:     u.id,
+      p_new_password: pw,
+    })
+    if(error){ toast(error.message,'error'); return }
+    auditLog(profile,'Users','Password Reset',`${u.full_name} · ${u.email}`,{},null,null)
+    setResetPwUser({name:u.full_name, email:u.email, pw})
   }
 
   const toggleLock = async id=>{
@@ -226,6 +197,7 @@ export default function Users({profile,toast,planHook}) {
             <div style={{display:'flex',gap:8}}>
               {canEdit && <Btn variant='ghost' size='sm' onClick={()=>openEdit(r)}>Edit</Btn>}
               {canLock && <Btn variant='ghost' size='sm' onClick={()=>toggleLock(r.id)}>{r.locked?'Unlock':'Lock'}</Btn>}
+              {!isSelf && r.role!=='superadmin' && profile?.role==='superadmin' && <Btn variant='ghost' size='sm' onClick={()=>resetPassword(r)}>Reset PW</Btn>}
             </div>
           )}},
         ]}/>
@@ -258,6 +230,34 @@ export default function Users({profile,toast,planHook}) {
           </div>
         </div>
       )}
+      {resetPwUser && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:16,padding:32,maxWidth:440,width:'100%',boxShadow:'0 24px 80px rgba(0,0,0,0.5)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:24}}>
+              <div style={{width:44,height:44,borderRadius:10,background:'rgba(45,212,160,0.1)',border:'1px solid rgba(45,212,160,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>🔑</div>
+              <div>
+                <div style={{fontWeight:700,fontSize:15}}>Password Reset</div>
+                <div style={{fontSize:12,color:'var(--mist3)',marginTop:2}}>{resetPwUser.name} · {resetPwUser.email}</div>
+              </div>
+            </div>
+            <div style={{marginBottom:8,fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',fontFamily:"'Clash Display',sans-serif"}}>New Temporary Password</div>
+            <div style={{background:'var(--ink)',border:'1px solid var(--gold)',borderRadius:10,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,gap:12}}>
+              <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:20,fontWeight:700,letterSpacing:'0.08em',color:'var(--gold)'}}>{resetPwUser.pw}</span>
+              <button onClick={()=>{navigator.clipboard.writeText(resetPwUser.pw).then(()=>toast('Password copied to clipboard.'))}}
+                style={{background:'rgba(232,184,75,0.12)',border:'1px solid rgba(232,184,75,0.3)',borderRadius:7,padding:'7px 14px',color:'var(--gold)',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',fontFamily:"'Cabinet Grotesk',sans-serif"}}>
+                Copy
+              </button>
+            </div>
+            <div style={{background:'rgba(240,107,122,0.07)',border:'1px solid rgba(240,107,122,0.2)',borderRadius:8,padding:'10px 14px',fontSize:12,color:'var(--rose)',lineHeight:1.6,marginBottom:24}}>
+              ⚠ This password will not be shown again. Share it with the user now via WhatsApp or SMS. They will be prompted to change it on next login.
+            </div>
+            <button onClick={()=>setResetPwUser(null)}
+              style={{width:'100%',background:'var(--gold)',border:'none',borderRadius:9,padding:'12px',fontSize:14,fontWeight:700,color:'var(--ink)',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>
+              Done
+            </button>
+          </div>
+        </div>
+      )}
       {modal && (
         <Modal title={edit?'Edit User':'Add New User'} subtitle={edit?`Editing ${edit.full_name}`:'Create a login account for a staff member.'} onClose={()=>{ setModal(false); setCreatedUser(null) }}>
           <Field label='Full Name' value={form.full_name} onChange={f('full_name')} required/>
@@ -273,7 +273,9 @@ export default function Users({profile,toast,planHook}) {
             : <Field label='Role' value={form.role} onChange={f('role')} options={
                 profile?.role === 'admin'
                   ? [{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'},{value:'parent',label:'Parent / Guardian'}]
-                  : [{value:'admin',label:'Administrator'},{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'},{value:'parent',label:'Parent / Guardian'}]
+                  : profile?.role === 'superadmin'
+                    ? [{value:'superadmin',label:'Super Admin'},{value:'admin',label:'Administrator'},{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'},{value:'parent',label:'Parent / Guardian'}]
+                    : [{value:'admin',label:'Administrator'},{value:'classteacher',label:'Class Teacher'},{value:'teacher',label:'Subject Teacher'},{value:'parent',label:'Parent / Guardian'}]
               }/>
           }
 

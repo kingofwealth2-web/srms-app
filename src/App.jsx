@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { supabase } from './supabase'
 
 import G, { initScrollReveal } from './modules/styles/global'
@@ -370,6 +370,26 @@ export default function App() {
     await loadData(newYearTarget, profile, settings)
   }
 
+  const currentYear   = settings ? currentYearFromSettings(settings) : ''
+  const activeYear    = selectedYear || currentYear
+  const isViewingPast = !!(selectedYear && selectedYear !== currentYear)
+    || planHook.status === 'cancelled_grace'
+    || planHook.status === 'expiry_grace'
+
+  // ── PARENT PORTAL GATING ─────────────────────────────────────────
+  const displayData = useMemo(() => {
+    if (!isViewingPast || !data.enrolments?.length) return data
+    const enrolMap = {}
+    data.enrolments.forEach(e => { enrolMap[e.student_id] = e.class_id })
+    return {
+      ...data,
+      students: data.students.map(s => ({
+        ...s,
+        class_id: enrolMap[s.id] !== undefined ? enrolMap[s.id] : s.class_id
+      }))
+    }
+  }, [isViewingPast, data])
+
   // ── Early returns ──────────────────────────────────────────────
   if (isRecovery) return <><style>{G}</style><ResetPassword onDone={() => { setIsRecovery(false); setSession(null) }}/></>
   if (mustChangePw && session) return (
@@ -397,13 +417,6 @@ export default function App() {
 
   if (!settings) return <><style>{G}</style><LoadingScreen msg="Loading settings..."/></>
 
-  const currentYear   = currentYearFromSettings(settings)
-  const activeYear    = selectedYear || currentYear
-  const isViewingPast = !!(selectedYear && selectedYear !== currentYear)
-    || planHook.status === 'cancelled_grace'
-    || planHook.status === 'expiry_grace'
-
-  // ── PARENT PORTAL GATING ─────────────────────────────────────────
   if (profile?.role === 'parent') {
     if (planHook.isExpired) {
       return (
@@ -468,7 +481,7 @@ export default function App() {
   }
   // ─────────────────────────────────────────────────────────────────
 
-  const props = { profile, data, setData, toast: showToast, settings, activeYear, isViewingPast, reloadData: () => loadData(activeYear, profile, settings), onShowPlans: () => setShowPlans(true), reloadSettings }
+  const props = { profile, data: displayData, setData, toast: showToast, settings, activeYear, isViewingPast, reloadData: () => loadData(activeYear, profile, settings), onShowPlans: () => setShowPlans(true), reloadSettings }
 
   const renderPage = () => {
     const allowedPages = NAV_ITEMS[profile?.role] || []
