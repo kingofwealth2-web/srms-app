@@ -173,6 +173,7 @@ export default function App() {
   const [data,setData]             = useState({
     students:[],classes:[],subjects:[],grades:[],attendance:[],
     fees:[],payments:[],behaviour:[],announcements:[],enrolments:[],users:[],
+    examScores:[],
     fee_templates:[],fee_periods:[],
   })
   const [page,setPage]             = useState('dashboard')
@@ -240,6 +241,7 @@ export default function App() {
       { data: grades }, { data: attendance }, { data: fees },
       { data: payments }, { data: behaviour }, { data: announcements },
       { data: feeTemplates }, { data: feePeriods },
+      { data: examScores },
     ] = await Promise.all([
       supabase.from('students').select('*').eq('school_id', prof?.school_id).order('student_id'),
       supabase.from('classes').select('*').eq('school_id', prof?.school_id).order('name'),
@@ -254,6 +256,7 @@ export default function App() {
       supabase.from('announcements').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
       supabase.from('fee_templates').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
       supabase.from('fee_periods').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
+      supabase.from('exam_scores').select('*').eq('school_id', prof?.school_id).eq('year', year),
     ])
     setData({
       students:      students      || [],
@@ -269,6 +272,7 @@ export default function App() {
       users:         users         || [],
       fee_templates: feeTemplates  || [],
       fee_periods:   feePeriods    || [],
+      examScores:    examScores    || [],
     })
   }, [])
 
