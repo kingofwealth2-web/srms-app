@@ -224,9 +224,16 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
         const rcClassStudents = students.filter(s=>s.class_id===rcClass&&!s.archived)
         const rcRanked = [...rcClassStudents]
           .map(s=>{
-            const sg=grades.filter(g=>g.student_id===s.id&&(!rcPeriod||g.period===rcPeriod))
             const scores={}
-            sg.forEach(g=>{ scores[g.subject_id]=calcTotal(g,gradeComps) })
+            if(gradeSource==='exam'){
+              rcClassSubjects.forEach(sub=>{
+                const rec=examScores.find(e=>e.student_id===s.id&&e.subject_id===sub.id&&(!rcPeriod||e.period===rcPeriod)&&e.year===activeYear)
+                if(rec) scores[sub.id]=Number(rec.score)
+              })
+            } else {
+              const sg=grades.filter(g=>g.student_id===s.id&&(!rcPeriod||g.period===rcPeriod))
+              sg.forEach(g=>{ scores[g.subject_id]=calcTotal(g,gradeComps) })
+            }
             const tots=Object.values(scores)
             const total=tots.length?tots.reduce((a,b)=>a+b,0):null
             const avg=tots.length?Math.round(total/tots.length):null
@@ -564,7 +571,7 @@ const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlig
 
 // ── REPORT CARDS ───────────────────────────────────────────────
 function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,exportExcel,planHook,onShowPlans}) {
-  const {students=[],grades=[],attendance=[],behaviour=[],classes=[],subjects=[],users=[]} = data
+  const {students=[],grades=[],attendance=[],behaviour=[],classes=[],subjects=[],users=[],examScores=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
   const schoolLogo = settings?.school_logo||null
@@ -573,6 +580,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   const periodLabel= settings?.period_type==='term'?'Term':'Semester'
   const periods    = Array.from({length:settings?.period_count||2},(_,i)=>`${periodLabel} ${i+1}`)
   const isLastPeriod = rcPeriod === periods[periods.length-1]
+  const [gradeSource,setGradeSource] = useState('components') // 'components' | 'exam'
 
   const isClassTeacher = profile?.role==='classteacher'
   const isTeacher      = profile?.role==='teacher'
@@ -609,10 +617,25 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     return tots.length ? tots.reduce((a,b)=>a+b,0) : null
   }
 
+  // Exam score helpers
+  const getExamTotal = (studentId, subjectId) => {
+    const rec = examScores.find(e=>
+      e.student_id===studentId && e.subject_id===subjectId &&
+      (!rcPeriod||e.period===rcPeriod) && e.year===activeYear
+    )
+    return rec ? Number(rec.score) : null
+  }
+  const getStudentExamTotal = (studentId) => {
+    const tots = classSubjects.map(s=>getExamTotal(studentId,s.id)).filter(t=>t!==null)
+    return tots.length ? tots.reduce((a,b)=>a+b,0) : null
+  }
+  const activeGetTotal = gradeSource==='exam' ? getExamTotal : getTotal
+  const activeGetStudentTotal = gradeSource==='exam' ? getStudentExamTotal : getStudentTotal
+
   // Rank students by total — proper tie handling (standard competition ranking)
   const rankedStudents = (() => {
-    const withGrades    = [...classStudents].map(s=>({...s, total: getStudentTotal(s.id)})).filter(s=>s.total!==null)
-    const withoutGrades = [...classStudents].map(s=>({...s, total: null})).filter(s=>getStudentTotal(s.id)===null)
+    const withGrades    = [...classStudents].map(s=>({...s, total: activeGetStudentTotal(s.id)})).filter(s=>s.total!==null)
+    const withoutGrades = [...classStudents].map(s=>({...s, total: null})).filter(s=>activeGetStudentTotal(s.id)===null)
     withGrades.sort((a,b)=>b.total-a.total)
     let lastScore = null
     let lastRank  = 0
@@ -690,13 +713,13 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
     const rows = rankedStudents.map((s,i)=>{
       const subjectCells = classSubjects.map(sub=>{
-        const t = getTotal(s.id,sub.id)
+        const t = activeGetTotal(s.id,sub.id)
         const c = t===null?'#9ca3af':t<50?'#dc2626':t>=75?'#16a34a':'#1d4ed8'
         const bg= t===null?'#f9fafb':t<50?'#fef2f2':t>=75?'#f0fdf4':'#eff6ff'
         return `<td style="padding:8px 6px;text-align:center;font-size:12px;font-weight:700;border:1px solid #f3f4f6;color:${c};background:${bg};">${t!==null?t:'—'}</td>`
       }).join('')
       const total  = s.total
-      const scoredCount = classSubjects.filter(sub=>getTotal(s.id,sub.id)!==null).length
+      const scoredCount = classSubjects.filter(sub=>activeGetTotal(s.id,sub.id)!==null).length
       const avg    = scoredCount>0&&total!==null ? total/scoredCount : null
       const letter = avg!==null ? getGradeLetter(avg,scale) : '--'
       const remark = avg!==null ? getGradeRemark(avg,scale) : '--'
@@ -803,7 +826,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     const sub = subjects.find(s=>s.id===rcSubject)
     const subTeacher = sub?.teacher_id ? users.find(u=>u.id===sub.teacher_id) : null
 
-    const rankedBySub = [...classStudents].map(s=>({...s,score:getTotal(s.id,rcSubject)}))
+    const rankedBySub = [...classStudents].map(s=>({...s,score:activeGetTotal(s.id,rcSubject)}))
       .sort((a,b)=>(b.score||0)-(a.score||0))
     let lastScore=null, lastRank=0, seen=0
     const ranked = rankedBySub.map((s)=>{
@@ -904,8 +927,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
     const activeComps = gradeComps.filter(c=>c.enabled)
     const subjectRows = classSubjects.map((sub,si)=>{
-      const g      = grades.find(gr=>gr.student_id===student.id&&gr.subject_id===sub.id&&(!rcPeriod||gr.period===rcPeriod))
-      const total  = g ? calcTotal(g,gradeComps) : null
+      const g      = gradeSource==='components' ? grades.find(gr=>gr.student_id===student.id&&gr.subject_id===sub.id&&(!rcPeriod||gr.period===rcPeriod)) : null
+      const total  = gradeSource==='exam' ? activeGetTotal(student.id,sub.id) : (g ? calcTotal(g,gradeComps) : null)
       const letter = total!==null ? getGradeLetter(total,scale) : '--'
       const remark = total!==null ? getGradeRemark(total,scale) : '--'
       const scoreC = total===null?'#9ca3af':total<50?'#dc2626':total>=75?'#16a34a':'#1d4ed8'
@@ -924,7 +947,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       }).join('')
       return `<tr style="background:${rowBg};">
         <td style="padding:8px 12px;font-size:12px;font-weight:600;border-bottom:1px solid #f3f4f6;color:#111827;white-space:nowrap;">${sub.name}</td>
-        ${compCells}
+        ${gradeSource==='components' ? compCells : ''}
         <td style="padding:8px 8px;text-align:center;border-bottom:1px solid #f3f4f6;background:${rowBg};">
           <span style="font-size:15px;font-weight:900;color:${scoreC};">${total!==null?total:'—'}</span>
         </td>
@@ -935,10 +958,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       </tr>`
     }).join('')
 
-    const subTotals  = classSubjects.map(s=>{
-      const g=grades.find(gr=>gr.student_id===student.id&&gr.subject_id===s.id&&(!rcPeriod||gr.period===rcPeriod))
-      return g?calcTotal(g,gradeComps):null
-    }).filter(t=>t!==null)
+    const subTotals  = classSubjects.map(s=>activeGetTotal(student.id,s.id)).filter(t=>t!==null)
     const grandTotal  = subTotals.length ? subTotals.reduce((a,b)=>a+b,0) : null
     const grandAvg    = grandTotal!==null ? grandTotal/subTotals.length : null
     const grandLetter = grandAvg!==null ? getGradeLetter(grandAvg,scale) : '--'
@@ -1032,7 +1052,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             <tfoot>
               <tr style="background:linear-gradient(135deg,#eff6ff,#e0f2fe);border-top:2px solid #1e3a8a;">
                 <td style="padding:9px 12px;font-size:11px;font-weight:700;color:#1e3a8a;">Average</td>
-                ${activeComps.map(()=>'<td style="border-top:2px solid #1e3a8a;"></td>').join('')}
+                ${gradeSource==='components' ? activeComps.map(()=>'<td style="border-top:2px solid #1e3a8a;"></td>').join('') : ''}
                 <td style="padding:9px 8px;text-align:center;font-size:16px;font-weight:900;color:#1e3a8a;">${grandAvg!==null?Math.round(grandAvg):'—'}</td>
                 <td style="padding:9px 8px;text-align:center;"><span style="display:inline-block;padding:3px 10px;background:#1e3a8a;border-radius:20px;font-size:11px;font-weight:800;color:#fff;">${grandLetter}</span></td>
                 <td style="padding:9px 10px;font-size:10px;color:#4b5563;">${grandRemark}</td>
@@ -1203,6 +1223,27 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           {rcType==='individual' && rcClass && (
             <Field label='Student' value={rcStudent} onChange={setRcStudent}
               options={[{value:'',label:'All students'},...classStudents.map(s=>({value:s.id,label:fullName(s,true)}))]}/>
+          )}
+        </div>
+
+        {/* Grade source toggle */}
+        <div style={{paddingTop:12,borderTop:'1px solid var(--line)',marginBottom:12,display:'flex',alignItems:'center',gap:12}}>
+          <span style={{fontSize:12,color:'var(--mist2)',fontWeight:600}}>Grade Source:</span>
+          <div style={{display:'flex',gap:0,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',overflow:'hidden'}}>
+            {[['components','Component Grades'],['exam','Exam Scores']].map(([src,label])=>(
+              <button key={src} onClick={()=>setGradeSource(src)}
+                style={{padding:'6px 14px',fontSize:12,fontWeight:600,cursor:'pointer',border:'none',
+                  background:gradeSource===src?'var(--gold)':'transparent',
+                  color:gradeSource===src?'var(--ink)':'var(--mist2)',
+                  transition:'all 0.15s',fontFamily:"'Cabinet Grotesk',sans-serif"}}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {gradeSource==='exam' && (
+            <span style={{fontSize:11,color:'var(--amber)',padding:'4px 10px',background:'rgba(232,184,75,0.08)',border:'1px solid rgba(232,184,75,0.2)',borderRadius:'var(--r-sm)'}}>
+              Using raw exam scores
+            </span>
           )}
         </div>
 
