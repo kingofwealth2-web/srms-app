@@ -18,7 +18,7 @@ import ConfirmModal from '../components/ConfirmModal'
 
 // ── GRADES ─────────────────────────────────────────────────────
 export default function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
-  const {grades=[],students=[],subjects=[],classes=[]} = data
+  const {grades=[],students=[],subjects=[],classes=[],examScores=[]} = data
   const scale = settings?.grading_scale || []
   const allComps = getGradeComponents(settings)
   const activeComps = allComps.filter(c=>c.enabled)
@@ -62,6 +62,9 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
   const [bulkRows,setBulkRows] = useState({})
   const [bulkSaving,setBulkSaving] = useState(false)
   const bulkInputRefs = useRef({})
+  const [gradeMode,setGradeMode]       = useState('components') // 'components' | 'exam'
+  const [examRows,setExamRows]         = useState({}) // { studentId: score string }
+  const [examSaving,setExamSaving]     = useState(false)
   const f = k => v => setForm(p=>({...p,[k]:v}))
 
   const periods = settings?.period_type==='term'
@@ -376,20 +379,57 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
             <option value=''>All Periods</option>
             {periods.map(p=><option key={p}>{p}</option>)}
           </select>
-          {!bulkMode && !fc && !fs && !fp && (
+          {!bulkMode && !fc && !fs && !fp && gradeMode==='components' && (
             <span style={{fontSize:12,color:'var(--mist3)',marginLeft:4}}>
               ← Select Class + Subject + Period to unlock Class View
             </span>
           )}
-          {canBulk && !bulkMode && (
+          {canBulk && !bulkMode && gradeMode==='components' && (
             <span style={{fontSize:12,color:'var(--mist3)',marginLeft:4}}>
               Class View available ↑
             </span>
           )}
+          {/* Mode toggle */}
+          {!isViewingPast && (
+            <div style={{display:'flex',gap:0,marginLeft:'auto',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',overflow:'hidden'}}>
+              {[['components','Component Grades'],['exam','Exam Scores']].map(([mode,label])=>(
+                <button key={mode} onClick={()=>{setGradeMode(mode);setBulkMode(false)}}
+                  style={{padding:'7px 14px',fontSize:12,fontWeight:600,cursor:'pointer',border:'none',
+                    background:gradeMode===mode?'var(--gold)':'transparent',
+                    color:gradeMode===mode?'var(--ink)':'var(--mist2)',
+                    transition:'all 0.15s',fontFamily:"'Cabinet Grotesk',sans-serif"}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </Card>
 
-      {/* ── BULK / CLASS VIEW ── */}
+      {/* ── EXAM SCORES MODE ── */}
+      {gradeMode==='exam' ? (
+        <ExamScoresView
+          profile={profile}
+          data={data}
+          settings={settings}
+          activeYear={activeYear}
+          isViewingPast={isViewingPast}
+          examScores={examScores}
+          examRows={examRows}
+          setExamRows={setExamRows}
+          examSaving={examSaving}
+          setExamSaving={setExamSaving}
+          setData={setData}
+          toast={toast}
+          fc={fc} fs={fs} fp={fp}
+          periods={periods}
+          mySubjects={mySubjects}
+          scale={scale}
+          getLetter={getLetter}
+          getGradeColor={getGradeColor}
+        />
+      ) : (
+      <>{/* ── BULK / CLASS VIEW ── */}
       {bulkMode ? (
         <div>
           {/* Hint bar */}
@@ -706,6 +746,263 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
         </Modal>
       )}
       {confirmState && <ConfirmModal {...confirmState} onClose={()=>setConfirmState(null)}/>}
+      </>
+      )}
+    </div>
+  )
+}
+
+// ── EXAM SCORES VIEW ───────────────────────────────────────────
+function ExamScoresView({profile,data,settings,activeYear,isViewingPast,examScores,examRows,setExamRows,examSaving,setExamSaving,setData,toast,fc,fs,fp,periods,mySubjects,scale,getLetter,getGradeColor}) {
+  const {students=[],subjects=[],classes=[]} = data
+
+  // Students in selected class
+  const classStudents = fc
+    ? students.filter(s=>s.class_id===fc&&!s.archived).sort((a,b)=>(a.last_name||'').localeCompare(b.last_name||''))
+    : []
+
+  // Pre-fill examRows when class/subject/period changes
+  const initExamRows = () => {
+    const rows = {}
+    classStudents.forEach(s=>{
+      const existing = examScores.find(e=>
+        e.student_id===s.id && e.subject_id===fs && e.period===fp && e.year===activeYear
+      )
+      rows[s.id] = {
+        score: existing ? String(existing.score) : '',
+        existingId: existing?.id || null,
+        dirty: false,
+      }
+    })
+    return rows
+  }
+
+  // When filters change, reinitialise rows
+  const prevKey = `${fc}-${fs}-${fp}`
+  const [lastKey, setLastKey] = useState('')
+  if(prevKey !== lastKey && fc && fs && fp) {
+    setLastKey(prevKey)
+    setExamRows(initExamRows())
+  }
+
+  const setCell = (studentId, val) => {
+    setExamRows(prev=>({
+      ...prev,
+      [studentId]: {...prev[studentId], score: val, dirty: true}
+    }))
+  }
+
+  const dirtyCount = Object.values(examRows).filter(r=>r.dirty).length
+
+  const canSave = !isViewingPast && fc && fs && fp && mySubjects.some(s=>s.id===fs)
+
+  const saveExamScores = async () => {
+    // Validate scores
+    for(const s of classStudents) {
+      const row = examRows[s.id]
+      if(!row || row.score==='' || row.score===undefined) continue
+      const val = Number(row.score)
+      if(isNaN(val) || val < 0 || val > 100) {
+        toast(`Invalid score for ${s.first_name} ${s.last_name}. Must be 0–100.`, 'error')
+        return
+      }
+    }
+    setExamSaving(true)
+    const upsertRows = []
+    const updatedExamScores = [...examScores]
+
+    for(const s of classStudents) {
+      const row = examRows[s.id]
+      if(!row || !row.dirty) continue
+      const score = row.score==='' ? 0 : Number(row.score)
+      const payload = {
+        school_id:   profile.school_id,
+        student_id:  s.id,
+        subject_id:  fs,
+        period:      fp,
+        year:        activeYear,
+        score,
+        max_score:   100,
+        recorded_by: profile.id,
+        updated_at:  new Date().toISOString(),
+      }
+      if(row.existingId) {
+        payload.id = row.existingId
+      }
+      upsertRows.push(payload)
+    }
+
+    if(upsertRows.length === 0) {
+      toast('No changes to save')
+      setExamSaving(false)
+      return
+    }
+
+    const {data: saved, error} = await supabase.from('exam_scores').upsert(upsertRows, {
+      onConflict: 'school_id,student_id,subject_id,period,year'
+    }).select()
+
+    if(error) {
+      toast(error.message, 'error')
+      setExamSaving(false)
+      return
+    }
+
+    // Update local state
+    saved?.forEach(row => {
+      const idx = updatedExamScores.findIndex(e=>e.id===row.id)
+      if(idx > -1) updatedExamScores[idx] = row
+      else updatedExamScores.push(row)
+    })
+    setData(p=>({...p, examScores: updatedExamScores}))
+
+    // Update existingIds and clear dirty flags
+    setExamRows(prev=>{
+      const next = {...prev}
+      saved?.forEach(row=>{
+        if(next[row.student_id]) {
+          next[row.student_id] = {...next[row.student_id], existingId: row.id, dirty: false}
+        }
+      })
+      return next
+    })
+
+    toast(`${upsertRows.length} score${upsertRows.length!==1?'s':''} saved`)
+    setExamSaving(false)
+  }
+
+  const needsFilters = !fc || !fs || !fp
+
+  return (
+    <div>
+      {/* Amber mode indicator */}
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16,padding:'10px 16px',background:'rgba(232,184,75,0.06)',border:'1px solid rgba(232,184,75,0.2)',borderRadius:'var(--r-sm)'}}>
+        <span style={{fontSize:14}}>📝</span>
+        <span style={{fontSize:12,color:'var(--amber)',fontWeight:600}}>Exam Scores Mode</span>
+        <span style={{fontSize:12,color:'var(--mist3)'}}>— Enter raw exam scores out of 100. Independent of component grades.</span>
+      </div>
+
+      {needsFilters ? (
+        <Card>
+          <div style={{padding:'32px 20px',textAlign:'center',color:'var(--mist3)',fontSize:13}}>
+            <div style={{fontSize:28,marginBottom:12}}>📋</div>
+            <div style={{fontWeight:600,color:'var(--mist2)',marginBottom:6}}>Select Class, Subject and Period</div>
+            <div style={{fontSize:12}}>Use the filters above to load the exam score entry table.</div>
+          </div>
+        </Card>
+      ) : (
+        <div>
+          {/* Toolbar */}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12,flexWrap:'wrap',gap:8}}>
+            <div style={{fontSize:12,color:'var(--mist3)'}}>
+              <span style={{color:'var(--mist2)',fontWeight:600}}>{classStudents.length}</span> students
+              {dirtyCount > 0 && <span style={{color:'var(--amber)',marginLeft:12,fontWeight:600}}>{dirtyCount} unsaved change{dirtyCount!==1?'s':''}</span>}
+            </div>
+            {!isViewingPast && canSave && (
+              <div style={{display:'flex',gap:8}}>
+                <Btn variant='ghost' onClick={()=>setExamRows(initExamRows())}>Reset</Btn>
+                <Btn onClick={saveExamScores} disabled={examSaving||dirtyCount===0}>
+                  {examSaving ? <><Spinner/> Saving...</> : dirtyCount>0 ? `Save ${dirtyCount} score${dirtyCount!==1?'s':''}` : 'No changes'}
+                </Btn>
+              </div>
+            )}
+          </div>
+
+          {/* Score table */}
+          <div style={{borderRadius:'var(--r)',border:'1px solid var(--line)',overflow:'hidden'}}>
+            <table style={{width:'100%',borderCollapse:'collapse'}}>
+              <thead>
+                <tr style={{background:'var(--ink3)',borderBottom:'2px solid var(--line2)'}}>
+                  <th style={{padding:'10px 16px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',fontFamily:"'Clash Display',sans-serif",minWidth:200}}>Student</th>
+                  <th style={{padding:'10px 16px',textAlign:'center',fontSize:11,fontWeight:700,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',fontFamily:"'Clash Display',sans-serif",minWidth:120}}>
+                    Score <span style={{fontWeight:400,color:'var(--mist3)',textTransform:'none',letterSpacing:0}}>/100</span>
+                  </th>
+                  <th style={{padding:'10px 16px',textAlign:'center',fontSize:11,fontWeight:700,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',fontFamily:"'Clash Display',sans-serif",minWidth:80}}>Grade</th>
+                  <th style={{padding:'10px 16px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',fontFamily:"'Clash Display',sans-serif"}}>Remark</th>
+                  <th style={{padding:'10px 16px',textAlign:'center',fontSize:11,fontWeight:700,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',fontFamily:"'Clash Display',sans-serif",minWidth:80}}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {classStudents.length === 0 ? (
+                  <tr><td colSpan={5} style={{padding:48,textAlign:'center',color:'var(--mist3)',fontSize:13}}>No students in this class.</td></tr>
+                ) : classStudents.map((s,i)=>{
+                  const row = examRows[s.id] || {}
+                  const scoreVal = row.score
+                  const scoreNum = scoreVal==='' || scoreVal===undefined ? null : Number(scoreVal)
+                  const isOver = scoreNum !== null && scoreNum > 100
+                  const letter = scoreNum !== null && !isOver ? getLetter(scoreNum, scale) : null
+                  const remark = scoreNum !== null && !isOver ? (scale.find(g=>scoreNum>=g.min&&scoreNum<=g.max)?.letter ? getGradeRemark(scoreNum,scale) : '--') : null
+                  const isExisting = !!row.existingId
+                  const isDirty = row.dirty
+                  const rowBg = isDirty ? 'rgba(232,184,75,0.04)' : isExisting ? 'rgba(91,168,245,0.03)' : 'transparent'
+                  return (
+                    <tr key={s.id} style={{borderBottom:'1px solid var(--line)',background:rowBg,transition:'background 0.15s'}}>
+                      <td style={{padding:'10px 16px'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:10}}>
+                          <Avatar name={fullName(s)} size={28}/>
+                          <div>
+                            <div style={{fontSize:13,fontWeight:600}}>{fullName(s,true)}</div>
+                            <div style={{fontSize:11,color:'var(--mist3)',fontFamily:"'JetBrains Mono',monospace"}}>{s.student_id}</div>
+                          </div>
+                        </div>
+                        {isExisting && !isDirty && <div style={{fontSize:10,color:'var(--sky)',marginTop:2}}>● saved</div>}
+                      </td>
+                      <td style={{padding:'8px 16px',textAlign:'center'}}>
+                        {isViewingPast ? (
+                          <span className='mono' style={{fontSize:16,fontWeight:700,color:isOver?'var(--rose)':scoreNum!==null?getGradeColor(letter,settings?.grade_system)||'var(--white)':'var(--mist3)'}}>
+                            {scoreNum !== null ? scoreNum : '—'}
+                          </span>
+                        ) : (
+                          <input
+                            type='number'
+                            value={scoreVal ?? ''}
+                            onChange={e=>setCell(s.id, e.target.value)}
+                            min={0} max={100}
+                            style={{
+                              width:80,padding:'7px 10px',textAlign:'center',
+                              background: isOver ? 'rgba(240,107,122,0.12)' : 'var(--ink4)',
+                              border:`1px solid ${isOver?'var(--rose)':isDirty?'rgba(232,184,75,0.4)':'var(--line)'}`,
+                              borderRadius:'var(--r-sm)',
+                              color: isOver ? 'var(--rose)' : 'var(--white)',
+                              fontSize:15,fontFamily:"'JetBrains Mono','Fira Code',monospace",
+                              outline:'none',
+                            }}
+                          />
+                        )}
+                        {isOver && <div style={{fontSize:10,color:'var(--rose)',marginTop:2}}>Max 100</div>}
+                      </td>
+                      <td style={{padding:'8px 16px',textAlign:'center'}}>
+                        {letter ? <Badge color={getGradeColor(letter,settings?.grade_system)||'var(--mist2)'}>{letter}</Badge> : <span style={{color:'var(--mist3)'}}>—</span>}
+                      </td>
+                      <td style={{padding:'8px 16px',fontSize:12,color:'var(--mist2)'}}>
+                        {remark || <span style={{color:'var(--mist3)'}}>—</span>}
+                      </td>
+                      <td style={{padding:'8px 16px',textAlign:'center'}}>
+                        {isExisting && !isDirty
+                          ? <Badge color='var(--emerald)' bg='rgba(45,212,160,0.1)'>Saved</Badge>
+                          : isDirty
+                            ? <Badge color='var(--amber)' bg='rgba(232,184,75,0.1)'>Unsaved</Badge>
+                            : <span style={{color:'var(--mist3)',fontSize:12}}>—</span>
+                        }
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Bottom save bar */}
+          {!isViewingPast && canSave && classStudents.length > 0 && (
+            <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:16}}>
+              <Btn variant='ghost' onClick={()=>setExamRows(initExamRows())}>Reset</Btn>
+              <Btn onClick={saveExamScores} disabled={examSaving||dirtyCount===0}>
+                {examSaving ? <><Spinner/> Saving...</> : dirtyCount>0 ? `Save ${dirtyCount} score${dirtyCount!==1?'s':''}` : 'No changes'}
+              </Btn>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
