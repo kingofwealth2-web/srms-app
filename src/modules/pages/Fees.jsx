@@ -269,6 +269,17 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const [bcp, setBcp]             = useState(BCP_INIT)
   const bcf = k=>v=>setBcp(p=>({...p,[k]:v}))
 
+  // Warn on tab close/refresh while a bulk collection wizard has unconfirmed,
+  // unsaved entries (step 2 of BRP or BCP) — this is what was silently wiped
+  // during the fee-collection incident.
+  useEffect(()=>{
+    const hasUnsavedBulkEntry = (brpModal && brpStep===2) || (bcpModal && bcpStep===2) || (bulkModal && bulkStep>=2)
+    if(!hasUnsavedBulkEntry) return
+    const handler = e => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  },[brpModal,brpStep,bcpModal,bcpStep,bulkModal,bulkStep])
+
   // ── Derived: eligible classes (have at least 1 active non-withdrawn student) ──
   const activeStudents = students.filter(s=>!s.archived)
   const classesWithStudents = classes.filter(c=>activeStudents.some(s=>s.class_id===c.id))
@@ -384,7 +395,21 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     setBulkSaving(false)
   }
 
-  const closeBulk = () => { setBulkModal(false); setBulkStep(1); setBulk(BULK_INIT); setClassAmounts({}); setBulkStudentRows([]) }
+  const doCloseBulk = () => { setBulkModal(false); setBulkStep(1); setBulk(BULK_INIT); setClassAmounts({}); setBulkStudentRows([]) }
+  const closeBulk = () => {
+    // Step 1 is just picking a fee type/classes, nothing worth losing. Steps 2-4
+    // have real per-student amounts/selections entered.
+    if(bulkStep>=2){
+      setConfirmTmplDelete({
+        title:'Discard this bulk fee?',
+        body:`You haven't confirmed yet. Closing now will discard everything entered — nothing has been saved.`,
+        icon:'⚠', danger:true, confirmLabel:'Discard',
+        onConfirm: async () => { doCloseBulk() }
+      })
+      return
+    }
+    doCloseBulk()
+  }
 
   // ── Existing fee helpers ──
   const today = new Date().toISOString().split('T')[0]
@@ -687,7 +712,22 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     setBrpModal(true)
   }
 
-  const closeBrp = () => {setBrpModal(false);setBrpStep(1);setBrp(BRP_INIT);setBrpRows([]);setBrpDone(null);setBrpDupWarning(false)}
+  const doCloseBrp = () => {setBrpModal(false);setBrpStep(1);setBrp(BRP_INIT);setBrpRows([]);setBrpDone(null);setBrpDupWarning(false)}
+  const closeBrp = () => {
+    // Step 2 has entered-but-unconfirmed amounts/states — closing here would silently
+    // discard a whole class's worth of work. Step 1 has nothing worth losing yet,
+    // and step 3 is already saved to Supabase, so only guard step 2.
+    if(brpStep===2){
+      setConfirmTmplDelete({
+        title:'Discard this class?',
+        body:`You haven't confirmed payment for "${brp.label||'this period'}" yet. Closing now will discard everything entered for these ${brpRows.filter(r=>r.state!=='excluded').length} student${brpRows.filter(r=>r.state!=='excluded').length!==1?'s':''} — nothing has been saved.`,
+        icon:'⚠', danger:true, confirmLabel:'Discard',
+        onConfirm: async () => { doCloseBrp() }
+      })
+      return
+    }
+    doCloseBrp()
+  }
 
   const [brpDupWarning, setBrpDupWarning] = useState(false)
 
@@ -978,7 +1018,20 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     setBcp(BCP_INIT); setBcpRows([]); setBcpStep(1); setBcpDone(null); setBcpModal(true)
   }
 
-  const closeBcp = () => { setBcpModal(false); setBcpStep(1); setBcp(BCP_INIT); setBcpRows([]); setBcpDone(null); setBrpDupWarning(false) }
+  const doCloseBcp = () => { setBcpModal(false); setBcpStep(1); setBcp(BCP_INIT); setBcpRows([]); setBcpDone(null); setBrpDupWarning(false) }
+  const closeBcp = () => {
+    if(bcpStep===2){
+      const activeCount = bcpRows.filter(r=>r.checked).length
+      setConfirmTmplDelete({
+        title:'Discard these payments?',
+        body:`You haven't confirmed collection yet. Closing now will discard everything entered for these ${activeCount} student${activeCount!==1?'s':''} — nothing has been saved.`,
+        icon:'⚠', danger:true, confirmLabel:'Discard',
+        onConfirm: async () => { doCloseBcp() }
+      })
+      return
+    }
+    doCloseBcp()
+  }
 
   const bcpGoStep2 = () => {
     if(!bcp.fee_type){toast('Select a fee type','error');return}

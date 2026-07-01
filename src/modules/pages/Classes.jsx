@@ -91,6 +91,41 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
 
   const openPromo = ()=>{setPromoStep(1);setPromoSource('');setPromoDest('');setPromoStudents([]);setPromoModal(true)}
 
+  const closePromo = () => {
+    if(promoStep>=2 && promoStudents.length>0){
+      setConfirmState({
+        title:'Discard this promotion?',
+        body:`You haven't confirmed yet. Closing now will discard your choices for ${promoStudents.length} student${promoStudents.length!==1?'s':''} — nothing has been saved.`,
+        icon:'⚠', danger:true, confirmLabel:'Discard',
+        onConfirm: async () => { setPromoModal(false) }
+      })
+      return
+    }
+    setPromoModal(false)
+  }
+
+  const closeBulkPromo = () => {
+    if(bulkStudents.length>0){
+      setConfirmState({
+        title:'Discard this promotion?',
+        body:`You haven't confirmed yet. Closing now will discard your choices for ${bulkStudents.length} student${bulkStudents.length!==1?'s':''} — nothing has been saved.`,
+        icon:'⚠', danger:true, confirmLabel:'Discard',
+        onConfirm: async () => { setBulkModal(false) }
+      })
+      return
+    }
+    setBulkModal(false)
+  }
+
+  // Warn on tab close/refresh while a promotion wizard has unconfirmed choices
+  useEffect(()=>{
+    const hasUnsaved = (promoModal && promoStep>=2 && promoStudents.length>0) || (bulkModal && bulkStudents.length>0)
+    if(!hasUnsaved) return
+    const handler = e => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  },[promoModal,promoStep,promoStudents,bulkModal,bulkStudents])
+
   const buildPromoStudents = (srcId,dstId)=>{
     const src=students.filter(s=>s.class_id===srcId)
     // If no destination or source is terminal, default to graduate
@@ -127,31 +162,40 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     const toPromote  = bulkStudents.filter(p=>p.action==='promote')
     const toRepeat   = bulkStudents.filter(p=>p.action==='repeat')
     const toGraduate = bulkStudents.filter(p=>p.action==='graduate')
-    // Write enrolment history
-    const enrolmentRows = bulkStudents.map(p=>({school_id:profile?.school_id,student_id:p.student.id,class_id:p.fromClass.id,academic_year:activeYear}))
-    await supabase.from('student_year_enrolment').upsert(enrolmentRows,{onConflict:'school_id,student_id,academic_year'})
-    for(const p of toPromote) {
-      if(!p.destClassId) continue
-      await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id).eq('school_id',profile?.school_id)
+    try {
+      // Write enrolment history
+      const enrolmentRows = bulkStudents.map(p=>({school_id:profile?.school_id,student_id:p.student.id,class_id:p.fromClass.id,academic_year:activeYear}))
+      const {error:enrolErr} = await supabase.from('student_year_enrolment').upsert(enrolmentRows,{onConflict:'school_id,student_id,academic_year'})
+      if(enrolErr) throw enrolErr
+      for(const p of toPromote) {
+        if(!p.destClassId) continue
+        const {error} = await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id).eq('school_id',profile?.school_id)
+        if(error) throw error
+      }
+      for(const p of toGraduate) {
+        const {error} = await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id).eq('school_id',profile?.school_id)
+        if(error) throw error
+      }
+      const destMap     = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
+      const gradIds     = toGraduate.map(p=>p.student.id)
+      const promoteIds  = toPromote.map(p=>p.student.id)
+      setData(prev=>({...prev,students:prev.students.map(s=>{
+        if(promoteIds.includes(s.id)) return {...s,class_id:destMap[s.id]}
+        if(gradIds.includes(s.id))    return {...s,archived:true,class_id:null}
+        return s
+      })}))
+      auditLog(profile,'Students','Bulk Promote',`${toPromote.length} promoted, ${toGraduate.length} graduated, ${toRepeat.length} repeating`,{},{},{})
+      setBulkModal(false)
+      const parts=[]
+      if(toPromote.length)  parts.push(toPromote.length+' promoted')
+      if(toGraduate.length) parts.push(toGraduate.length+' graduated')
+      if(toRepeat.length)   parts.push(toRepeat.length+' staying back')
+      toast(parts.join(', ')+'.')
+      if(onPromotionComplete) onPromotionComplete()
+    } catch(err) {
+      toast('Promotion failed: '+err.message+' — some students may be partially updated. Please check the class lists before retrying.','error')
     }
-    for(const p of toGraduate)
-      await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id).eq('school_id',profile?.school_id)
-    const destMap     = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
-    const gradIds     = toGraduate.map(p=>p.student.id)
-    const promoteIds  = toPromote.map(p=>p.student.id)
-    setData(prev=>({...prev,students:prev.students.map(s=>{
-      if(promoteIds.includes(s.id)) return {...s,class_id:destMap[s.id]}
-      if(gradIds.includes(s.id))    return {...s,archived:true,class_id:null}
-      return s
-    })}))
-    auditLog(profile,'Students','Bulk Promote',`${toPromote.length} promoted, ${toGraduate.length} graduated, ${toRepeat.length} repeating`,{},{},{})
-    setPromoting(false); setBulkModal(false)
-    const parts=[]
-    if(toPromote.length)  parts.push(toPromote.length+' promoted')
-    if(toGraduate.length) parts.push(toGraduate.length+' graduated')
-    if(toRepeat.length)   parts.push(toRepeat.length+' staying back')
-    toast(parts.join(', ')+'.')
-    if(onPromotionComplete) onPromotionComplete()
+    setPromoting(false)
   }
 
   const confirmPromo = async ()=>{
@@ -159,33 +203,43 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     const toPromote  = promoStudents.filter(p=>p.action==='promote')
     const toRepeat   = promoStudents.filter(p=>p.action==='repeat')
     const toGraduate = promoStudents.filter(p=>p.action==='graduate')
-    // Write enrolment history for ALL students in source class before moving them
-    const enrolmentRows = promoStudents.map(p=>({
-      school_id: profile?.school_id,
-      student_id: p.student.id,
-      class_id: promoSource,
-      academic_year: activeYear
-    }))
-    // Upsert — avoid duplicates
-    await supabase.from('student_year_enrolment').upsert(enrolmentRows, {onConflict:'school_id,student_id,academic_year'})
-    for(const p of toPromote)
-      await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id).eq('school_id',profile?.school_id)
-    for(const p of toGraduate)
-      await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id).eq('school_id',profile?.school_id)
-    const promotedIds  = toPromote.map(p=>p.student.id)
-    const graduatedIds = toGraduate.map(p=>p.student.id)
-    const destMap      = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
-    setData(prev=>({...prev,students:prev.students.map(s=>{
-      if(promotedIds.includes(s.id))  return {...s,class_id:destMap[s.id]}
-      if(graduatedIds.includes(s.id)) return {...s,archived:true,class_id:null}
-      return s
-    })}))
-    setPromoting(false);setPromoModal(false)
-    const parts=[]
-    if(toPromote.length)  parts.push(toPromote.length+' promoted')
-    if(toGraduate.length) parts.push(toGraduate.length+' graduated')
-    if(toRepeat.length)   parts.push(toRepeat.length+' staying back')
-    toast(''+parts.join(', ')+'.')
+    try {
+      // Write enrolment history for ALL students in source class before moving them
+      const enrolmentRows = promoStudents.map(p=>({
+        school_id: profile?.school_id,
+        student_id: p.student.id,
+        class_id: promoSource,
+        academic_year: activeYear
+      }))
+      // Upsert — avoid duplicates
+      const {error:enrolErr} = await supabase.from('student_year_enrolment').upsert(enrolmentRows, {onConflict:'school_id,student_id,academic_year'})
+      if(enrolErr) throw enrolErr
+      for(const p of toPromote) {
+        const {error} = await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id).eq('school_id',profile?.school_id)
+        if(error) throw error
+      }
+      for(const p of toGraduate) {
+        const {error} = await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id).eq('school_id',profile?.school_id)
+        if(error) throw error
+      }
+      const promotedIds  = toPromote.map(p=>p.student.id)
+      const graduatedIds = toGraduate.map(p=>p.student.id)
+      const destMap      = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
+      setData(prev=>({...prev,students:prev.students.map(s=>{
+        if(promotedIds.includes(s.id))  return {...s,class_id:destMap[s.id]}
+        if(graduatedIds.includes(s.id)) return {...s,archived:true,class_id:null}
+        return s
+      })}))
+      setPromoModal(false)
+      const parts=[]
+      if(toPromote.length)  parts.push(toPromote.length+' promoted')
+      if(toGraduate.length) parts.push(toGraduate.length+' graduated')
+      if(toRepeat.length)   parts.push(toRepeat.length+' staying back')
+      toast(''+parts.join(', ')+'.')
+    } catch(err) {
+      toast('Promotion failed: '+err.message+' — some students may be partially updated. Please check the class list before retrying.','error')
+    }
+    setPromoting(false)
   }
   const saveClass = async ()=>{
     if(!cf.name){toast('Class name is required.','error');return} setSaving(true)
@@ -393,7 +447,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
 
 
       {bulkModal && (
-        <Modal title='Bulk Promote All Classes' subtitle={bulkStep===1?'Review & Adjust':'Confirm'} onClose={()=>setBulkModal(false)} width={720}>
+        <Modal title='Bulk Promote All Classes' subtitle={bulkStep===1?'Review & Adjust':'Confirm'} onClose={closeBulkPromo} width={720}>
           {bulkStep===1 && (
             <div>
               {/* Warning if no terminal class */}
@@ -527,7 +581,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
               </div>
 
               <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
-                <Btn variant='ghost' onClick={()=>setBulkModal(false)}>Cancel</Btn>
+                <Btn variant='ghost' onClick={closeBulkPromo}>Cancel</Btn>
                 <Btn onClick={()=>setBulkStep(2)}>Next - Preview & Confirm</Btn>
               </div>
             </div>
@@ -573,7 +627,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
         </Modal>
       )}
       {promoModal && (
-        <Modal title='Promote Students' subtitle={`Step ${promoStep} of 3`} onClose={()=>setPromoModal(false)} width={620}>
+        <Modal title='Promote Students' subtitle={`Step ${promoStep} of 3`} onClose={closePromo} width={620}>
           {promoStep===1 && (
             <div>
               <p style={{fontSize:13,color:'var(--mist2)',marginBottom:20,lineHeight:1.6}}>Select the class to promote from and the class students will move to. You can adjust individual students on the next step.</p>
