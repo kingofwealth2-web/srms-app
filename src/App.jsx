@@ -216,8 +216,12 @@ export default function App() {
       if (hash.includes('type=recovery') && session) setIsRecovery(true)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session)
       if (event === 'PASSWORD_RECOVERY') setIsRecovery(true)
+      // TOKEN_REFRESHED / USER_UPDATED fire silently in the background (e.g. when a
+      // mobile tab regains focus) and must NOT trigger a full app reload/remount —
+      // that wipes any unsaved in-progress work (like bulk fee collection).
+      if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') return
+      setSession(session)
     })
     return () => subscription.unsubscribe()
   }, [])
