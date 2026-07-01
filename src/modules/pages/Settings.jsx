@@ -130,6 +130,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       if(settings?.school_logo !== payload.school_logo) changes.push('School logo updated')
       if(JSON.stringify(settings?.vacations) !== JSON.stringify(payload.vacations)) changes.push('Vacations updated')
       if(JSON.stringify(settings?.custom_holidays) !== JSON.stringify(payload.custom_holidays)) changes.push('Custom holidays updated')
+      if(JSON.stringify(settings?.disabled_holidays) !== JSON.stringify(payload.disabled_holidays)) changes.push('Ghana holiday overrides updated')
       const desc = changes.length ? changes.join(' · ') : 'No changes detected'
       // Strip logo from diff — base64 strings are too large for audit storage
       const {school_logo:_bl,...settingsBefore} = settings||{}
@@ -468,6 +469,13 @@ function AcademicCalendar({form, setForm, activeYear}) {
   const [holModal, setHolModal]   = useState(false)
   const [holForm,  setHolForm]    = useState({name:'', date:''})
   const [editHol,  setEditHol]    = useState(null)
+  // Disabled (turned off) Ghana national holidays
+  const disabledHols = form.disabled_holidays || []
+  const toggleGhHoliday = (id) => {
+    const isOff = disabledHols.includes(id)
+    const updated = isOff ? disabledHols.filter(x=>x!==id) : [...disabledHols, id]
+    setForm(p=>({...p, disabled_holidays:updated}))
+  }
 
   const openAddVac = () => {
     setEditVac(null)
@@ -578,20 +586,30 @@ function AcademicCalendar({form, setForm, activeYear}) {
         <div>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
             <p style={{fontSize:12,color:'var(--mist2)',lineHeight:1.6}}>
-              Ghana public holidays are pre-loaded and block attendance automatically. Add school-specific holidays below.
+              Ghana public holidays are pre-loaded and block attendance automatically. Toggle any holiday off if your school holds classes that day. Add school-specific holidays below.
             </p>
             <Btn size='sm' onClick={openAddHol} style={{flexShrink:0,marginLeft:16}}>+ Add Holiday</Btn>
           </div>
 
           {/* Ghana pre-loaded */}
           <div style={{marginBottom:16}}>
-            <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Ghana National Holidays (Pre-loaded)</div>
+            <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Ghana National Holidays (Pre-loaded — click to enable/disable)</div>
             <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-              {GHANA_PUBLIC_HOLIDAYS.map(h=>(
-                <div key={h.id} style={{fontSize:11,color:'var(--mist2)',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:4,padding:'3px 10px'}}>
-                  {h.name} <span style={{color:'var(--mist3)',marginLeft:4}}>{String(h.month).padStart(2,'0')}/{String(h.day).padStart(2,'0')}</span>
-                </div>
-              ))}
+              {GHANA_PUBLIC_HOLIDAYS.map(h=>{
+                const isOff = disabledHols.includes(h.id)
+                return (
+                  <button key={h.id} onClick={()=>toggleGhHoliday(h.id)} title={isOff?'Disabled — attendance NOT blocked on this date':'Enabled — attendance blocked on this date'}
+                    style={{fontSize:11,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif",
+                      color:isOff?'var(--mist3)':'var(--mist2)',
+                      background:isOff?'rgba(240,107,122,0.06)':'var(--ink3)',
+                      border:`1px solid ${isOff?'rgba(240,107,122,0.25)':'var(--line)'}`,
+                      borderRadius:4,padding:'3px 10px',display:'flex',alignItems:'center',gap:6,
+                      textDecoration:isOff?'line-through':'none',opacity:isOff?0.7:1}}>
+                    {h.name} <span style={{color:'var(--mist3)',marginLeft:2}}>{String(h.month).padStart(2,'0')}/{String(h.day).padStart(2,'0')}</span>
+                    <span style={{fontSize:9,fontWeight:700,color:isOff?'var(--rose)':'var(--emerald)',textDecoration:'none'}}>{isOff?'OFF':'ON'}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
 

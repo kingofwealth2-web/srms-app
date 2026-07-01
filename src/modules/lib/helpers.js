@@ -115,7 +115,7 @@ export function currentYearFromSettings(settings) {
 }
 
 // ── HOLIDAY / VACATION HELPERS ─────────────────────────────────
-export function getHolidayOnDate(dateStr, customHolidays = []) {
+export function getHolidayOnDate(dateStr, customHolidays = [], disabledHolidayIds = []) {
   if (!dateStr) return null
   const d      = new Date(dateStr + 'T00:00:00')
   const m      = d.getMonth() + 1
@@ -123,7 +123,7 @@ export function getHolidayOnDate(dateStr, customHolidays = []) {
   const custom = customHolidays.find(h => h.date === dateStr)
   if (custom) return custom.name
   const gh = GHANA_PUBLIC_HOLIDAYS.find(h => h.month === m && h.day === day)
-  if (gh) return gh.name
+  if (gh && !disabledHolidayIds.includes(gh.id)) return gh.name
   return null
 }
 

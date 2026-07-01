@@ -38,7 +38,8 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   // Calendar blocking
   const vacations    = settings?.vacations    || []
   const customHols   = settings?.custom_holidays || []
-  const holidayName  = getHolidayOnDate(date, customHols)
+  const disabledHols = settings?.disabled_holidays || []
+  const holidayName  = getHolidayOnDate(date, customHols, disabledHols)
   const vacationName = getVacationOnDate(date, vacations, activeYear)
   const isBlocked    = !!(holidayName || vacationName)
   const blockReason  = vacationName
@@ -77,17 +78,13 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
         .map(s=>({school_id:profile?.school_id,student_id:s.id,class_id:cid,date,status:getStatus(s.id)||null,marked_by:profile?.id,academic_year:activeYear}))
         .filter(m=>m.status)
       if(allMarks.length===0){toast('No students marked -- nothing to save','error');setSaving(false);return}
-      // Delete existing records for this class+date, then insert fresh
-      const {error:delErr} = await supabase.from('attendance')
-        .delete()
-        .eq('school_id', profile?.school_id)
-        .eq('class_id', cid)
-        .eq('date', date)
-      if(delErr) throw delErr
-      const {data:rows,error:insErr} = await supabase.from('attendance')
-        .insert(allMarks)
+      // Single atomic upsert -- no delete-then-insert gap where data could be lost
+      // if the connection drops or two people save the same class+date at once.
+      // Requires a unique constraint on (school_id, class_id, date, student_id).
+      const {data:rows,error:upErr} = await supabase.from('attendance')
+        .upsert(allMarks, {onConflict:'school_id,class_id,date,student_id'})
         .select()
-      if(insErr) throw insErr
+      if(upErr) throw upErr
       setData(p=>({...p,attendance:[...p.attendance.filter(a=>!(a.class_id===cid&&a.date===date)),...(rows||[])]}))
       setPendingMarks({})
       setHasUnsaved(false)
