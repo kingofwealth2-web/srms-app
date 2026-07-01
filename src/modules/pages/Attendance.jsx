@@ -71,7 +71,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   }
 
   const saveAttendance = async () => {
-    if(!cls) return
+    if(!cls || saving) return
     setSaving(true)
     try {
       const allMarks = classStudents
