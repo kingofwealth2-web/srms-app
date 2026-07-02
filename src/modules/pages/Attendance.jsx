@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, STATUS_META } from '../lib/constants'
@@ -22,6 +22,15 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   const today = new Date().toISOString().split('T')[0]
   const [date,setDate]     = useState(today)
   const [cid,setCid]       = useState(profile?.role==='classteacher'?profile.class_id:'')
+  useEffect(() => {
+    // profile can finish loading AFTER this component's first render (e.g. right after
+    // a page refresh). Since the useState above only runs once, a classteacher's cid
+    // could get permanently stuck empty for that whole page load if profile wasn't
+    // ready yet at mount time. This keeps cid in sync whenever profile actually arrives.
+    if (profile?.role === 'classteacher' && profile.class_id && cid !== profile.class_id) {
+      setCid(profile.class_id)
+    }
+  }, [profile?.role, profile?.class_id])
   const [tab,setTab]       = useState('mark')
   const [saving,setSaving] = useState(false)
   const [confirmState,setConfirmState] = useState(null)

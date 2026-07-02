@@ -191,6 +191,7 @@ export default function App() {
   const [newYearWorking,setNewYearWorking] = useState(false)
   const isMobile = useIsMobile()
   const initialLoadDone = useRef(false)
+  const lastLoadedYear = useRef(null)
   const planHook = usePlan(settings)
   const reloadSettings = useCallback(async () => {
     if (!profile?.school_id) return
@@ -319,6 +320,7 @@ export default function App() {
       setSettings(settingsRow)
 
       await loadData(selectedYear, resolvedProf, settingsRow)
+      lastLoadedYear.current = selectedYear
       initialLoadDone.current = true
       setLoading(false)
     }
@@ -328,6 +330,11 @@ export default function App() {
   useEffect(() => {
     if (!session || !settings || !profile) return
     if (!initialLoadDone.current) return
+    // Only re-fetch when the year itself actually changes — not whenever profile/settings
+    // get new object references (e.g. right after the initial load sets them for the
+    // first time), which was causing a redundant duplicate loadData() call on every login.
+    if (selectedYear === lastLoadedYear.current) return
+    lastLoadedYear.current = selectedYear
     loadData(selectedYear, profile, settings)
   }, [selectedYear, loadData, profile, settings])
 
