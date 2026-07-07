@@ -292,13 +292,19 @@ export default function App() {
       let resolvedProf = prof
       if (!prof && session?.user) {
         const metaRole = session.user.user_metadata?.role || 'superadmin'
-        const { data: newProf } = await supabase.from('profiles').upsert({
+        const { data: newProf, error: upsertErr } = await supabase.from('profiles').upsert({
           id: session.user.id,
           full_name: session.user.user_metadata?.full_name || session.user.email,
           email: session.user.email,
           role: metaRole,
           locked: false,
         }).select().single()
+        if (upsertErr) {
+          console.error('Failed to recover missing profile:', upsertErr.message)
+          await supabase.auth.signOut()
+          setProfile(null); setSession(null); setLoading(false)
+          return
+        }
         resolvedProf = newProf
       }
       setProfile(resolvedProf)
@@ -415,7 +421,8 @@ export default function App() {
     <ForceChangePassword
       profile={profile}
       onDone={async () => {
-        await supabase.from('profiles').update({ must_change_password: false }).eq('id', profile.id)
+        const { error } = await supabase.from('profiles').update({ must_change_password: false }).eq('id', profile.id)
+        if (error) { showToast('Password changed, but failed to clear the forced-change flag: ' + error.message, 'error') }
         setProfile(p => ({ ...p, must_change_password: false }))
         setMustChangePw(false)
       }}
@@ -432,7 +439,7 @@ export default function App() {
   if (showLanding && !session) return <Landing onEnter={() => setShowLanding(false)} onShowPlans={() => setShowPlans(true)}/>
   if (!session || !profile) return <><style>{G}</style><Login onLogin={p => setProfile(p)} lockedError={lockedError} onClearLockedError={() => setLockedError(false)} onBack={() => setShowLanding(true)}/></>
   if (profile?.role === 'ministry_admin') return <><style>{G}</style><AdminConsole profile={profile} onSignOut={logout}/></>
-  if (!profile.school_id)   return <><style>{G}</style><style>{"@keyframes srms-load{to{width:100%}}"}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null); setSession(null); setShowLanding(false) }}/></>
+  if (!profile.school_id)   return <><style>{G}</style><style>{"@keyframes srms-load{to{width:100%}}"}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof, error: profErr } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow, error: setErr } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); if (profErr || setErr) { showToast('School created, but failed to load your new workspace -- please refresh.', 'error'); setLoading(false); return } setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null); setSession(null); setShowLanding(false) }}/></>
 
   if (!settings) return <><style>{G}</style><LoadingScreen msg="Loading settings..."/></>
 

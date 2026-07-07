@@ -11,10 +11,12 @@ const YEAR_COL    = { grades: 'year' }  // all others use 'academic_year'
 export function usePageData(table, profile, activeYear, extraFilters = {}) {
   const [data, setData]       = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState(null)
 
   useEffect(() => {
     if (!profile?.school_id) return
     setLoading(true)
+    setError(null)
     const buildQuery = () => {
       let q = supabase.from(table).select('*').eq('school_id', profile.school_id)
       if (activeYear && YEAR_TABLES.includes(table)) {
@@ -24,14 +26,15 @@ export function usePageData(table, profile, activeYear, extraFilters = {}) {
       Object.entries(extraFilters).forEach(([k, v]) => { q = q.eq(k, v) })
       return q.order('id')
     }
-    fetchAllRows(buildQuery).then(({ data: rows }) => {
+    fetchAllRows(buildQuery).then(({ data: rows, error: err }) => {
+      if (err) { console.error(`Failed to load ${table}:`, err.message); setError(err) }
       setData(rows || [])
       setLoading(false)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table, profile?.school_id, activeYear])
 
-  return { data, setData, loading }
+  return { data, setData, loading, error }
 }
 
 export function useIsMobile() {
