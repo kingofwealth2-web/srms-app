@@ -158,14 +158,6 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
               )}
               <span style={{ fontSize: 15, flexShrink: 0, opacity: isAct ? 1 : 0.5, transition: 'opacity var(--t-fast)' }}>{m.icon}</span>
               <span style={{ letterSpacing: '0.005em' }}>{m.label}</span>
-              {key === 'attendance' && (
-                <span style={{
-                  marginLeft: 'auto', fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
-                  padding: '2px 6px', borderRadius: 999, textTransform: 'uppercase',
-                  color: '#F2C078', background: 'rgba(232,184,75,0.14)', border: '1px solid rgba(232,184,75,0.3)',
-                  flexShrink: 0,
-                }}>Fixing</span>
-              )}
             </button>
           )
         })}

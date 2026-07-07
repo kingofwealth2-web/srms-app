@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
-import { calcTotal, getGradeComponents, getLetter, getGradeColor, fmtDate, fmtMoney, getCurrency, fullName } from '../lib/helpers'
+import { calcTotal, getGradeComponents, getLetter, getGradeColor, fmtDate, fmtMoney, getCurrency, fullName, fetchAllRows } from '../lib/helpers'
 import { STATUS_META } from '../lib/constants'
 import { usePlan } from '../lib/hooks'
 import Avatar from '../components/Avatar'
@@ -90,10 +90,10 @@ export default function ParentPortal({ profile, onSignOut }) {
         { data: feeRows },
         { data: payRows },
       ] = await Promise.all([
-        supabase.from('grades').select('*').eq('student_id', selectedId),
-        supabase.from('attendance').select('*').eq('student_id', selectedId).order('date', { ascending: false }),
-        supabase.from('fees').select('*').eq('student_id', selectedId),
-        supabase.from('payments').select('*').eq('student_id', selectedId).order('created_at', { ascending: false }),
+        fetchAllRows(() => supabase.from('grades').select('*').eq('student_id', selectedId).order('id')),
+        fetchAllRows(() => supabase.from('attendance').select('*').eq('student_id', selectedId).order('date', { ascending: false })),
+        fetchAllRows(() => supabase.from('fees').select('*').eq('student_id', selectedId).order('id')),
+        fetchAllRows(() => supabase.from('payments').select('*').eq('student_id', selectedId).order('created_at', { ascending: false })),
       ])
       setGrades(gradeRows || [])
       setAttendance(attRows || [])

@@ -1,5 +1,24 @@
 import { CURRENCIES, GHANA_PUBLIC_HOLIDAYS, LETTER_COLOR, NUMBER_GRADE_COLOR } from './constants'
 
+// ── PAGINATION ──────────────────────────────────────────────────
+// PostgREST caps any unbounded select at its default max-rows (1000) and silently
+// returns only a partial, arbitrarily-ordered slice once a table passes that.
+// queryFactory must return a *fresh* query builder each call (not an already-awaited
+// one) so each page can apply its own .range().
+export async function fetchAllRows(queryFactory) {
+  const PAGE_SIZE = 1000
+  let all = []
+  let from = 0
+  while (true) {
+    const { data, error } = await queryFactory().range(from, from + PAGE_SIZE - 1)
+    if (error) return { data: null, error }
+    if (data?.length) all = all.concat(data)
+    if (!data || data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+  return { data: all }
+}
+
 // ── GRADE HELPERS ──────────────────────────────────────────────
 export const ALL_COMPONENTS = ['classwork','homework','midsemester','final_exam','project']
 

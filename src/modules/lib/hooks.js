@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { PLANS, TRIAL_DAYS, OVERAGE_GRACE_DAYS, CANCELLATION_GRACE_DAYS, EXPIRY_GRACE_DAYS } from './constants'
+import { fetchAllRows } from './helpers'
 import { supabase } from '../../supabase'
 
 // ── Per-page lazy data fetcher ──────────────────────────────────
@@ -14,13 +15,16 @@ export function usePageData(table, profile, activeYear, extraFilters = {}) {
   useEffect(() => {
     if (!profile?.school_id) return
     setLoading(true)
-    let q = supabase.from(table).select('*').eq('school_id', profile.school_id)
-    if (activeYear && YEAR_TABLES.includes(table)) {
-      const col = YEAR_COL[table] || 'academic_year'
-      q = q.eq(col, activeYear)
+    const buildQuery = () => {
+      let q = supabase.from(table).select('*').eq('school_id', profile.school_id)
+      if (activeYear && YEAR_TABLES.includes(table)) {
+        const col = YEAR_COL[table] || 'academic_year'
+        q = q.eq(col, activeYear)
+      }
+      Object.entries(extraFilters).forEach(([k, v]) => { q = q.eq(k, v) })
+      return q.order('id')
     }
-    Object.entries(extraFilters).forEach(([k, v]) => { q = q.eq(k, v) })
-    q.then(({ data: rows }) => {
+    fetchAllRows(buildQuery).then(({ data: rows }) => {
       setData(rows || [])
       setLoading(false)
     })

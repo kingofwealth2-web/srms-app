@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META } from '../lib/constants'
-import { fmtDate } from '../lib/helpers'
+import { fmtDate, fetchAllRows } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -38,7 +38,7 @@ export default function Users({profile,toast,planHook}) {
     if(!profile?.school_id) return
     Promise.all([
       supabase.from('profiles').select('*').eq('school_id', profile?.school_id),
-      supabase.from('students').select('id,first_name,middle_name,last_name,student_id,class_id').eq('school_id', profile?.school_id).eq('archived', false).order('last_name'),
+      fetchAllRows(() => supabase.from('students').select('id,first_name,middle_name,last_name,student_id,class_id').eq('school_id', profile?.school_id).eq('archived', false).order('last_name')),
     ]).then(([{data:usrs},{data:studs}])=>{
       if(usrs) setUsers(usrs)
       if(studs) setStudents(studs)

@@ -50,14 +50,8 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   const disabledHols = settings?.disabled_holidays || []
   const holidayName  = getHolidayOnDate(date, customHols, disabledHols)
   const vacationName = getVacationOnDate(date, vacations, activeYear)
-  // Attendance marking is temporarily disabled app-wide while a bug is being fixed.
-  // History remains viewable (read-only, no new records created) so staff can still
-  // check past attendance and export CSVs while marking is locked.
-  const maintenanceBlock = true
-  const isBlocked    = maintenanceBlock || !!(holidayName || vacationName)
-  const blockReason  = maintenanceBlock
-    ? { icon: '🛠', title: 'Attendance Marking Temporarily Disabled', sub: "We're fixing an issue with this feature. Marking will be re-enabled shortly -- reach out to support if you have questions.", color: '#F2C078', bg: 'rgba(232,184,75,0.08)', border: 'rgba(232,184,75,0.3)' }
-    : vacationName
+  const isBlocked    = !!(holidayName || vacationName)
+  const blockReason  = vacationName
     ? { icon: '🏖', title: 'School is on Vacation', sub: vacationName, color: 'var(--sky)', bg: 'rgba(91,168,245,0.06)', border: 'rgba(91,168,245,0.2)' }
     : holidayName
     ? { icon: '🎉', title: 'Public Holiday', sub: holidayName, color: 'var(--emerald)', bg: 'rgba(45,212,160,0.06)', border: 'rgba(45,212,160,0.2)' }
@@ -179,7 +173,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
           <div style={{fontSize:36,marginBottom:10}}>{blockReason.icon}</div>
           <div style={{fontSize:16,fontWeight:700,color:blockReason.color,marginBottom:6}}>{blockReason.title}</div>
           <div style={{fontSize:13,color:'var(--mist2)'}}>{blockReason.sub}</div>
-          <div style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>{maintenanceBlock ? 'Marking will resume once this is resolved.' : 'Attendance marking is not available on this date.'}</div>
+          <div style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>Attendance marking is not available on this date.</div>
         </div>
       )}
       {tab==='mark' ? (

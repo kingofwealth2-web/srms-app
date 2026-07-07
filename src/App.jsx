@@ -5,7 +5,7 @@ import G, { initScrollReveal } from './modules/styles/global'
 import { useIsMobile, usePlan } from './modules/lib/hooks'
 import PlanGate from './modules/components/PlanGate'
 import { ROLE_META, NAV_ITEMS } from './modules/lib/constants'
-import { currentYearFromSettings, generateYears } from './modules/lib/helpers'
+import { currentYearFromSettings, generateYears, fetchAllRows } from './modules/lib/helpers'
 
 import Sidebar, { YearSwitcher } from './modules/layout/Sidebar'
 
@@ -246,19 +246,23 @@ export default function App() {
       { data: payments }, { data: behaviour }, { data: announcements },
       { data: feeTemplates }, { data: feePeriods },
     ] = await Promise.all([
-      supabase.from('students').select('*').eq('school_id', prof?.school_id).order('student_id'),
-      supabase.from('classes').select('*').eq('school_id', prof?.school_id).order('name'),
-      supabase.from('subjects').select('*').eq('school_id', prof?.school_id).order('name'),
-      supabase.from('student_year_enrolment').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
-      supabase.from('profiles').select('*').eq('school_id', prof?.school_id),
-      supabase.from('grades').select('*').eq('school_id', prof?.school_id).eq('year', year),
-      supabase.from('attendance').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
-      supabase.from('fees').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).limit(5000),
-      supabase.from('payments').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).limit(5000),
-      supabase.from('behaviour').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
-      supabase.from('announcements').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
-      supabase.from('fee_templates').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
-      supabase.from('fee_periods').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
+      // Every one of these can pass PostgREST's default max-rows cap (1000) as a
+      // school accumulates history or grows in size -- an unbounded select silently
+      // returns only an arbitrary partial slice past that point instead of erroring,
+      // so all of them are paginated via fetchAllRows rather than a single select.
+      fetchAllRows(() => supabase.from('students').select('*').eq('school_id', prof?.school_id).order('student_id')),
+      fetchAllRows(() => supabase.from('classes').select('*').eq('school_id', prof?.school_id).order('name')),
+      fetchAllRows(() => supabase.from('subjects').select('*').eq('school_id', prof?.school_id).order('name')),
+      fetchAllRows(() => supabase.from('student_year_enrolment').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('profiles').select('*').eq('school_id', prof?.school_id).order('id')),
+      fetchAllRows(() => supabase.from('grades').select('*').eq('school_id', prof?.school_id).eq('year', year).order('id')),
+      fetchAllRows(() => supabase.from('attendance').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('fees').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('payments').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('behaviour').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('announcements').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('fee_templates').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('fee_periods').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
     ])
     setData({
       students:      students      || [],
