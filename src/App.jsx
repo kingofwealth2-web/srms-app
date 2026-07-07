@@ -20,6 +20,7 @@ import LoadingScreen from './modules/components/LoadingScreen'
 import Landing        from './modules/pages/Landing'
 import Plans          from './modules/pages/Plans'
 import ParentPortal   from './modules/pages/ParentPortal'
+import AdminConsole   from './modules/pages/AdminConsole'
 import Login          from './modules/pages/Login'
 import ResetPassword  from './modules/pages/ResetPassword'
 import SchoolSetup    from './modules/pages/SchoolSetup'
@@ -323,8 +324,10 @@ export default function App() {
       }
       setSettings(settingsRow)
 
-      await loadData(selectedYear, resolvedProf, settingsRow)
-      lastLoadedYear.current = selectedYear
+      if (resolvedProf?.school_id) {
+        await loadData(selectedYear, resolvedProf, settingsRow)
+        lastLoadedYear.current = selectedYear
+      }
       initialLoadDone.current = true
       setLoading(false)
     }
@@ -428,6 +431,7 @@ export default function App() {
   if (showPlans)               return <><style>{G}</style><Plans   onEnter={() => { setShowPlans(false); setShowLanding(false) }} onBack={() => setShowPlans(false)} /></>
   if (showLanding && !session) return <Landing onEnter={() => setShowLanding(false)} onShowPlans={() => setShowPlans(true)}/>
   if (!session || !profile) return <><style>{G}</style><Login onLogin={p => setProfile(p)} lockedError={lockedError} onClearLockedError={() => setLockedError(false)} onBack={() => setShowLanding(true)}/></>
+  if (profile?.role === 'ministry_admin') return <><style>{G}</style><AdminConsole profile={profile} onSignOut={logout}/></>
   if (!profile.school_id)   return <><style>{G}</style><style>{"@keyframes srms-load{to{width:100%}}"}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null); setSession(null); setShowLanding(false) }}/></>
 
   if (!settings) return <><style>{G}</style><LoadingScreen msg="Loading settings..."/></>
