@@ -56,8 +56,10 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     setConfirmState({title:`Delete "${cls.name}"?`,body:'This cannot be undone.',icon:'🗑',danger:true,onConfirm:async()=>{
       const {error}=await supabase.from('classes').delete().eq('id',cls.id).eq('school_id',profile?.school_id)
       if(error){toast(error.message,'error');return}
-      if(cls.class_teacher_id)
-        await supabase.from('profiles').update({class_id:null}).eq('id',cls.class_teacher_id)
+      if(cls.class_teacher_id){
+        const {error:teacherErr} = await supabase.from('profiles').update({class_id:null}).eq('id',cls.class_teacher_id)
+        if(teacherErr) toast('Class deleted but failed to unassign teacher: '+teacherErr.message,'error')
+      }
       setData(p=>({...p,classes:p.classes.filter(c=>c.id!==cls.id)}))
       if(selected?.id===cls.id) setSelected(null)
       auditLog(profile,'Classes','Deleted',`${cls.name}`,{},cls,null)
@@ -258,10 +260,14 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
       const {error}=await supabase.from('classes').update(payload).eq('id',editC.id).eq('school_id',profile?.school_id)
       if(error){toast(error.message,'error');setSaving(false);return}
       const oldTeacherId = editC.class_teacher_id
-      if(oldTeacherId && oldTeacherId!==newTeacherId)
-        await supabase.from('profiles').update({class_id:null}).eq('id',oldTeacherId)
-      if(newTeacherId)
-        await supabase.from('profiles').update({class_id:editC.id}).eq('id',newTeacherId)
+      if(oldTeacherId && oldTeacherId!==newTeacherId){
+        const {error:unassignErr} = await supabase.from('profiles').update({class_id:null}).eq('id',oldTeacherId)
+        if(unassignErr) toast('Class updated but failed to unassign previous teacher: '+unassignErr.message,'error')
+      }
+      if(newTeacherId){
+        const {error:assignErr} = await supabase.from('profiles').update({class_id:editC.id}).eq('id',newTeacherId)
+        if(assignErr) toast('Class updated but failed to assign teacher: '+assignErr.message,'error')
+      }
       setData(p=>({...p,classes:p.classes.map(c=>c.id===editC.id?{...c,...payload}:c)}))
       auditLog(profile,'Classes','Updated',`${payload.name}`,{},{...editC},{...payload})
       toast('Class updated');setClassModal(false)

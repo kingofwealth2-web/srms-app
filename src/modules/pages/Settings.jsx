@@ -35,7 +35,10 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
   useEffect(()=>{
     if(!profile?.school_id) return
     supabase.from('grade_releases').select('*').eq('school_id',profile?.school_id)
-      .then(({data})=>{ if(data) setReleases(data) })
+      .then(({data,error})=>{
+        if(error) toast('Failed to load grade release status: '+error.message,'error')
+        else if(data) setReleases(data)
+      })
   },[profile?.school_id])
 
   const periods = settings?.period_type==='term'
@@ -46,18 +49,26 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
     const existing = releases.find(r=>r.academic_year===year&&r.period===period)
     setRelLoading(true)
     if(existing){
-      await supabase.from('grade_releases').delete().eq('id',existing.id)
-      setReleases(p=>p.filter(r=>r.id!==existing.id))
-      auditLog(profile,'Settings','Grade Unreleased',`${year} · ${period}`,{year,period},null,null)
+      const {error} = await supabase.from('grade_releases').delete().eq('id',existing.id)
+      if(error){
+        toast('Failed to unrelease grades: '+error.message,'error')
+      } else {
+        setReleases(p=>p.filter(r=>r.id!==existing.id))
+        auditLog(profile,'Settings','Grade Unreleased',`${year} · ${period}`,{year,period},null,null)
+      }
     } else {
-      const {data:row} = await supabase.from('grade_releases').insert({
+      const {data:row,error} = await supabase.from('grade_releases').insert({
         school_id: profile?.school_id,
         academic_year: year,
         period,
         released_by: profile?.id,
       }).select().single()
-      if(row) setReleases(p=>[...p,row])
-      auditLog(profile,'Settings','Grade Released',`${year} · ${period}`,{year,period},null,null)
+      if(error){
+        toast('Failed to release grades: '+error.message,'error')
+      } else if(row){
+        setReleases(p=>[...p,row])
+        auditLog(profile,'Settings','Grade Released',`${year} · ${period}`,{year,period},null,null)
+      }
     }
     setRelLoading(false)
   }
@@ -106,14 +117,22 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
         const num = s.student_id?.split('-').pop()||'0000'
         return {id:s.id, student_id:`${newPrefix}-${num}`}
       })
+      const failed = []
       for(const u of updates){
-        await supabase.from('students').update({student_id:u.student_id}).eq('id',u.id).eq('school_id',profile?.school_id)
+        const {error} = await supabase.from('students').update({student_id:u.student_id}).eq('id',u.id).eq('school_id',profile?.school_id)
+        if(error) failed.push(u.id)
       }
+      const succeededIds = new Set(updates.filter(u=>!failed.includes(u.id)).map(u=>u.id))
       if(setData) setData(p=>({...p, students:p.students.map(s=>{
+        if(!succeededIds.has(s.id)) return s
         const num = s.student_id?.split('-').pop()||'0000'
         return {...s, student_id:`${newPrefix}-${num}`}
       })}))
-      toast(`${updates.length} student ID${updates.length!==1?'s':''} renamed to ${newPrefix}-XXXX`)
+      if(failed.length>0){
+        toast(`${succeededIds.size} student ID${succeededIds.size!==1?'s':''} renamed -- ${failed.length} failed and were left unchanged. Please retry.`,'error')
+      } else {
+        toast(`${updates.length} student ID${updates.length!==1?'s':''} renamed to ${newPrefix}-XXXX`)
+      }
     }
 
     const {error} = await supabase.from('settings').update(payload).eq('id',form.id).eq('school_id',profile?.school_id)

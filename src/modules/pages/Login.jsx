@@ -66,18 +66,14 @@ export default function Login({ onLogin, lockedError, onClearLockedError, onBack
     })
     if (err) { setSignupError(err.message); setSignupLoading(false); return }
     if (!data?.user?.id) { setSignupError('Account created but could not get user ID. Please sign in.'); setSignupLoading(false); return }
-    // Upsert profile BEFORE onAuthStateChange triggers App.jsx loadAll
-    const { error: profErr } = await supabase.from('profiles').upsert({
-      id:        data.user.id,
-      full_name: signupName.trim(),
-      email:     signupEmail.trim(),
-      role:      'superadmin',
-      locked:    false,
-      // school_id intentionally null — SchoolSetup wizard will set it
-    })
-    if (profErr) { setSignupError('Account created but profile setup failed: ' + profErr.message); setSignupLoading(false); return }
+    // The handle_new_user() DB trigger already created a profile row (role
+    // defaults to 'teacher', school_id null) when signUp() ran above — a
+    // client-side self-upsert to role:'superadmin' here would always be
+    // rejected by RLS (a fresh account can't grant itself elevated access).
+    // The setup_school() RPC in the SchoolSetup wizard is what actually
+    // promotes this account to superadmin once they pick a school name.
     // Don't call onLogin — onAuthStateChange in App.jsx fires automatically
-    // and loadAll will fetch the profile we just created above
+    // and loadAll will fetch the profile the trigger just created above.
     setSignupLoading(false)
   }
 

@@ -802,7 +802,8 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           fee_period_id:    periodRow.id,
         }).select().single()
         if(payErr) throw payErr
-        await supabase.from('fees').update({paid:amt}).eq('id',feeRow.id).eq('school_id',profile?.school_id)
+        const {error:feeErr} = await supabase.from('fees').update({paid:amt}).eq('id',feeRow.id).eq('school_id',profile?.school_id)
+        if(feeErr) throw new Error(`Payment recorded for ${r.student.first_name} ${r.student.last_name} but the fee balance failed to update (${feeErr.message}). Some students in this batch may already be saved -- reload and check before retrying.`)
         currentPayments = [payRow, ...currentPayments]
         payRows.push(payRow)
       }
@@ -1068,7 +1069,8 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         // Update fee.paid
         const fee = fees.find(f=>f.id===r.feeId)
         const newPaid = Number(fee?.paid||0) + amt
-        await supabase.from('fees').update({paid:newPaid}).eq('id',r.feeId).eq('school_id',profile?.school_id)
+        const {error:feeErr} = await supabase.from('fees').update({paid:newPaid}).eq('id',r.feeId).eq('school_id',profile?.school_id)
+        if(feeErr) throw new Error(`Payment recorded for ${r.student.first_name} ${r.student.last_name} but the fee balance failed to update (${feeErr.message}). Some students in this batch may already be saved -- reload and check before retrying.`)
         currentPayments = [payRow, ...currentPayments]
         payRows.push({...payRow, student:r.student, amount:amt, feeId:r.feeId})
       }
@@ -1213,10 +1215,14 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     if(error){toast(error.message,'error');setEditPeriodSaving(false);return}
     setData(p=>({...p, fee_periods:p.fee_periods.map(x=>x.id===editPeriodModal.id?{...x,label:editPeriodForm.label.trim(),period_date:editPeriodForm.period_date}:x)}))
     // Also update the period label on linked fees
-    await supabase.from('fees').update({period:editPeriodForm.label.trim()}).eq('fee_period_id',editPeriodModal.id).eq('school_id',profile?.school_id)
-    setData(p=>({...p, fees:p.fees.map(f=>f.fee_period_id===editPeriodModal.id?{...f,period:editPeriodForm.label.trim()}:f)}))
+    const {error:syncErr} = await supabase.from('fees').update({period:editPeriodForm.label.trim()}).eq('fee_period_id',editPeriodModal.id).eq('school_id',profile?.school_id)
+    if(syncErr){
+      toast('Period renamed, but linked fee records failed to sync to the new label: '+syncErr.message,'error')
+    } else {
+      setData(p=>({...p, fees:p.fees.map(f=>f.fee_period_id===editPeriodModal.id?{...f,period:editPeriodForm.label.trim()}:f)}))
+      toast('Period updated')
+    }
     auditLog(profile,'Fees','Period Edited',`${editPeriodModal.label} → ${editPeriodForm.label.trim()}`,{},{...editPeriodModal},{...editPeriodForm})
-    toast('Period updated')
     setEditPeriodSaving(false)
     if(selectedPeriod?.id===editPeriodModal.id) setSelectedPeriod(p=>({...p,label:editPeriodForm.label.trim(),period_date:editPeriodForm.period_date}))
     setEditPeriodModal(null)
