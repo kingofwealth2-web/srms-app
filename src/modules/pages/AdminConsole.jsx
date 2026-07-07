@@ -69,7 +69,8 @@ export default function AdminConsole({ profile, onSignOut }) {
 
   const logActivity = useCallback(async (schoolId, action, detail = '') => {
     const school = schools.find(s => s.id === schoolId)
-    await supabase.from('admin_activity').insert({ school_id: schoolId, school_name: school?.name || '', action, detail })
+    const { error } = await supabase.from('admin_activity').insert({ school_id: schoolId, school_name: school?.name || '', action, detail })
+    if (error) console.error('Failed to log admin activity:', error.message)
   }, [schools])
 
   const loadAll = useCallback(async () => {
@@ -141,7 +142,8 @@ export default function AdminConsole({ profile, onSignOut }) {
       title: 'Suspend School', icon: '⛔', danger: true, confirmLabel: 'Suspend',
       body: `Are you sure you want to suspend ${s?.name}? They will lose access immediately.`,
       onConfirm: async () => {
-        await supabase.from('settings').update({ cancelled_at: new Date().toISOString() }).eq('school_id', schoolId)
+        const { error } = await supabase.from('settings').update({ cancelled_at: new Date().toISOString() }).eq('school_id', schoolId)
+        if (error) { showToast('Failed to suspend school: ' + error.message, 'error'); return }
         await logActivity(schoolId, 'School suspended')
         showToast('School suspended')
         await loadAll()
@@ -150,7 +152,8 @@ export default function AdminConsole({ profile, onSignOut }) {
   }
 
   const unsuspend = async (schoolId) => {
-    await supabase.from('settings').update({ cancelled_at: null }).eq('school_id', schoolId)
+    const { error } = await supabase.from('settings').update({ cancelled_at: null }).eq('school_id', schoolId)
+    if (error) { showToast('Failed to unsuspend school: ' + error.message, 'error'); return }
     await logActivity(schoolId, 'School unsuspended')
     showToast('School unsuspended')
     await loadAll()
@@ -158,11 +161,10 @@ export default function AdminConsole({ profile, onSignOut }) {
 
   const toggleObItem = async (schoolId, key, val) => {
     const existing = onboarding.find(o => o.school_id === schoolId)
-    if (existing) {
-      await supabase.from('admin_onboarding').update({ [key]: val, updated_at: new Date().toISOString() }).eq('school_id', schoolId)
-    } else {
-      await supabase.from('admin_onboarding').insert({ school_id: schoolId, [key]: val })
-    }
+    const { error } = existing
+      ? await supabase.from('admin_onboarding').update({ [key]: val, updated_at: new Date().toISOString() }).eq('school_id', schoolId)
+      : await supabase.from('admin_onboarding').insert({ school_id: schoolId, [key]: val })
+    if (error) { showToast('Failed to update onboarding: ' + error.message, 'error'); return }
     await logActivity(schoolId, `Onboarding: ${key.replace(/_/g, ' ')} marked ${val ? 'done' : 'undone'}`)
     await loadAll()
   }

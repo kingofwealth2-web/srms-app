@@ -51,7 +51,10 @@ export default function ActivatePlanModal({ school, onClose, onSaved, logActivit
       : `${fmtDate(basisDate)} → ${fmtDate(expiry)}`
     const actionLabel = isActive ? `Plan updated — ${plan.toUpperCase()}` : `Plan activated — ${plan.toUpperCase()}`
     await logActivity(school.id, actionLabel, `${basisLabel} · new expiry ${fmtDate(expiry)}${note ? ' · ' + note : ''}`)
-    if (note.trim()) await supabase.from('admin_notes').insert({ school_id: school.id, note: note.trim() })
+    if (note.trim()) {
+      const { error: noteErr } = await supabase.from('admin_notes').insert({ school_id: school.id, note: note.trim() })
+      if (noteErr) console.error('Failed to save note:', noteErr.message)
+    }
 
     showToast(isActive ? 'Plan updated successfully' : 'Plan activated successfully')
     await onSaved()

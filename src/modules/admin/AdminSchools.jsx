@@ -218,16 +218,24 @@ function SchoolDetail({ school, notes, comms, payments, onboarding, ONBOARDING_I
 function UsersTab({ schoolId, confirmLockUser, unlockUser, openPasswordReset }) {
   const [users, setUsers]     = useState(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setLoadError('')
     supabase.from('profiles').select('id,full_name,email,role,locked,created_at').eq('school_id', schoolId).order('full_name')
-      .then(({ data }) => { if (!cancelled) { setUsers(data || []); setLoading(false) } })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) setLoadError(error.message)
+        else setUsers(data || [])
+        setLoading(false)
+      })
     return () => { cancelled = true }
   }, [schoolId])
 
   if (loading) return <div style={{ padding: 20, color: 'var(--mist3)', fontSize: 13 }}>Loading users…</div>
+  if (loadError) return <div style={{ padding: 20, color: 'var(--rose)', fontSize: 13 }}>Failed to load users: {loadError}</div>
   if (!users?.length) return <EmptyState icon='👤' text='No users found for this school'/>
 
   return (
