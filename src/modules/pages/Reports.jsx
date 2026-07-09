@@ -670,7 +670,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   // ── BROADSHEET ─────────────────────────────────────────────────
   const printBroadsheet = () => {
-    if(!rcClass||!rcPeriod) return
+    if(!rcClass||!rcPeriod||!rcReportTitle.trim()) return
     const cls = classes.find(c=>c.id===rcClass)
 
     const subjectCols = classSubjects.map(s=>`
@@ -785,7 +785,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   // ── SUBJECT REPORT ─────────────────────────────────────────────
   const printSubjectReport = () => {
-    if(!rcClass||!rcPeriod||!rcSubject) return
+    if(!rcClass||!rcPeriod||!rcSubject||!rcReportTitle.trim()) return
     const cls = classes.find(c=>c.id===rcClass)
     const sub = subjects.find(s=>s.id===rcSubject)
     const subTeacher = sub?.teacher_id ? users.find(u=>u.id===sub.teacher_id) : null
@@ -1117,7 +1117,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   `
 
   const printOneCard = () => {
-    if(!rcStudent) return
+    if(!rcStudent||!rcReportTitle.trim()) return
     const student = classStudents.find(s=>s.id===rcStudent)
     if(!student) return
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Report Card — ${student.first_name}${student.middle_name?' '+student.middle_name:''} ${student.last_name}</title>
@@ -1130,7 +1130,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   }
 
   const printAllCards = () => {
-    if(!rcClass) return
+    if(!rcClass||!rcReportTitle.trim()) return
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Report Cards — ${classes.find(c=>c.id===rcClass)?.name}</title>
     <style>${cardStyles}</style></head>
     <body>${classStudents.map(s=>buildReportCard(s)).join('')}
@@ -1146,7 +1146,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   const openPreview = () => {
     const sid = previewStudent||(classStudents[0]?.id||'')
-    if(!sid) return
+    if(!sid||!rcReportTitle.trim()) return
     const student = classStudents.find(s=>s.id===sid)
     if(!student) return
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Preview — ${student.first_name}${student.middle_name?' '+student.middle_name:''} ${student.last_name}</title>
@@ -1158,10 +1158,11 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     openPrint(html, 860, 960)
   }
 
-    const canPrintBroadsheet = rcClass&&rcPeriod
-  const canPrintSubject    = rcClass&&rcPeriod&&rcSubject
-  const canPrintOne        = rcClass&&rcPeriod&&rcStudent
-  const canPrintAll        = rcClass&&rcPeriod
+    const hasReportTitle = !!rcReportTitle.trim()
+  const canPrintBroadsheet = rcClass&&rcPeriod&&hasReportTitle
+  const canPrintSubject    = rcClass&&rcPeriod&&rcSubject&&hasReportTitle
+  const canPrintOne        = rcClass&&rcPeriod&&rcStudent&&hasReportTitle
+  const canPrintAll        = rcClass&&rcPeriod&&hasReportTitle
 
   return (
     <div>
@@ -1193,7 +1194,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,paddingTop:12,borderTop:'1px solid var(--line)'}}>
           <Field label='Class Teacher Name' value={rcClassTeacherName} onChange={setRcClassTeacherName} placeholder='For signature line'/>
           <Field label='Head Teacher Name'  value={rcHeadTeacher}      onChange={setRcHeadTeacher}      placeholder='For signature line'/>
-          <Field label='Report Header' value={rcReportTitle} onChange={setRcReportTitle}
+          <Field label='Report Header' value={rcReportTitle} onChange={setRcReportTitle} required
             placeholder={rcType==='broadsheet'?'Terminal Report — Class Broadsheet':rcType==='subject'?'Subject Performance Report':'Student Terminal Report Card'}/>
           {rcType==='individual' && <>
             <Field label='Head Teacher Remark (optional)' value={rcHeadRemark} onChange={setRcHeadRemark} placeholder='Overall comment...'/>
@@ -1279,6 +1280,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         )}
         {!rcClass&&<p style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>Select a class and period to continue.</p>}
         {rcClass&&!rcPeriod&&<p style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>Select a period to continue.</p>}
+        {rcClass&&rcPeriod&&!hasReportTitle&&<p style={{fontSize:12,color:'var(--amber)',marginTop:8}}>Enter a report header to continue.</p>}
         {rcType==='subject'&&rcClass&&rcPeriod&&!rcSubject&&<p style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>Select a subject to print the subject report.</p>}
         {rcType==='individual'&&rcClass&&rcPeriod&&!rcStudent&&<p style={{fontSize:12,color:'var(--amber)',marginTop:8}}>No student selected — Print All will generate cards for all {classStudents.length} students in this class.</p>}
       </Card>
