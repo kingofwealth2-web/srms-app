@@ -70,6 +70,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   const [rcHeadTeacher,setRcHeadTeacher] = useState('')
   const [rcStamp,setRcStamp]         = useState(false)
   const [rcClassTeacherName,setRcClassTeacherName] = useState('')
+  const [rcReportTitle,setRcReportTitle] = useState('') // custom header kicker text -- falls back to a per-type default when blank
   // Pre-filter class teacher to their class; subject teacher to their teaching classes
   const teacherClassIds = isTeacher ? [...new Set(subjects.filter(s=>s.teacher_id===profile?.id).map(s=>s.class_id))] : null
 
@@ -545,6 +546,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
           rcHeadTeacher={rcHeadTeacher} setRcHeadTeacher={setRcHeadTeacher}
           rcStamp={rcStamp} setRcStamp={setRcStamp}
           rcClassTeacherName={rcClassTeacherName} setRcClassTeacherName={setRcClassTeacherName}
+          rcReportTitle={rcReportTitle} setRcReportTitle={setRcReportTitle}
           exportExcel={exportExcel}
           planHook={planHook}
           onShowPlans={onShowPlans}
@@ -558,7 +560,7 @@ const thStyle={padding:'10px 12px',textAlign:'left',fontSize:10,fontWeight:600,c
 const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlign:'middle'}
 
 // ── REPORT CARDS ───────────────────────────────────────────────
-function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,exportExcel,planHook,onShowPlans}) {
+function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,rcReportTitle,setRcReportTitle,exportExcel,planHook,onShowPlans}) {
   const {students=[],grades=[],attendance=[],behaviour=[],classes=[],subjects=[],users=[],opening_balances:openingBalances=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
@@ -727,7 +729,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           ${schoolMotto?`<div style="font-size:10px;color:#93c5fd;margin-top:3px;font-style:italic;">"${schoolMotto}"</div>`:''}
         </div>
         <div style="text-align:right;">
-          <div style="font-size:9px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:5px;">Terminal Report — Class Broadsheet</div>
+          <div style="font-size:9px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:5px;">${rcReportTitle||'Terminal Report — Class Broadsheet'}</div>
           <div style="font-size:22px;font-weight:800;color:#fbbf24;">${cls?.name||'--'}</div>
           <div style="font-size:11px;color:#bfdbfe;margin-top:3px;">${rcPeriod} &nbsp;·&nbsp; ${activeYear}</div>
         </div>
@@ -830,7 +832,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         </div>
         <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:14px;display:flex;justify-content:space-between;align-items:flex-end;">
           <div>
-            <div style="font-size:9px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:5px;">Subject Performance Report</div>
+            <div style="font-size:9px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:5px;">${rcReportTitle||'Subject Performance Report'}</div>
             <div style="font-size:22px;font-weight:800;color:#fbbf24;">${sub?.name||'--'}</div>
           </div>
           <div style="text-align:right;">
@@ -944,7 +946,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           <div style="font-family:'Playfair Display',serif;font-size:19px;font-weight:700;color:#fff;letter-spacing:-0.01em;">${schoolName}</div>
           ${schoolMotto?`<div style="font-size:10px;color:#93c5fd;margin-top:3px;font-style:italic;">"${schoolMotto}"</div>`:''}
           <div style="display:inline-block;margin-top:8px;padding:4px 18px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);border-radius:20px;">
-            <span style="font-size:10px;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:0.14em;">Student Terminal Report Card</span>
+            <span style="font-size:10px;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:0.14em;">${rcReportTitle||'Student Terminal Report Card'}</span>
           </div>
         </div>
         ${photoTag}
@@ -1191,6 +1193,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,paddingTop:12,borderTop:'1px solid var(--line)'}}>
           <Field label='Class Teacher Name' value={rcClassTeacherName} onChange={setRcClassTeacherName} placeholder='For signature line'/>
           <Field label='Head Teacher Name'  value={rcHeadTeacher}      onChange={setRcHeadTeacher}      placeholder='For signature line'/>
+          <Field label='Report Header' value={rcReportTitle} onChange={setRcReportTitle}
+            placeholder={rcType==='broadsheet'?'Terminal Report — Class Broadsheet':rcType==='subject'?'Subject Performance Report':'Student Terminal Report Card'}/>
           {rcType==='individual' && <>
             <Field label='Head Teacher Remark (optional)' value={rcHeadRemark} onChange={setRcHeadRemark} placeholder='Overall comment...'/>
             <Field label='Next Term Resumption Date' value={rcResumption} onChange={setRcResumption} placeholder='e.g. Jan 13, 2026'/>
