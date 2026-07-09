@@ -134,11 +134,10 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
   const save = async () => {
     if(!form.student_id||!form.subject_id){toast('Please select a student and subject','error');return}
     if(scoreWarnings.length>0){toast(`Score exceeds maximum: ${scoreWarnings.map(c=>c.label).join(', ')}`,'error');return}
-    // Only save scores for active components; zero out disabled ones
-    const scores = ALL_COMPONENTS.reduce((acc,k)=>{
-      const comp = allComps.find(c=>c.key===k)
-      return {...acc,[k]:comp?.enabled ? (+form[k]||0) : 0}
-    },{})
+    // Disabled components aren't editable in this form, so form[k] already carries
+    // through whatever was loaded (existing archived value, or '' for a new record) --
+    // don't force them to 0, that would destroy archived scores on unrelated edits.
+    const scores = ALL_COMPONENTS.reduce((acc,k)=>({...acc,[k]:+form[k]||0}),{})
     const { school_id: _sid, ...gClean } = {...form,...scores}
     const g = gClean
     setSaving(true)
@@ -227,6 +226,17 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
   const bulkStudents = students.filter(s=>s.class_id===fc&&!s.archived)
   const dirtyCount = Object.values(bulkRows).filter(r=>r.dirty).length
 
+  // Students who have a grade for this exact subject+period+year but aren't in
+  // bulkStudents -- they've since transferred out of this class. Their grade is
+  // still safe and fully editable in List View, just not reachable from this grid.
+  const bulkStudentIds = new Set(bulkStudents.map(s=>s.id))
+  const hiddenGradedCount = canBulk ? new Set(
+    grades
+      .filter(g=>g.subject_id===fs && g.period===fp && (!g.year||g.year===activeYear))
+      .map(g=>g.student_id)
+      .filter(id=>!bulkStudentIds.has(id))
+  ).size : 0
+
   // Keyboard nav: Tab/Enter moves to next cell across rows
   const handleBulkKeyDown = (e, studentId, compKey) => {
     if(e.key !== 'Tab' && e.key !== 'Enter') return
@@ -282,10 +292,9 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
         }
         continue
       }
-      const scores = ALL_COMPONENTS.reduce((acc,k)=>{
-        const comp = allComps.find(c=>c.key===k)
-        return {...acc,[k]: comp?.enabled ? (+row[k]||0) : 0}
-      },{})
+      // Same reasoning as save(): disabled components have no input in this grid,
+      // so row[k] already carries the correct preserved/loaded value -- don't zero it.
+      const scores = ALL_COMPONENTS.reduce((acc,k)=>({...acc,[k]:+row[k]||0}),{})
       const payload = {
         school_id: profile?.school_id,
         student_id: s.id,
@@ -394,7 +403,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
         <div>
           {/* Hint bar */}
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12,flexWrap:'wrap',gap:8}}>
-            <div style={{display:'flex',gap:16,alignItems:'center'}}>
+            <div style={{display:'flex',gap:16,alignItems:'center',flexWrap:'wrap'}}>
               <span style={{fontSize:12,color:'var(--mist3)'}}>
                 <span style={{color:'var(--mist2)',fontWeight:600}}>{bulkStudents.length}</span> students · Tab or Enter to move between cells
               </span>
@@ -404,6 +413,11 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
                 <span style={{marginLeft:8,display:'inline-block',width:8,height:8,borderRadius:2,background:'rgba(232,184,75,0.15)',border:'1px solid rgba(232,184,75,0.4)'}}/>
                 <span>Unsaved changes</span>
               </div>
+              {hiddenGradedCount>0 && (
+                <span style={{fontSize:11,color:'var(--amber)',background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.25)',borderRadius:'var(--r-sm)',padding:'3px 10px'}}>
+                  (!) {hiddenGradedCount} student{hiddenGradedCount!==1?'s':''} with grades here {hiddenGradedCount!==1?'have':'has'} since left this class — edit from List View
+                </span>
+              )}
             </div>
             <div style={{display:'flex',gap:8}}>
               <Btn variant='ghost' onClick={()=>setBulkRows(initBulkRows())}>Reset</Btn>

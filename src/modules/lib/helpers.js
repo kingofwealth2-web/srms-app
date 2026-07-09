@@ -91,6 +91,36 @@ export const getGPA        = (t, scale) => { for (const s of scale) if (t >= s.m
 export const getGradeLetter = (t, scale) => { for (const s of scale) if (t >= s.min && t <= s.max) return s.letter || '--'; return '--' }
 export const getGradeRemark = (t, scale) => { for (const s of scale) if (t >= s.min && t <= s.max) return s.remark || ''; return ''  }
 
+// Pass/fail derived from the school's own configured scale rather than a fixed
+// number -- the lowest-min tier is always the fail band, whatever range that
+// covers (e.g. the Number system's default scale fails below 35, not 50).
+export const isPassing = (score, scale) => {
+  if (score === null || score === undefined || !scale?.length) return null
+  const lowest = [...scale].sort((a, b) => a.min - b.min)[0]
+  return score > lowest.max
+}
+
+// Ranks by average (not raw summed total) so a student who's missing a grade
+// in one subject isn't penalized against a fully-graded classmate just for
+// having fewer numbers added up -- avg-rank and sum-rank agree once every
+// student has a score for every subject, so this only changes anything during
+// the "still entering grades" window, which is exactly when it was wrong.
+// Students with no `avgKey` value at all are excluded from the ranking
+// entirely (position: null) rather than being sorted to the bottom as if
+// they'd scored zero.
+export function rankByTotal(items, avgKey = 'avg') {
+  const graded = items.filter(s => s[avgKey] !== null && s[avgKey] !== undefined)
+  const ungraded = items.filter(s => s[avgKey] === null || s[avgKey] === undefined)
+  graded.sort((a, b) => b[avgKey] - a[avgKey])
+  let lastScore = null, lastRank = 0, seen = 0
+  const ranked = graded.map(s => {
+    seen++
+    if (lastScore === null || s[avgKey] !== lastScore) { lastRank = seen; lastScore = s[avgKey] }
+    return { ...s, position: lastRank }
+  })
+  return [...ranked, ...ungraded.map(s => ({ ...s, position: null }))]
+}
+
 // ── DATE / FORMAT HELPERS ──────────────────────────────────────
 export const fmtDate = d => d
   ? new Date(d).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
