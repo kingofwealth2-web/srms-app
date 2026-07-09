@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getGradeColor, getCurrency, fmtMoney, genSID, fullName } from '../lib/helpers'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGradeColor, getCurrency, fmtMoney, genSID, fullName, calcAttendanceRate } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -177,13 +177,10 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     const gradeComps     = getGradeComponents(settings)
     const scale          = settings?.grading_scale || []
     const attRecs        = data.attendance?.filter(a => a.student_id === s.id) || []
+    const attOB           = data.opening_balances?.filter(b => b.student_id === s.id) || []
     const behRecs        = data.behaviour?.filter(b => b.student_id === s.id) || []
 
-    const present = attRecs.filter(a => a.status === 'Present').length
-    const absent  = attRecs.filter(a => a.status === 'Absent').length
-    const late    = attRecs.filter(a => a.status === 'Late').length
-    const excused = attRecs.filter(a => a.status === 'Excused').length
-    const attRate = attRecs.length ? Math.round(present / attRecs.length * 100) : null
+    const { present, absent, late, excused, rate: attRate } = calcAttendanceRate(attRecs, attOB)
 
     const schoolName  = settings?.school_name  || 'SRMS'
     const schoolMotto = settings?.motto         || ''
@@ -331,7 +328,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
             <tbody>${subjectRows}</tbody>
           </table>`}
       <div class="sec" style="margin-top:18px;">Attendance</div>
-      ${attRecs.length === 0
+      ${attRecs.length === 0 && attOB.length === 0
         ? `<div style="font-size:13px;color:#9ca3af;">No attendance records yet.</div>`
         : `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;">
             ${[['Present',present,'#16a34a'],['Absent',absent,'#dc2626'],['Late',late,'#d97706'],['Excused',excused,'#0ea5e9']].map(([l,n,c])=>
@@ -606,10 +603,8 @@ export default function Students({profile,data,setData,toast,settings,activeYear
         const gradeComps = getGradeComponents(settings)
         const scale = settings?.grading_scale||[]
         const attRecs = data.attendance?.filter(a=>a.student_id===s.id)||[]
-        const present = attRecs.filter(a=>a.status==='Present').length
-        const absent  = attRecs.filter(a=>a.status==='Absent').length
-        const late    = attRecs.filter(a=>a.status==='Late').length
-        const attRate = attRecs.length ? Math.round(present/attRecs.length*100) : null
+        const attOB   = data.opening_balances?.filter(b=>b.student_id===s.id)||[]
+        const { present, absent, late, excused, rate: attRate } = calcAttendanceRate(attRecs, attOB)
         // Pick the latest-period grade for a given subject
         const periodOrder = Array.from({length:settings?.period_count||2},(_,i)=>`${settings?.period_type==='term'?'Term':'Semester'} ${i+1}`)
         const latestGrade = subjectId => {
@@ -720,7 +715,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
                 }
 
                 <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginTop:20,marginBottom:12}}>Attendance</div>
-                {attRecs.length===0
+                {attRecs.length===0 && attOB.length===0
                   ? <div style={{fontSize:13,color:'var(--mist3)'}}>No attendance records yet.</div>
                   : <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
                       {[['Present',present,'var(--emerald)'],['Absent',absent,'var(--rose)'],['Late',late,'var(--amber)']].map(([label,count,color])=>(

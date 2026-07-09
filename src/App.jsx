@@ -174,7 +174,7 @@ export default function App() {
   const [data,setData]             = useState({
     students:[],classes:[],subjects:[],grades:[],attendance:[],
     fees:[],payments:[],behaviour:[],announcements:[],enrolments:[],users:[],
-    fee_templates:[],fee_periods:[],
+    fee_templates:[],fee_periods:[],opening_balances:[],
   })
   const [page,setPage]             = useState('dashboard')
   const [feeFilter,setFeeFilter]   = useState('')
@@ -245,7 +245,7 @@ export default function App() {
       { data: enrolments }, { data: users },
       { data: grades }, { data: attendance }, { data: fees },
       { data: payments }, { data: behaviour }, { data: announcements },
-      { data: feeTemplates }, { data: feePeriods },
+      { data: feeTemplates }, { data: feePeriods }, { data: openingBalances },
     ] = await Promise.all([
       // Every one of these can pass PostgREST's default max-rows cap (1000) as a
       // school accumulates history or grows in size -- an unbounded select silently
@@ -264,6 +264,7 @@ export default function App() {
       fetchAllRows(() => supabase.from('announcements').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
       fetchAllRows(() => supabase.from('fee_templates').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
       fetchAllRows(() => supabase.from('fee_periods').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('attendance_opening_balances').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
     ])
     setData({
       students:      students      || [],
@@ -279,6 +280,7 @@ export default function App() {
       users:         users         || [],
       fee_templates: feeTemplates  || [],
       fee_periods:   feePeriods    || [],
+      opening_balances: openingBalances || [],
     })
   }, [])
 

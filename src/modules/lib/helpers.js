@@ -19,6 +19,24 @@ export async function fetchAllRows(queryFactory) {
   return { data: all }
 }
 
+// ── ATTENDANCE HELPERS ──────────────────────────────────────────
+// Folds "opening balance" rows (a pre-tracking historical present/total
+// aggregate, entered once by a superadmin -- see Settings > Opening
+// Attendance Balance) into a real attendance-record rate calculation.
+// Both args should already be filtered to the same scope by the caller
+// (e.g. both filtered to one student, or both filtered to one class).
+export function calcAttendanceRate(records, openingBalances = []) {
+  const obTotal   = openingBalances.reduce((sum, b) => sum + (b.total_days || 0), 0)
+  const obPresent = openingBalances.reduce((sum, b) => sum + (b.present_days || 0), 0)
+  const present = records.filter(a => a.status === 'Present').length + obPresent
+  const absent  = records.filter(a => a.status === 'Absent').length
+  const late    = records.filter(a => a.status === 'Late').length
+  const excused = records.filter(a => a.status === 'Excused').length
+  const total   = records.length + obTotal
+  const rate    = total ? Math.round(present / total * 100) : null
+  return { total, present, absent, late, excused, rate }
+}
+
 // ── GRADE HELPERS ──────────────────────────────────────────────
 export const ALL_COMPONENTS = ['classwork','homework','midsemester','final_exam','project']
 

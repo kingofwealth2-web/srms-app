@@ -5,7 +5,7 @@ import { supabase } from '../../supabase'
 
 // ── Per-page lazy data fetcher ──────────────────────────────────
 // Usage: const { data, setData, loading } = usePageData('fees', profile, activeYear)
-const YEAR_TABLES = ['grades','attendance','fees','payments','behaviour','announcements','student_year_enrolment']
+const YEAR_TABLES = ['grades','attendance','fees','payments','behaviour','announcements','student_year_enrolment','attendance_opening_balances']
 const YEAR_COL    = { grades: 'year' }  // all others use 'academic_year'
 
 export function usePageData(table, profile, activeYear, extraFilters = {}) {

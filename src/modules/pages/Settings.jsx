@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, CURRENCIES, GHANA_PUBLIC_HOLIDAYS } from '../lib/constants'
-import { fmtDate, DEFAULT_GRADING_SCALE, DEFAULT_NUMBER_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, getCurrency, fmtMoney, generateYears } from '../lib/helpers'
+import { fmtDate, DEFAULT_GRADING_SCALE, DEFAULT_NUMBER_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, getCurrency, fmtMoney, generateYears, fullName } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -451,6 +451,19 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
         </div>
       )}
 
+      {/* ── OPENING ATTENDANCE BALANCE ── */}
+      {profile?.role==='superadmin' && (
+        <div style={{marginTop:20}}>
+          <OpeningBalanceSection
+            profile={profile}
+            toast={toast}
+            activeYear={activeYear}
+            data={data}
+            setData={setData}
+          />
+        </div>
+      )}
+
       {/* ── ACADEMIC CALENDAR ── */}
       {profile?.role==='superadmin' && (
         <div style={{marginTop:20}}>
@@ -471,6 +484,235 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
         />
       )}
     </div>
+  )
+}
+
+// ── OPENING ATTENDANCE BALANCE ─────────────────────────────────
+// One-time, superadmin-only backfill for attendance history that predates
+// live tracking (an outage, or a school onboarding mid-term). Stores an
+// aggregate present/total day count per student rather than fabricating
+// individual daily records for a period nobody can accurately reconstruct.
+function OpeningBalanceSection({profile, toast, activeYear, data, setData}) {
+  const classes    = data?.classes || []
+  const students   = data?.students || []
+  const attendance = data?.attendance || []
+  const openingBalances = (data?.opening_balances || []).filter(b => b.academic_year === activeYear)
+
+  const [selectedClass, setSelectedClass] = useState('')
+  const [label, setLabel]         = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate]     = useState('')
+  const [rows, setRows]           = useState({}) // {studentId: {total, present}}
+  const [saving, setSaving]       = useState(false)
+  const [confirmState, setConfirmState] = useState(null)
+  const [editEntry, setEditEntry] = useState(null)
+  const [editSaving, setEditSaving] = useState(false)
+
+  const classStudents = selectedClass ? students.filter(s => s.class_id === selectedClass && !s.archived) : []
+  const setRow = (sid, field, val) => setRows(p => ({...p, [sid]: {...(p[sid]||{}), [field]: val}}))
+
+  const saveEntries = async (entries) => {
+    setSaving(true)
+    const payload = entries.map(e => ({
+      school_id:     profile?.school_id,
+      student_id:    e.student.id,
+      class_id:      selectedClass,
+      academic_year: activeYear,
+      label:         label.trim(),
+      start_date:    startDate,
+      end_date:      endDate,
+      total_days:    Number(e.total),
+      present_days:  Number(e.present || 0),
+      created_by:    profile?.id,
+    }))
+    const {data: inserted, error} = await supabase.from('attendance_opening_balances').insert(payload).select()
+    setSaving(false)
+    if (error) { toast('Failed to save: ' + error.message, 'error'); return }
+    setData(p => ({...p, opening_balances: [...(p.opening_balances||[]), ...(inserted||[])]}))
+    setRows({}); setLabel(''); setStartDate(''); setEndDate('')
+    toast(`Saved opening balance for ${entries.length} student${entries.length!==1?'s':''}.`)
+  }
+
+  const doSaveEntries = () => {
+    const entries = classStudents
+      .map(s => ({student: s, total: rows[s.id]?.total, present: rows[s.id]?.present}))
+      .filter(e => e.total !== undefined && e.total !== '')
+
+    if (!label.trim())            { toast('Please enter a period label.', 'error'); return }
+    if (!startDate || !endDate)   { toast('Please enter a start and end date.', 'error'); return }
+    if (endDate < startDate)      { toast('End date must be on or after the start date.', 'error'); return }
+    if (entries.length === 0)     { toast("Enter at least one student's total days.", 'error'); return }
+    for (const e of entries) {
+      const total = Number(e.total), present = Number(e.present || 0)
+      if (!total || total <= 0)          { toast(`${fullName(e.student, true)}: Total Days must be greater than 0.`, 'error'); return }
+      if (present < 0 || present > total){ toast(`${fullName(e.student, true)}: Present Days must be between 0 and Total Days.`, 'error'); return }
+    }
+
+    // Overlap check -- warn (don't block) if real attendance already exists for this window
+    const studentIds  = new Set(entries.map(e => e.student.id))
+    const overlapping = attendance.filter(a => studentIds.has(a.student_id) && a.date >= startDate && a.date <= endDate)
+    if (overlapping.length > 0) {
+      setConfirmState({
+        title: 'Existing attendance records found', icon: '⚠', danger: true, confirmLabel: 'Save Anyway',
+        body: `${overlapping.length} real attendance record${overlapping.length!==1?'s':''} already exist for these students within ${fmtDate(startDate)} – ${fmtDate(endDate)}. Saving this opening balance on top of them will double-count those days in reports. Continue anyway?`,
+        onConfirm: () => saveEntries(entries),
+      })
+      return
+    }
+    saveEntries(entries)
+  }
+
+  const deleteEntry = (entry) => {
+    const student = students.find(s => s.id === entry.student_id)
+    setConfirmState({
+      title: 'Delete this opening balance entry?', icon: '🗑', danger: true, confirmLabel: 'Delete',
+      body: `This will remove the ${entry.total_days}-day entry for ${student ? fullName(student, true) : 'this student'}. This cannot be undone.`,
+      onConfirm: async () => {
+        const {error} = await supabase.from('attendance_opening_balances').delete().eq('id', entry.id)
+        if (error) { toast('Failed to delete: ' + error.message, 'error'); return }
+        setData(p => ({...p, opening_balances: (p.opening_balances||[]).filter(b => b.id !== entry.id)}))
+        toast('Entry deleted.')
+      },
+    })
+  }
+
+  const saveEdit = async () => {
+    if (!editEntry) return
+    const total = Number(editEntry.total_days), present = Number(editEntry.present_days)
+    if (!total || total <= 0)           { toast('Total Days must be greater than 0.', 'error'); return }
+    if (present < 0 || present > total) { toast('Present Days must be between 0 and Total Days.', 'error'); return }
+    setEditSaving(true)
+    const {error} = await supabase.from('attendance_opening_balances').update({
+      label: editEntry.label, start_date: editEntry.start_date, end_date: editEntry.end_date,
+      total_days: total, present_days: present,
+    }).eq('id', editEntry.id)
+    setEditSaving(false)
+    if (error) { toast('Failed to update: ' + error.message, 'error'); return }
+    setData(p => ({...p, opening_balances: (p.opening_balances||[]).map(b => b.id===editEntry.id ? {...b, ...editEntry, total_days: total, present_days: present} : b)}))
+    setEditEntry(null)
+    toast('Entry updated.')
+  }
+
+  return (
+    <Card>
+      <SectionTitle>Opening Attendance Balance</SectionTitle>
+      <p style={{fontSize:12,color:'var(--mist2)',marginBottom:16,lineHeight:1.6}}>
+        For attendance history that predates live tracking in SRMS -- a system outage, or a school that started using SRMS mid-term. Enter a total/present day count per student instead of marking each day individually. <strong style={{color:'var(--amber)'}}>Only use this for periods with no existing daily attendance records</strong> -- entering both will double-count in reports.
+      </p>
+
+      <div style={{marginBottom:16,maxWidth:320}}>
+        <Field label='Class' value={selectedClass} onChange={setSelectedClass} options={classes.map(c=>({value:c.id, label:c.name}))}/>
+      </div>
+
+      {selectedClass && (
+        <>
+          <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr',gap:'0 14px'}}>
+            <Field label='Period Label' value={label} onChange={setLabel} placeholder='e.g. Pre-onboarding period'/>
+            <Field label='Start Date' value={startDate} onChange={setStartDate} type='date'/>
+            <Field label='End Date' value={endDate} onChange={setEndDate} type='date'/>
+          </div>
+
+          {classStudents.length === 0 ? (
+            <div style={{padding:20,textAlign:'center',color:'var(--mist3)',fontSize:13}}>No students in this class.</div>
+          ) : (
+            <table style={{width:'100%',borderCollapse:'collapse',marginTop:8,marginBottom:16}}>
+              <thead>
+                <tr>
+                  <th style={{textAlign:'left',fontSize:11,color:'var(--mist3)',padding:'6px 8px 6px 0',borderBottom:'1px solid var(--line)'}}>Student</th>
+                  <th style={{textAlign:'left',fontSize:11,color:'var(--mist3)',padding:'6px 8px',borderBottom:'1px solid var(--line)',width:120}}>Total Days</th>
+                  <th style={{textAlign:'left',fontSize:11,color:'var(--mist3)',padding:'6px 8px',borderBottom:'1px solid var(--line)',width:120}}>Present Days</th>
+                </tr>
+              </thead>
+              <tbody>
+                {classStudents.map(s=>(
+                  <tr key={s.id}>
+                    <td style={{padding:'8px 8px 8px 0',fontSize:13}}>{fullName(s,true)}</td>
+                    <td style={{padding:'6px 8px'}}>
+                      <input type='number' min='0' value={rows[s.id]?.total ?? ''} onChange={e=>setRow(s.id,'total',e.target.value)}
+                        style={{width:90,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'7px 10px',color:'var(--white)',fontSize:13}}/>
+                    </td>
+                    <td style={{padding:'6px 8px'}}>
+                      <input type='number' min='0' value={rows[s.id]?.present ?? ''} onChange={e=>setRow(s.id,'present',e.target.value)}
+                        style={{width:90,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'7px 10px',color:'var(--white)',fontSize:13}}/>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          <div style={{display:'flex',justifyContent:'flex-end'}}>
+            <Btn onClick={doSaveEntries} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save Entries'}</Btn>
+          </div>
+        </>
+      )}
+
+      {openingBalances.length > 0 && (
+        <div style={{marginTop:24,paddingTop:20,borderTop:'1px solid var(--line)'}}>
+          <div style={{fontSize:11,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>
+            Existing Entries -- {activeYear}
+          </div>
+          <table style={{width:'100%',borderCollapse:'collapse'}}>
+            <thead>
+              <tr>
+                {['Student','Period','Dates','Present / Total','Rate',''].map(h=>(
+                  <th key={h} style={{textAlign:'left',fontSize:11,color:'var(--mist3)',padding:'6px 8px 6px 0',borderBottom:'1px solid var(--line)'}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {openingBalances.map(b=>{
+                const student = students.find(s=>s.id===b.student_id)
+                const rate = Math.round(b.present_days/b.total_days*100)
+                return (
+                  <tr key={b.id}>
+                    <td style={{padding:'8px 8px 8px 0',fontSize:13,fontWeight:600}}>{student?fullName(student,true):'--'}</td>
+                    <td style={{padding:'8px',fontSize:13,color:'var(--mist2)'}}>{b.label||'--'}</td>
+                    <td style={{padding:'8px',fontSize:12,color:'var(--mist3)'}}>{fmtDate(b.start_date)} – {fmtDate(b.end_date)}</td>
+                    <td style={{padding:'8px',fontSize:13}}>{b.present_days} / {b.total_days}</td>
+                    <td style={{padding:'8px',fontSize:13,fontWeight:600,color:'var(--emerald)'}}>{rate}%</td>
+                    <td style={{padding:'8px'}}>
+                      <div style={{display:'flex',gap:6}}>
+                        <Btn size='sm' variant='ghost' onClick={()=>setEditEntry({...b})}>Edit</Btn>
+                        <Btn size='sm' variant='danger' onClick={()=>deleteEntry(b)}>Delete</Btn>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {editEntry && (
+        <Modal title='Edit Opening Balance' onClose={()=>setEditEntry(null)} width={420}>
+          <Field label='Period Label' value={editEntry.label||''} onChange={v=>setEditEntry(p=>({...p,label:v}))}/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 14px'}}>
+            <Field label='Start Date' value={editEntry.start_date} onChange={v=>setEditEntry(p=>({...p,start_date:v}))} type='date'/>
+            <Field label='End Date' value={editEntry.end_date} onChange={v=>setEditEntry(p=>({...p,end_date:v}))} type='date'/>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 14px'}}>
+            <Field label='Total Days' value={editEntry.total_days} onChange={v=>setEditEntry(p=>({...p,total_days:v}))} type='number'/>
+            <Field label='Present Days' value={editEntry.present_days} onChange={v=>setEditEntry(p=>({...p,present_days:v}))} type='number'/>
+          </div>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:4}}>
+            <Btn variant='ghost' onClick={()=>setEditEntry(null)} disabled={editSaving}>Cancel</Btn>
+            <Btn onClick={saveEdit} disabled={editSaving}>{editSaving?<><Spinner/> Saving...</>:'Save'}</Btn>
+          </div>
+        </Modal>
+      )}
+
+      {confirmState && (
+        <ConfirmModal
+          title={confirmState.title} body={confirmState.body}
+          icon={confirmState.icon} danger={confirmState.danger}
+          confirmLabel={confirmState.confirmLabel}
+          onConfirm={()=>{ confirmState.onConfirm(); setConfirmState(null) }}
+          onCancel={()=>setConfirmState(null)}
+        />
+      )}
+    </Card>
   )
 }
 

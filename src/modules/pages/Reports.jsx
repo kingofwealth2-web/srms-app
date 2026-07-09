@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName } from '../lib/helpers'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName, calcAttendanceRate } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
@@ -30,7 +30,7 @@ const abbrSubject = name => {
 
 // ── REPORTS ────────────────────────────────────────────────────
 export default function Reports({profile,data,settings,activeYear,isViewingPast,toast,planHook,onShowPlans}) {
-  const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[]} = data
+  const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[],opening_balances:openingBalances=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
   const currency   = getCurrency(settings)
@@ -191,8 +191,8 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   // ── Attendance data ──
   const attData = scopedStudents.map(s=>{
     const sa=attendance.filter(a=>a.student_id===s.id)
-    const pres=sa.filter(a=>a.status==='Present').length
-    return{...s,total:sa.length,present:pres,absent:sa.filter(a=>a.status==='Absent').length,late:sa.filter(a=>a.status==='Late').length,excused:sa.filter(a=>a.status==='Excused').length,rate:sa.length?Math.round(pres/sa.length*100):null}
+    const sob=openingBalances.filter(b=>b.student_id===s.id)
+    return{...s,...calcAttendanceRate(sa,sob)}
   })
 
   // ── Fee data ──
@@ -564,7 +564,7 @@ const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlig
 
 // ── REPORT CARDS ───────────────────────────────────────────────
 function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,exportExcel,planHook,onShowPlans}) {
-  const {students=[],grades=[],attendance=[],behaviour=[],classes=[],subjects=[],users=[]} = data
+  const {students=[],grades=[],attendance=[],behaviour=[],classes=[],subjects=[],users=[],opening_balances:openingBalances=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
   const schoolLogo = settings?.school_logo||null
@@ -632,12 +632,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   // Attendance helper
   const getAttendance = (studentId) => {
     const recs = attendance.filter(a=>a.student_id===studentId)
-    const total   = recs.length
-    const present = recs.filter(a=>a.status==='Present').length
-    const absent  = recs.filter(a=>a.status==='Absent').length
-    const late    = recs.filter(a=>a.status==='Late').length
-    const rate    = total ? Math.round(present/total*100) : null
-    return {total,present,absent,late,rate}
+    const obs  = openingBalances.filter(b=>b.student_id===studentId)
+    return calcAttendanceRate(recs, obs)
   }
 
   // Behaviour helper
