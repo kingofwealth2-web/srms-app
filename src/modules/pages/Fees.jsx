@@ -3,7 +3,7 @@ import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS, CURRENCIES } from '../lib/constants'
 import PlanGate from '../components/PlanGate'
-import { fmtDate, fmtMoney, getCurrency, genRCP, csvEscape, fullName } from '../lib/helpers'
+import { fmtDate, fmtMoney, getCurrency, csvEscape, fullName, effectivePaid } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -416,15 +416,13 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const enriched = fees.filter(fee=>!students.find(s=>s.id===fee.student_id)?.archived).map(fee=>{
     const s=students.find(x=>x.id===fee.student_id)
     const feePayments = payments.filter(p=>p.fee_id===fee.id)
-    const paymentsPaid = feePayments.reduce((a,p)=>a+Number(p.amount||0),0)
-    // Use whichever is higher — payments table total or legacy fee.paid
-    const effectivePaid = Math.max(Number(fee.paid||0), paymentsPaid)
-    const bal=Number(fee.amount||0)-effectivePaid
-    const status=bal<=0?'Paid':effectivePaid>0?'Partial':'Outstanding'
+    const paidAmt = effectivePaid(fee, payments)
+    const bal=Number(fee.amount||0)-paidAmt
+    const status=bal<0?'Overpaid':bal===0?'Paid':paidAmt>0?'Partial':'Outstanding'
     const isOverdue = !!(fee.due_date && fee.due_date < today && bal > 0)
     const latestPayment = feePayments.sort((a,b)=>b.created_at?.localeCompare(a.created_at))[0]
     const latestReceipt = latestPayment?.receipt_no || fee.receipt_no || null
-    return{...fee,student_name:s?fullName(s,true):'--',balance:bal,effectivePaid,status,isOverdue,hasPayments:feePayments.length>0||effectivePaid>0,receipt_no:latestReceipt}
+    return{...fee,student_name:s?fullName(s,true):'--',balance:bal,effectivePaid:paidAmt,status,isOverdue,hasPayments:feePayments.length>0||paidAmt>0,receipt_no:latestReceipt}
   })
   const filtered = enriched.filter(r=>{
     if(fClassId){
@@ -450,6 +448,10 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const saveEditFee = async ()=>{
     if(!editFeeForm.fee_type||!editFeeForm.amount){toast('Fee type and amount are required','error');return}
     if(parseFloat(editFeeForm.amount)<=0){toast('Amount must be greater than zero','error');return}
+    if(editFeeRow.effectivePaid>0 && parseFloat(editFeeForm.amount)<editFeeRow.effectivePaid){
+      toast(`Amount can't be less than the ${fmtMoney(editFeeRow.effectivePaid,currency)} already paid on this fee.`,'error')
+      return
+    }
     setSaving(true)
     const {error}=await supabase.from('fees').update({
       fee_type: editFeeForm.fee_type,
@@ -468,6 +470,16 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
   const saveFee = async ()=>{
     if(!form.student_id||!form.amount){toast('Please select a student and enter an amount.','error');return}
+    // Same duplicate guard Bulk Add Fee uses -- a second fee row with the same
+    // student/type/period lets Bulk Collect Payment attach a payment to the
+    // wrong one of the two, silently mis-crediting the balance.
+    const duplicate = fees.some(f=>
+      f.student_id===form.student_id &&
+      f.fee_type===form.fee_type &&
+      f.period===form.period &&
+      f.academic_year===activeYear
+    )
+    if(duplicate){toast('This student already has this fee type and period. Edit the existing record instead.','error');return}
     setSaving(true)
     const {data:row,error}=await supabase.from('fees').insert({school_id:profile?.school_id,student_id:form.student_id,fee_type:form.fee_type,amount:parseFloat(form.amount),paid:0,due_date:form.due_date||null,period:form.period||null,academic_year:activeYear}).select().single()
     if(error)toast(error.message,'error')
@@ -692,11 +704,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     return pool.map(s=>{
       const studentFees = fees.filter(f=>f.student_id===s.id && f.template_id===templateId)
       const totalCharged = studentFees.reduce((a,f)=>a+Number(f.amount||0),0)
-      const totalPaidAmt = studentFees.reduce((a,f)=>{
-        const feePayments = payments.filter(p=>p.fee_id===f.id)
-        const paymentsPaid = feePayments.reduce((s,p)=>s+Number(p.amount||0),0)
-        return a + Math.max(Number(f.paid||0), paymentsPaid)
-      },0)
+      const totalPaidAmt = studentFees.reduce((a,f)=>a+effectivePaid(f,payments),0)
       const existingBalance = Math.max(0, totalCharged - totalPaidAmt)
       // Flag students enrolled after template was created
       const isNew = tmpl.created_at && s.created_at && new Date(s.created_at) > new Date(tmpl.created_at)
@@ -704,7 +712,35 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     })
   }
 
-  const openBrpModal = (tmpl) => {
+  // ── Draft recovery for bulk wizards ──────────────────────────────
+  // The beforeunload warning only deters an accidental close -- it doesn't
+  // actually save anything, so a crash or "leave anyway" still loses a whole
+  // class's worth of entered amounts. Persist step-2 state to localStorage as
+  // a real safety net, and offer to resume it next time the wizard opens.
+  const draftKey = (kind, scopeId) => `srms_fees_draft_${kind}_${profile?.school_id}_${scopeId}`
+  const saveDraft = (kind, scopeId, payload) => {
+    try { localStorage.setItem(draftKey(kind, scopeId), JSON.stringify({...payload, savedAt: Date.now()})) } catch {}
+  }
+  const loadDraft = (kind, scopeId) => {
+    try { const raw = localStorage.getItem(draftKey(kind, scopeId)); return raw ? JSON.parse(raw) : null } catch { return null }
+  }
+  const clearDraft = (kind, scopeId) => {
+    try { localStorage.removeItem(draftKey(kind, scopeId)) } catch {}
+  }
+  const timeAgo = (ts) => {
+    const mins = Math.round((Date.now()-ts)/60000)
+    if(mins<1) return 'moments ago'
+    if(mins<60) return `${mins} minute${mins!==1?'s':''} ago`
+    const hrs = Math.round(mins/60)
+    return `${hrs} hour${hrs!==1?'s':''} ago`
+  }
+
+  // Autosave BRP draft while step 2 has entered-but-unconfirmed data
+  useEffect(()=>{
+    if(brpModal && brpStep===2 && brp.template_id) saveDraft('brp', brp.template_id, {brp, brpRows})
+  },[brp, brpRows, brpStep, brpModal])
+
+  const startBrpFresh = (tmpl) => {
     setBrp({...BRP_INIT, template_id:tmpl.id, same_amount:String(tmpl.amount_per_period)})
     setBrpRows(buildBrpRows(tmpl.id,[]))
     setBrpStep(1)
@@ -712,7 +748,30 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     setBrpModal(true)
   }
 
-  const doCloseBrp = () => {setBrpModal(false);setBrpStep(1);setBrp(BRP_INIT);setBrpRows([]);setBrpDone(null);setBrpDupWarning(false)}
+  const openBrpModal = (tmpl) => {
+    const draft = loadDraft('brp', tmpl.id)
+    if(draft?.brpRows?.length>0){
+      setConfirmTmplDelete({
+        title:'Resume unsaved draft?',
+        body:`You have an unsaved bulk payment draft for "${tmpl.name}" from ${timeAgo(draft.savedAt)}. Resume it, or Cancel to start fresh next time you open it.`,
+        icon:'📝', danger:false, confirmLabel:'Resume Draft',
+        onConfirm: async () => {
+          setBrp(draft.brp)
+          setBrpRows(draft.brpRows)
+          setBrpStep(2)
+          setBrpDone(null)
+          setBrpModal(true)
+        }
+      })
+      return
+    }
+    startBrpFresh(tmpl)
+  }
+
+  const doCloseBrp = () => {
+    if(brp.template_id) clearDraft('brp', brp.template_id)
+    setBrpModal(false);setBrpStep(1);setBrp(BRP_INIT);setBrpRows([]);setBrpDone(null);setBrpDupWarning(false)
+  }
   const closeBrp = () => {
     // Step 2 has entered-but-unconfirmed amounts/states — closing here would silently
     // discard a whole class's worth of work. Step 1 has nothing worth losing yet,
@@ -767,12 +826,14 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       }).select().single()
       if(pErr) throw pErr
 
-      // 2 — create one fee row per charged student at FULL template amount
+      // 2 — create one fee row per charged student at the amount actually
+      // set for this period (same-amount override or per-student amount) --
+      // not the template's default rate, which may differ for this period.
       const feeRows = chargedRows.map(r=>({
         school_id:    profile?.school_id,
         student_id:   r.student.id,
         fee_type:     tmpl.name,
-        amount:       tmpl.amount_per_period, // always full amount
+        amount:       parseFloat(r.amount),
         paid:         0,
         period:       brp.label.trim(),
         academic_year:activeYear,
@@ -784,12 +845,15 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
       // 3 — record payments only for 'paid' students
       const payRows = []
-      let currentPayments = [...payments]
       for(const r of paidRows){
         const feeRow = insertedFees.find(f=>f.student_id===r.student.id)
         if(!feeRow) continue
         const amt = parseFloat(r.amount)
-        const rcpt = genRCP(currentPayments)
+        // Atomic, DB-side receipt numbers -- same as the single-payment flow --
+        // instead of scanning the locally-loaded payments array, which can be
+        // stale and hand out a number that's already in use.
+        const {data:rcpt, error:rcptErr} = await supabase.rpc('generate_receipt_no', { p_school_id: profile?.school_id })
+        if(rcptErr) throw rcptErr
         const {data:payRow,error:payErr}=await supabase.from('payments').insert({
           school_id:        profile?.school_id,
           academic_year:    activeYear,
@@ -804,7 +868,6 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         if(payErr) throw payErr
         const {error:feeErr} = await supabase.from('fees').update({paid:amt}).eq('id',feeRow.id).eq('school_id',profile?.school_id)
         if(feeErr) throw new Error(`Payment recorded for ${r.student.first_name} ${r.student.last_name} but the fee balance failed to update (${feeErr.message}). Some students in this batch may already be saved -- reload and check before retrying.`)
-        currentPayments = [payRow, ...currentPayments]
         payRows.push(payRow)
       }
 
@@ -814,7 +877,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         fee_periods:[...p.fee_periods, periodRow],
         fees:[...p.fees, ...(insertedFees||[]).map(f=>{
           const paidRow = paidRows.find(r=>r.student.id===f.student_id)
-          return {...f, amount: tmpl.amount_per_period, paid: paidRow ? parseFloat(paidRow.amount) : 0}
+          return {...f, paid: paidRow ? parseFloat(paidRow.amount) : 0}
         })],
         payments:[...payRows.reverse(), ...p.payments],
       }))
@@ -824,6 +887,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         {},{},{}
       )
       toast(`${paidRows.length} paid · ${owesRows.length} outstanding · ${brpRows.filter(r=>r.state==='excluded').length} excluded`)
+      clearDraft('brp', tmpl.id)
       setBrpDone({count:paidRows.length, owesCount:owesRows.length, feeRows:insertedFees, payRows, periodRow, selected:paidRows, tmpl})
       setBrpStep(3)
     } catch(err){
@@ -1003,11 +1067,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       )
       const totalCharged = studentFees.reduce((a,f)=>a+Number(f.amount||0),0)
       // Use effectivePaid (same as enriched) — max of fee.paid vs payments sum
-      const totalPaid = studentFees.reduce((a,f)=>{
-        const feePayments = payments.filter(p=>p.fee_id===f.id)
-        const paymentsPaid = feePayments.reduce((s,p)=>s+Number(p.amount||0),0)
-        return a + Math.max(Number(f.paid||0), paymentsPaid)
-      },0)
+      const totalPaid = studentFees.reduce((a,f)=>a+effectivePaid(f,payments),0)
       const balance = Math.max(0, totalCharged - totalPaid)
       const feeId   = studentFees[0]?.id || null
       if(balance===0 || !feeId) return null
@@ -1015,11 +1075,41 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     }).filter(Boolean)
   }
 
-  const openBcpModal = () => {
+  // Autosave BCP draft while step 2 has entered-but-unconfirmed data. BCP has
+  // no template id to scope by (fee type isn't picked until step 2), so it
+  // keeps a single "current" draft per school.
+  useEffect(()=>{
+    if(bcpModal && bcpStep===2) saveDraft('bcp', 'current', {bcp, bcpRows})
+  },[bcp, bcpRows, bcpStep, bcpModal])
+
+  const startBcpFresh = () => {
     setBcp(BCP_INIT); setBcpRows([]); setBcpStep(1); setBcpDone(null); setBcpModal(true)
   }
 
-  const doCloseBcp = () => { setBcpModal(false); setBcpStep(1); setBcp(BCP_INIT); setBcpRows([]); setBcpDone(null); setBrpDupWarning(false) }
+  const openBcpModal = () => {
+    const draft = loadDraft('bcp', 'current')
+    if(draft?.bcpRows?.length>0){
+      setConfirmTmplDelete({
+        title:'Resume unsaved draft?',
+        body:`You have an unsaved bulk collection draft for "${draft.bcp?.fee_type||'a fee'}" from ${timeAgo(draft.savedAt)}. Resume it, or Cancel to start fresh next time.`,
+        icon:'📝', danger:false, confirmLabel:'Resume Draft',
+        onConfirm: async () => {
+          setBcp(draft.bcp)
+          setBcpRows(draft.bcpRows)
+          setBcpStep(2)
+          setBcpDone(null)
+          setBcpModal(true)
+        }
+      })
+      return
+    }
+    startBcpFresh()
+  }
+
+  const doCloseBcp = () => {
+    clearDraft('bcp', 'current')
+    setBcpModal(false); setBcpStep(1); setBcp(BCP_INIT); setBcpRows([]); setBcpDone(null); setBrpDupWarning(false)
+  }
   const closeBcp = () => {
     if(bcpStep===2){
       const activeCount = bcpRows.filter(r=>r.checked).length
@@ -1051,10 +1141,13 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     setBcpSaving(true)
     try {
       const payRows = []
-      let currentPayments = [...payments]
       for(const r of selected){
         const amt = parseFloat(r.amount)
-        const rcpt = genRCP(currentPayments)
+        // Atomic, DB-side receipt numbers -- same as the single-payment flow --
+        // instead of scanning the locally-loaded payments array, which can be
+        // stale and hand out a number that's already in use.
+        const {data:rcpt, error:rcptErr} = await supabase.rpc('generate_receipt_no', { p_school_id: profile?.school_id })
+        if(rcptErr) throw rcptErr
         const {data:payRow,error:payErr}=await supabase.from('payments').insert({
           school_id:        profile?.school_id,
           academic_year:    activeYear,
@@ -1066,12 +1159,14 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           recorded_by_name: profile?.full_name,
         }).select().single()
         if(payErr) throw payErr
-        // Update fee.paid
+        // Update fee.paid from the reconciled base (fee.paid vs actual payments
+        // sum, whichever is higher) -- not raw fee.paid -- so a fee that already
+        // had legacy-drifted payments doesn't get silently under-credited.
         const fee = fees.find(f=>f.id===r.feeId)
-        const newPaid = Number(fee?.paid||0) + amt
+        const reconciledBase = fee ? effectivePaid(fee, payments) : 0
+        const newPaid = reconciledBase + amt
         const {error:feeErr} = await supabase.from('fees').update({paid:newPaid}).eq('id',r.feeId).eq('school_id',profile?.school_id)
         if(feeErr) throw new Error(`Payment recorded for ${r.student.first_name} ${r.student.last_name} but the fee balance failed to update (${feeErr.message}). Some students in this batch may already be saved -- reload and check before retrying.`)
-        currentPayments = [payRow, ...currentPayments]
         payRows.push({...payRow, student:r.student, amount:amt, feeId:r.feeId})
       }
       // Update local state
@@ -1081,13 +1176,14 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         fees: p.fees.map(f=>{
           const match = selected.find(r=>r.feeId===f.id)
           if(!match) return f
-          return {...f, paid: Number(f.paid||0) + parseFloat(match.amount)}
+          return {...f, paid: effectivePaid(f,payments) + parseFloat(match.amount)}
         })
       }))
       auditLog(profile,'Fees','Bulk Payment Collected',
         `${bcp.fee_type} · ${selected.length} students · ${fmtMoney(selected.reduce((a,r)=>a+parseFloat(r.amount||0),0),currency)}`,{},{},{}
       )
       toast(`Payments recorded for ${selected.length} student${selected.length!==1?'s':''}`)
+      clearDraft('bcp', 'current')
       setBcpDone({count:selected.length, payRows, selected, feeType:bcp.fee_type})
       setBcpStep(3)
     } catch(err){
@@ -1296,7 +1392,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           </select>
           <select value={fstatus} onChange={e=>setFstatus(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Status</option>
-            <option>Paid</option><option>Partial</option><option>Outstanding</option><option value='Overdue'>Overdue</option>
+            <option>Paid</option><option>Partial</option><option>Outstanding</option><option>Overpaid</option><option value='Overdue'>Overdue</option>
           </select>
         </div>
       </Card>
@@ -1307,7 +1403,9 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           {key:'fee_type',label:'Fee Type',render:(v,r)=>{const displayType=r.is_arrear?v.replace(/\s*\(Arrears from [^)]+\)/,''):v;return(<div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><span>{displayType}</span>{r.period&&<Badge color='var(--sky)' bg='rgba(91,168,245,0.08)'>{r.period}</Badge>}{r.is_arrear&&<Badge color='var(--amber)' bg='rgba(251,159,58,0.1)'>Arrear from {r.arrear_from_year}</Badge>}{r.isOverdue&&<Badge color='var(--rose)' bg='rgba(240,107,122,0.1)'>Overdue</Badge>}</div>)}},
           {key:'amount', label:'Amount',  render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
           {key:'paid',   label:'Paid',    render:(_,r)=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(r.effectivePaid,currency)}</span>},
-          {key:'balance',label:'Balance', render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
+          {key:'balance',label:'Balance', render:v=>v<0
+            ? <span className='mono' style={{color:'var(--sky)'}}>{fmtMoney(Math.abs(v),currency)} credit</span>
+            : <span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
           {key:'status', label:'Status',  render:v=><Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>},
           {key:'receipt_no',label:'Receipt',render:v=>v?<span className='mono' style={{fontSize:12,color:'var(--mist2)'}}>{v}</span>:'--'},
           {key:'id',label:'',render:(_,r)=>isViewingPast?null:(
@@ -1520,6 +1618,16 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
               </tr>`
             }).join('')
             const grandTotal = allStudents.reduce((a,s)=>{const f=periodFees.find(x=>x.student_id===s.id);return a+Number(f?.paid||0)},0)
+            // Same Paid/Partial/Outstanding/Excluded bucketing as the on-screen register --
+            // the old footer only checked balance===0 vs paid===0, so a partial payer
+            // (paid>0 but balance>0) matched neither and silently dropped from both counts.
+            const printStatusCounts = allStudents.reduce((acc,s)=>{
+              const f = periodFees.find(x=>x.student_id===s.id)
+              const balance = Math.max(0, Number(f?.amount||0)-Number(f?.paid||0))
+              const status = !f ? 'Excluded' : balance===0 ? 'Paid' : Number(f.paid||0)>0 ? 'Partial' : 'Outstanding'
+              acc[status]++
+              return acc
+            },{Paid:0,Partial:0,Outstanding:0,Excluded:0})
             const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Period Register — ${selectedPeriod.label}</title>
             <style>*{box-sizing:border-box;margin:0;padding:0}body{background:#e8e8e8;font-family:'Helvetica Neue',Arial,sans-serif;display:flex;justify-content:center;padding:32px 16px}
             .card{width:680px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 48px rgba(0,0,0,0.18)}
@@ -1552,9 +1660,10 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
               </table>
               <div style="margin-top:16px;padding:12px 10px;background:#f8f8fc;border-radius:8px;display:flex;gap:24px;flex-wrap:wrap;">
                 <div style="font-size:12px;color:#555;">Total collected: <strong style="color:#1a7a4a;">${fmtMoney(grandTotal,currency)}</strong></div>
-                <div style="font-size:12px;color:#555;">Paid: <strong>${allStudents.filter(s=>{const f=periodFees.find(x=>x.student_id===s.id);const b=Math.max(0,Number(f?.amount||0)-Number(f?.paid||0));return f&&b===0}).length}</strong></div>
-                <div style="font-size:12px;color:#555;">Outstanding: <strong style="color:#c0392b;">${allStudents.filter(s=>{const f=periodFees.find(x=>x.student_id===s.id);return f&&Number(f.paid||0)===0}).length}</strong></div>
-                <div style="font-size:12px;color:#555;">Excluded: <strong>${allStudents.filter(s=>!periodFees.find(x=>x.student_id===s.id)).length}</strong></div>
+                <div style="font-size:12px;color:#555;">Paid: <strong>${printStatusCounts.Paid}</strong></div>
+                <div style="font-size:12px;color:#555;">Partial: <strong style="color:#b45309;">${printStatusCounts.Partial}</strong></div>
+                <div style="font-size:12px;color:#555;">Outstanding: <strong style="color:#c0392b;">${printStatusCounts.Outstanding}</strong></div>
+                <div style="font-size:12px;color:#555;">Excluded: <strong>${printStatusCounts.Excluded}</strong></div>
               </div>
               <div style="margin-top:12px;text-align:center;font-size:10px;color:#bbb;">Generated ${fmtD(new Date())} · ${schoolName} · SRMS</div>
             </div>
@@ -2017,8 +2126,8 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         {phDetail && (()=>{
           const p      = phDetail
           const feePs  = payments.filter(x=>x.fee_id===p.fee_id)
-          const totalFeeP = feePs.reduce((a,x)=>a+Number(x.amount||0),0)
-          const balance   = Math.max(0, Number(p.fee_obj?.amount||0) - Math.max(Number(p.fee_obj?.paid||0), totalFeeP))
+          const paidTotal = p.fee_obj ? effectivePaid(p.fee_obj, payments) : 0
+          const balance   = Math.max(0, Number(p.fee_obj?.amount||0) - paidTotal)
           const dt = p.created_at ? new Date(p.created_at) : null
           return (
             <Modal title='Payment Details' onClose={()=>setPhDetail(null)} width={500}>
@@ -2040,7 +2149,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                   ['Fee Type',   p.fee_type,                                      'var(--mist)'],
                   ['Period',     p.period||'--',                                  'var(--sky)'],
                   ['Fee Amount', fmtMoney(Number(p.fee_obj?.amount||0),currency), 'var(--mist)'],
-                  ['Total Paid', fmtMoney(Math.max(Number(p.fee_obj?.paid||0),totalFeeP),currency), 'var(--emerald)'],
+                  ['Total Paid', fmtMoney(paidTotal,currency), 'var(--emerald)'],
                   ['Balance',    fmtMoney(balance,currency),                      balance>0?'var(--rose)':'var(--emerald)'],
                   ['Payments',   feePs.length+' payment'+(feePs.length!==1?'s':''), 'var(--mist2)'],
                 ].map(([l,v,c])=>(

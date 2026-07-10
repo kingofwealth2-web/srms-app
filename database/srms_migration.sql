@@ -392,7 +392,7 @@ CREATE OR REPLACE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
 CREATE OR REPLACE FUNCTION generate_receipt_no(p_school_id uuid)
-RETURNS text LANGUAGE plpgsql SECURITY DEFINER AS $$
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
 DECLARE
   v_next int;
 BEGIN
@@ -400,8 +400,7 @@ BEGIN
   INTO v_next
   FROM payments
   WHERE school_id = p_school_id
-    AND receipt_no IS NOT NULL
-    AND receipt_no LIKE 'RCP-%';
+    AND receipt_no ~ '^RCP-[0-9]+$';
   RETURN 'RCP-' || LPAD(v_next::text, 4, '0');
 END;
 $$;

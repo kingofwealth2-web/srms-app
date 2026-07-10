@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getGradeColor, getCurrency, fmtMoney, genSID, fullName, calcAttendanceRate } from '../lib/helpers'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGradeColor, getCurrency, fmtMoney, genSID, fullName, calcAttendanceRate, effectivePaid } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -743,13 +743,11 @@ export default function Students({profile,data,setData,toast,settings,activeYear
             if(stuFees.length===0) return null
             const stuPayments = data.payments||[]
             const enrichedFees = stuFees.map(fee=>{
-              const feePayments   = stuPayments.filter(p=>p.fee_id===fee.id)
-              const paymentsPaid  = feePayments.reduce((a,p)=>a+Number(p.amount||0),0)
-              const effectivePaid = Math.max(Number(fee.paid||0), paymentsPaid)
-              const bal           = Number(fee.amount||0)-effectivePaid
-              const status        = bal<=0?'Paid':effectivePaid>0?'Partial':'Outstanding'
-              const isOverdue     = !!(fee.due_date && fee.due_date < today && bal > 0)
-              return {...fee, effectivePaid, balance:bal, status, isOverdue}
+              const paidAmt   = effectivePaid(fee, stuPayments)
+              const bal       = Number(fee.amount||0)-paidAmt
+              const status    = bal<0?'Overpaid':bal===0?'Paid':paidAmt>0?'Partial':'Outstanding'
+              const isOverdue = !!(fee.due_date && fee.due_date < today && bal > 0)
+              return {...fee, effectivePaid:paidAmt, balance:bal, status, isOverdue}
             })
             const totalOwed    = enrichedFees.reduce((a,f)=>a+Number(f.amount||0),0)
             const totalPaid    = enrichedFees.reduce((a,f)=>a+f.effectivePaid,0)

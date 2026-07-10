@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName, calcAttendanceRate, isPassing, rankByTotal } from '../lib/helpers'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName, calcAttendanceRate, isPassing, rankByTotal, effectivePaid } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
@@ -30,7 +30,7 @@ const abbrSubject = name => {
 
 // ── REPORTS ────────────────────────────────────────────────────
 export default function Reports({profile,data,settings,activeYear,isViewingPast,toast,planHook,onShowPlans}) {
-  const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[],opening_balances:openingBalances=[]} = data
+  const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[],opening_balances:openingBalances=[],payments=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
   const currency   = getCurrency(settings)
@@ -186,8 +186,8 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   const feeData = scopedStudents.map(s=>{
     const sf=fees.filter(f=>f.student_id===s.id)
     const owed=sf.reduce((a,f)=>a+Number(f.amount||0),0)
-    const paid=sf.reduce((a,f)=>a+Number(f.paid||0),0)
-    return{...s,owed,paid,balance:owed-paid,feeStatus:owed===0?'--':paid>=owed?'Paid':paid>0?'Partial':'Outstanding'}
+    const paid=sf.reduce((a,f)=>a+effectivePaid(f,payments),0)
+    return{...s,owed,paid,balance:owed-paid,feeStatus:owed===0?'--':paid>owed?'Overpaid':paid>=owed?'Paid':paid>0?'Partial':'Outstanding'}
   })
 
   // ── Summary KPIs ──
@@ -522,7 +522,9 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
             {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
             {key:'owed',label:'Owed',render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
             {key:'paid',label:'Paid',render:v=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
-            {key:'balance',label:'Balance',render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
+            {key:'balance',label:'Balance',render:v=>v<0
+              ? <span className='mono' style={{color:'var(--sky)'}}>{fmtMoney(Math.abs(v),currency)} credit</span>
+              : <span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
             {key:'feeStatus',label:'Status',render:v=>v!=='--'?<Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>:'--'},
           ]}/>
         )}

@@ -153,16 +153,22 @@ export const fmtMoney = (n, currency) => {
   return c.position === 'after' ? `${formatted} ${c.symbol}` : `${c.symbol}${formatted}`
 }
 
+// ── FEE HELPERS ─────────────────────────────────────────────────
+// A fee's stored `paid` total and the actual sum of its payment transactions
+// can drift apart (a "legacy" paid amount that predates a payment row, or a
+// write that only updated one side) -- always trust whichever is higher
+// rather than reading fee.paid directly, so every screen agrees on balance.
+export function effectivePaid(fee, allPayments) {
+  const paymentsSum = allPayments
+    .filter(p => p.fee_id === fee.id)
+    .reduce((a, p) => a + Number(p.amount || 0), 0)
+  return Math.max(Number(fee.paid || 0), paymentsSum)
+}
+
 // ── ID GENERATORS ──────────────────────────────────────────────
 export const genSID = (arr, prefix='STU') => {
   const max = arr.reduce((m, s) => Math.max(m, parseInt(s.student_id?.split('-')[1] || 0)), 0)
   return `${prefix}-${String(max + 1).padStart(4, '0')}`
-}
-
-export const genRCP = arr => {
-  const max = arr.filter(f => f.receipt_no)
-    .reduce((m, f) => Math.max(m, parseInt(f.receipt_no?.split('-')[1] || 0)), 0)
-  return `RCP-${String(max + 1).padStart(4, '0')}`
 }
 
 // ── YEAR HELPERS ───────────────────────────────────────────────

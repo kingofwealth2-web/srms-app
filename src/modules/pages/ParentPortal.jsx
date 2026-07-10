@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
-import { calcTotal, getGradeComponents, getLetter, getGradeColor, fmtDate, fmtMoney, getCurrency, fullName, fetchAllRows, calcAttendanceRate } from '../lib/helpers'
+import { calcTotal, getGradeComponents, getLetter, getGradeColor, fmtDate, fmtMoney, getCurrency, fullName, fetchAllRows, calcAttendanceRate, effectivePaid } from '../lib/helpers'
 import { STATUS_META } from '../lib/constants'
 import { usePlan } from '../lib/hooks'
 import Avatar from '../components/Avatar'
@@ -124,7 +124,9 @@ export default function ParentPortal({ profile, onSignOut }) {
 
   const feeSummary = (() => {
     const totalCharged = fees.reduce((a, f) => a + Number(f.amount || 0), 0)
-    const totalPaid    = payments.reduce((a, p) => a + Number(p.amount || 0), 0)
+    // Reconciled per-fee (fee.paid vs actual payments, whichever is higher) --
+    // matches every other screen, instead of trusting the payments table alone.
+    const totalPaid    = fees.reduce((a, f) => a + effectivePaid(f, payments), 0)
     const balance      = totalCharged - totalPaid
     return { totalCharged, totalPaid, balance }
   })()
@@ -479,7 +481,7 @@ export default function ParentPortal({ profile, onSignOut }) {
                     : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {fees.map((fee, i) => {
-                          const paid    = payments.filter(p => p.fee_id === fee.id).reduce((a, p) => a + Number(p.amount || 0), 0)
+                          const paid    = effectivePaid(fee, payments)
                           const balance = Number(fee.amount || 0) - paid
                           const isPaid  = balance <= 0
                           return (
