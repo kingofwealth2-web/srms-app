@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getGradeColor, getCurrency, fmtMoney, genSID, fullName, calcAttendanceRate, effectivePaid } from '../lib/helpers'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGradeColor, getCurrency, fmtMoney, fullName, calcAttendanceRate, effectivePaid } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -126,19 +126,28 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     setSaving(true)
     const cleanForm = {...form, dob: form.dob||null, guardian_name: form.guardian_name||null, guardian_phone: form.guardian_phone||null, guardian_email: form.guardian_email||null, guardian_relation: form.guardian_relation||null}
     if(edit){
-      const {error} = await supabase.from('students').update({...cleanForm,updated_at:new Date()}).eq('id',edit.id)
+      const {error} = await supabase.from('students').update({...cleanForm,updated_at:new Date()}).eq('id',edit.id).eq('school_id',profile?.school_id)
       if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));auditLog(profile,'Students','Updated',`${fullName(cleanForm)}`,{},{...edit},{...cleanForm});toast('Student updated');setModal(false)}
     } else {
-      const sid = genSID(students, settings?.student_id_prefix||'STU')
+      // Atomic, DB-side ID generation -- avoids two staff members creating a
+      // student at the same time and landing on the same student_id (the
+      // client-side "scan and increment" approach had no protection at all).
+      const {data:sid, error:sidErr} = await supabase.rpc('generate_student_id', { p_school_id: profile?.school_id, p_prefix: settings?.student_id_prefix||'STU' })
+      if(sidErr){ toast(sidErr.message,'error'); setSaving(false); return }
       const {data:row,error} = await supabase.from('students').insert({...cleanForm,school_id:profile?.school_id,student_id:sid,created_at:new Date(),entry_year:activeYear}).select().single()
       if(error){toast(error.message,'error')}else{setData(p=>({...p,students:[...p.students,row]}));auditLog(profile,'Students','Created',`${fullName(form)}`,{},null,row);toast('Student added');setModal(false)}
     }
     setSaving(false)
   }
   const del = async id=>{
-    setConfirmState({title:'Remove student?',body:'This permanently deletes the student and all their grade, attendance, fee, and behaviour records. This cannot be undone.',icon:'🗑',danger:true,onConfirm:async()=>{
+    setConfirmState({title:'Remove student?',body:'This permanently deletes the student. Only works if they have no grade, attendance, fee or behaviour history -- if they do, archive them instead to keep those records.',icon:'🗑',danger:true,onConfirm:async()=>{
       const {error} = await supabase.from('students').delete().eq('id',id).eq('school_id',profile?.school_id)
-      if(error)toast(error.message,'error')
+      if(error){
+        // 23503 = foreign_key_violation -- the student has grade/attendance/fee/behaviour
+        // records pointing at them, none of which cascade-delete, so the database refuses.
+        if(error.code==='23503') toast('This student has existing grade, attendance, fee or behaviour records and can\'t be permanently deleted. Archive them instead to remove them from active lists while keeping their history.','error')
+        else toast(error.message,'error')
+      }
       else{const s=students.find(x=>x.id===id);setData(p=>({...p,students:p.students.filter(s=>s.id!==id)}));auditLog(profile,'Students','Deleted',`${fullName(s)}`,{},s||null,null);toast('Student removed')}
     }})
   }

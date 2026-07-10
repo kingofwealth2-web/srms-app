@@ -165,12 +165,6 @@ export function effectivePaid(fee, allPayments) {
   return Math.max(Number(fee.paid || 0), paymentsSum)
 }
 
-// ── ID GENERATORS ──────────────────────────────────────────────
-export const genSID = (arr, prefix='STU') => {
-  const max = arr.reduce((m, s) => Math.max(m, parseInt(s.student_id?.split('-')[1] || 0)), 0)
-  return `${prefix}-${String(max + 1).padStart(4, '0')}`
-}
-
 // ── YEAR HELPERS ───────────────────────────────────────────────
 export function generateYears(centerYear) {
   const base = centerYear

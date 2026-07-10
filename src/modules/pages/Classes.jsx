@@ -84,10 +84,15 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     const reordered = [...orderedClasses]
     const [moved]   = reordered.splice(dragging, 1)
     reordered.splice(idx, 0, moved)
-    // Save new sort_order (silent if column not in schema)
-    const updates = reordered.map((c,i)=>supabase.from('classes').update({sort_order:i}).eq('id',c.id).eq('school_id',profile?.school_id))
-    await Promise.all(updates).catch(()=>{})
+    // Save new sort_order. supabase-js resolves with {error} rather than
+    // rejecting on a PostgREST-level failure, so a bare .catch() here never
+    // actually caught a real save failure -- check the returned errors instead.
+    const results = await Promise.all(
+      reordered.map((c,i)=>supabase.from('classes').update({sort_order:i}).eq('id',c.id).eq('school_id',profile?.school_id))
+    ).catch(err=>[{error:err}])
+    const failed = results.some(r=>r.error)
     setData(p=>({...p, classes: p.classes.map(c=>{ const idx=reordered.findIndex(r=>r.id===c.id); return idx>=0?{...c,sort_order:idx}:c })}))
+    if(failed) toast('Order updated here, but failed to save -- it may revert next time you reload.','error')
     setDragging(null)
   }
 
@@ -169,33 +174,44 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
       const enrolmentRows = bulkStudents.map(p=>({school_id:profile?.school_id,student_id:p.student.id,class_id:p.fromClass.id,academic_year:activeYear}))
       const {error:enrolErr} = await supabase.from('student_year_enrolment').upsert(enrolmentRows,{onConflict:'school_id,student_id,academic_year'})
       if(enrolErr) throw enrolErr
+      // Keep going through failures instead of aborting on the first one --
+      // each row is an independent update -- and track exactly who succeeded
+      // vs. failed/skipped so we can say so precisely instead of a vague
+      // "some students may be partially updated".
+      const promoted = []
+      const graduated = []
+      const failed = []
       for(const p of toPromote) {
-        if(!p.destClassId) continue
+        if(!p.destClassId){ failed.push(p.student); continue }
         const {error} = await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id).eq('school_id',profile?.school_id)
-        if(error) throw error
+        if(error) failed.push(p.student); else promoted.push(p)
       }
       for(const p of toGraduate) {
         const {error} = await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id).eq('school_id',profile?.school_id)
-        if(error) throw error
+        if(error) failed.push(p.student); else graduated.push(p)
       }
-      const destMap     = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
-      const gradIds     = toGraduate.map(p=>p.student.id)
-      const promoteIds  = toPromote.map(p=>p.student.id)
+      const destMap     = Object.fromEntries(promoted.map(p=>[p.student.id,p.destClassId]))
+      const gradIds     = graduated.map(p=>p.student.id)
+      const promoteIds  = promoted.map(p=>p.student.id)
       setData(prev=>({...prev,students:prev.students.map(s=>{
         if(promoteIds.includes(s.id)) return {...s,class_id:destMap[s.id]}
         if(gradIds.includes(s.id))    return {...s,archived:true,class_id:null}
         return s
       })}))
-      auditLog(profile,'Students','Bulk Promote',`${toPromote.length} promoted, ${toGraduate.length} graduated, ${toRepeat.length} repeating`,{},{},{})
-      setBulkModal(false)
-      const parts=[]
-      if(toPromote.length)  parts.push(toPromote.length+' promoted')
-      if(toGraduate.length) parts.push(toGraduate.length+' graduated')
-      if(toRepeat.length)   parts.push(toRepeat.length+' staying back')
-      toast(parts.join(', ')+'.')
-      if(onPromotionComplete) onPromotionComplete()
+      auditLog(profile,'Students','Bulk Promote',`${promoted.length} promoted, ${graduated.length} graduated, ${toRepeat.length} repeating${failed.length?`, ${failed.length} failed`:''}`,{},{},{})
+      if(failed.length>0){
+        toast(`${failed.length} student${failed.length!==1?'s':''} failed to update: ${failed.map(s=>fullName(s,true)).join(', ')}. Everyone else succeeded -- check these students before retrying.`,'error')
+      } else {
+        setBulkModal(false)
+        const parts=[]
+        if(promoted.length)  parts.push(promoted.length+' promoted')
+        if(graduated.length) parts.push(graduated.length+' graduated')
+        if(toRepeat.length)  parts.push(toRepeat.length+' staying back')
+        toast(parts.join(', ')+'.')
+        if(onPromotionComplete) onPromotionComplete()
+      }
     } catch(err) {
-      toast('Promotion failed: '+err.message+' — some students may be partially updated. Please check the class lists before retrying.','error')
+      toast('Promotion failed before any changes were made: '+err.message,'error')
     }
     setPromoting(false)
   }
@@ -216,30 +232,42 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
       // Upsert — avoid duplicates
       const {error:enrolErr} = await supabase.from('student_year_enrolment').upsert(enrolmentRows, {onConflict:'school_id,student_id,academic_year'})
       if(enrolErr) throw enrolErr
+      // Keep going through failures instead of aborting on the first one --
+      // each row is an independent update, so one bad row shouldn't block the
+      // rest -- and track exactly who succeeded/failed so we can say so precisely
+      // instead of a vague "some students may be partially updated".
+      const promoted  = []
+      const graduated = []
+      const failed    = []
       for(const p of toPromote) {
         const {error} = await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id).eq('school_id',profile?.school_id)
-        if(error) throw error
+        if(error) failed.push(p.student); else promoted.push(p)
       }
       for(const p of toGraduate) {
         const {error} = await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id).eq('school_id',profile?.school_id)
-        if(error) throw error
+        if(error) failed.push(p.student); else graduated.push(p)
       }
-      const promotedIds  = toPromote.map(p=>p.student.id)
-      const graduatedIds = toGraduate.map(p=>p.student.id)
-      const destMap      = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
+      const promotedIds  = promoted.map(p=>p.student.id)
+      const graduatedIds = graduated.map(p=>p.student.id)
+      const destMap      = Object.fromEntries(promoted.map(p=>[p.student.id,p.destClassId]))
       setData(prev=>({...prev,students:prev.students.map(s=>{
         if(promotedIds.includes(s.id))  return {...s,class_id:destMap[s.id]}
         if(graduatedIds.includes(s.id)) return {...s,archived:true,class_id:null}
         return s
       })}))
-      setPromoModal(false)
-      const parts=[]
-      if(toPromote.length)  parts.push(toPromote.length+' promoted')
-      if(toGraduate.length) parts.push(toGraduate.length+' graduated')
-      if(toRepeat.length)   parts.push(toRepeat.length+' staying back')
-      toast(''+parts.join(', ')+'.')
+      auditLog(profile,'Students','Promote',`${promoted.length} promoted, ${graduated.length} graduated, ${toRepeat.length} repeating${failed.length?`, ${failed.length} failed`:''}`,{},{},{})
+      if(failed.length>0){
+        toast(`${failed.length} student${failed.length!==1?'s':''} failed to update: ${failed.map(s=>fullName(s,true)).join(', ')}. Everyone else succeeded -- check these students before retrying.`,'error')
+      } else {
+        setPromoModal(false)
+        const parts=[]
+        if(promoted.length)  parts.push(promoted.length+' promoted')
+        if(graduated.length) parts.push(graduated.length+' graduated')
+        if(toRepeat.length)  parts.push(toRepeat.length+' staying back')
+        toast(''+parts.join(', ')+'.')
+      }
     } catch(err) {
-      toast('Promotion failed: '+err.message+' — some students may be partially updated. Please check the class list before retrying.','error')
+      toast('Promotion failed before any changes were made: '+err.message,'error')
     }
     setPromoting(false)
   }
@@ -285,7 +313,14 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     setSaving(false)
   }
   const saveSubject = async ()=>{
-    if(!sf.name||!sf.class_id){toast('Subject name and class are required.','error');return} setSaving(true)
+    if(!sf.name||!sf.class_id){toast('Subject name and class are required.','error');return}
+    const duplicate = subjects.some(s=>
+      s.class_id===sf.class_id &&
+      s.name.trim().toLowerCase()===sf.name.trim().toLowerCase() &&
+      s.id!==editS?.id
+    )
+    if(duplicate){toast('This class already has a subject with that name.','error');return}
+    setSaving(true)
     if(editS){
       const {error}=await supabase.from('subjects').update({...sf,teacher_id:sf.teacher_id||null}).eq('id',editS.id).eq('school_id',profile?.school_id)
       if(error)toast(error.message,'error')

@@ -405,6 +405,21 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION generate_student_id(p_school_id uuid, p_prefix text)
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
+DECLARE
+  v_next int;
+BEGIN
+  SELECT COALESCE(MAX(CAST(SPLIT_PART(student_id, '-', 2) AS int)), 0) + 1
+  INTO v_next
+  FROM students
+  WHERE school_id = p_school_id
+    AND student_id LIKE p_prefix || '-%'
+    AND SPLIT_PART(student_id, '-', 2) ~ '^[0-9]+$';
+  RETURN p_prefix || '-' || LPAD(v_next::text, 4, '0');
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION create_school_user(
   p_user_id   uuid,
   p_full_name text,
