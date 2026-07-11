@@ -91,7 +91,7 @@ export default function AdminSchools(props) {
   )
 }
 
-function SchoolDetail({ school, notes, comms, payments, onboarding, ONBOARDING_ITEMS, openLogPayment, openNote, openComm, toggleObItem, confirmLockUser, unlockUser, openPasswordReset }) {
+function SchoolDetail({ school, notes, comms, payments, onboarding, ONBOARDING_ITEMS, openLogPayment, openNote, openComm, toggleObItem, confirmLockUser, unlockUser, openPasswordReset, confirmViewAs }) {
   const [tab, setTab] = useState('info')
   const sNotes = notes.filter(n => n.school_id === school.id)
   const sComms = comms.filter(c => c.school_id === school.id)
@@ -209,13 +209,13 @@ function SchoolDetail({ school, notes, comms, payments, onboarding, ONBOARDING_I
       )}
 
       {tab === 'users' && (
-        <UsersTab schoolId={school.id} confirmLockUser={confirmLockUser} unlockUser={unlockUser} openPasswordReset={openPasswordReset}/>
+        <UsersTab schoolId={school.id} schoolName={school.name} confirmLockUser={confirmLockUser} unlockUser={unlockUser} openPasswordReset={openPasswordReset} confirmViewAs={confirmViewAs}/>
       )}
     </Card>
   )
 }
 
-function UsersTab({ schoolId, confirmLockUser, unlockUser, openPasswordReset }) {
+function UsersTab({ schoolId, schoolName, confirmLockUser, unlockUser, openPasswordReset, confirmViewAs }) {
   const [users, setUsers]     = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -251,6 +251,10 @@ function UsersTab({ schoolId, confirmLockUser, unlockUser, openPasswordReset }) 
             <td style={{ padding: '8px 8px 8px 0', fontSize: 12, color: 'var(--mist3)' }}>{fmtDate(u.created_at)}</td>
             <td style={{ padding: '8px 0' }}>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <Btn size='sm' variant='ghost'
+                  disabled={u.locked}
+                  title={u.locked ? 'Unlock this account before viewing as this user' : ''}
+                  onClick={() => confirmViewAs(u.id, u.full_name, u.role, schoolId, schoolName)}>View As</Btn>
                 <Btn size='sm' variant='ghost' onClick={() => openPasswordReset(u.id, u.full_name)}>Reset Password</Btn>
                 {u.locked
                   ? <Btn size='sm' variant='secondary' onClick={() => unlockUser(u.id, u.full_name, schoolId)}>Unlock</Btn>

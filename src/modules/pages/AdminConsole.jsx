@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../supabase'
 import { fetchAllRows } from '../lib/helpers'
+import { setImpersonationState, clearImpersonationState } from '../lib/impersonation'
 import Btn from '../components/Btn'
 import Spinner from '../components/Spinner'
 import AdminDashboard  from '../admin/AdminDashboard'
@@ -190,13 +191,32 @@ export default function AdminConsole({ profile, onSignOut }) {
     showToast(`${userName} unlocked`)
   }
 
+  const confirmViewAs = (userId, userName, userRole, schoolId, schoolName) => {
+    setConfirmState({
+      title: 'View As ' + userName, icon: '🕵', danger: true, confirmLabel: 'View As',
+      body: `You will be signed in as ${userName} (${userRole}) at ${schoolName}. All actions you take will be performed as if by them and shown in their account's own history. Exit anytime via the banner at the top of the screen.`,
+      onConfirm: async () => {
+        const { data, error } = await supabase.functions.invoke('view-as-user', { body: { target_user_id: userId } })
+        if (error || data?.error) { showToast('Failed to view as user: ' + (data?.error || error.message), 'error'); return }
+        setImpersonationState({
+          startedAt: new Date().toISOString(),
+          actorName: profile?.full_name, actorEmail: profile?.email,
+          targetUserName: data.target.full_name, targetUserRole: data.target.role,
+          targetSchoolId: data.target.school_id, targetSchoolName: data.target.school_name,
+        })
+        const { error: verifyErr } = await supabase.auth.verifyOtp({ token_hash: data.token_hash, type: 'magiclink' })
+        if (verifyErr) { clearImpersonationState(); showToast('Failed to view as user: ' + verifyErr.message, 'error') }
+      },
+    })
+  }
+
   const closeModal = () => setModal(null)
 
   const shared = {
     schools, notes, comms, payments, onboarding, activity, lastLoginBySchool,
     daysLeft, getExpiry, ONBOARDING_ITEMS,
     openActivate, openAddSchool, openLogPayment, openNote, openComm, openPasswordReset,
-    confirmSuspend, unsuspend, toggleObItem, confirmLockUser, unlockUser,
+    confirmSuspend, unsuspend, toggleObItem, confirmLockUser, unlockUser, confirmViewAs,
     logActivity, showToast, reload: loadAll,
   }
 

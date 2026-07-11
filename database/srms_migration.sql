@@ -587,6 +587,27 @@ BEGIN
 END;
 $$;
 
+-- Called by the impersonated user themselves, right before the "Exit
+-- Impersonation" sign-out, while their session is still live -- the action
+-- string is hardcoded (never client-supplied) and scoped to the caller's own
+-- school, so the worst-case misuse is a real, attributable user logging a
+-- low-value row against their own school.
+CREATE OR REPLACE FUNCTION log_impersonation_ended(p_detail text)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
+DECLARE
+  v_school_id   uuid;
+  v_school_name text;
+BEGIN
+  SELECT school_id INTO v_school_id FROM profiles WHERE id = auth.uid();
+  IF v_school_id IS NULL THEN
+    RETURN;
+  END IF;
+  SELECT name INTO v_school_name FROM schools WHERE id = v_school_id;
+  INSERT INTO admin_activity (school_id, school_name, action, detail)
+  VALUES (v_school_id, v_school_name, 'Impersonation ended', p_detail);
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION rollover_academic_year(
   p_school_id uuid,
   p_old_year  text,
