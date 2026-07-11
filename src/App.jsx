@@ -5,7 +5,8 @@ import G, { initScrollReveal } from './modules/styles/global'
 import { useIsMobile, usePlan } from './modules/lib/hooks'
 import PlanGate from './modules/components/PlanGate'
 import { ROLE_META, NAV_ITEMS } from './modules/lib/constants'
-import { currentYearFromSettings, generateYears, fetchAllRows } from './modules/lib/helpers'
+import { currentYearFromSettings, fetchAllRows } from './modules/lib/helpers'
+import { auditLog } from './modules/lib/auditLog'
 
 import Sidebar, { YearSwitcher } from './modules/layout/Sidebar'
 
@@ -386,12 +387,14 @@ export default function App() {
       return
     }
 
+    const closedYear = activeYear
     setSettings(p => ({ ...p, academic_year: newYearTarget }))
     setSelectedYear(null)
     setNewYearModal(false)
     setNewYearStep(1)
     setNewYearTarget('')
     showToast('Academic year ' + newYearTarget + ' started successfully.')
+    auditLog(profile, 'Settings', 'Started New Academic Year', `Closed ${closedYear} -> Opened ${newYearTarget}`, { old_year: closedYear, new_year: newYearTarget }, null, null)
 
     // Reload all data for the new year
     await loadData(newYearTarget, profile, settings)
@@ -399,6 +402,16 @@ export default function App() {
 
   const currentYear   = settings ? currentYearFromSettings(settings) : ''
   const activeYear    = selectedYear || currentYear
+
+  // The only valid next year is the one immediately after the current one --
+  // auto-fill it whenever the modal opens so there's no dropdown of several
+  // years ahead inviting a wrong, irreversible pick.
+  useEffect(() => {
+    if (!newYearModal || !currentYear) return
+    const [a, b] = currentYear.split('/').map(n => parseInt(n, 10))
+    if (!isNaN(a) && !isNaN(b)) setNewYearTarget(`${a + 1}/${b + 1}`)
+  }, [newYearModal, currentYear])
+
   const isViewingPast = !!(selectedYear && selectedYear !== currentYear)
     || planHook.status === 'cancelled_grace'
     || planHook.status === 'expiry_grace'
@@ -744,6 +757,7 @@ export default function App() {
                   ['Grades',        'All grades are saved under ' + activeYear + '. New year starts with no grades.'],
                   ['Attendance',    'All attendance saved under ' + activeYear + '. New year starts fresh.'],
                   ['Fees',          'Outstanding balances carry over as arrears. Paid fees archived under ' + activeYear + '.'],
+                  ['Recurring Fees','Fee types (e.g. Feeding) carry over automatically. Periods already charged stay under ' + activeYear + ' -- the new year starts with none charged yet.'],
                   ['Behaviour',     'Records carry over — full history always visible.'],
                   ['Announcements', 'Current announcements archived. New year starts clean.'],
                 ].map(([title, desc]) => (
@@ -764,9 +778,12 @@ export default function App() {
           )}
           {newYearStep === 2 && (
             <div>
-              <p style={{ fontSize: 13, color: 'var(--mist2)', marginBottom: 16, lineHeight: 1.6 }}>Select the new academic year to open:</p>
-              <Field label='New Academic Year' value={newYearTarget || ''} onChange={v => setNewYearTarget(v)}
-                options={generateYears(currentYear).filter(y => parseInt(y) > parseInt(currentYear)).map(y => ({ value: y, label: y }))}/>
+              <p style={{ fontSize: 13, color: 'var(--mist2)', marginBottom: 16, lineHeight: 1.6 }}>
+                The new academic year to open — always the year immediately after the one you're closing, so there's no risk of accidentally skipping a year:
+              </p>
+              <div style={{ background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: 'var(--r)', padding: '16px 18px', textAlign: 'center', marginBottom: 12 }}>
+                <div className='d' style={{ fontSize: 24, fontWeight: 700, color: 'var(--emerald)' }}>{newYearTarget || '--'}</div>
+              </div>
               <p style={{ fontSize: 12, color: 'var(--mist3)', marginBottom: 20 }}>All existing data will be saved under <strong style={{ color: 'var(--gold)' }}>{activeYear}</strong>.</p>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                 <Btn variant='ghost' onClick={() => setNewYearStep(1)}>&larr; Back</Btn>

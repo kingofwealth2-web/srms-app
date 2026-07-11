@@ -165,14 +165,40 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
   }
 
   const confirmBulkPromo = async () => {
-    setPromoting(true)
     const toPromote  = bulkStudents.filter(p=>p.action==='promote')
     const toRepeat   = bulkStudents.filter(p=>p.action==='repeat')
     const toGraduate = bulkStudents.filter(p=>p.action==='graduate')
+
+    // The per-row destination <select> has no blank option, so a student left
+    // with an empty destClassId (e.g. "Promote All" clicked on the terminal
+    // class, which has no next class to default to) shows the browser's
+    // fallback-selected option on screen while the real state is still empty.
+    // Catch that here with a clear message instead of a silent save failure.
+    const missingDest = toPromote.filter(p=>!p.destClassId)
+    if(missingDest.length>0){
+      toast(`${missingDest.length} student${missingDest.length!==1?'s':''} marked to promote ${missingDest.length!==1?'have':'has'} no destination class selected: ${missingDest.map(p=>fullName(p.student,true)).join(', ')}.`,'error')
+      return
+    }
+
+    setPromoting(true)
     try {
+      // This wizard's student list was snapshotted when it opened. If someone
+      // else enrolled a new student into a class since then, they'd silently
+      // stay unpromoted with no indication anything was missed.
+      const snapshotIds = new Set(bulkStudents.map(p=>p.student.id))
+      const {data:freshStudents, error:freshErr} = await supabase.from('students')
+        .select('id').eq('school_id',profile?.school_id).eq('archived',false).not('class_id','is',null)
+      if(freshErr) throw freshErr
+      const newArrivals = (freshStudents||[]).filter(s=>!snapshotIds.has(s.id))
+      if(newArrivals.length>0){
+        toast(`${newArrivals.length} student${newArrivals.length!==1?'s were':' was'} added to a class after this wizard opened, so they're not included. Close and reopen Bulk Promote to pick them up.`,'error')
+        setPromoting(false)
+        return
+      }
+
       // Write enrolment history
       const enrolmentRows = bulkStudents.map(p=>({school_id:profile?.school_id,student_id:p.student.id,class_id:p.fromClass.id,academic_year:activeYear}))
-      const {error:enrolErr} = await supabase.from('student_year_enrolment').upsert(enrolmentRows,{onConflict:'school_id,student_id,academic_year'})
+      const {error:enrolErr} = await supabase.from('student_year_enrolment').upsert(enrolmentRows,{onConflict:'student_id,academic_year'})
       if(enrolErr) throw enrolErr
       // Keep going through failures instead of aborting on the first one --
       // each row is an independent update -- and track exactly who succeeded
@@ -217,11 +243,35 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
   }
 
   const confirmPromo = async ()=>{
-    setPromoting(true)
     const toPromote  = promoStudents.filter(p=>p.action==='promote')
     const toRepeat   = promoStudents.filter(p=>p.action==='repeat')
     const toGraduate = promoStudents.filter(p=>p.action==='graduate')
+
+    // Same missing-destination check as bulk promote -- the per-row <select>
+    // has no blank option, so an empty destClassId (reachable via "leave
+    // blank" in step 1, then switching a student to Promote in step 2) would
+    // otherwise show a class visually selected while the real state is empty.
+    const missingDest = toPromote.filter(p=>!p.destClassId)
+    if(missingDest.length>0){
+      toast(`${missingDest.length} student${missingDest.length!==1?'s':''} marked to promote ${missingDest.length!==1?'have':'has'} no destination class selected: ${missingDest.map(p=>fullName(p.student,true)).join(', ')}.`,'error')
+      return
+    }
+
+    setPromoting(true)
     try {
+      // Snapshotted when the wizard opened -- check nobody new was enrolled
+      // into this class since then, since they'd silently stay unpromoted.
+      const snapshotIds = new Set(promoStudents.map(p=>p.student.id))
+      const {data:freshStudents, error:freshErr} = await supabase.from('students')
+        .select('id').eq('school_id',profile?.school_id).eq('class_id',promoSource).eq('archived',false)
+      if(freshErr) throw freshErr
+      const newArrivals = (freshStudents||[]).filter(s=>!snapshotIds.has(s.id))
+      if(newArrivals.length>0){
+        toast(`${newArrivals.length} student${newArrivals.length!==1?'s were':' was'} added to this class after this wizard opened, so they're not included. Close and reopen Promote Class to pick them up.`,'error')
+        setPromoting(false)
+        return
+      }
+
       // Write enrolment history for ALL students in source class before moving them
       const enrolmentRows = promoStudents.map(p=>({
         school_id: profile?.school_id,
@@ -230,7 +280,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
         academic_year: activeYear
       }))
       // Upsert — avoid duplicates
-      const {error:enrolErr} = await supabase.from('student_year_enrolment').upsert(enrolmentRows, {onConflict:'school_id,student_id,academic_year'})
+      const {error:enrolErr} = await supabase.from('student_year_enrolment').upsert(enrolmentRows, {onConflict:'student_id,academic_year'})
       if(enrolErr) throw enrolErr
       // Keep going through failures instead of aborting on the first one --
       // each row is an independent update, so one bad row shouldn't block the
@@ -598,7 +648,8 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                                   {p.action==='promote' && (
                                     <select value={p.destClassId}
                                       onChange={e=>setBulkStudents(prev=>prev.map((x,j)=>j===globalIdx?{...x,destClassId:e.target.value}:x))}
-                                      style={{background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'4px 8px',color:'var(--mist)',fontSize:11,cursor:'pointer'}}>
+                                      style={{background:'var(--ink4)',border:`1px solid ${p.destClassId?'var(--line)':'var(--rose)'}`,borderRadius:'var(--r-sm)',padding:'4px 8px',color:p.destClassId?'var(--mist)':'var(--rose)',fontSize:11,cursor:'pointer'}}>
+                                      <option value=''>Select a class...</option>
                                       {orderedClasses.filter(c=>c.id!==cls.id).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                   )}
@@ -717,7 +768,8 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                     </div>
                     {p.action==='promote' && (
                       <select value={p.destClassId} onChange={e=>setPromoStudents(prev=>prev.map((x,j)=>j===i?{...x,destClassId:e.target.value}:x))}
-                        style={{background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'5px 10px',color:'var(--mist)',fontSize:12,cursor:'pointer'}}>
+                        style={{background:'var(--ink4)',border:`1px solid ${p.destClassId?'var(--line)':'var(--rose)'}`,borderRadius:'var(--r-sm)',padding:'5px 10px',color:p.destClassId?'var(--mist)':'var(--rose)',fontSize:12,cursor:'pointer'}}>
+                        <option value=''>Select a class...</option>
                         {classes.filter(c=>c.id!==promoSource).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                     )}

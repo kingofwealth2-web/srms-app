@@ -592,11 +592,16 @@ CREATE OR REPLACE FUNCTION rollover_academic_year(
   p_old_year  text,
   p_new_year  text
 )
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
 BEGIN
+  IF p_old_year = p_new_year THEN
+    RAISE EXCEPTION 'old_year and new_year must be different';
+  END IF;
+
   UPDATE grades        SET year          = p_old_year WHERE school_id = p_school_id AND year IS NULL;
   UPDATE attendance    SET academic_year = p_old_year WHERE school_id = p_school_id AND academic_year IS NULL;
   UPDATE fees          SET academic_year = p_old_year WHERE school_id = p_school_id AND academic_year IS NULL;
+  UPDATE payments      SET academic_year = p_old_year WHERE school_id = p_school_id AND academic_year IS NULL;
   UPDATE behaviour     SET academic_year = p_old_year WHERE school_id = p_school_id AND academic_year IS NULL;
   UPDATE announcements SET academic_year = p_old_year WHERE school_id = p_school_id AND academic_year IS NULL;
   UPDATE students      SET entry_year    = p_old_year WHERE school_id = p_school_id AND entry_year IS NULL;
@@ -609,26 +614,50 @@ BEGIN
     AND  class_id IS NOT NULL
   ON CONFLICT DO NOTHING;
 
+  -- Arrears: carry forward what's still owed, reconciled against the actual
+  -- payments ledger (fee.paid alone can drift from the real total -- same
+  -- issue fixed on the app side via effectivePaid()). Duplicate guard is per
+  -- original fee type, not just per student, so re-running this after a
+  -- newly-discovered unpaid fee doesn't skip it just because the student
+  -- already has some other arrear from that year.
   INSERT INTO fees (school_id, student_id, fee_type, amount, paid, academic_year, is_arrear, arrear_from_year)
   SELECT
-    school_id, student_id,
-    fee_type || ' (Arrears from ' || p_old_year || ')',
-    amount - paid, 0, p_new_year, true, p_old_year
-  FROM fees
-  WHERE school_id    = p_school_id
-    AND academic_year = p_old_year
-    AND amount - paid > 0
-    AND NOT COALESCE(is_arrear, false)
+    f.school_id, f.student_id,
+    f.fee_type || ' (Arrears from ' || p_old_year || ')',
+    f.amount - GREATEST(f.paid, COALESCE(ps.paid_sum, 0)), 0, p_new_year, true, p_old_year
+  FROM fees f
+  LEFT JOIN (
+    SELECT fee_id, SUM(amount) AS paid_sum FROM payments GROUP BY fee_id
+  ) ps ON ps.fee_id = f.id
+  WHERE f.school_id     = p_school_id
+    AND f.academic_year = p_old_year
+    AND f.amount - GREATEST(f.paid, COALESCE(ps.paid_sum, 0)) > 0
+    AND NOT COALESCE(f.is_arrear, false)
     AND EXISTS (
       SELECT 1 FROM students s
-      WHERE s.id = fees.student_id AND s.school_id = p_school_id AND NOT s.archived
+      WHERE s.id = f.student_id AND s.school_id = p_school_id AND NOT s.archived
     )
     AND NOT EXISTS (
       SELECT 1 FROM fees f2
       WHERE f2.school_id = p_school_id AND f2.academic_year = p_new_year
         AND f2.is_arrear = true AND f2.arrear_from_year = p_old_year
-        AND f2.student_id = fees.student_id
+        AND f2.student_id = f.student_id
+        AND f2.fee_type = f.fee_type || ' (Arrears from ' || p_old_year || ')'
       LIMIT 1
+    );
+
+  -- Recurring fee types carry forward so schools don't have to recreate
+  -- Feeding/Transport/etc. every year. Periods do NOT carry forward -- each
+  -- year starts with nothing charged yet. Skipped by name if already present
+  -- under the new year, so this is safe to re-run.
+  INSERT INTO fee_templates (school_id, name, amount_per_period, academic_year, created_by, class_ids)
+  SELECT t.school_id, t.name, t.amount_per_period, p_new_year, t.created_by, t.class_ids
+  FROM fee_templates t
+  WHERE t.school_id = p_school_id
+    AND t.academic_year = p_old_year
+    AND NOT EXISTS (
+      SELECT 1 FROM fee_templates t2
+      WHERE t2.school_id = p_school_id AND t2.academic_year = p_new_year AND t2.name = t.name
     );
 
   INSERT INTO student_year_enrolment (school_id, student_id, class_id, academic_year)
