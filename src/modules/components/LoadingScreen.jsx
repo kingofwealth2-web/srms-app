@@ -1,3 +1,5 @@
+import LogoMark from './LogoMark'
+
 export default function LoadingScreen({ msg = 'Loading...' }) {
   return (
     <div style={{
@@ -13,7 +15,7 @@ export default function LoadingScreen({ msg = 'Loading...' }) {
         boxShadow: '0 0 40px rgba(232,184,75,0.3), 0 8px 24px rgba(0,0,0,0.4)',
         animation: 'pulse 2s ease-in-out infinite',
       }}>
-        <span className='d' style={{ fontSize: 22, fontWeight: 700, color: '#0c0c15' }}>S</span>
+        <LogoMark size={26}/>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
         <div style={{ fontSize: 13, color: 'var(--mist2)', fontWeight: 500 }}>{msg}</div>

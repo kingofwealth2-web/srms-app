@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
+import LogoMark from '../components/LogoMark'
 import { NAV_ITEMS, NAV_META, ROLE_META } from '../lib/constants'
 import { generateYears } from '../lib/helpers'
 
@@ -99,7 +100,7 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
             boxShadow: '0 4px 12px rgba(232,184,75,0.25)',
             flexShrink: 0,
           }}>
-            <span className='d' style={{ fontSize: 14, fontWeight: 700, color: '#0b0b12' }}>S</span>
+            <LogoMark size={16}/>
           </div>
           <span className='d' style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.01em', color: 'var(--white)' }}>SRMS</span>
         </div>
@@ -247,7 +248,7 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
               onMouseLeave={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(232,184,75,0.25)'}
               title='Expand sidebar'
             >
-              <span className='d' style={{ fontSize: 14, fontWeight: 700, color: '#0b0b12' }}>S</span>
+              <LogoMark size={16}/>
             </div>
           </div>
           <nav style={{ flex: 1, padding: '4px 8px', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>

@@ -270,7 +270,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
       </Card>
       <div style={{marginTop:40,paddingTop:20,borderTop:'1px solid var(--line)',textAlign:'center'}}>
         <div style={{fontSize:12,color:'var(--mist3)'}}>Designed &amp; developed by <span style={{color:'var(--white)',fontWeight:600}}>Prince William Kofi Anquandah</span></div>
-        <div style={{fontSize:11,color:'var(--mist3)',marginTop:5,letterSpacing:'0.08em'}}><span style={{color:'var(--gold)',fontWeight:600,letterSpacing:'0.12em'}}>ZELVA STUDIOS</span> . {new Date().getFullYear()}</div>
+        <div style={{fontSize:11,color:'var(--mist3)',marginTop:5,letterSpacing:'0.08em'}}><span style={{color:'var(--gold)',fontWeight:600,letterSpacing:'0.12em'}}>PRIME LOGIC SOFTWARES</span> . {new Date().getFullYear()}</div>
       </div>
     </div>
   )

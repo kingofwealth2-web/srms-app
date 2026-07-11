@@ -4,6 +4,7 @@ import { useIsMobile } from '../lib/hooks'
 import Btn from '../components/Btn'
 import Field from '../components/Field'
 import Spinner from '../components/Spinner'
+import LogoMark from '../components/LogoMark'
 
 export default function Login({ onLogin, lockedError, onClearLockedError, onBack }) {
   const [email,setEmail]           = useState('')
@@ -95,7 +96,7 @@ export default function Login({ onLogin, lockedError, onClearLockedError, onBack
         <div className='fu' style={{ position: 'relative' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 56 }}>
             <div onClick={onBack} style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 24px rgba(232,184,75,0.4)', cursor: onBack ? 'pointer' : 'default' }}>
-              <span className='d' style={{ fontSize: 20, fontWeight: 700, color: 'var(--ink)' }}>S</span>
+              <LogoMark size={22}/>
             </div>
             <div>
               <div className='d' style={{ fontSize: 20, fontWeight: 700 }}>SRMS</div>
@@ -302,7 +303,7 @@ export default function Login({ onLogin, lockedError, onClearLockedError, onBack
               ))}
             </div>
             <div style={{ marginTop: 36, fontSize: 11, color: 'var(--mist3)', letterSpacing: '0.05em' }}>v1.0.0 · Academic Year {acadYear}</div>
-            <div style={{ marginTop: 10, fontSize: 11, color: 'var(--mist3)', letterSpacing: '0.06em' }}>Built by <span style={{ color: 'var(--gold)', fontWeight: 600, letterSpacing: '0.12em' }}>ZELVA STUDIOS</span></div>
+            <div style={{ marginTop: 10, fontSize: 11, color: 'var(--mist3)', letterSpacing: '0.06em' }}>Built by <span style={{ color: 'var(--gold)', fontWeight: 600, letterSpacing: '0.12em' }}>PRIME LOGIC SOFTWARES</span></div>
           </div>
         </div>
       )}

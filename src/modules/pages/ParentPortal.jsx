@@ -11,6 +11,7 @@ import KPI from '../components/KPI'
 import Spinner from '../components/Spinner'
 import PageHeader from '../components/PageHeader'
 import SectionTitle from '../components/SectionTitle'
+import LogoMark from '../components/LogoMark'
 
 // ── PARENT PORTAL ───────────────────────────────────────────────
 export default function ParentPortal({ profile, onSignOut }) {
@@ -180,7 +181,7 @@ export default function ParentPortal({ profile, onSignOut }) {
       <div style={{ background: 'var(--ink2)', borderBottom: '1px solid var(--line)', padding: '0 24px', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 30, height: 30, background: 'var(--gold)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Clash Display',sans-serif", fontWeight: 800, fontSize: 13, color: 'var(--ink)' }}>S</div>
+            <div style={{ width: 30, height: 30, background: 'var(--gold)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><LogoMark size={16}/></div>
             <div>
               <div style={{ fontFamily: "'Clash Display',sans-serif", fontWeight: 700, fontSize: 14 }}>{settings?.school_name || 'SRMS'}</div>
               <div style={{ fontSize: 10, color: 'var(--mist3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Parent Portal</div>

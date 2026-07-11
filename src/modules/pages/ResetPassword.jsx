@@ -3,6 +3,7 @@ import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import Btn from '../components/Btn'
 import Spinner from '../components/Spinner'
+import LogoMark from '../components/LogoMark'
 
 export default function ResetPassword({ onDone }) {
   const [newPass,setNewPass] = useState('')
@@ -44,7 +45,7 @@ export default function ResetPassword({ onDone }) {
         <div className='fu' style={{ position: 'relative' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 56 }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 24px rgba(232,184,75,0.4)' }}>
-              <span className='d' style={{ fontSize: 20, fontWeight: 700, color: 'var(--ink)' }}>S</span>
+              <LogoMark size={22}/>
             </div>
             <div>
               <div className='d' style={{ fontSize: 20, fontWeight: 700 }}>SRMS</div>

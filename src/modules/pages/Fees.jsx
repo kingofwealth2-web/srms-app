@@ -36,7 +36,7 @@ function printReceipt({fee, feePayments, student, cls, settings, currency}) {
 
   const logoTag = schoolLogo
     ? `<img src="${schoolLogo}" style="width:52px;height:52px;object-fit:contain;border-radius:6px;" />`
-    : `<div style="width:52px;height:52px;border-radius:10px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-family:'Arial Black',sans-serif;font-size:22px;font-weight:900;color:#e8b84b;flex-shrink:0;">S</div>`
+    : `<div style="width:52px;height:52px;border-radius:10px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-family:'Arial Black',sans-serif;font-size:22px;font-weight:900;color:#e8b84b;flex-shrink:0;">${schoolName.charAt(0)}</div>`
 
   const paymentRows = feePayments.length > 0
     ? feePayments.map((p,i) => `
@@ -940,7 +940,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     const schoolLogo = settings?.school_logo||null
     const logoTag = schoolLogo
       ? `<img src="${schoolLogo}" style="width:44px;height:44px;object-fit:contain;border-radius:6px;"/>`
-      : `<div style="width:44px;height:44px;border-radius:8px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#e8b84b;">S</div>`
+      : `<div style="width:44px;height:44px;border-radius:8px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#e8b84b;">${schoolName.charAt(0)}</div>`
     const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
     const rows = done.selected.map(r=>{
       const pay = done.payRows.find(p=>p.student_id===r.student.id)
@@ -1002,7 +1002,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     const schoolLogo = settings?.school_logo||null
     const logoTag = schoolLogo
       ? `<img src="${schoolLogo}" style="width:36px;height:36px;object-fit:contain;border-radius:5px;"/>`
-      : `<div style="width:36px;height:36px;border-radius:6px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#e8b84b;">S</div>`
+      : `<div style="width:36px;height:36px;border-radius:6px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#e8b84b;">${schoolName.charAt(0)}</div>`
     const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
     const pages = done.selected.map(r=>{
       const feeRow = done.feeRows?.find(f=>f.student_id===r.student.id)
@@ -1197,7 +1197,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     const schoolLogo = settings?.school_logo||null
     const logoTag = schoolLogo
       ? `<img src="${schoolLogo}" style="width:44px;height:44px;object-fit:contain;border-radius:6px;"/>`
-      : `<div style="width:44px;height:44px;border-radius:8px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#e8b84b;">S</div>`
+      : `<div style="width:44px;height:44px;border-radius:8px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#e8b84b;">${schoolName.charAt(0)}</div>`
     const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
     const rows = done.selected.map(r=>{
       const pay = done.payRows.find(p=>p.student_id===r.student.id)
@@ -1258,7 +1258,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     const schoolLogo = settings?.school_logo||null
     const logoTag = schoolLogo
       ? `<img src="${schoolLogo}" style="width:36px;height:36px;object-fit:contain;border-radius:5px;"/>`
-      : `<div style="width:36px;height:36px;border-radius:6px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#e8b84b;">S</div>`
+      : `<div style="width:36px;height:36px;border-radius:6px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#e8b84b;">${schoolName.charAt(0)}</div>`
     const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
     const pages = done.selected.map(r=>{
       const fee = fees.find(f=>f.id===r.feeId)
@@ -1596,7 +1596,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             const schoolLogo = settings?.school_logo||null
             const logoTag = schoolLogo
               ? `<img src="${schoolLogo}" style="width:40px;height:40px;object-fit:contain;border-radius:5px;"/>`
-              : `<div style="width:40px;height:40px;border-radius:7px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#e8b84b;">S</div>`
+              : `<div style="width:40px;height:40px;border-radius:7px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#e8b84b;">${schoolName.charAt(0)}</div>`
             const allRegRows = allStudents.map(s=>{
               const feeRow  = periodFees.find(f=>f.student_id===s.id)
               const charged = Number(feeRow?.amount||0)

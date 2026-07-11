@@ -16,6 +16,7 @@ import Modal    from './modules/components/Modal'
 import Field    from './modules/components/Field'
 import Avatar   from './modules/components/Avatar'
 import LoadingScreen from './modules/components/LoadingScreen'
+import LogoMark from './modules/components/LogoMark'
 
 import Landing        from './modules/pages/Landing'
 import Plans          from './modules/pages/Plans'
@@ -89,7 +90,7 @@ function ForceChangePassword({ profile, onDone, onSignOut }) {
       <div style={{ position:'relative', width:'100%', maxWidth:440 }} onKeyDown={e => { if (e.key === 'Enter') submit() }}>
         <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:40 }}>
           <div style={{ width:44, height:44, borderRadius:12, background:'var(--gold)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 24px rgba(232,184,75,0.4)' }}>
-            <span className="d" style={{ fontSize:20, fontWeight:700, color:'var(--ink)' }}>S</span>
+            <LogoMark size={22}/>
           </div>
           <div>
             <div className="d" style={{ fontSize:18, fontWeight:700 }}>SRMS</div>
