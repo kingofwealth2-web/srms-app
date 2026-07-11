@@ -1,33 +1,40 @@
 import { useState, useEffect, useRef } from 'react'
 import { PLANS, TRIAL_DAYS, OVERAGE_GRACE_DAYS, CANCELLATION_GRACE_DAYS, EXPIRY_GRACE_DAYS } from './constants'
+import { fetchAllRows } from './helpers'
 import { supabase } from '../../supabase'
 
 // ── Per-page lazy data fetcher ──────────────────────────────────
 // Usage: const { data, setData, loading } = usePageData('fees', profile, activeYear)
-const YEAR_TABLES = ['grades','attendance','fees','payments','behaviour','announcements','student_year_enrolment']
+const YEAR_TABLES = ['grades','attendance','fees','payments','behaviour','announcements','student_year_enrolment','attendance_opening_balances']
 const YEAR_COL    = { grades: 'year' }  // all others use 'academic_year'
 
 export function usePageData(table, profile, activeYear, extraFilters = {}) {
   const [data, setData]       = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState(null)
 
   useEffect(() => {
     if (!profile?.school_id) return
     setLoading(true)
-    let q = supabase.from(table).select('*').eq('school_id', profile.school_id)
-    if (activeYear && YEAR_TABLES.includes(table)) {
-      const col = YEAR_COL[table] || 'academic_year'
-      q = q.eq(col, activeYear)
+    setError(null)
+    const buildQuery = () => {
+      let q = supabase.from(table).select('*').eq('school_id', profile.school_id)
+      if (activeYear && YEAR_TABLES.includes(table)) {
+        const col = YEAR_COL[table] || 'academic_year'
+        q = q.eq(col, activeYear)
+      }
+      Object.entries(extraFilters).forEach(([k, v]) => { q = q.eq(k, v) })
+      return q.order('id')
     }
-    Object.entries(extraFilters).forEach(([k, v]) => { q = q.eq(k, v) })
-    q.then(({ data: rows }) => {
+    fetchAllRows(buildQuery).then(({ data: rows, error: err }) => {
+      if (err) { console.error(`Failed to load ${table}:`, err.message); setError(err) }
       setData(rows || [])
       setLoading(false)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table, profile?.school_id, activeYear])
 
-  return { data, setData, loading }
+  return { data, setData, loading, error }
 }
 
 export function useIsMobile() {

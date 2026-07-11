@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
-import { calcTotal, getGradeComponents, getLetter, getGradeColor, fmtDate, fmtMoney, getCurrency, fullName } from '../lib/helpers'
+import { calcTotal, getGradeComponents, getLetter, getGradeColor, fmtDate, fmtMoney, getCurrency, fullName, fetchAllRows, calcAttendanceRate, effectivePaid } from '../lib/helpers'
 import { STATUS_META } from '../lib/constants'
 import { usePlan } from '../lib/hooks'
 import Avatar from '../components/Avatar'
@@ -11,6 +11,7 @@ import KPI from '../components/KPI'
 import Spinner from '../components/Spinner'
 import PageHeader from '../components/PageHeader'
 import SectionTitle from '../components/SectionTitle'
+import LogoMark from '../components/LogoMark'
 
 // ── PARENT PORTAL ───────────────────────────────────────────────
 export default function ParentPortal({ profile, onSignOut }) {
@@ -29,6 +30,7 @@ export default function ParentPortal({ profile, onSignOut }) {
   // per-student data (fetched when selectedId changes)
   const [grades, setGrades]             = useState([])
   const [attendance, setAttendance]     = useState([])
+  const [openingBalances, setOpeningBalances] = useState([])
   const [fees, setFees]                 = useState([])
   const [payments, setPayments]         = useState([])
   const [announcements, setAnnouncements] = useState([])
@@ -89,16 +91,19 @@ export default function ParentPortal({ profile, onSignOut }) {
         { data: attRows },
         { data: feeRows },
         { data: payRows },
+        { data: obRows },
       ] = await Promise.all([
-        supabase.from('grades').select('*').eq('student_id', selectedId),
-        supabase.from('attendance').select('*').eq('student_id', selectedId).order('date', { ascending: false }),
-        supabase.from('fees').select('*').eq('student_id', selectedId),
-        supabase.from('payments').select('*').eq('student_id', selectedId).order('created_at', { ascending: false }),
+        fetchAllRows(() => supabase.from('grades').select('*').eq('student_id', selectedId).order('id')),
+        fetchAllRows(() => supabase.from('attendance').select('*').eq('student_id', selectedId).order('date', { ascending: false })),
+        fetchAllRows(() => supabase.from('fees').select('*').eq('student_id', selectedId).order('id')),
+        fetchAllRows(() => supabase.from('payments').select('*').eq('student_id', selectedId).order('created_at', { ascending: false })),
+        fetchAllRows(() => supabase.from('attendance_opening_balances').select('*').eq('student_id', selectedId).order('id')),
       ])
       setGrades(gradeRows || [])
       setAttendance(attRows || [])
       setFees(feeRows || [])
       setPayments(payRows || [])
+      setOpeningBalances(obRows || [])
       setDataLoading(false)
     }
     load()
@@ -116,18 +121,13 @@ export default function ParentPortal({ profile, onSignOut }) {
   const isReleased = (year, period) =>
     releases.some(r => r.academic_year === year && r.period === period)
 
-  const attSummary = (() => {
-    const total   = attendance.length
-    const present = attendance.filter(a => a.status === 'Present').length
-    const absent  = attendance.filter(a => a.status === 'Absent').length
-    const late    = attendance.filter(a => a.status === 'Late').length
-    const rate    = total > 0 ? Math.round((present / total) * 100) : null
-    return { total, present, absent, late, rate }
-  })()
+  const attSummary = calcAttendanceRate(attendance, openingBalances)
 
   const feeSummary = (() => {
     const totalCharged = fees.reduce((a, f) => a + Number(f.amount || 0), 0)
-    const totalPaid    = payments.reduce((a, p) => a + Number(p.amount || 0), 0)
+    // Reconciled per-fee (fee.paid vs actual payments, whichever is higher) --
+    // matches every other screen, instead of trusting the payments table alone.
+    const totalPaid    = fees.reduce((a, f) => a + effectivePaid(f, payments), 0)
     const balance      = totalCharged - totalPaid
     return { totalCharged, totalPaid, balance }
   })()
@@ -181,7 +181,7 @@ export default function ParentPortal({ profile, onSignOut }) {
       <div style={{ background: 'var(--ink2)', borderBottom: '1px solid var(--line)', padding: '0 24px', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 30, height: 30, background: 'var(--gold)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Clash Display',sans-serif", fontWeight: 800, fontSize: 13, color: 'var(--ink)' }}>S</div>
+            <div style={{ width: 30, height: 30, background: 'var(--gold)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><LogoMark size={16}/></div>
             <div>
               <div style={{ fontFamily: "'Clash Display',sans-serif", fontWeight: 700, fontSize: 14 }}>{settings?.school_name || 'SRMS'}</div>
               <div style={{ fontSize: 10, color: 'var(--mist3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Parent Portal</div>
@@ -482,7 +482,7 @@ export default function ParentPortal({ profile, onSignOut }) {
                     : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {fees.map((fee, i) => {
-                          const paid    = payments.filter(p => p.fee_id === fee.id).reduce((a, p) => a + Number(p.amount || 0), 0)
+                          const paid    = effectivePaid(fee, payments)
                           const balance = Number(fee.amount || 0) - paid
                           const isPaid  = balance <= 0
                           return (

@@ -5,7 +5,8 @@ import G, { initScrollReveal } from './modules/styles/global'
 import { useIsMobile, usePlan } from './modules/lib/hooks'
 import PlanGate from './modules/components/PlanGate'
 import { ROLE_META, NAV_ITEMS } from './modules/lib/constants'
-import { currentYearFromSettings, generateYears } from './modules/lib/helpers'
+import { currentYearFromSettings, fetchAllRows } from './modules/lib/helpers'
+import { auditLog } from './modules/lib/auditLog'
 
 import Sidebar, { YearSwitcher } from './modules/layout/Sidebar'
 
@@ -16,10 +17,12 @@ import Modal    from './modules/components/Modal'
 import Field    from './modules/components/Field'
 import Avatar   from './modules/components/Avatar'
 import LoadingScreen from './modules/components/LoadingScreen'
+import LogoMark from './modules/components/LogoMark'
 
 import Landing        from './modules/pages/Landing'
 import Plans          from './modules/pages/Plans'
 import ParentPortal   from './modules/pages/ParentPortal'
+import AdminConsole   from './modules/pages/AdminConsole'
 import Login          from './modules/pages/Login'
 import ResetPassword  from './modules/pages/ResetPassword'
 import SchoolSetup    from './modules/pages/SchoolSetup'
@@ -88,7 +91,7 @@ function ForceChangePassword({ profile, onDone, onSignOut }) {
       <div style={{ position:'relative', width:'100%', maxWidth:440 }} onKeyDown={e => { if (e.key === 'Enter') submit() }}>
         <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:40 }}>
           <div style={{ width:44, height:44, borderRadius:12, background:'var(--gold)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 24px rgba(232,184,75,0.4)' }}>
-            <span className="d" style={{ fontSize:20, fontWeight:700, color:'var(--ink)' }}>S</span>
+            <LogoMark size={22}/>
           </div>
           <div>
             <div className="d" style={{ fontSize:18, fontWeight:700 }}>SRMS</div>
@@ -174,7 +177,7 @@ export default function App() {
     students:[],classes:[],subjects:[],grades:[],attendance:[],
     fees:[],payments:[],behaviour:[],announcements:[],enrolments:[],users:[],
     examScores:[],
-    fee_templates:[],fee_periods:[],
+    fee_templates:[],fee_periods:[],opening_balances:[],
   })
   const [page,setPage]             = useState('dashboard')
   const [feeFilter,setFeeFilter]   = useState('')
@@ -192,6 +195,7 @@ export default function App() {
   const [newYearWorking,setNewYearWorking] = useState(false)
   const isMobile = useIsMobile()
   const initialLoadDone = useRef(false)
+  const lastLoadedYear = useRef(null)
   const planHook = usePlan(settings)
   const reloadSettings = useCallback(async () => {
     if (!profile?.school_id) return
@@ -217,8 +221,12 @@ export default function App() {
       if (hash.includes('type=recovery') && session) setIsRecovery(true)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session)
       if (event === 'PASSWORD_RECOVERY') setIsRecovery(true)
+      // TOKEN_REFRESHED / USER_UPDATED fire silently in the background (e.g. when a
+      // mobile tab regains focus) and must NOT trigger a full app reload/remount —
+      // that wipes any unsaved in-progress work (like bulk fee collection).
+      if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') return
+      setSession(session)
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -240,23 +248,28 @@ export default function App() {
       { data: enrolments }, { data: users },
       { data: grades }, { data: attendance }, { data: fees },
       { data: payments }, { data: behaviour }, { data: announcements },
-      { data: feeTemplates }, { data: feePeriods },
+      { data: feeTemplates }, { data: feePeriods }, { data: openingBalances },
       { data: examScores },
     ] = await Promise.all([
-      supabase.from('students').select('*').eq('school_id', prof?.school_id).order('student_id'),
-      supabase.from('classes').select('*').eq('school_id', prof?.school_id).order('name'),
-      supabase.from('subjects').select('*').eq('school_id', prof?.school_id).order('name'),
-      supabase.from('student_year_enrolment').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
-      supabase.from('profiles').select('*').eq('school_id', prof?.school_id),
-      supabase.from('grades').select('*').eq('school_id', prof?.school_id).eq('year', year),
-      supabase.from('attendance').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
-      supabase.from('fees').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).limit(5000),
-      supabase.from('payments').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).limit(5000),
-      supabase.from('behaviour').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
-      supabase.from('announcements').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
-      supabase.from('fee_templates').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
-      supabase.from('fee_periods').select('*').eq('school_id', prof?.school_id).eq('academic_year', year),
-      supabase.from('exam_scores').select('*').eq('school_id', prof?.school_id).eq('year', year),
+      // Every one of these can pass PostgREST's default max-rows cap (1000) as a
+      // school accumulates history or grows in size -- an unbounded select silently
+      // returns only an arbitrary partial slice past that point instead of erroring,
+      // so all of them are paginated via fetchAllRows rather than a single select.
+      fetchAllRows(() => supabase.from('students').select('*').eq('school_id', prof?.school_id).order('student_id')),
+      fetchAllRows(() => supabase.from('classes').select('*').eq('school_id', prof?.school_id).order('name')),
+      fetchAllRows(() => supabase.from('subjects').select('*').eq('school_id', prof?.school_id).order('name')),
+      fetchAllRows(() => supabase.from('student_year_enrolment').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('profiles').select('*').eq('school_id', prof?.school_id).order('id')),
+      fetchAllRows(() => supabase.from('grades').select('*').eq('school_id', prof?.school_id).eq('year', year).order('id')),
+      fetchAllRows(() => supabase.from('attendance').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('fees').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('payments').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('behaviour').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('announcements').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('fee_templates').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('fee_periods').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('attendance_opening_balances').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRows(() => supabase.from('exam_scores').select('*').eq('school_id', prof?.school_id).eq('year', year).order('id')),
     ])
     setData({
       students:      students      || [],
@@ -272,6 +285,7 @@ export default function App() {
       users:         users         || [],
       fee_templates: feeTemplates  || [],
       fee_periods:   feePeriods    || [],
+      opening_balances: openingBalances || [],
       examScores:    examScores    || [],
     })
   }, [])
@@ -286,13 +300,19 @@ export default function App() {
       let resolvedProf = prof
       if (!prof && session?.user) {
         const metaRole = session.user.user_metadata?.role || 'superadmin'
-        const { data: newProf } = await supabase.from('profiles').upsert({
+        const { data: newProf, error: upsertErr } = await supabase.from('profiles').upsert({
           id: session.user.id,
           full_name: session.user.user_metadata?.full_name || session.user.email,
           email: session.user.email,
           role: metaRole,
           locked: false,
         }).select().single()
+        if (upsertErr) {
+          console.error('Failed to recover missing profile:', upsertErr.message)
+          await supabase.auth.signOut()
+          setProfile(null); setSession(null); setLoading(false)
+          return
+        }
         resolvedProf = newProf
       }
       setProfile(resolvedProf)
@@ -318,7 +338,10 @@ export default function App() {
       }
       setSettings(settingsRow)
 
-      await loadData(selectedYear, resolvedProf, settingsRow)
+      if (resolvedProf?.school_id) {
+        await loadData(selectedYear, resolvedProf, settingsRow)
+        lastLoadedYear.current = selectedYear
+      }
       initialLoadDone.current = true
       setLoading(false)
     }
@@ -328,6 +351,11 @@ export default function App() {
   useEffect(() => {
     if (!session || !settings || !profile) return
     if (!initialLoadDone.current) return
+    // Only re-fetch when the year itself actually changes — not whenever profile/settings
+    // get new object references (e.g. right after the initial load sets them for the
+    // first time), which was causing a redundant duplicate loadData() call on every login.
+    if (selectedYear === lastLoadedYear.current) return
+    lastLoadedYear.current = selectedYear
     loadData(selectedYear, profile, settings)
   }, [selectedYear, loadData, profile, settings])
 
@@ -363,12 +391,14 @@ export default function App() {
       return
     }
 
+    const closedYear = activeYear
     setSettings(p => ({ ...p, academic_year: newYearTarget }))
     setSelectedYear(null)
     setNewYearModal(false)
     setNewYearStep(1)
     setNewYearTarget('')
     showToast('Academic year ' + newYearTarget + ' started successfully.')
+    auditLog(profile, 'Settings', 'Started New Academic Year', `Closed ${closedYear} -> Opened ${newYearTarget}`, { old_year: closedYear, new_year: newYearTarget }, null, null)
 
     // Reload all data for the new year
     await loadData(newYearTarget, profile, settings)
@@ -376,6 +406,16 @@ export default function App() {
 
   const currentYear   = settings ? currentYearFromSettings(settings) : ''
   const activeYear    = selectedYear || currentYear
+
+  // The only valid next year is the one immediately after the current one --
+  // auto-fill it whenever the modal opens so there's no dropdown of several
+  // years ahead inviting a wrong, irreversible pick.
+  useEffect(() => {
+    if (!newYearModal || !currentYear) return
+    const [a, b] = currentYear.split('/').map(n => parseInt(n, 10))
+    if (!isNaN(a) && !isNaN(b)) setNewYearTarget(`${a + 1}/${b + 1}`)
+  }, [newYearModal, currentYear])
+
   const isViewingPast = !!(selectedYear && selectedYear !== currentYear)
     || planHook.status === 'cancelled_grace'
     || planHook.status === 'expiry_grace'
@@ -401,7 +441,8 @@ export default function App() {
     <ForceChangePassword
       profile={profile}
       onDone={async () => {
-        await supabase.from('profiles').update({ must_change_password: false }).eq('id', profile.id)
+        const { error } = await supabase.from('profiles').update({ must_change_password: false }).eq('id', profile.id)
+        if (error) { showToast('Password changed, but failed to clear the forced-change flag: ' + error.message, 'error') }
         setProfile(p => ({ ...p, must_change_password: false }))
         setMustChangePw(false)
       }}
@@ -417,7 +458,8 @@ export default function App() {
   if (showPlans)               return <><style>{G}</style><Plans   onEnter={() => { setShowPlans(false); setShowLanding(false) }} onBack={() => setShowPlans(false)} /></>
   if (showLanding && !session) return <Landing onEnter={() => setShowLanding(false)} onShowPlans={() => setShowPlans(true)}/>
   if (!session || !profile) return <><style>{G}</style><Login onLogin={p => setProfile(p)} lockedError={lockedError} onClearLockedError={() => setLockedError(false)} onBack={() => setShowLanding(true)}/></>
-  if (!profile.school_id)   return <><style>{G}</style><style>{"@keyframes srms-load{to{width:100%}}"}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null); setSession(null); setShowLanding(false) }}/></>
+  if (profile?.role === 'ministry_admin') return <><style>{G}</style><AdminConsole profile={profile} onSignOut={logout}/></>
+  if (!profile.school_id)   return <><style>{G}</style><style>{"@keyframes srms-load{to{width:100%}}"}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof, error: profErr } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow, error: setErr } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); if (profErr || setErr) { showToast('School created, but failed to load your new workspace -- please refresh.', 'error'); setLoading(false); return } setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null); setSession(null); setShowLanding(false) }}/></>
 
   if (!settings) return <><style>{G}</style><LoadingScreen msg="Loading settings..."/></>
 
@@ -719,6 +761,7 @@ export default function App() {
                   ['Grades',        'All grades are saved under ' + activeYear + '. New year starts with no grades.'],
                   ['Attendance',    'All attendance saved under ' + activeYear + '. New year starts fresh.'],
                   ['Fees',          'Outstanding balances carry over as arrears. Paid fees archived under ' + activeYear + '.'],
+                  ['Recurring Fees','Fee types (e.g. Feeding) carry over automatically. Periods already charged stay under ' + activeYear + ' -- the new year starts with none charged yet.'],
                   ['Behaviour',     'Records carry over — full history always visible.'],
                   ['Announcements', 'Current announcements archived. New year starts clean.'],
                 ].map(([title, desc]) => (
@@ -739,9 +782,12 @@ export default function App() {
           )}
           {newYearStep === 2 && (
             <div>
-              <p style={{ fontSize: 13, color: 'var(--mist2)', marginBottom: 16, lineHeight: 1.6 }}>Select the new academic year to open:</p>
-              <Field label='New Academic Year' value={newYearTarget || ''} onChange={v => setNewYearTarget(v)}
-                options={generateYears(currentYear).filter(y => parseInt(y) > parseInt(currentYear)).map(y => ({ value: y, label: y }))}/>
+              <p style={{ fontSize: 13, color: 'var(--mist2)', marginBottom: 16, lineHeight: 1.6 }}>
+                The new academic year to open — always the year immediately after the one you're closing, so there's no risk of accidentally skipping a year:
+              </p>
+              <div style={{ background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: 'var(--r)', padding: '16px 18px', textAlign: 'center', marginBottom: 12 }}>
+                <div className='d' style={{ fontSize: 24, fontWeight: 700, color: 'var(--emerald)' }}>{newYearTarget || '--'}</div>
+              </div>
               <p style={{ fontSize: 12, color: 'var(--mist3)', marginBottom: 20 }}>All existing data will be saved under <strong style={{ color: 'var(--gold)' }}>{activeYear}</strong>.</p>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                 <Btn variant='ghost' onClick={() => setNewYearStep(1)}>&larr; Back</Btn>

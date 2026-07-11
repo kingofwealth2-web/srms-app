@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, STATUS_META } from '../lib/constants'
@@ -22,6 +22,15 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   const today = new Date().toISOString().split('T')[0]
   const [date,setDate]     = useState(today)
   const [cid,setCid]       = useState(profile?.role==='classteacher'?profile.class_id:'')
+  useEffect(() => {
+    // profile can finish loading AFTER this component's first render (e.g. right after
+    // a page refresh). Since the useState above only runs once, a classteacher's cid
+    // could get permanently stuck empty for that whole page load if profile wasn't
+    // ready yet at mount time. This keeps cid in sync whenever profile actually arrives.
+    if (profile?.role === 'classteacher' && profile.class_id && cid !== profile.class_id) {
+      setCid(profile.class_id)
+    }
+  }, [profile?.role, profile?.class_id])
   const [tab,setTab]       = useState('mark')
   const [saving,setSaving] = useState(false)
   const [confirmState,setConfirmState] = useState(null)
@@ -38,7 +47,8 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   // Calendar blocking
   const vacations    = settings?.vacations    || []
   const customHols   = settings?.custom_holidays || []
-  const holidayName  = getHolidayOnDate(date, customHols)
+  const disabledHols = settings?.disabled_holidays || []
+  const holidayName  = getHolidayOnDate(date, customHols, disabledHols)
   const vacationName = getVacationOnDate(date, vacations, activeYear)
   const isBlocked    = !!(holidayName || vacationName)
   const blockReason  = vacationName
@@ -70,24 +80,20 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   }
 
   const saveAttendance = async () => {
-    if(!cls) return
+    if(!cls || saving) return
     setSaving(true)
     try {
       const allMarks = classStudents
         .map(s=>({school_id:profile?.school_id,student_id:s.id,class_id:cid,date,status:getStatus(s.id)||null,marked_by:profile?.id,academic_year:activeYear}))
         .filter(m=>m.status)
       if(allMarks.length===0){toast('No students marked -- nothing to save','error');setSaving(false);return}
-      // Delete existing records for this class+date, then insert fresh
-      const {error:delErr} = await supabase.from('attendance')
-        .delete()
-        .eq('school_id', profile?.school_id)
-        .eq('class_id', cid)
-        .eq('date', date)
-      if(delErr) throw delErr
-      const {data:rows,error:insErr} = await supabase.from('attendance')
-        .insert(allMarks)
+      // Single atomic upsert -- no delete-then-insert gap where data could be lost
+      // if the connection drops or two people save the same class+date at once.
+      // Requires a unique constraint on (school_id, class_id, date, student_id).
+      const {data:rows,error:upErr} = await supabase.from('attendance')
+        .upsert(allMarks, {onConflict:'school_id,class_id,date,student_id'})
         .select()
-      if(insErr) throw insErr
+      if(upErr) throw upErr
       setData(p=>({...p,attendance:[...p.attendance.filter(a=>!(a.class_id===cid&&a.date===date)),...(rows||[])]}))
       setPendingMarks({})
       setHasUnsaved(false)

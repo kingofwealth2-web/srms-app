@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META } from '../lib/constants'
-import { fmtDate } from '../lib/helpers'
+import { fmtDate, fetchAllRows } from '../lib/helpers'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
 import Field from '../components/Field'
@@ -57,7 +57,7 @@ export default function AuditLog({profile,settings,planHook,onShowPlans}) {
     const cutoff = new Date(Date.now() - 365*24*60*60*1000).toISOString()
     Promise.all([
       supabase.from('audit_logs').select('*').eq('school_id', profile.school_id).gte('created_at',cutoff).order('created_at',{ascending:false}).limit(500),
-      supabase.from('profiles').select('id,full_name,email,role').eq('school_id', profile.school_id)
+      fetchAllRows(() => supabase.from('profiles').select('id,full_name,email,role').eq('school_id', profile.school_id).order('id'))
     ]).then(([{data:logs,error},{data:users}])=>{
       if(error) console.error(error)
       setLogs(logs||[])

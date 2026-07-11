@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useIsMobile, usePageData } from '../lib/hooks'
 import { ROLE_META, BEHAVIOUR_META } from '../lib/constants'
-import { fmtDate, getLetter, calcTotal, getGradeComponents, canSeeAnnouncement, getCurrency, fmtMoney , fullName } from '../lib/helpers'
+import { fmtDate, getLetter, calcTotal, getGradeComponents, canSeeAnnouncement, getCurrency, fmtMoney , fullName, calcAttendanceRate } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Card from '../components/Card'
 import KPI from '../components/KPI'
@@ -20,6 +20,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   const { data: grades }        = usePageData('grades',        profile, activeYear)
   const { data: attendance }    = usePageData('attendance',    profile, activeYear)
   const { data: announcements } = usePageData('announcements', profile, activeYear)
+  const { data: openingBalances } = usePageData('attendance_opening_balances', profile, activeYear)
 
   const {students=[],classes=[],subjects=[],enrolments=[]} = data
   // When viewing past year, use enrolment records to know which students were enrolled
@@ -116,13 +117,14 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
       }).filter(x=>x.top.length>0)
     : []
 
-  // Attendance rate calculations
-  const schoolAttTotal   = attendance.length
-  const schoolAttPresent = attendance.filter(a=>a.status==='Present').length
-  const schoolAttRate    = schoolAttTotal ? Math.round(schoolAttPresent/schoolAttTotal*100) : 0
+  // Attendance rate calculations (folds in any Opening Attendance Balance entries)
+  const schoolAttSummary = calcAttendanceRate(attendance, openingBalances)
+  const schoolAttTotal   = schoolAttSummary.total
+  const schoolAttPresent = schoolAttSummary.present
+  const schoolAttRate    = schoolAttSummary.rate ?? 0
   const myClassAtt       = myClass ? attendance.filter(a=>a.class_id===myClass.id) : []
-  const myClassPresent   = myClassAtt.filter(a=>a.status==='Present').length
-  const myClassAttRate   = myClassAtt.length ? Math.round(myClassPresent/myClassAtt.length*100) : 0
+  const myClassOB        = myClass ? openingBalances.filter(b=>b.class_id===myClass.id) : []
+  const myClassAttRate   = calcAttendanceRate(myClassAtt, myClassOB).rate ?? 0
 
   const unassignedClasses = profile?.role==='superadmin'
     ? classes.filter(c=>!c.class_teacher_id)
@@ -181,7 +183,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
         {profile?.role==='classteacher' && <>
           <KPI label='My Class'         value={myClass?.name||'--'}   color='var(--gold)'    sub='Your assigned class' index={0}/>
           <KPI label='Students'         value={myClassStudents.length} color='var(--sky)'   sub='In your class' index={1}/>
-          <KPI label='Attendance Rate'  value={myClassAtt.length?`${myClassAttRate}%`:'--'} color='var(--emerald)' sub={todayMarked?'Today marked':'Not marked today'} index={2}/>
+          <KPI label='Attendance Rate'  value={(myClassAtt.length||myClassOB.length)?`${myClassAttRate}%`:'--'} color='var(--emerald)' sub={todayMarked?'Today marked':'Not marked today'} index={2}/>
           <KPI label='Pass Rate'        value={`${myClassPassRate}%`} color='var(--amber)'   sub='This semester' index={3}/>
         </>}
         {profile?.role==='teacher' && <>
@@ -268,7 +270,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
       </Card>
       <div style={{marginTop:40,paddingTop:20,borderTop:'1px solid var(--line)',textAlign:'center'}}>
         <div style={{fontSize:12,color:'var(--mist3)'}}>Designed &amp; developed by <span style={{color:'var(--white)',fontWeight:600}}>Prince William Kofi Anquandah</span></div>
-        <div style={{fontSize:11,color:'var(--mist3)',marginTop:5,letterSpacing:'0.08em'}}><span style={{color:'var(--gold)',fontWeight:600,letterSpacing:'0.12em'}}>ZELVA STUDIOS</span> . {new Date().getFullYear()}</div>
+        <div style={{fontSize:11,color:'var(--mist3)',marginTop:5,letterSpacing:'0.08em'}}><span style={{color:'var(--gold)',fontWeight:600,letterSpacing:'0.12em'}}>PRIME LOGIC SOFTWARES</span> . {new Date().getFullYear()}</div>
       </div>
     </div>
   )

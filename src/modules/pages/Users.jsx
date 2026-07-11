@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META } from '../lib/constants'
-import { fmtDate } from '../lib/helpers'
+import { fmtDate, fetchAllRows } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -38,7 +38,7 @@ export default function Users({profile,toast,planHook}) {
     if(!profile?.school_id) return
     Promise.all([
       supabase.from('profiles').select('*').eq('school_id', profile?.school_id),
-      supabase.from('students').select('id,first_name,middle_name,last_name,student_id,class_id').eq('school_id', profile?.school_id).eq('archived', false).order('last_name'),
+      fetchAllRows(() => supabase.from('students').select('id,first_name,middle_name,last_name,student_id,class_id').eq('school_id', profile?.school_id).eq('archived', false).order('last_name')),
     ]).then(([{data:usrs},{data:studs}])=>{
       if(usrs) setUsers(usrs)
       if(studs) setStudents(studs)
@@ -86,8 +86,10 @@ export default function Users({profile,toast,planHook}) {
       if(error){ toast(error.message,'error'); setSaving(false); return }
       // If switching away from class teacher, unlink from class
       if(edit.role==='classteacher' && form.role!=='classteacher'){
-        await supabase.from('profiles').update({class_id:null}).eq('id',edit.id)
-        await supabase.from('classes').update({class_teacher_id:null}).eq('class_teacher_id',edit.id).eq('school_id',profile?.school_id)
+        const {error:unlinkErr} = await supabase.from('profiles').update({class_id:null}).eq('id',edit.id)
+        if(unlinkErr) toast('Role updated but failed to unlink profile from class: '+unlinkErr.message,'error')
+        const {error:classErr} = await supabase.from('classes').update({class_teacher_id:null}).eq('class_teacher_id',edit.id).eq('school_id',profile?.school_id)
+        if(classErr) toast('Role updated but failed to clear class teacher assignment: '+classErr.message,'error')
       }
       // Re-fetch from DB to confirm the change actually saved
       const {data:refreshed} = await supabase.from('profiles').select('*').eq('id',edit.id).single()
@@ -96,9 +98,12 @@ export default function Users({profile,toast,planHook}) {
       }
       // Handle parent link changes on edit
       if(form.role==='parent'){
-        await supabase.from('parent_students').delete().eq('parent_id',edit.id).eq('school_id',profile?.school_id)
-        if(parentLinks.length>0){
-          await supabase.from('parent_students').insert(parentLinks.map(sid=>({parent_id:edit.id,student_id:sid,school_id:profile?.school_id})))
+        const {error:delLinkErr} = await supabase.from('parent_students').delete().eq('parent_id',edit.id).eq('school_id',profile?.school_id)
+        if(delLinkErr){
+          toast('User updated but failed to update linked children: '+delLinkErr.message,'error')
+        } else if(parentLinks.length>0){
+          const {error:addLinkErr} = await supabase.from('parent_students').insert(parentLinks.map(sid=>({parent_id:edit.id,student_id:sid,school_id:profile?.school_id})))
+          if(addLinkErr) toast('User updated but failed to link children: '+addLinkErr.message,'error')
         }
       }
       auditLog(profile,'Users','Updated',`${form.full_name} · Role: ${edit.role}→${form.role}`,{},{...edit},{...form})

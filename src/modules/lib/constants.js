@@ -5,6 +5,7 @@ export const ROLE_META = {
   classteacher:{label:'Class Teacher',  color:'var(--emerald)', bg:'rgba(45,212,160,0.12)'},
   teacher:     {label:'Subject Teacher',color:'var(--amber)',   bg:'rgba(251,159,58,0.12)'},
   parent:      {label:'Parent',          color:'var(--sky)',     bg:'rgba(91,168,245,0.12)'},
+  ministry_admin:{label:'Ministry Admin',color:'var(--amber)',   bg:'rgba(251,159,58,0.12)'},
 }
 
 export const STATUS_META = {
@@ -42,6 +43,7 @@ export const FEE_STATUS = {
   Paid:       {color:'var(--emerald)',bg:'rgba(45,212,160,0.12)'},
   Partial:    {color:'var(--amber)',  bg:'rgba(251,159,58,0.12)'},
   Outstanding:{color:'var(--rose)',   bg:'rgba(240,107,122,0.12)'},
+  Overpaid:   {color:'var(--sky)',    bg:'rgba(91,168,245,0.12)'},
 }
 
 export const CURRENCIES = [

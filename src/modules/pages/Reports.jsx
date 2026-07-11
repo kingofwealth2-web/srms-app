@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName } from '../lib/helpers'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName, calcAttendanceRate, isPassing, rankByTotal, effectivePaid } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
@@ -30,7 +30,7 @@ const abbrSubject = name => {
 
 // ── REPORTS ────────────────────────────────────────────────────
 export default function Reports({profile,data,settings,activeYear,isViewingPast,toast,planHook,onShowPlans}) {
-  const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[]} = data
+  const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[],opening_balances:openingBalances=[],payments=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
   const currency   = getCurrency(settings)
@@ -70,6 +70,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   const [rcHeadTeacher,setRcHeadTeacher] = useState('')
   const [rcStamp,setRcStamp]         = useState(false)
   const [rcClassTeacherName,setRcClassTeacherName] = useState('')
+  const [rcReportTitle,setRcReportTitle] = useState('') // custom header kicker text -- falls back to a per-type default when blank
   // Pre-filter class teacher to their class; subject teacher to their teaching classes
   const teacherClassIds = isTeacher ? [...new Set(subjects.filter(s=>s.teacher_id===profile?.id).map(s=>s.class_id))] : null
 
@@ -134,43 +135,26 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
     const avg   = tots.length ? Math.round(total/tots.length) : null
     const remark= avg!==null ? getGradeRemark(avg,scale) : '--'
     const trend = !fp ? getTrendArrow(s.id) : null
-    return {...s, subjectScores, total: total||0, avg, remark, trend, count:sg.length, letter:avg!==null?getLetter(avg,scale):'--', pass:avg!==null?avg>=50:null}
+    const scoredSubjectCount = Object.keys(subjectScores).length
+    return {...s, subjectScores, total, avg, remark, trend, count:sg.length, scoredSubjectCount, letter:avg!==null?getLetter(avg,scale):'--', pass:isPassing(avg,scale)}
   })
-  // Sort by total descending for ranking
-  const sortedAcademic = [...academicData].sort((a,b)=>(b.total||0)-(a.total||0))
-  // Assign positions (standard competition ranking with ties: 1,1,3,...)
-  let lastScoreAcad = null
-  let lastRankAcad  = 0
-  let seenAcad      = 0
-  const rankedAcademic = sortedAcademic.map(s=>{
-    seenAcad++
-    const score = s.total||0
-    if(lastScoreAcad===null || score!==lastScoreAcad){
-      lastRankAcad = seenAcad
-      lastScoreAcad = score
-    }
-    return {...s,position:lastRankAcad}
-  })
-  // If single student, show their rank in class
+  // Rank by average (not raw summed total) so a partially-graded student isn't
+  // penalized against a fully-graded one just for having fewer subjects added up;
+  // students with no grades at all are excluded from ranking, not sorted to last.
+  const rankedAcademic = rankByTotal(academicData, 'avg')
+  // If single student, show their rank in class (same avg-based ranking as the
+  // main class table, so a single-student view and the class view never disagree)
   const studentRankInClass = selectedStudent
     ? (() => {
         const classStudents = students.filter(s=>s.class_id===selectedStudent.class_id)
         const allAcad = classStudents.map(s=>{
           const sg=grades.filter(g=>g.student_id===s.id&&(!fp||g.period===fp))
           const tots=sg.map(g=>calcTotal(g,gradeComps))
-          const total=tots.length?tots.reduce((a,b)=>a+b,0):0
-          return {id:s.id,total}
-        }).sort((a,b)=>b.total-a.total)
-        let lastScore=null,lastRank=0,seen=0
-        const ranked=allAcad.map(s=>{
-          seen++
-          if(lastScore===null || s.total!==lastScore){
-            lastRank=seen
-            lastScore=s.total
-          }
-          return {...s,pos:lastRank}
+          const avg=tots.length?Math.round(tots.reduce((a,b)=>a+b,0)/tots.length):null
+          return {id:s.id,avg}
         })
-        return ranked.find(s=>s.id===selectedStudent.id)?.pos||null
+        const ranked = rankByTotal(allAcad, 'avg')
+        return ranked.find(s=>s.id===selectedStudent.id)?.position||null
       })()
     : null
 
@@ -187,20 +171,23 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   const classSubjects = fsub
     ? teacherSubjects.filter(s=>s.id===fsub)
     : teacherSubjects
+  // How many of the class's subjects has each student actually been scored in --
+  // drives the "rankings are provisional" notice when grading isn't complete yet.
+  const incompleteCount = classSubjects.length>0 ? rankedAcademic.filter(s=>s.scoredSubjectCount<classSubjects.length).length : 0
 
   // ── Attendance data ──
   const attData = scopedStudents.map(s=>{
     const sa=attendance.filter(a=>a.student_id===s.id)
-    const pres=sa.filter(a=>a.status==='Present').length
-    return{...s,total:sa.length,present:pres,absent:sa.filter(a=>a.status==='Absent').length,late:sa.filter(a=>a.status==='Late').length,excused:sa.filter(a=>a.status==='Excused').length,rate:sa.length?Math.round(pres/sa.length*100):null}
+    const sob=openingBalances.filter(b=>b.student_id===s.id)
+    return{...s,...calcAttendanceRate(sa,sob)}
   })
 
   // ── Fee data ──
   const feeData = scopedStudents.map(s=>{
     const sf=fees.filter(f=>f.student_id===s.id)
     const owed=sf.reduce((a,f)=>a+Number(f.amount||0),0)
-    const paid=sf.reduce((a,f)=>a+Number(f.paid||0),0)
-    return{...s,owed,paid,balance:owed-paid,feeStatus:owed===0?'--':paid>=owed?'Paid':paid>0?'Partial':'Outstanding'}
+    const paid=sf.reduce((a,f)=>a+effectivePaid(f,payments),0)
+    return{...s,owed,paid,balance:owed-paid,feeStatus:owed===0?'--':paid>owed?'Overpaid':paid>=owed?'Paid':paid>0?'Partial':'Outstanding'}
   })
 
   // ── Summary KPIs ──
@@ -222,8 +209,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
         if(!rcClass) { return }
         const rcClassSubjects = subjects.filter(s=>s.class_id===rcClass)
         const rcClassStudents = students.filter(s=>s.class_id===rcClass&&!s.archived)
-        const rcRanked = [...rcClassStudents]
-          .map(s=>{
+        const rcRanked = rankByTotal(rcClassStudents.map(s=>{
             const scores={}
             if(gradeSource==='exam'){
               rcClassSubjects.forEach(sub=>{
@@ -237,19 +223,13 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
             const tots=Object.values(scores)
             const total=tots.length?tots.reduce((a,b)=>a+b,0):null
             const avg=tots.length?Math.round(total/tots.length):null
-            return {...s,scores,total:total||0,avg,letter:avg!==null?getLetter(avg,scale):'--',remark:avg!==null?getGradeRemark(avg,scale):'',pass:avg!==null?avg>=50:null}
-          })
-          .sort((a,b)=>(b.total||0)-(a.total||0))
-          .reduce((acc,s,i,arr)=>{
-            let rank=i+1
-            if(i>0&&(s.total||0)===(arr[i-1].total||0)) rank=acc[i-1].position
-            acc.push({...s,position:rank}); return acc
-          },[])
+            return {...s,scores,total,avg,letter:avg!==null?getLetter(avg,scale):'--',remark:avg!==null?getGradeRemark(avg,scale):'',pass:isPassing(avg,scale)}
+          }), 'avg')
         csv='Position,Student ID,Student,'+rcClassSubjects.map(s=>`"${csvEscape(s.name)}"`).join(',')+',Total,Average,Grade,Remark,Status\n'
         rcRanked.forEach(s=>{
-          csv+=`${ordinal(s.position)},"${csvEscape(s.student_id)}","${csvEscape(fullName(s))}",`
+          csv+=`${s.position!==null?ordinal(s.position):'--'},"${csvEscape(s.student_id)}","${csvEscape(fullName(s))}",`
           csv+=rcClassSubjects.map(sub=>s.scores[sub.id]??'--').join(',')
-          csv+=`,${s.total||0},${s.avg??0},${csvEscape(s.letter)},"${csvEscape(s.remark)}",${s.pass===null?'--':s.pass?'Pass':'Fail'}\n`
+          csv+=`,${s.total??'--'},${s.avg??'--'},${csvEscape(s.letter)},"${csvEscape(s.remark)}",${s.pass===null?'--':s.pass?'Pass':'Fail'}\n`
         })
         const cls=classes.find(c=>c.id===rcClass)
         filename=`SRMS_Broadsheet_${cls?.name?.replace(/\s+/g,'_')||'Class'}_${rcPeriod||'AllPeriods'}.csv`
@@ -259,7 +239,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
           grades.filter(g=>g.student_id===selectedStudent.id&&(!fp||g.period===fp)).forEach(g=>{
             const subj=subjects.find(s=>s.id===g.subject_id)
             const tot=calcTotal(g,gradeComps), let_=getLetter(tot,scale), rem=getGradeRemark(tot,scale)
-            csv+=`"${csvEscape(subj?.name||'--')}",${gradeComps.filter(c=>c.enabled).map(c=>g[c.key]||0).join(',')},${tot},${csvEscape(let_)},"${csvEscape(rem)}",${tot>=50?'Pass':'Fail'}\n`
+            csv+=`"${csvEscape(subj?.name||'--')}",${gradeComps.filter(c=>c.enabled).map(c=>g[c.key]||0).join(',')},${tot},${csvEscape(let_)},"${csvEscape(rem)}",${isPassing(tot,scale)?'Pass':'Fail'}\n`
           })
         } else {
           const visSubjects=classSubjects.length>0?classSubjects:subjects
@@ -275,7 +255,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
               const g=grades.find(gr=>gr.student_id===s.id&&gr.subject_id===sub.id&&(!fp||gr.period===fp))
               gradeComps.filter(c=>c.enabled).forEach(c=>{ row+=`,${g?g[c.key]||0:'--'}` })
             })
-            row+=`,${s.total||0},${s.avg??0},${csvEscape(s.letter)},"${csvEscape(s.remark||'')}",${s.pass===null?'--':s.pass?'Pass':'Fail'}\n`
+            row+=`,${s.total??'--'},${s.avg??'--'},${csvEscape(s.letter)},"${csvEscape(s.remark||'')}",${s.pass===null?'--':s.pass?'Pass':'Fail'}\n`
             csv+=row
           })
         }
@@ -432,9 +412,14 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
         {rtype==='academic' && (
           <>
             {!selectedStudent && (effectiveClassId || academicData.length>0) && (
-              <div style={{marginBottom:12,display:'flex',alignItems:'center',gap:8}}>
-                <span style={{fontSize:11,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em'}}>Ranked by total score</span>
+              <div style={{marginBottom:12,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                <span style={{fontSize:11,color:'var(--mist3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em'}}>Ranked by average score</span>
                 {classSubjects.length>0 && <span style={{fontSize:11,color:'var(--mist3)'}}>. {classSubjects.length} subjects</span>}
+                {incompleteCount>0 && (
+                  <span style={{fontSize:11,color:'var(--amber)',background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.25)',borderRadius:'var(--r-sm)',padding:'3px 10px'}}>
+                    (!) Rankings are provisional — {incompleteCount} student{incompleteCount!==1?'s':''} not yet graded in every subject
+                  </span>
+                )}
               </div>
             )}
             <div style={{overflowX:'auto'}}>
@@ -477,7 +462,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
                               <td style={tdStyle}><span className='mono' style={{fontWeight:700,fontSize:14}}>{tot}</span></td>
                               <td style={tdStyle}><Badge color={getGradeColor(let_, settings?.grade_system)||'var(--mist2)'}>{let_}</Badge></td>
                               <td style={tdStyle}><span style={{fontSize:12,color:'var(--mist2)'}}>{getGradeRemark(tot,scale)||'--'}</span></td>
-                              <td style={tdStyle}>{tot>=50?<Badge color='var(--emerald)'>Pass</Badge>:<Badge color='var(--rose)'>Fail</Badge>}</td>
+                              <td style={tdStyle}>{isPassing(tot,scale)?<Badge color='var(--emerald)'>Pass</Badge>:<Badge color='var(--rose)'>Fail</Badge>}</td>
                             </tr>
                           )
                         })
@@ -489,17 +474,28 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
                         : rankedAcademic.map((s,i)=>(
                             <tr key={s.id} style={{borderBottom:'1px solid var(--line)',background:i%2===0?'transparent':'rgba(255,255,255,0.01)'}}>
                               <td style={tdStyle}>
-                                <span style={{fontWeight:700,color:s.position<=3?'var(--gold)':'var(--mist2)',fontSize:13}}>{ordinal(s.position)}</span>
+                                <span style={{fontWeight:700,color:s.position!==null&&s.position<=3?'var(--gold)':'var(--mist2)',fontSize:13}}>{ordinal(s.position)}</span>
                               </td>
                               <td style={tdStyle}><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{s.student_id}</span></td>
-                              <td style={tdStyle}><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={fullName(s)} size={26} photo={s.photo}/><span style={{fontWeight:600}}>{fullName(s)}</span></div></td>
+                              <td style={tdStyle}>
+                                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                                  <Avatar name={fullName(s)} size={26} photo={s.photo}/>
+                                  <span style={{fontWeight:600}}>{fullName(s)}</span>
+                                  {classSubjects.length>0 && s.scoredSubjectCount<classSubjects.length && (
+                                    <span title={`Graded in ${s.scoredSubjectCount} of ${classSubjects.length} subjects`}
+                                      style={{fontSize:10,color:'var(--amber)',background:'rgba(251,159,58,0.1)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:4,padding:'1px 6px'}}>
+                                      {s.scoredSubjectCount}/{classSubjects.length}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
                               {!isClassTeacher && <td style={tdStyle}>{classes.find(c=>c.id===s.class_id)?.name||'--'}</td>}
                               {classSubjects.map(sub=>{
                                 const score=s.subjectScores[sub.id]
                                 const scoreColor=score!==undefined?(score<50?'var(--rose)':score>=75?'var(--emerald)':'var(--white)'):'var(--mist3)'
                                 return <td key={sub.id} style={{...tdStyle,textAlign:'center'}}><span className='mono' style={{color:scoreColor,fontWeight:score!==undefined?600:400}}>{score??'--'}</span></td>
                               })}
-                              <td style={tdStyle}><span className='mono' style={{fontWeight:700}}>{s.total||'--'}</span></td>
+                              <td style={tdStyle}><span className='mono' style={{fontWeight:700}}>{s.total??'--'}</span></td>
                               <td style={tdStyle}><span className='mono'>{s.avg??'--'}</span></td>
                               <td style={tdStyle}>{s.letter!=='--'?<Badge color={getGradeColor(s.letter, settings?.grade_system)||'var(--mist2)'}>{s.letter}</Badge>:'--'}</td>
                               <td style={tdStyle}><span style={{fontSize:12,color:'var(--mist2)'}}>{s.remark||'--'}</span></td>
@@ -533,7 +529,9 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
             {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
             {key:'owed',label:'Owed',render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
             {key:'paid',label:'Paid',render:v=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
-            {key:'balance',label:'Balance',render:v=><span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
+            {key:'balance',label:'Balance',render:v=>v<0
+              ? <span className='mono' style={{color:'var(--sky)'}}>{fmtMoney(Math.abs(v),currency)} credit</span>
+              : <span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
             {key:'feeStatus',label:'Status',render:v=>v!=='--'?<Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>:'--'},
           ]}/>
         )}
@@ -557,6 +555,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
           rcHeadTeacher={rcHeadTeacher} setRcHeadTeacher={setRcHeadTeacher}
           rcStamp={rcStamp} setRcStamp={setRcStamp}
           rcClassTeacherName={rcClassTeacherName} setRcClassTeacherName={setRcClassTeacherName}
+          rcReportTitle={rcReportTitle} setRcReportTitle={setRcReportTitle}
           exportExcel={exportExcel}
           planHook={planHook}
           onShowPlans={onShowPlans}
@@ -570,8 +569,8 @@ const thStyle={padding:'10px 12px',textAlign:'left',fontSize:10,fontWeight:600,c
 const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlign:'middle'}
 
 // ── REPORT CARDS ───────────────────────────────────────────────
-function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,exportExcel,planHook,onShowPlans}) {
-  const {students=[],grades=[],attendance=[],behaviour=[],classes=[],subjects=[],users=[],examScores=[]} = data
+function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,rcReportTitle,setRcReportTitle,exportExcel,planHook,onShowPlans}) {
+  const {students=[],grades=[],attendance=[],behaviour=[],classes=[],subjects=[],users=[],examScores=[],opening_balances:openingBalances=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
   const schoolLogo = settings?.school_logo||null
@@ -616,6 +615,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     const tots = classSubjects.map(s=>getTotal(studentId,s.id)).filter(t=>t!==null)
     return tots.length ? tots.reduce((a,b)=>a+b,0) : null
   }
+  const getStudentScoredCount = (studentId) =>
+    classSubjects.filter(sub=>getTotal(studentId,sub.id)!==null).length
 
   // Exam score helpers
   const getExamTotal = (studentId, subjectId) => {
@@ -629,38 +630,30 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     const tots = classSubjects.map(s=>getExamTotal(studentId,s.id)).filter(t=>t!==null)
     return tots.length ? tots.reduce((a,b)=>a+b,0) : null
   }
+  const getExamScoredCount = (studentId) =>
+    classSubjects.filter(sub=>getExamTotal(studentId,sub.id)!==null).length
   const activeGetTotal = gradeSource==='exam' ? getExamTotal : getTotal
   const activeGetStudentTotal = gradeSource==='exam' ? getStudentExamTotal : getStudentTotal
+  const activeGetScoredCount  = gradeSource==='exam' ? getExamScoredCount : getStudentScoredCount
 
-  // Rank students by total — proper tie handling (standard competition ranking)
-  const rankedStudents = (() => {
-    const withGrades    = [...classStudents].map(s=>({...s, total: activeGetStudentTotal(s.id)})).filter(s=>s.total!==null)
-    const withoutGrades = [...classStudents].map(s=>({...s, total: null})).filter(s=>activeGetStudentTotal(s.id)===null)
-    withGrades.sort((a,b)=>b.total-a.total)
-    let lastScore = null
-    let lastRank  = 0
-    let seen      = 0
-    const ranked = []
-    withGrades.forEach(s=>{
-      seen++
-      if(lastScore===null || s.total!==lastScore){
-        lastRank = seen
-        lastScore = s.total
-      }
-      ranked.push({...s,position:lastRank})
-    })
-    return [...ranked, ...withoutGrades.map(s=>({...s,position:null}))]
-  })()
+  // Ranked by average (not raw total) so a student missing a subject's grade
+  // isn't penalized against a fully-graded classmate -- same logic and helper
+  // as the main Academic tab, so the two never disagree.
+  const rankedStudents = rankByTotal(classStudents.map(s=>{
+    const total = activeGetStudentTotal(s.id)
+    const scoredSubjectCount = activeGetScoredCount(s.id)
+    const avg = total!==null && scoredSubjectCount>0 ? total/scoredSubjectCount : null
+    return {...s, total, avg, scoredSubjectCount}
+  }), 'avg')
+  const incompleteCount = classSubjects.length>0
+    ? rankedStudents.filter(s=>s.scoredSubjectCount<classSubjects.length).length
+    : 0
 
   // Attendance helper
   const getAttendance = (studentId) => {
     const recs = attendance.filter(a=>a.student_id===studentId)
-    const total   = recs.length
-    const present = recs.filter(a=>a.status==='Present').length
-    const absent  = recs.filter(a=>a.status==='Absent').length
-    const late    = recs.filter(a=>a.status==='Late').length
-    const rate    = total ? Math.round(present/total*100) : null
-    return {total,present,absent,late,rate}
+    const obs  = openingBalances.filter(b=>b.student_id===studentId)
+    return calcAttendanceRate(recs, obs)
   }
 
   // Behaviour helper
@@ -705,7 +698,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   // ── BROADSHEET ─────────────────────────────────────────────────
   const printBroadsheet = () => {
-    if(!rcClass||!rcPeriod) return
+    if(!rcClass||!rcPeriod||!rcReportTitle.trim()) return
     const cls = classes.find(c=>c.id===rcClass)
 
     const subjectCols = classSubjects.map(s=>`
@@ -719,17 +712,19 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         return `<td style="padding:8px 6px;text-align:center;font-size:12px;font-weight:700;border:1px solid #f3f4f6;color:${c};background:${bg};">${t!==null?t:'—'}</td>`
       }).join('')
       const total  = s.total
-      const scoredCount = classSubjects.filter(sub=>activeGetTotal(s.id,sub.id)!==null).length
-      const avg    = scoredCount>0&&total!==null ? total/scoredCount : null
+      const avg    = s.avg
       const letter = avg!==null ? getGradeLetter(avg,scale) : '--'
       const remark = avg!==null ? getGradeRemark(avg,scale) : '--'
       const posOrd = s.position!==null ? ordinal(s.position) : '—'
       const posC   = s.position===null?'#9ca3af':s.position===1?'#b45309':s.position===2?'#6b7280':s.position===3?'#92400e':'#6d28d9'
       const posBg  = s.position===null?'#f9fafb':s.position===1?'#fef3c7':s.position===2?'#f3f4f6':s.position===3?'#fef3c7':'#f5f3ff'
       const rowBg  = i%2===0?'#ffffff':'#f9fafb'
+      const incompleteFlag = classSubjects.length>0 && s.scoredSubjectCount<classSubjects.length
+        ? `<span style="font-size:8px;font-weight:700;color:#d97706;background:#fef9ec;border:1px solid #fde68a;border-radius:4px;padding:1px 5px;margin-left:6px;">${s.scoredSubjectCount}/${classSubjects.length}</span>`
+        : ''
       return `<tr style="background:${rowBg};">
         <td style="padding:8px 12px;font-size:11px;font-family:monospace;border:1px solid #f3f4f6;color:#6b7280;">${s.student_id}</td>
-        <td style="padding:8px 12px;font-size:13px;font-weight:600;border:1px solid #f3f4f6;color:#111827;">${s.last_name}, ${s.first_name}</td>
+        <td style="padding:8px 12px;font-size:13px;font-weight:600;border:1px solid #f3f4f6;color:#111827;">${s.last_name}, ${s.first_name}${incompleteFlag}</td>
         ${subjectCells}
         <td style="padding:8px 8px;text-align:center;font-size:13px;font-weight:800;border:1px solid #f3f4f6;background:#dbeafe;color:#1e40af;">${total!==null?total:'—'}</td>
         <td style="padding:8px 8px;text-align:center;font-size:12px;font-weight:700;border:1px solid #f3f4f6;background:#dbeafe;color:#1e40af;">${avg!==null?Math.round(avg):'—'}</td>
@@ -739,14 +734,10 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       </tr>`
     }).join('')
 
-    const passCount = rankedStudents.filter(s=>{
-      if(s.total===null) return false
-      const sc=classSubjects.filter(sub=>getTotal(s.id,sub.id)!==null).length
-      return sc>0&&s.total/sc>=50
-    }).length
-    const withT = rankedStudents.filter(s=>s.total!==null)
+    const passCount = rankedStudents.filter(s=>isPassing(s.avg,scale)).length
+    const withT = rankedStudents.filter(s=>s.avg!==null)
     const classAvg = withT.length
-      ? withT.reduce((a,s)=>{const sc=classSubjects.filter(sub=>getTotal(s.id,sub.id)!==null).length;return a+(sc>0?s.total/sc:0)},0)/withT.length
+      ? withT.reduce((a,s)=>a+s.avg,0)/withT.length
       : null
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -766,7 +757,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           ${schoolMotto?`<div style="font-size:10px;color:#93c5fd;margin-top:3px;font-style:italic;">"${schoolMotto}"</div>`:''}
         </div>
         <div style="text-align:right;">
-          <div style="font-size:9px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:5px;">Terminal Report — Class Broadsheet</div>
+          <div style="font-size:9px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:5px;">${rcReportTitle||'Terminal Report — Class Broadsheet'}</div>
           <div style="font-size:22px;font-weight:800;color:#fbbf24;">${cls?.name||'--'}</div>
           <div style="font-size:11px;color:#bfdbfe;margin-top:3px;">${rcPeriod} &nbsp;·&nbsp; ${activeYear}</div>
         </div>
@@ -776,6 +767,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         <div style="font-size:12px;color:#6b7280;">Subjects: <strong style="color:#111827;">${classSubjects.length}</strong></div>
         <div style="font-size:12px;color:#6b7280;">Pass Rate: <strong style="color:${rankedStudents.length&&passCount/rankedStudents.length>=0.7?'#16a34a':'#dc2626'};">${rankedStudents.length?Math.round(passCount/rankedStudents.length*100):0}%</strong></div>
         <div style="font-size:12px;color:#6b7280;">Class Avg: <strong style="color:#1e40af;">${classAvg!==null?fmtScore(classAvg):'--'}</strong></div>
+        ${incompleteCount>0?`<div style="font-size:11px;color:#b45309;background:#fef9ec;border:1px solid #fde68a;border-radius:6px;padding:3px 10px;">(!) Provisional -- ${incompleteCount} student${incompleteCount!==1?'s':''} not yet graded in every subject</div>`:''}
         <div style="margin-left:auto;font-size:10px;color:#9ca3af;">Generated: ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}</div>
       </div>
       <div style="padding:16px;">
@@ -821,23 +813,15 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   // ── SUBJECT REPORT ─────────────────────────────────────────────
   const printSubjectReport = () => {
-    if(!rcClass||!rcPeriod||!rcSubject) return
+    if(!rcClass||!rcPeriod||!rcSubject||!rcReportTitle.trim()) return
     const cls = classes.find(c=>c.id===rcClass)
     const sub = subjects.find(s=>s.id===rcSubject)
     const subTeacher = sub?.teacher_id ? users.find(u=>u.id===sub.teacher_id) : null
 
-    const rankedBySub = [...classStudents].map(s=>({...s,score:activeGetTotal(s.id,rcSubject)}))
-      .sort((a,b)=>(b.score||0)-(a.score||0))
-    let lastScore=null, lastRank=0, seen=0
-    const ranked = rankedBySub.map((s)=>{
-      if(s.score===null) return {...s,position:null}
-      seen++
-      if(lastScore===null||s.score!==lastScore){ lastRank=seen; lastScore=s.score }
-      return {...s,position:lastRank}
-    })
+    const ranked = rankByTotal(classStudents.map(s=>({...s,score:activeGetTotal(s.id,rcSubject)})), 'score')
 
     const withScore = ranked.filter(s=>s.score!==null)
-    const passCount = withScore.filter(s=>s.score>=50).length
+    const passCount = withScore.filter(s=>isPassing(s.score,scale)).length
     const avgScore  = withScore.length ? Math.round(withScore.reduce((a,s)=>a+s.score,0)/withScore.length) : '--'
 
     const rows = ranked.map((s,i)=>{
@@ -876,7 +860,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         </div>
         <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:14px;display:flex;justify-content:space-between;align-items:flex-end;">
           <div>
-            <div style="font-size:9px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:5px;">Subject Performance Report</div>
+            <div style="font-size:9px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:5px;">${rcReportTitle||'Subject Performance Report'}</div>
             <div style="font-size:22px;font-weight:800;color:#fbbf24;">${sub?.name||'--'}</div>
           </div>
           <div style="text-align:right;">
@@ -987,7 +971,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           <div style="font-family:'Playfair Display',serif;font-size:19px;font-weight:700;color:#fff;letter-spacing:-0.01em;">${schoolName}</div>
           ${schoolMotto?`<div style="font-size:10px;color:#93c5fd;margin-top:3px;font-style:italic;">"${schoolMotto}"</div>`:''}
           <div style="display:inline-block;margin-top:8px;padding:4px 18px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);border-radius:20px;">
-            <span style="font-size:10px;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:0.14em;">Student Terminal Report Card</span>
+            <span style="font-size:10px;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:0.14em;">${rcReportTitle||'Student Terminal Report Card'}</span>
           </div>
         </div>
         ${photoTag}
@@ -1028,6 +1012,10 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           </div>
         </div>
       </div>
+      ${classSubjects.length>0 && subTotals.length<classSubjects.length?`
+      <div style="padding:8px 28px;background:#fef9ec;border-bottom:1px solid #fde68a;font-size:10px;color:#92400e;">
+        (!) Provisional -- graded in ${subTotals.length} of ${classSubjects.length} subjects. Position may change once grading is complete.
+      </div>`:''}
 
       <!-- Body -->
       <div style="display:block;">
@@ -1154,7 +1142,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   `
 
   const printOneCard = () => {
-    if(!rcStudent) return
+    if(!rcStudent||!rcReportTitle.trim()) return
     const student = classStudents.find(s=>s.id===rcStudent)
     if(!student) return
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Report Card — ${student.first_name}${student.middle_name?' '+student.middle_name:''} ${student.last_name}</title>
@@ -1167,7 +1155,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   }
 
   const printAllCards = () => {
-    if(!rcClass) return
+    if(!rcClass||!rcReportTitle.trim()) return
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Report Cards — ${classes.find(c=>c.id===rcClass)?.name}</title>
     <style>${cardStyles}</style></head>
     <body>${classStudents.map(s=>buildReportCard(s)).join('')}
@@ -1183,7 +1171,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   const openPreview = () => {
     const sid = previewStudent||(classStudents[0]?.id||'')
-    if(!sid) return
+    if(!sid||!rcReportTitle.trim()) return
     const student = classStudents.find(s=>s.id===sid)
     if(!student) return
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Preview — ${student.first_name}${student.middle_name?' '+student.middle_name:''} ${student.last_name}</title>
@@ -1195,10 +1183,11 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     openPrint(html, 860, 960)
   }
 
-    const canPrintBroadsheet = rcClass&&rcPeriod
-  const canPrintSubject    = rcClass&&rcPeriod&&rcSubject
-  const canPrintOne        = rcClass&&rcPeriod&&rcStudent
-  const canPrintAll        = rcClass&&rcPeriod
+    const hasReportTitle = !!rcReportTitle.trim()
+  const canPrintBroadsheet = rcClass&&rcPeriod&&hasReportTitle
+  const canPrintSubject    = rcClass&&rcPeriod&&rcSubject&&hasReportTitle
+  const canPrintOne        = rcClass&&rcPeriod&&rcStudent&&hasReportTitle
+  const canPrintAll        = rcClass&&rcPeriod&&hasReportTitle
 
   return (
     <div>
@@ -1251,6 +1240,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,paddingTop:12,borderTop:'1px solid var(--line)'}}>
           <Field label='Class Teacher Name' value={rcClassTeacherName} onChange={setRcClassTeacherName} placeholder='For signature line'/>
           <Field label='Head Teacher Name'  value={rcHeadTeacher}      onChange={setRcHeadTeacher}      placeholder='For signature line'/>
+          <Field label='Report Header' value={rcReportTitle} onChange={setRcReportTitle} required
+            placeholder={rcType==='broadsheet'?'Terminal Report — Class Broadsheet':rcType==='subject'?'Subject Performance Report':'Student Terminal Report Card'}/>
           {rcType==='individual' && <>
             <Field label='Head Teacher Remark (optional)' value={rcHeadRemark} onChange={setRcHeadRemark} placeholder='Overall comment...'/>
             <Field label='Next Term Resumption Date' value={rcResumption} onChange={setRcResumption} placeholder='e.g. Jan 13, 2026'/>
@@ -1335,6 +1326,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         )}
         {!rcClass&&<p style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>Select a class and period to continue.</p>}
         {rcClass&&!rcPeriod&&<p style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>Select a period to continue.</p>}
+        {rcClass&&rcPeriod&&!hasReportTitle&&<p style={{fontSize:12,color:'var(--amber)',marginTop:8}}>Enter a report header to continue.</p>}
         {rcType==='subject'&&rcClass&&rcPeriod&&!rcSubject&&<p style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>Select a subject to print the subject report.</p>}
         {rcType==='individual'&&rcClass&&rcPeriod&&!rcStudent&&<p style={{fontSize:12,color:'var(--amber)',marginTop:8}}>No student selected — Print All will generate cards for all {classStudents.length} students in this class.</p>}
       </Card>

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getGradeColor, getCurrency, fmtMoney, genSID, fullName } from '../lib/helpers'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGradeColor, getCurrency, fmtMoney, fullName, calcAttendanceRate, effectivePaid } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -126,19 +126,28 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     setSaving(true)
     const cleanForm = {...form, dob: form.dob||null, guardian_name: form.guardian_name||null, guardian_phone: form.guardian_phone||null, guardian_email: form.guardian_email||null, guardian_relation: form.guardian_relation||null}
     if(edit){
-      const {error} = await supabase.from('students').update({...cleanForm,updated_at:new Date()}).eq('id',edit.id)
+      const {error} = await supabase.from('students').update({...cleanForm,updated_at:new Date()}).eq('id',edit.id).eq('school_id',profile?.school_id)
       if(error){toast(error.message,'error')}else{setData(p=>({...p,students:p.students.map(s=>s.id===edit.id?{...s,...form}:s)}));auditLog(profile,'Students','Updated',`${fullName(cleanForm)}`,{},{...edit},{...cleanForm});toast('Student updated');setModal(false)}
     } else {
-      const sid = genSID(students, settings?.student_id_prefix||'STU')
+      // Atomic, DB-side ID generation -- avoids two staff members creating a
+      // student at the same time and landing on the same student_id (the
+      // client-side "scan and increment" approach had no protection at all).
+      const {data:sid, error:sidErr} = await supabase.rpc('generate_student_id', { p_school_id: profile?.school_id, p_prefix: settings?.student_id_prefix||'STU' })
+      if(sidErr){ toast(sidErr.message,'error'); setSaving(false); return }
       const {data:row,error} = await supabase.from('students').insert({...cleanForm,school_id:profile?.school_id,student_id:sid,created_at:new Date(),entry_year:activeYear}).select().single()
       if(error){toast(error.message,'error')}else{setData(p=>({...p,students:[...p.students,row]}));auditLog(profile,'Students','Created',`${fullName(form)}`,{},null,row);toast('Student added');setModal(false)}
     }
     setSaving(false)
   }
   const del = async id=>{
-    setConfirmState({title:'Remove student?',body:'This permanently deletes the student and all their grade, attendance, fee, and behaviour records. This cannot be undone.',icon:'🗑',danger:true,onConfirm:async()=>{
+    setConfirmState({title:'Remove student?',body:'This permanently deletes the student. Only works if they have no grade, attendance, fee or behaviour history -- if they do, archive them instead to keep those records.',icon:'🗑',danger:true,onConfirm:async()=>{
       const {error} = await supabase.from('students').delete().eq('id',id).eq('school_id',profile?.school_id)
-      if(error)toast(error.message,'error')
+      if(error){
+        // 23503 = foreign_key_violation -- the student has grade/attendance/fee/behaviour
+        // records pointing at them, none of which cascade-delete, so the database refuses.
+        if(error.code==='23503') toast('This student has existing grade, attendance, fee or behaviour records and can\'t be permanently deleted. Archive them instead to remove them from active lists while keeping their history.','error')
+        else toast(error.message,'error')
+      }
       else{const s=students.find(x=>x.id===id);setData(p=>({...p,students:p.students.filter(s=>s.id!==id)}));auditLog(profile,'Students','Deleted',`${fullName(s)}`,{},s||null,null);toast('Student removed')}
     }})
   }
@@ -177,13 +186,10 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     const gradeComps     = getGradeComponents(settings)
     const scale          = settings?.grading_scale || []
     const attRecs        = data.attendance?.filter(a => a.student_id === s.id) || []
+    const attOB           = data.opening_balances?.filter(b => b.student_id === s.id) || []
     const behRecs        = data.behaviour?.filter(b => b.student_id === s.id) || []
 
-    const present = attRecs.filter(a => a.status === 'Present').length
-    const absent  = attRecs.filter(a => a.status === 'Absent').length
-    const late    = attRecs.filter(a => a.status === 'Late').length
-    const excused = attRecs.filter(a => a.status === 'Excused').length
-    const attRate = attRecs.length ? Math.round(present / attRecs.length * 100) : null
+    const { present, absent, late, excused, rate: attRate } = calcAttendanceRate(attRecs, attOB)
 
     const schoolName  = settings?.school_name  || 'SRMS'
     const schoolMotto = settings?.motto         || ''
@@ -331,7 +337,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
             <tbody>${subjectRows}</tbody>
           </table>`}
       <div class="sec" style="margin-top:18px;">Attendance</div>
-      ${attRecs.length === 0
+      ${attRecs.length === 0 && attOB.length === 0
         ? `<div style="font-size:13px;color:#9ca3af;">No attendance records yet.</div>`
         : `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;">
             ${[['Present',present,'#16a34a'],['Absent',absent,'#dc2626'],['Late',late,'#d97706'],['Excused',excused,'#0ea5e9']].map(([l,n,c])=>
@@ -606,10 +612,8 @@ export default function Students({profile,data,setData,toast,settings,activeYear
         const gradeComps = getGradeComponents(settings)
         const scale = settings?.grading_scale||[]
         const attRecs = data.attendance?.filter(a=>a.student_id===s.id)||[]
-        const present = attRecs.filter(a=>a.status==='Present').length
-        const absent  = attRecs.filter(a=>a.status==='Absent').length
-        const late    = attRecs.filter(a=>a.status==='Late').length
-        const attRate = attRecs.length ? Math.round(present/attRecs.length*100) : null
+        const attOB   = data.opening_balances?.filter(b=>b.student_id===s.id)||[]
+        const { present, absent, late, excused, rate: attRate } = calcAttendanceRate(attRecs, attOB)
         // Pick the latest-period grade for a given subject
         const periodOrder = Array.from({length:settings?.period_count||2},(_,i)=>`${settings?.period_type==='term'?'Term':'Semester'} ${i+1}`)
         const latestGrade = subjectId => {
@@ -720,7 +724,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
                 }
 
                 <div style={{fontSize:10,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginTop:20,marginBottom:12}}>Attendance</div>
-                {attRecs.length===0
+                {attRecs.length===0 && attOB.length===0
                   ? <div style={{fontSize:13,color:'var(--mist3)'}}>No attendance records yet.</div>
                   : <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
                       {[['Present',present,'var(--emerald)'],['Absent',absent,'var(--rose)'],['Late',late,'var(--amber)']].map(([label,count,color])=>(
@@ -748,13 +752,11 @@ export default function Students({profile,data,setData,toast,settings,activeYear
             if(stuFees.length===0) return null
             const stuPayments = data.payments||[]
             const enrichedFees = stuFees.map(fee=>{
-              const feePayments   = stuPayments.filter(p=>p.fee_id===fee.id)
-              const paymentsPaid  = feePayments.reduce((a,p)=>a+Number(p.amount||0),0)
-              const effectivePaid = Math.max(Number(fee.paid||0), paymentsPaid)
-              const bal           = Number(fee.amount||0)-effectivePaid
-              const status        = bal<=0?'Paid':effectivePaid>0?'Partial':'Outstanding'
-              const isOverdue     = !!(fee.due_date && fee.due_date < today && bal > 0)
-              return {...fee, effectivePaid, balance:bal, status, isOverdue}
+              const paidAmt   = effectivePaid(fee, stuPayments)
+              const bal       = Number(fee.amount||0)-paidAmt
+              const status    = bal<0?'Overpaid':bal===0?'Paid':paidAmt>0?'Partial':'Outstanding'
+              const isOverdue = !!(fee.due_date && fee.due_date < today && bal > 0)
+              return {...fee, effectivePaid:paidAmt, balance:bal, status, isOverdue}
             })
             const totalOwed    = enrichedFees.reduce((a,f)=>a+Number(f.amount||0),0)
             const totalPaid    = enrichedFees.reduce((a,f)=>a+f.effectivePaid,0)

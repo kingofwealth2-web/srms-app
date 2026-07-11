@@ -56,8 +56,10 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     setConfirmState({title:`Delete "${cls.name}"?`,body:'This cannot be undone.',icon:'🗑',danger:true,onConfirm:async()=>{
       const {error}=await supabase.from('classes').delete().eq('id',cls.id).eq('school_id',profile?.school_id)
       if(error){toast(error.message,'error');return}
-      if(cls.class_teacher_id)
-        await supabase.from('profiles').update({class_id:null}).eq('id',cls.class_teacher_id)
+      if(cls.class_teacher_id){
+        const {error:teacherErr} = await supabase.from('profiles').update({class_id:null}).eq('id',cls.class_teacher_id)
+        if(teacherErr) toast('Class deleted but failed to unassign teacher: '+teacherErr.message,'error')
+      }
       setData(p=>({...p,classes:p.classes.filter(c=>c.id!==cls.id)}))
       if(selected?.id===cls.id) setSelected(null)
       auditLog(profile,'Classes','Deleted',`${cls.name}`,{},cls,null)
@@ -82,14 +84,54 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     const reordered = [...orderedClasses]
     const [moved]   = reordered.splice(dragging, 1)
     reordered.splice(idx, 0, moved)
-    // Save new sort_order (silent if column not in schema)
-    const updates = reordered.map((c,i)=>supabase.from('classes').update({sort_order:i}).eq('id',c.id).eq('school_id',profile?.school_id))
-    await Promise.all(updates).catch(()=>{})
+    // Save new sort_order. supabase-js resolves with {error} rather than
+    // rejecting on a PostgREST-level failure, so a bare .catch() here never
+    // actually caught a real save failure -- check the returned errors instead.
+    const results = await Promise.all(
+      reordered.map((c,i)=>supabase.from('classes').update({sort_order:i}).eq('id',c.id).eq('school_id',profile?.school_id))
+    ).catch(err=>[{error:err}])
+    const failed = results.some(r=>r.error)
     setData(p=>({...p, classes: p.classes.map(c=>{ const idx=reordered.findIndex(r=>r.id===c.id); return idx>=0?{...c,sort_order:idx}:c })}))
+    if(failed) toast('Order updated here, but failed to save -- it may revert next time you reload.','error')
     setDragging(null)
   }
 
   const openPromo = ()=>{setPromoStep(1);setPromoSource('');setPromoDest('');setPromoStudents([]);setPromoModal(true)}
+
+  const closePromo = () => {
+    if(promoStep>=2 && promoStudents.length>0){
+      setConfirmState({
+        title:'Discard this promotion?',
+        body:`You haven't confirmed yet. Closing now will discard your choices for ${promoStudents.length} student${promoStudents.length!==1?'s':''} — nothing has been saved.`,
+        icon:'⚠', danger:true, confirmLabel:'Discard',
+        onConfirm: async () => { setPromoModal(false) }
+      })
+      return
+    }
+    setPromoModal(false)
+  }
+
+  const closeBulkPromo = () => {
+    if(bulkStudents.length>0){
+      setConfirmState({
+        title:'Discard this promotion?',
+        body:`You haven't confirmed yet. Closing now will discard your choices for ${bulkStudents.length} student${bulkStudents.length!==1?'s':''} — nothing has been saved.`,
+        icon:'⚠', danger:true, confirmLabel:'Discard',
+        onConfirm: async () => { setBulkModal(false) }
+      })
+      return
+    }
+    setBulkModal(false)
+  }
+
+  // Warn on tab close/refresh while a promotion wizard has unconfirmed choices
+  useEffect(()=>{
+    const hasUnsaved = (promoModal && promoStep>=2 && promoStudents.length>0) || (bulkModal && bulkStudents.length>0)
+    if(!hasUnsaved) return
+    const handler = e => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  },[promoModal,promoStep,promoStudents,bulkModal,bulkStudents])
 
   const buildPromoStudents = (srcId,dstId)=>{
     const src=students.filter(s=>s.class_id===srcId)
@@ -123,69 +165,161 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
   }
 
   const confirmBulkPromo = async () => {
-    setPromoting(true)
     const toPromote  = bulkStudents.filter(p=>p.action==='promote')
     const toRepeat   = bulkStudents.filter(p=>p.action==='repeat')
     const toGraduate = bulkStudents.filter(p=>p.action==='graduate')
-    // Write enrolment history
-    const enrolmentRows = bulkStudents.map(p=>({school_id:profile?.school_id,student_id:p.student.id,class_id:p.fromClass.id,academic_year:activeYear}))
-    await supabase.from('student_year_enrolment').upsert(enrolmentRows,{onConflict:'school_id,student_id,academic_year'})
-    for(const p of toPromote) {
-      if(!p.destClassId) continue
-      await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id).eq('school_id',profile?.school_id)
+
+    // The per-row destination <select> has no blank option, so a student left
+    // with an empty destClassId (e.g. "Promote All" clicked on the terminal
+    // class, which has no next class to default to) shows the browser's
+    // fallback-selected option on screen while the real state is still empty.
+    // Catch that here with a clear message instead of a silent save failure.
+    const missingDest = toPromote.filter(p=>!p.destClassId)
+    if(missingDest.length>0){
+      toast(`${missingDest.length} student${missingDest.length!==1?'s':''} marked to promote ${missingDest.length!==1?'have':'has'} no destination class selected: ${missingDest.map(p=>fullName(p.student,true)).join(', ')}.`,'error')
+      return
     }
-    for(const p of toGraduate)
-      await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id).eq('school_id',profile?.school_id)
-    const destMap     = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
-    const gradIds     = toGraduate.map(p=>p.student.id)
-    const promoteIds  = toPromote.map(p=>p.student.id)
-    setData(prev=>({...prev,students:prev.students.map(s=>{
-      if(promoteIds.includes(s.id)) return {...s,class_id:destMap[s.id]}
-      if(gradIds.includes(s.id))    return {...s,archived:true,class_id:null}
-      return s
-    })}))
-    auditLog(profile,'Students','Bulk Promote',`${toPromote.length} promoted, ${toGraduate.length} graduated, ${toRepeat.length} repeating`,{},{},{})
-    setPromoting(false); setBulkModal(false)
-    const parts=[]
-    if(toPromote.length)  parts.push(toPromote.length+' promoted')
-    if(toGraduate.length) parts.push(toGraduate.length+' graduated')
-    if(toRepeat.length)   parts.push(toRepeat.length+' staying back')
-    toast(parts.join(', ')+'.')
-    if(onPromotionComplete) onPromotionComplete()
+
+    setPromoting(true)
+    try {
+      // This wizard's student list was snapshotted when it opened. If someone
+      // else enrolled a new student into a class since then, they'd silently
+      // stay unpromoted with no indication anything was missed.
+      const snapshotIds = new Set(bulkStudents.map(p=>p.student.id))
+      const {data:freshStudents, error:freshErr} = await supabase.from('students')
+        .select('id').eq('school_id',profile?.school_id).eq('archived',false).not('class_id','is',null)
+      if(freshErr) throw freshErr
+      const newArrivals = (freshStudents||[]).filter(s=>!snapshotIds.has(s.id))
+      if(newArrivals.length>0){
+        toast(`${newArrivals.length} student${newArrivals.length!==1?'s were':' was'} added to a class after this wizard opened, so they're not included. Close and reopen Bulk Promote to pick them up.`,'error')
+        setPromoting(false)
+        return
+      }
+
+      // Write enrolment history
+      const enrolmentRows = bulkStudents.map(p=>({school_id:profile?.school_id,student_id:p.student.id,class_id:p.fromClass.id,academic_year:activeYear}))
+      const {error:enrolErr} = await supabase.from('student_year_enrolment').upsert(enrolmentRows,{onConflict:'student_id,academic_year'})
+      if(enrolErr) throw enrolErr
+      // Keep going through failures instead of aborting on the first one --
+      // each row is an independent update -- and track exactly who succeeded
+      // vs. failed/skipped so we can say so precisely instead of a vague
+      // "some students may be partially updated".
+      const promoted = []
+      const graduated = []
+      const failed = []
+      for(const p of toPromote) {
+        if(!p.destClassId){ failed.push(p.student); continue }
+        const {error} = await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id).eq('school_id',profile?.school_id)
+        if(error) failed.push(p.student); else promoted.push(p)
+      }
+      for(const p of toGraduate) {
+        const {error} = await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id).eq('school_id',profile?.school_id)
+        if(error) failed.push(p.student); else graduated.push(p)
+      }
+      const destMap     = Object.fromEntries(promoted.map(p=>[p.student.id,p.destClassId]))
+      const gradIds     = graduated.map(p=>p.student.id)
+      const promoteIds  = promoted.map(p=>p.student.id)
+      setData(prev=>({...prev,students:prev.students.map(s=>{
+        if(promoteIds.includes(s.id)) return {...s,class_id:destMap[s.id]}
+        if(gradIds.includes(s.id))    return {...s,archived:true,class_id:null}
+        return s
+      })}))
+      auditLog(profile,'Students','Bulk Promote',`${promoted.length} promoted, ${graduated.length} graduated, ${toRepeat.length} repeating${failed.length?`, ${failed.length} failed`:''}`,{},{},{})
+      if(failed.length>0){
+        toast(`${failed.length} student${failed.length!==1?'s':''} failed to update: ${failed.map(s=>fullName(s,true)).join(', ')}. Everyone else succeeded -- check these students before retrying.`,'error')
+      } else {
+        setBulkModal(false)
+        const parts=[]
+        if(promoted.length)  parts.push(promoted.length+' promoted')
+        if(graduated.length) parts.push(graduated.length+' graduated')
+        if(toRepeat.length)  parts.push(toRepeat.length+' staying back')
+        toast(parts.join(', ')+'.')
+        if(onPromotionComplete) onPromotionComplete()
+      }
+    } catch(err) {
+      toast('Promotion failed before any changes were made: '+err.message,'error')
+    }
+    setPromoting(false)
   }
 
   const confirmPromo = async ()=>{
-    setPromoting(true)
     const toPromote  = promoStudents.filter(p=>p.action==='promote')
     const toRepeat   = promoStudents.filter(p=>p.action==='repeat')
     const toGraduate = promoStudents.filter(p=>p.action==='graduate')
-    // Write enrolment history for ALL students in source class before moving them
-    const enrolmentRows = promoStudents.map(p=>({
-      school_id: profile?.school_id,
-      student_id: p.student.id,
-      class_id: promoSource,
-      academic_year: activeYear
-    }))
-    // Upsert — avoid duplicates
-    await supabase.from('student_year_enrolment').upsert(enrolmentRows, {onConflict:'school_id,student_id,academic_year'})
-    for(const p of toPromote)
-      await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id).eq('school_id',profile?.school_id)
-    for(const p of toGraduate)
-      await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id).eq('school_id',profile?.school_id)
-    const promotedIds  = toPromote.map(p=>p.student.id)
-    const graduatedIds = toGraduate.map(p=>p.student.id)
-    const destMap      = Object.fromEntries(toPromote.map(p=>[p.student.id,p.destClassId]))
-    setData(prev=>({...prev,students:prev.students.map(s=>{
-      if(promotedIds.includes(s.id))  return {...s,class_id:destMap[s.id]}
-      if(graduatedIds.includes(s.id)) return {...s,archived:true,class_id:null}
-      return s
-    })}))
-    setPromoting(false);setPromoModal(false)
-    const parts=[]
-    if(toPromote.length)  parts.push(toPromote.length+' promoted')
-    if(toGraduate.length) parts.push(toGraduate.length+' graduated')
-    if(toRepeat.length)   parts.push(toRepeat.length+' staying back')
-    toast(''+parts.join(', ')+'.')
+
+    // Same missing-destination check as bulk promote -- the per-row <select>
+    // has no blank option, so an empty destClassId (reachable via "leave
+    // blank" in step 1, then switching a student to Promote in step 2) would
+    // otherwise show a class visually selected while the real state is empty.
+    const missingDest = toPromote.filter(p=>!p.destClassId)
+    if(missingDest.length>0){
+      toast(`${missingDest.length} student${missingDest.length!==1?'s':''} marked to promote ${missingDest.length!==1?'have':'has'} no destination class selected: ${missingDest.map(p=>fullName(p.student,true)).join(', ')}.`,'error')
+      return
+    }
+
+    setPromoting(true)
+    try {
+      // Snapshotted when the wizard opened -- check nobody new was enrolled
+      // into this class since then, since they'd silently stay unpromoted.
+      const snapshotIds = new Set(promoStudents.map(p=>p.student.id))
+      const {data:freshStudents, error:freshErr} = await supabase.from('students')
+        .select('id').eq('school_id',profile?.school_id).eq('class_id',promoSource).eq('archived',false)
+      if(freshErr) throw freshErr
+      const newArrivals = (freshStudents||[]).filter(s=>!snapshotIds.has(s.id))
+      if(newArrivals.length>0){
+        toast(`${newArrivals.length} student${newArrivals.length!==1?'s were':' was'} added to this class after this wizard opened, so they're not included. Close and reopen Promote Class to pick them up.`,'error')
+        setPromoting(false)
+        return
+      }
+
+      // Write enrolment history for ALL students in source class before moving them
+      const enrolmentRows = promoStudents.map(p=>({
+        school_id: profile?.school_id,
+        student_id: p.student.id,
+        class_id: promoSource,
+        academic_year: activeYear
+      }))
+      // Upsert — avoid duplicates
+      const {error:enrolErr} = await supabase.from('student_year_enrolment').upsert(enrolmentRows, {onConflict:'student_id,academic_year'})
+      if(enrolErr) throw enrolErr
+      // Keep going through failures instead of aborting on the first one --
+      // each row is an independent update, so one bad row shouldn't block the
+      // rest -- and track exactly who succeeded/failed so we can say so precisely
+      // instead of a vague "some students may be partially updated".
+      const promoted  = []
+      const graduated = []
+      const failed    = []
+      for(const p of toPromote) {
+        const {error} = await supabase.from('students').update({class_id:p.destClassId}).eq('id',p.student.id).eq('school_id',profile?.school_id)
+        if(error) failed.push(p.student); else promoted.push(p)
+      }
+      for(const p of toGraduate) {
+        const {error} = await supabase.from('students').update({archived:true,class_id:null,graduation_year:activeYear,leaving_reason:'Graduated'}).eq('id',p.student.id).eq('school_id',profile?.school_id)
+        if(error) failed.push(p.student); else graduated.push(p)
+      }
+      const promotedIds  = promoted.map(p=>p.student.id)
+      const graduatedIds = graduated.map(p=>p.student.id)
+      const destMap      = Object.fromEntries(promoted.map(p=>[p.student.id,p.destClassId]))
+      setData(prev=>({...prev,students:prev.students.map(s=>{
+        if(promotedIds.includes(s.id))  return {...s,class_id:destMap[s.id]}
+        if(graduatedIds.includes(s.id)) return {...s,archived:true,class_id:null}
+        return s
+      })}))
+      auditLog(profile,'Students','Promote',`${promoted.length} promoted, ${graduated.length} graduated, ${toRepeat.length} repeating${failed.length?`, ${failed.length} failed`:''}`,{},{},{})
+      if(failed.length>0){
+        toast(`${failed.length} student${failed.length!==1?'s':''} failed to update: ${failed.map(s=>fullName(s,true)).join(', ')}. Everyone else succeeded -- check these students before retrying.`,'error')
+      } else {
+        setPromoModal(false)
+        const parts=[]
+        if(promoted.length)  parts.push(promoted.length+' promoted')
+        if(graduated.length) parts.push(graduated.length+' graduated')
+        if(toRepeat.length)  parts.push(toRepeat.length+' staying back')
+        toast(''+parts.join(', ')+'.')
+      }
+    } catch(err) {
+      toast('Promotion failed before any changes were made: '+err.message,'error')
+    }
+    setPromoting(false)
   }
   const saveClass = async ()=>{
     if(!cf.name){toast('Class name is required.','error');return} setSaving(true)
@@ -204,10 +338,14 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
       const {error}=await supabase.from('classes').update(payload).eq('id',editC.id).eq('school_id',profile?.school_id)
       if(error){toast(error.message,'error');setSaving(false);return}
       const oldTeacherId = editC.class_teacher_id
-      if(oldTeacherId && oldTeacherId!==newTeacherId)
-        await supabase.from('profiles').update({class_id:null}).eq('id',oldTeacherId)
-      if(newTeacherId)
-        await supabase.from('profiles').update({class_id:editC.id}).eq('id',newTeacherId)
+      if(oldTeacherId && oldTeacherId!==newTeacherId){
+        const {error:unassignErr} = await supabase.from('profiles').update({class_id:null}).eq('id',oldTeacherId)
+        if(unassignErr) toast('Class updated but failed to unassign previous teacher: '+unassignErr.message,'error')
+      }
+      if(newTeacherId){
+        const {error:assignErr} = await supabase.from('profiles').update({class_id:editC.id}).eq('id',newTeacherId)
+        if(assignErr) toast('Class updated but failed to assign teacher: '+assignErr.message,'error')
+      }
       setData(p=>({...p,classes:p.classes.map(c=>c.id===editC.id?{...c,...payload}:c)}))
       auditLog(profile,'Classes','Updated',`${payload.name}`,{},{...editC},{...payload})
       toast('Class updated');setClassModal(false)
@@ -225,7 +363,14 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     setSaving(false)
   }
   const saveSubject = async ()=>{
-    if(!sf.name||!sf.class_id){toast('Subject name and class are required.','error');return} setSaving(true)
+    if(!sf.name||!sf.class_id){toast('Subject name and class are required.','error');return}
+    const duplicate = subjects.some(s=>
+      s.class_id===sf.class_id &&
+      s.name.trim().toLowerCase()===sf.name.trim().toLowerCase() &&
+      s.id!==editS?.id
+    )
+    if(duplicate){toast('This class already has a subject with that name.','error');return}
+    setSaving(true)
     if(editS){
       const {error}=await supabase.from('subjects').update({...sf,teacher_id:sf.teacher_id||null}).eq('id',editS.id).eq('school_id',profile?.school_id)
       if(error)toast(error.message,'error')
@@ -393,7 +538,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
 
 
       {bulkModal && (
-        <Modal title='Bulk Promote All Classes' subtitle={bulkStep===1?'Review & Adjust':'Confirm'} onClose={()=>setBulkModal(false)} width={720}>
+        <Modal title='Bulk Promote All Classes' subtitle={bulkStep===1?'Review & Adjust':'Confirm'} onClose={closeBulkPromo} width={720}>
           {bulkStep===1 && (
             <div>
               {/* Warning if no terminal class */}
@@ -503,7 +648,8 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                                   {p.action==='promote' && (
                                     <select value={p.destClassId}
                                       onChange={e=>setBulkStudents(prev=>prev.map((x,j)=>j===globalIdx?{...x,destClassId:e.target.value}:x))}
-                                      style={{background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'4px 8px',color:'var(--mist)',fontSize:11,cursor:'pointer'}}>
+                                      style={{background:'var(--ink4)',border:`1px solid ${p.destClassId?'var(--line)':'var(--rose)'}`,borderRadius:'var(--r-sm)',padding:'4px 8px',color:p.destClassId?'var(--mist)':'var(--rose)',fontSize:11,cursor:'pointer'}}>
+                                      <option value=''>Select a class...</option>
                                       {orderedClasses.filter(c=>c.id!==cls.id).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                   )}
@@ -527,7 +673,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
               </div>
 
               <div style={{display:'flex',justifyContent:'space-between',gap:10}}>
-                <Btn variant='ghost' onClick={()=>setBulkModal(false)}>Cancel</Btn>
+                <Btn variant='ghost' onClick={closeBulkPromo}>Cancel</Btn>
                 <Btn onClick={()=>setBulkStep(2)}>Next - Preview & Confirm</Btn>
               </div>
             </div>
@@ -573,7 +719,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
         </Modal>
       )}
       {promoModal && (
-        <Modal title='Promote Students' subtitle={`Step ${promoStep} of 3`} onClose={()=>setPromoModal(false)} width={620}>
+        <Modal title='Promote Students' subtitle={`Step ${promoStep} of 3`} onClose={closePromo} width={620}>
           {promoStep===1 && (
             <div>
               <p style={{fontSize:13,color:'var(--mist2)',marginBottom:20,lineHeight:1.6}}>Select the class to promote from and the class students will move to. You can adjust individual students on the next step.</p>
@@ -622,7 +768,8 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                     </div>
                     {p.action==='promote' && (
                       <select value={p.destClassId} onChange={e=>setPromoStudents(prev=>prev.map((x,j)=>j===i?{...x,destClassId:e.target.value}:x))}
-                        style={{background:'var(--ink4)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'5px 10px',color:'var(--mist)',fontSize:12,cursor:'pointer'}}>
+                        style={{background:'var(--ink4)',border:`1px solid ${p.destClassId?'var(--line)':'var(--rose)'}`,borderRadius:'var(--r-sm)',padding:'5px 10px',color:p.destClassId?'var(--mist)':'var(--rose)',fontSize:12,cursor:'pointer'}}>
+                        <option value=''>Select a class...</option>
                         {classes.filter(c=>c.id!==promoSource).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                     )}

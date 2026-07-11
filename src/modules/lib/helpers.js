@@ -1,5 +1,42 @@
 import { CURRENCIES, GHANA_PUBLIC_HOLIDAYS, LETTER_COLOR, NUMBER_GRADE_COLOR } from './constants'
 
+// ── PAGINATION ──────────────────────────────────────────────────
+// PostgREST caps any unbounded select at its default max-rows (1000) and silently
+// returns only a partial, arbitrarily-ordered slice once a table passes that.
+// queryFactory must return a *fresh* query builder each call (not an already-awaited
+// one) so each page can apply its own .range().
+export async function fetchAllRows(queryFactory) {
+  const PAGE_SIZE = 1000
+  let all = []
+  let from = 0
+  while (true) {
+    const { data, error } = await queryFactory().range(from, from + PAGE_SIZE - 1)
+    if (error) return { data: null, error }
+    if (data?.length) all = all.concat(data)
+    if (!data || data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+  return { data: all }
+}
+
+// ── ATTENDANCE HELPERS ──────────────────────────────────────────
+// Folds "opening balance" rows (a pre-tracking historical present/total
+// aggregate, entered once by a superadmin -- see Settings > Opening
+// Attendance Balance) into a real attendance-record rate calculation.
+// Both args should already be filtered to the same scope by the caller
+// (e.g. both filtered to one student, or both filtered to one class).
+export function calcAttendanceRate(records, openingBalances = []) {
+  const obTotal   = openingBalances.reduce((sum, b) => sum + (b.total_days || 0), 0)
+  const obPresent = openingBalances.reduce((sum, b) => sum + (b.present_days || 0), 0)
+  const present = records.filter(a => a.status === 'Present').length + obPresent
+  const absent  = records.filter(a => a.status === 'Absent').length
+  const late    = records.filter(a => a.status === 'Late').length
+  const excused = records.filter(a => a.status === 'Excused').length
+  const total   = records.length + obTotal
+  const rate    = total ? Math.round(present / total * 100) : null
+  return { total, present, absent, late, excused, rate }
+}
+
 // ── GRADE HELPERS ──────────────────────────────────────────────
 export const ALL_COMPONENTS = ['classwork','homework','midsemester','final_exam','project']
 
@@ -54,6 +91,36 @@ export const getGPA        = (t, scale) => { for (const s of scale) if (t >= s.m
 export const getGradeLetter = (t, scale) => { for (const s of scale) if (t >= s.min && t <= s.max) return s.letter || '--'; return '--' }
 export const getGradeRemark = (t, scale) => { for (const s of scale) if (t >= s.min && t <= s.max) return s.remark || ''; return ''  }
 
+// Pass/fail derived from the school's own configured scale rather than a fixed
+// number -- the lowest-min tier is always the fail band, whatever range that
+// covers (e.g. the Number system's default scale fails below 35, not 50).
+export const isPassing = (score, scale) => {
+  if (score === null || score === undefined || !scale?.length) return null
+  const lowest = [...scale].sort((a, b) => a.min - b.min)[0]
+  return score > lowest.max
+}
+
+// Ranks by average (not raw summed total) so a student who's missing a grade
+// in one subject isn't penalized against a fully-graded classmate just for
+// having fewer numbers added up -- avg-rank and sum-rank agree once every
+// student has a score for every subject, so this only changes anything during
+// the "still entering grades" window, which is exactly when it was wrong.
+// Students with no `avgKey` value at all are excluded from the ranking
+// entirely (position: null) rather than being sorted to the bottom as if
+// they'd scored zero.
+export function rankByTotal(items, avgKey = 'avg') {
+  const graded = items.filter(s => s[avgKey] !== null && s[avgKey] !== undefined)
+  const ungraded = items.filter(s => s[avgKey] === null || s[avgKey] === undefined)
+  graded.sort((a, b) => b[avgKey] - a[avgKey])
+  let lastScore = null, lastRank = 0, seen = 0
+  const ranked = graded.map(s => {
+    seen++
+    if (lastScore === null || s[avgKey] !== lastScore) { lastRank = seen; lastScore = s[avgKey] }
+    return { ...s, position: lastRank }
+  })
+  return [...ranked, ...ungraded.map(s => ({ ...s, position: null }))]
+}
+
 // ── DATE / FORMAT HELPERS ──────────────────────────────────────
 export const fmtDate = d => d
   ? new Date(d).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
@@ -86,16 +153,16 @@ export const fmtMoney = (n, currency) => {
   return c.position === 'after' ? `${formatted} ${c.symbol}` : `${c.symbol}${formatted}`
 }
 
-// ── ID GENERATORS ──────────────────────────────────────────────
-export const genSID = (arr, prefix='STU') => {
-  const max = arr.reduce((m, s) => Math.max(m, parseInt(s.student_id?.split('-')[1] || 0)), 0)
-  return `${prefix}-${String(max + 1).padStart(4, '0')}`
-}
-
-export const genRCP = arr => {
-  const max = arr.filter(f => f.receipt_no)
-    .reduce((m, f) => Math.max(m, parseInt(f.receipt_no?.split('-')[1] || 0)), 0)
-  return `RCP-${String(max + 1).padStart(4, '0')}`
+// ── FEE HELPERS ─────────────────────────────────────────────────
+// A fee's stored `paid` total and the actual sum of its payment transactions
+// can drift apart (a "legacy" paid amount that predates a payment row, or a
+// write that only updated one side) -- always trust whichever is higher
+// rather than reading fee.paid directly, so every screen agrees on balance.
+export function effectivePaid(fee, allPayments) {
+  const paymentsSum = allPayments
+    .filter(p => p.fee_id === fee.id)
+    .reduce((a, p) => a + Number(p.amount || 0), 0)
+  return Math.max(Number(fee.paid || 0), paymentsSum)
 }
 
 // ── YEAR HELPERS ───────────────────────────────────────────────
@@ -115,7 +182,7 @@ export function currentYearFromSettings(settings) {
 }
 
 // ── HOLIDAY / VACATION HELPERS ─────────────────────────────────
-export function getHolidayOnDate(dateStr, customHolidays = []) {
+export function getHolidayOnDate(dateStr, customHolidays = [], disabledHolidayIds = []) {
   if (!dateStr) return null
   const d      = new Date(dateStr + 'T00:00:00')
   const m      = d.getMonth() + 1
@@ -123,7 +190,7 @@ export function getHolidayOnDate(dateStr, customHolidays = []) {
   const custom = customHolidays.find(h => h.date === dateStr)
   if (custom) return custom.name
   const gh = GHANA_PUBLIC_HOLIDAYS.find(h => h.month === m && h.day === day)
-  if (gh) return gh.name
+  if (gh && !disabledHolidayIds.includes(gh.id)) return gh.name
   return null
 }
 
