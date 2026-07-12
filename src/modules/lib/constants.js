@@ -166,6 +166,19 @@ export const PLANS = {
   },
 }
 
+export const PLAN_ORDER = ['starter', 'basic', 'pro']
+
+export const FEATURE_LABELS = {
+  feeReceipts:    'Fee Receipt Generation',
+  reportsExcel:   'Excel Export',
+  behaviour:      'Behaviour Tracking',
+  announcements:  'Announcements',
+  reportsPDF:     'PDF Reports',
+  parentPortal:   'Parent Portal',
+  auditLog:       'Audit Log',
+  yearSwitcher:   'Year Switcher',
+}
+
 // Feedback webhook — paste a Formspree, Make, Zapier, or n8n URL here
 // to get an email notification every time a school submits feedback.
 // Leave as null to only save to the Supabase feedback table.

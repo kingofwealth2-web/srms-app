@@ -97,13 +97,14 @@ export default function AdminSchools(props) {
   )
 }
 
-function SchoolDetail({ school, notes, comms, payments, onboarding, ONBOARDING_ITEMS, openLogPayment, openNote, openComm, toggleObItem, confirmLockUser, unlockUser, openPasswordReset, confirmViewAs }) {
+function SchoolDetail({ school, notes, comms, payments, onboarding, planChanges, ONBOARDING_ITEMS, openLogPayment, openNote, openComm, toggleObItem, confirmLockUser, unlockUser, openPasswordReset, confirmViewAs, openExtendTrial, openExtendGrace }) {
   const [tab, setTab] = useState('info')
   const sNotes = notes.filter(n => n.school_id === school.id)
   const sComms = comms.filter(c => c.school_id === school.id)
   const sPay   = payments.filter(p => p.school_id === school.id)
   const sOb    = onboarding.find(o => o.school_id === school.id) || {}
   const obDone = ONBOARDING_ITEMS.filter(([k]) => sOb[k]).length
+  const sHistory = planChanges.filter(h => h.school_id === school.id)
 
   const tabs = [
     ['info', 'Info'],
@@ -111,6 +112,7 @@ function SchoolDetail({ school, notes, comms, payments, onboarding, ONBOARDING_I
     ['notes', `Notes (${sNotes.length})`],
     ['comms', `Comms (${sComms.length})`],
     ['onboarding', 'Onboarding'],
+    ['history', `History (${sHistory.length})`],
     ['users', `Users (${school.staff_count})`],
   ]
 
@@ -150,6 +152,10 @@ function SchoolDetail({ school, notes, comms, payments, onboarding, ONBOARDING_I
             <InfoLine>Expiry: <strong style={{ color: 'var(--white)' }}>{fmtDate(school.plan_expires_at || school.trial_ends_at)}</strong></InfoLine>
             <InfoLine>Students: <strong style={{ color: 'var(--white)' }}>{school.student_count}</strong></InfoLine>
             <InfoLine>Staff: <strong style={{ color: 'var(--white)' }}>{school.staff_count}</strong></InfoLine>
+            <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+              <Btn size='sm' variant='ghost' onClick={() => openExtendTrial(school.id)}>Extend Trial</Btn>
+              <Btn size='sm' variant='ghost' onClick={() => openExtendGrace(school.id)}>Extend Grace</Btn>
+            </div>
           </div>
           <div>
             <SectionLabel>Revenue</SectionLabel>
@@ -214,6 +220,10 @@ function SchoolDetail({ school, notes, comms, payments, onboarding, ONBOARDING_I
         </div>
       )}
 
+      {tab === 'history' && (
+        sHistory.length ? sHistory.map(h => <PlanChangeRow key={h.id} h={h}/>) : <EmptyState icon='📜' text='No plan changes recorded yet'/>
+      )}
+
       {tab === 'users' && (
         <UsersTab schoolId={school.id} schoolName={school.name} confirmLockUser={confirmLockUser} unlockUser={unlockUser} openPasswordReset={openPasswordReset} confirmViewAs={confirmViewAs}/>
       )}
@@ -271,6 +281,36 @@ function UsersTab({ schoolId, schoolName, confirmLockUser, unlockUser, openPassw
         ))}
       </tbody>
     </table>
+  )
+}
+
+const CHANGE_TYPE_META = {
+  plan_change:   { icon: '💳', label: 'Plan change' },
+  trial_extend:  { icon: '⏳', label: 'Trial extended' },
+  grace_extend:  { icon: '🕊', label: 'Grace period extended' },
+  suspend:       { icon: '⛔', label: 'Suspended' },
+  unsuspend:     { icon: '✅', label: 'Unsuspended' },
+}
+
+function PlanChangeRow({ h }) {
+  const meta = CHANGE_TYPE_META[h.change_type] || { icon: '•', label: h.change_type }
+  const planLine = h.before_plan || h.after_plan
+    ? `${(h.before_plan || '—').toUpperCase()} → ${(h.after_plan || '—').toUpperCase()}`
+    : null
+  const dateLine = h.before_date || h.after_date
+    ? `${h.before_date ? fmtDate(h.before_date) : '—'} → ${h.after_date ? fmtDate(h.after_date) : '—'}`
+    : null
+  return (
+    <div style={{ padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+        <span>{meta.icon}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--white)' }}>{meta.label}</span>
+        <span style={{ fontSize: 11, color: 'var(--mist3)' }}>{fmtDate(h.created_at)} · {h.changed_by_name || 'Unknown'}</span>
+      </div>
+      {planLine && <div style={{ fontSize: 12, color: 'var(--mist2)' }}>{planLine}</div>}
+      {dateLine && <div style={{ fontSize: 12, color: 'var(--mist2)' }}>{dateLine}</div>}
+      {h.reason && <div style={{ fontSize: 12, color: 'var(--mist3)', marginTop: 2 }}>{h.reason}</div>}
+    </div>
   )
 }
 

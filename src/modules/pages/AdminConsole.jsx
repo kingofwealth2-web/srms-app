@@ -19,6 +19,8 @@ import LogPaymentModal     from '../admin/modals/LogPaymentModal'
 import NoteModal           from '../admin/modals/NoteModal'
 import CommModal           from '../admin/modals/CommModal'
 import PasswordResetModal  from '../admin/modals/PasswordResetModal'
+import ExtendDateModal     from '../admin/modals/ExtendDateModal'
+import SuspendModal        from '../admin/modals/SuspendModal'
 import ConfirmModal from '../components/ConfirmModal'
 
 const NAV = [
@@ -65,6 +67,7 @@ export default function AdminConsole({ profile, onSignOut }) {
   const [lastLoginBySchool, setLastLoginBySchool] = useState({})
   const [diagnosticIssues, setDiagnosticIssues] = useState([])
   const [diagnosticsLoading, setDiagnosticsLoading] = useState(true)
+  const [planChanges, setPlanChanges] = useState([])
 
   // Modal state — shared across sections since several actions (log payment,
   // log contact, activate plan) can be triggered from more than one section.
@@ -86,7 +89,7 @@ export default function AdminConsole({ profile, onSignOut }) {
     const [
       { data: sc }, { data: st }, { data: py },
       { data: nt }, { data: cm }, { data: ob }, { data: ac },
-      { data: stuCounts }, { data: staffProfiles },
+      { data: stuCounts }, { data: staffProfiles }, { data: pc },
     ] = await Promise.all([
       fetchAllRows(() => supabase.from('schools').select('id,name,address,phone,email,region,district,active,created_at').order('name')),
       fetchAllRows(() => supabase.from('settings').select('school_id,plan,trial_ends_at,plan_expires_at,grace_ends_at,cancelled_at,academic_year').order('id')),
@@ -97,6 +100,7 @@ export default function AdminConsole({ profile, onSignOut }) {
       fetchAllRows(() => supabase.from('admin_activity').select('*').order('created_at', { ascending: false })),
       fetchAllRows(() => supabase.from('students').select('school_id').eq('archived', false)),
       fetchAllRows(() => supabase.from('profiles').select('id,school_id')),
+      fetchAllRows(() => supabase.from('admin_plan_changes').select('*').order('created_at', { ascending: false })),
     ])
 
     const now = new Date()
@@ -127,6 +131,7 @@ export default function AdminConsole({ profile, onSignOut }) {
     })
 
     setSchools(mapped)
+    setPlanChanges(pc || [])
     setPayments(py || [])
     setNotes(nt || [])
     setComms(cm || [])
@@ -159,26 +164,19 @@ export default function AdminConsole({ profile, onSignOut }) {
   const openPasswordReset = (userId, userName) => setModal({ type: 'pwreset', userId, userName })
   const openSchool = (schoolId) => { setSection('schools'); setJumpToSchoolId(schoolId) }
   const openDiagnostics = () => setSection('diagnostics')
+  const openExtendTrial = (schoolId) => setModal({ type: 'extendDate', schoolId, field: 'trial_ends_at', label: 'Trial', changeType: 'trial_extend' })
+  const openExtendGrace = (schoolId) => setModal({ type: 'extendDate', schoolId, field: 'grace_ends_at', label: 'Grace Period', changeType: 'grace_extend' })
 
-  const confirmSuspend = (schoolId) => {
-    const s = schools.find(x => x.id === schoolId)
-    setConfirmState({
-      title: 'Suspend School', icon: '⛔', danger: true, confirmLabel: 'Suspend',
-      body: `Are you sure you want to suspend ${s?.name}? They will lose access immediately.`,
-      onConfirm: async () => {
-        const { error } = await supabase.from('settings').update({ cancelled_at: new Date().toISOString() }).eq('school_id', schoolId)
-        if (error) { showToast('Failed to suspend school: ' + error.message, 'error'); return }
-        await logActivity(schoolId, 'School suspended')
-        showToast('School suspended')
-        await loadAll()
-      },
-    })
-  }
+  const confirmSuspend = (schoolId) => setModal({ type: 'suspend', schoolId })
 
   const unsuspend = async (schoolId) => {
     const { error } = await supabase.from('settings').update({ cancelled_at: null }).eq('school_id', schoolId)
     if (error) { showToast('Failed to unsuspend school: ' + error.message, 'error'); return }
     await logActivity(schoolId, 'School unsuspended')
+    await supabase.from('admin_plan_changes').insert({
+      school_id: schoolId, change_type: 'unsuspend',
+      changed_by: profile?.id, changed_by_name: profile?.full_name || profile?.email,
+    })
     showToast('School unsuspended')
     await loadAll()
   }
@@ -236,9 +234,10 @@ export default function AdminConsole({ profile, onSignOut }) {
   const closeModal = () => setModal(null)
 
   const shared = {
-    schools, notes, comms, payments, onboarding, activity, lastLoginBySchool,
+    schools, notes, comms, payments, onboarding, activity, lastLoginBySchool, planChanges,
     daysLeft, getExpiry, ONBOARDING_ITEMS, profile,
     openActivate, openAddSchool, openLogPayment, openNote, openComm, openPasswordReset, openSchool, openDiagnostics,
+    openExtendTrial, openExtendGrace,
     confirmSuspend, unsuspend, toggleObItem, confirmLockUser, unlockUser, confirmViewAs,
     logActivity, showToast, reload: loadAll, jumpToSchoolId,
     diagnosticIssues, diagnosticsLoading, reloadDiagnostics: loadDiagnostics,
@@ -298,7 +297,7 @@ export default function AdminConsole({ profile, onSignOut }) {
       )}
       {modal?.type === 'activate' && (
         <ActivatePlanModal
-          school={schools.find(s => s.id === modal.schoolId)}
+          school={schools.find(s => s.id === modal.schoolId)} profile={profile}
           onClose={closeModal} onSaved={loadAll} logActivity={logActivity} showToast={showToast}
         />
       )}
@@ -317,6 +316,18 @@ export default function AdminConsole({ profile, onSignOut }) {
       {modal?.type === 'comm' && (
         <CommModal
           school={schools.find(s => s.id === modal.schoolId)}
+          onClose={closeModal} onSaved={loadAll} logActivity={logActivity} showToast={showToast}
+        />
+      )}
+      {modal?.type === 'extendDate' && (
+        <ExtendDateModal
+          school={schools.find(s => s.id === modal.schoolId)} field={modal.field} label={modal.label} changeType={modal.changeType} profile={profile}
+          onClose={closeModal} onSaved={loadAll} logActivity={logActivity} showToast={showToast}
+        />
+      )}
+      {modal?.type === 'suspend' && (
+        <SuspendModal
+          school={schools.find(s => s.id === modal.schoolId)} profile={profile}
           onClose={closeModal} onSaved={loadAll} logActivity={logActivity} showToast={showToast}
         />
       )}

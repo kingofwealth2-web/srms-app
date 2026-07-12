@@ -13,20 +13,7 @@
 
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { PLANS } from '../lib/constants'
-
-const PLAN_ORDER = ['starter', 'basic', 'pro']
-
-const FEATURE_LABELS = {
-  feeReceipts:    'Fee Receipt Generation',
-  reportsExcel:   'Excel Export',
-  behaviour:      'Behaviour Tracking',
-  announcements:  'Announcements',
-  reportsPDF:     'PDF Reports',
-  parentPortal:   'Parent Portal',
-  auditLog:       'Audit Log',
-  yearSwitcher:   'Year Switcher',
-}
+import { PLANS, PLAN_ORDER, FEATURE_LABELS } from '../lib/constants'
 
 const UPGRADE_DESCRIPTIONS = {
   feeReceipts:   'Generate and print professional fee receipts for parents.',

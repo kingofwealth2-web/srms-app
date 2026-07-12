@@ -604,6 +604,27 @@ ALTER TABLE admin_diagnostics_dismissed ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Ministry admins manage dismissals" ON admin_diagnostics_dismissed FOR ALL USING (is_ministry_admin()) WITH CHECK (is_ministry_admin());
 GRANT SELECT, INSERT, UPDATE, DELETE ON admin_diagnostics_dismissed TO authenticated;
 
+-- admin_plan_changes: audit trail for every plan/trial/grace/suspend mutation
+-- a ministry admin makes on a school's subscription, so billing disputes
+-- ("you told me I was paid till December") have a real before/after record
+-- instead of a single freeform note.
+CREATE TABLE admin_plan_changes (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  school_id       uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  change_type     text NOT NULL, -- 'plan_change' | 'trial_extend' | 'grace_extend' | 'suspend' | 'unsuspend'
+  before_plan     text,
+  after_plan      text,
+  before_date     timestamptz,
+  after_date      timestamptz,
+  reason          text,
+  changed_by      uuid REFERENCES profiles(id),
+  changed_by_name text,
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE admin_plan_changes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Ministry admins manage plan changes" ON admin_plan_changes FOR ALL USING (is_ministry_admin()) WITH CHECK (is_ministry_admin());
+GRANT SELECT, INSERT, UPDATE, DELETE ON admin_plan_changes TO authenticated;
+
 -- Diagnostics: the only "fix" narrow/unambiguous enough to automate blind --
 -- an archived student should never still hold a class_id (the graduate code
 -- path always nulls it), so seeing one is always a data-integrity bug, never
