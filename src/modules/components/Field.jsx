@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useIsMobile } from '../lib/hooks'
 
-export default function Field({ label, value, onChange, type = 'text', placeholder, options, required, rows, style }) {
+export default function Field({ label, value, onChange, type = 'text', placeholder, options, required, rows, style, onKeyDown }) {
   const isMobile = useIsMobile()
   const [focused, setFocused] = useState(false)
 
@@ -74,7 +74,10 @@ export default function Field({ label, value, onChange, type = 'text', placehold
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           onWheel={type === 'number' ? e => e.target.blur() : undefined}
-          onKeyDown={type === 'number' ? e => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault() } : undefined}
+          onKeyDown={e => {
+            if (type === 'number' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) e.preventDefault()
+            onKeyDown?.(e)
+          }}
           style={inputStyle}
         />
       )}

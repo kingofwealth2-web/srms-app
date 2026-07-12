@@ -6,6 +6,7 @@ import Btn from '../components/Btn'
 import Spinner from '../components/Spinner'
 import AdminDashboard  from '../admin/AdminDashboard'
 import AdminSchools    from '../admin/AdminSchools'
+import AdminSearch     from '../admin/AdminSearch'
 import AdminRenewals   from '../admin/AdminRenewals'
 import AdminPayments   from '../admin/AdminPayments'
 import AdminOnboarding from '../admin/AdminOnboarding'
@@ -20,6 +21,7 @@ import ConfirmModal from '../components/ConfirmModal'
 
 const NAV = [
   { key: 'dashboard',  label: 'Dashboard',  icon: '📊' },
+  { key: 'search',     label: 'Search',     icon: '🔍' },
   { key: 'schools',    label: 'Schools',    icon: '🏫' },
   { key: 'renewals',   label: 'Renewals',   icon: '🔔' },
   { key: 'payments',   label: 'Payments',   icon: '💰' },
@@ -49,6 +51,7 @@ export default function AdminConsole({ profile, onSignOut }) {
   const [loading, setLoading]   = useState(true)
   const [section, setSection]   = useState('dashboard')
   const [toast, setToast]       = useState(null)
+  const [jumpToSchoolId, setJumpToSchoolId] = useState(null)
 
   const [schools, setSchools]       = useState([])
   const [notes, setNotes]           = useState([])
@@ -136,6 +139,7 @@ export default function AdminConsole({ profile, onSignOut }) {
   const openNote = (schoolId) => setModal({ type: 'note', schoolId })
   const openComm = (schoolId) => setModal({ type: 'comm', schoolId })
   const openPasswordReset = (userId, userName) => setModal({ type: 'pwreset', userId, userName })
+  const openSchool = (schoolId) => { setSection('schools'); setJumpToSchoolId(schoolId) }
 
   const confirmSuspend = (schoolId) => {
     const s = schools.find(x => x.id === schoolId)
@@ -215,9 +219,9 @@ export default function AdminConsole({ profile, onSignOut }) {
   const shared = {
     schools, notes, comms, payments, onboarding, activity, lastLoginBySchool,
     daysLeft, getExpiry, ONBOARDING_ITEMS,
-    openActivate, openAddSchool, openLogPayment, openNote, openComm, openPasswordReset,
+    openActivate, openAddSchool, openLogPayment, openNote, openComm, openPasswordReset, openSchool,
     confirmSuspend, unsuspend, toggleObItem, confirmLockUser, unlockUser, confirmViewAs,
-    logActivity, showToast, reload: loadAll,
+    logActivity, showToast, reload: loadAll, jumpToSchoolId,
   }
 
   if (loading) {
@@ -259,6 +263,7 @@ export default function AdminConsole({ profile, onSignOut }) {
       {/* Main */}
       <div style={{ marginLeft: 220, flex: 1, padding: 28, minWidth: 0 }}>
         {section === 'dashboard'  && <AdminDashboard  {...shared}/>}
+        {section === 'search'     && <AdminSearch     {...shared}/>}
         {section === 'schools'    && <AdminSchools    {...shared}/>}
         {section === 'renewals'   && <AdminRenewals   {...shared}/>}
         {section === 'payments'   && <AdminPayments   {...shared}/>}

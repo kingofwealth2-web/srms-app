@@ -20,11 +20,17 @@ function daysLeftLabel(d, status) {
 }
 
 export default function AdminSchools(props) {
-  const { schools, daysLeft, getExpiry, openActivate, openAddSchool, confirmSuspend, unsuspend } = props
+  const { schools, daysLeft, getExpiry, openActivate, openAddSchool, confirmSuspend, unsuspend, jumpToSchoolId } = props
   const [search, setSearch]   = useState('')
   const [fStatus, setFStatus] = useState('')
   const [fPlan, setFPlan]     = useState('')
   const [detailId, setDetailId] = useState(null)
+
+  // Arriving here via a search result ("Open School ->") -- open that
+  // school's detail panel directly instead of making the admin find it again.
+  useEffect(() => {
+    if (jumpToSchoolId) setDetailId(jumpToSchoolId)
+  }, [jumpToSchoolId])
 
   const list = schools.filter(s => {
     if (search && !s.name.toLowerCase().includes(search.toLowerCase())) return false
