@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../supabase'
 import { fetchAllRows } from '../lib/helpers'
 import { setImpersonationState, clearImpersonationState } from '../lib/impersonation'
+import { runDiagnostics } from '../lib/diagnostics'
 import Btn from '../components/Btn'
 import Spinner from '../components/Spinner'
 import AdminDashboard  from '../admin/AdminDashboard'
 import AdminSchools    from '../admin/AdminSchools'
 import AdminSearch     from '../admin/AdminSearch'
+import AdminDiagnostics from '../admin/AdminDiagnostics'
 import AdminRenewals   from '../admin/AdminRenewals'
 import AdminPayments   from '../admin/AdminPayments'
 import AdminOnboarding from '../admin/AdminOnboarding'
@@ -22,6 +24,7 @@ import ConfirmModal from '../components/ConfirmModal'
 const NAV = [
   { key: 'dashboard',  label: 'Dashboard',  icon: '📊' },
   { key: 'search',     label: 'Search',     icon: '🔍' },
+  { key: 'diagnostics',label: 'Diagnostics',icon: '🩺' },
   { key: 'schools',    label: 'Schools',    icon: '🏫' },
   { key: 'renewals',   label: 'Renewals',   icon: '🔔' },
   { key: 'payments',   label: 'Payments',   icon: '💰' },
@@ -60,6 +63,8 @@ export default function AdminConsole({ profile, onSignOut }) {
   const [onboarding, setOnboarding] = useState([])
   const [activity, setActivity]     = useState([])
   const [lastLoginBySchool, setLastLoginBySchool] = useState({})
+  const [diagnosticIssues, setDiagnosticIssues] = useState([])
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(true)
 
   // Modal state — shared across sections since several actions (log payment,
   // log contact, activate plan) can be triggered from more than one section.
@@ -132,6 +137,19 @@ export default function AdminConsole({ profile, onSignOut }) {
 
   useEffect(() => { loadAll() }, [loadAll])
 
+  const loadDiagnostics = useCallback(async () => {
+    if (schools.length === 0) return
+    setDiagnosticsLoading(true)
+    const result = await runDiagnostics(schools)
+    setDiagnosticIssues(result)
+    setDiagnosticsLoading(false)
+  }, [schools])
+
+  // Runs once schools are first loaded -- surfaced via a Dashboard KPI tile
+  // without needing to open Diagnostics directly, and reused there too so
+  // the (heavier, cross-school) scan only ever runs once per visit.
+  useEffect(() => { if (!loading) loadDiagnostics() }, [loading])
+
   // ── Shared actions used by multiple sections ──────────────────
   const openActivate = (schoolId) => setModal({ type: 'activate', schoolId })
   const openAddSchool = () => setModal({ type: 'addSchool' })
@@ -140,6 +158,7 @@ export default function AdminConsole({ profile, onSignOut }) {
   const openComm = (schoolId) => setModal({ type: 'comm', schoolId })
   const openPasswordReset = (userId, userName) => setModal({ type: 'pwreset', userId, userName })
   const openSchool = (schoolId) => { setSection('schools'); setJumpToSchoolId(schoolId) }
+  const openDiagnostics = () => setSection('diagnostics')
 
   const confirmSuspend = (schoolId) => {
     const s = schools.find(x => x.id === schoolId)
@@ -218,10 +237,11 @@ export default function AdminConsole({ profile, onSignOut }) {
 
   const shared = {
     schools, notes, comms, payments, onboarding, activity, lastLoginBySchool,
-    daysLeft, getExpiry, ONBOARDING_ITEMS,
-    openActivate, openAddSchool, openLogPayment, openNote, openComm, openPasswordReset, openSchool,
+    daysLeft, getExpiry, ONBOARDING_ITEMS, profile,
+    openActivate, openAddSchool, openLogPayment, openNote, openComm, openPasswordReset, openSchool, openDiagnostics,
     confirmSuspend, unsuspend, toggleObItem, confirmLockUser, unlockUser, confirmViewAs,
     logActivity, showToast, reload: loadAll, jumpToSchoolId,
+    diagnosticIssues, diagnosticsLoading, reloadDiagnostics: loadDiagnostics,
   }
 
   if (loading) {
@@ -264,6 +284,7 @@ export default function AdminConsole({ profile, onSignOut }) {
       <div style={{ marginLeft: 220, flex: 1, padding: 28, minWidth: 0 }}>
         {section === 'dashboard'  && <AdminDashboard  {...shared}/>}
         {section === 'search'     && <AdminSearch     {...shared}/>}
+        {section === 'diagnostics'&& <AdminDiagnostics {...shared}/>}
         {section === 'schools'    && <AdminSchools    {...shared}/>}
         {section === 'renewals'   && <AdminRenewals   {...shared}/>}
         {section === 'payments'   && <AdminPayments   {...shared}/>}

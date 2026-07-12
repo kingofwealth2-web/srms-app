@@ -587,6 +587,38 @@ BEGIN
 END;
 $$;
 
+-- admin_diagnostics_dismissed: lets a ministry admin snooze a flagged
+-- diagnostic that's a false positive (e.g. a student legitimately mid-transfer
+-- with no class yet) so it stops reappearing. target_id is null for
+-- school-level checks (no single row to point at, e.g. "stuck rollover").
+CREATE TABLE admin_diagnostics_dismissed (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  school_id     uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  check_key     text NOT NULL,
+  target_id     uuid,
+  dismissed_by  uuid REFERENCES profiles(id),
+  dismissed_by_name text,
+  dismissed_at  timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE admin_diagnostics_dismissed ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Ministry admins manage dismissals" ON admin_diagnostics_dismissed FOR ALL USING (is_ministry_admin()) WITH CHECK (is_ministry_admin());
+GRANT SELECT, INSERT, UPDATE, DELETE ON admin_diagnostics_dismissed TO authenticated;
+
+-- Diagnostics: the only "fix" narrow/unambiguous enough to automate blind --
+-- an archived student should never still hold a class_id (the graduate code
+-- path always nulls it), so seeing one is always a data-integrity bug, never
+-- a legitimate state. Guarded so it's a no-op on anything not actually
+-- archived, in case of a stale client-side diagnostic result.
+CREATE OR REPLACE FUNCTION admin_fix_archived_student_class(p_student_id uuid)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
+BEGIN
+  IF NOT is_ministry_admin() THEN
+    RAISE EXCEPTION 'Not authorised';
+  END IF;
+  UPDATE students SET class_id = NULL WHERE id = p_student_id AND archived = true;
+END;
+$$;
+
 -- Called by the impersonated user themselves, right before the "Exit
 -- Impersonation" sign-out, while their session is still live -- the action
 -- string is hardcoded (never client-supplied) and scoped to the caller's own
@@ -745,6 +777,7 @@ CREATE POLICY "classes_parent_select" ON classes FOR SELECT USING (my_role() = '
 CREATE POLICY "classes_insert_sa" ON classes FOR INSERT WITH CHECK (school_id = my_school_id() AND my_role() = 'superadmin' AND is_active_user());
 CREATE POLICY "classes_update_sa" ON classes FOR UPDATE USING (school_id = my_school_id() AND my_role() = 'superadmin' AND is_active_user()) WITH CHECK (school_id = my_school_id());
 CREATE POLICY "classes_delete_sa" ON classes FOR DELETE USING (school_id = my_school_id() AND my_role() = 'superadmin' AND is_active_user());
+CREATE POLICY "Ministry admins read all classes" ON classes FOR SELECT USING (is_ministry_admin());
 
 -- subjects
 CREATE POLICY "subjects_select"    ON subjects FOR SELECT USING (school_id = my_school_id() AND is_active_user());
@@ -771,6 +804,7 @@ CREATE POLICY "fees_parent_select" ON fees FOR SELECT USING (my_role() = 'parent
 CREATE POLICY "fees_insert"        ON fees FOR INSERT WITH CHECK (school_id = my_school_id() AND my_role() = ANY(ARRAY['superadmin','admin']) AND is_active_user());
 CREATE POLICY "fees_update"        ON fees FOR UPDATE USING (school_id = my_school_id() AND my_role() = ANY(ARRAY['superadmin','admin']) AND is_active_user()) WITH CHECK (school_id = my_school_id());
 CREATE POLICY "fees_delete"        ON fees FOR DELETE USING (school_id = my_school_id() AND my_role() = ANY(ARRAY['superadmin','admin']) AND is_active_user());
+CREATE POLICY "Ministry admins read all fees" ON fees FOR SELECT USING (is_ministry_admin());
 
 -- fee_templates
 CREATE POLICY "school members read fee_templates" ON fee_templates FOR SELECT USING (school_id = (SELECT school_id FROM profiles WHERE id = auth.uid()));
@@ -785,6 +819,7 @@ CREATE POLICY "payments_select"        ON payments FOR SELECT USING (school_id =
 CREATE POLICY "payments_parent_select" ON payments FOR SELECT USING (my_role() = 'parent' AND student_id IN (SELECT student_id FROM parent_students WHERE parent_id = auth.uid()));
 CREATE POLICY "payments_insert"        ON payments FOR INSERT WITH CHECK (school_id = my_school_id() AND my_role() = ANY(ARRAY['superadmin','admin']) AND is_active_user());
 CREATE POLICY "payments_delete"        ON payments FOR DELETE USING (school_id = my_school_id() AND my_role() = ANY(ARRAY['superadmin','admin']) AND is_active_user());
+CREATE POLICY "Ministry admins read all payments" ON payments FOR SELECT USING (is_ministry_admin());
 
 -- grades
 CREATE POLICY "grades_select"        ON grades FOR SELECT USING (school_id = my_school_id() AND is_active_user());

@@ -4,7 +4,7 @@ import Card from '../components/Card'
 import PageHeader from '../components/PageHeader'
 import Btn from '../components/Btn'
 
-export default function AdminDashboard({ schools, payments, activity, daysLeft, getExpiry, openAddSchool }) {
+export default function AdminDashboard({ schools, payments, activity, daysLeft, getExpiry, openAddSchool, diagnosticIssues, diagnosticsLoading, openDiagnostics }) {
   const totalRev = payments.reduce((a, p) => a + Number(p.amount || 0), 0)
   const now = new Date()
   const monthRev = payments.filter(p => {
@@ -35,6 +35,15 @@ export default function AdminDashboard({ schools, payments, activity, daysLeft, 
         </div>
         <div style={{ gridColumn: 'span 2' }}>
           <KPI label='Expiring in 30 Days' value={expiring30.length} sub='schools need attention' color='var(--amber)' index={5}/>
+        </div>
+        <div style={{ gridColumn: 'span 4', cursor: 'pointer' }} onClick={openDiagnostics}>
+          <KPI
+            label='Data Diagnostics'
+            value={diagnosticsLoading ? '…' : diagnosticIssues.length}
+            sub={diagnosticsLoading ? 'Scanning all schools...' : diagnosticIssues.length === 0 ? 'No issues found' : `${diagnosticIssues.filter(i => i.severity === 'critical').length} critical -- click to review`}
+            color={diagnosticIssues.some(i => i.severity === 'critical') ? 'var(--rose)' : diagnosticIssues.length > 0 ? 'var(--amber)' : 'var(--emerald)'}
+            index={6}
+          />
         </div>
       </div>
 
