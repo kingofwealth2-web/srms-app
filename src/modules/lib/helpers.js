@@ -19,6 +19,27 @@ export async function fetchAllRows(queryFactory) {
   return { data: all }
 }
 
+// queryFactory must NOT already call .order() -- this function owns ordering,
+// since it needs to filter on the same column it orders by ('id > lastId').
+// Only safe for a unique, sequential column such as a primary key 'id'.
+export async function fetchAllRowsByCursor(queryFactory, cursorCol = 'id') {
+  const PAGE_SIZE = 1000
+  let all = []
+  let lastCursor = null
+  while (true) {
+    let q = queryFactory().order(cursorCol, { ascending: true }).limit(PAGE_SIZE)
+    if (lastCursor !== null) q = q.gt(cursorCol, lastCursor)
+    const { data, error } = await q
+    if (error) return { data: null, error }
+    if (data?.length) {
+      all = all.concat(data)
+      lastCursor = data[data.length - 1][cursorCol]
+    }
+    if (!data || data.length < PAGE_SIZE) break
+  }
+  return { data: all }
+}
+
 // ── ATTENDANCE HELPERS ──────────────────────────────────────────
 // Folds "opening balance" rows (a pre-tracking historical present/total
 // aggregate, entered once by a superadmin -- see Settings > Opening

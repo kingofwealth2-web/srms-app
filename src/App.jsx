@@ -5,7 +5,7 @@ import G, { initScrollReveal } from './modules/styles/global'
 import { useIsMobile, usePlan } from './modules/lib/hooks'
 import PlanGate from './modules/components/PlanGate'
 import { ROLE_META, NAV_ITEMS } from './modules/lib/constants'
-import { currentYearFromSettings, fetchAllRows } from './modules/lib/helpers'
+import { currentYearFromSettings, fetchAllRows, fetchAllRowsByCursor } from './modules/lib/helpers'
 import { auditLog } from './modules/lib/auditLog'
 
 import Sidebar, { YearSwitcher } from './modules/layout/Sidebar'
@@ -256,8 +256,8 @@ export default function App() {
       fetchAllRows(() => supabase.from('profiles').select('*').eq('school_id', prof?.school_id).order('id')),
       fetchAllRows(() => supabase.from('grades').select('*').eq('school_id', prof?.school_id).eq('year', year).order('id')),
       fetchAllRows(() => supabase.from('attendance').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
-      fetchAllRows(() => supabase.from('fees').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
-      fetchAllRows(() => supabase.from('payments').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
+      fetchAllRowsByCursor(() => supabase.from('fees').select('*').eq('school_id', prof?.school_id).eq('academic_year', year)),
+      fetchAllRowsByCursor(() => supabase.from('payments').select('*').eq('school_id', prof?.school_id).eq('academic_year', year)),
       fetchAllRows(() => supabase.from('behaviour').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
       fetchAllRows(() => supabase.from('announcements').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
       fetchAllRows(() => supabase.from('fee_templates').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
