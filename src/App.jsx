@@ -271,15 +271,13 @@ export default function App() {
 
     if (failures.length) {
       failures.forEach(f => console.error(`Failed to load ${f.table}:`, f.error.message))
-      // Do NOT overwrite existing (good) data with empty arrays -- a partial/failed
-      // reload (e.g. a DB statement timeout on a large table) must never make data
-      // that was already showing on screen appear to vanish. Keep whatever was
-      // last successfully loaded and surface a clear, specific error instead.
+      // A failed table must never block or wipe the tables that DID load successfully --
+      // each table is merged independently below via functional setData, so e.g. a
+      // fees/payments timeout can't prevent students/classes from showing.
       showToast(
-        `Couldn't refresh ${failures.map(f => f.table).join(', ')} -- showing last loaded data. Please try again in a moment.`,
+        `Couldn't refresh ${failures.map(f => f.table).join(', ')} -- showing last loaded data for ${failures.length > 1 ? 'those' : 'it'}. Please try again in a moment.`,
         'error'
       )
-      return
     }
 
     const [
@@ -291,23 +289,27 @@ export default function App() {
       { data: examScores },
     ] = results
 
-    setData({
-      students:      students      || [],
-      classes:       classes       || [],
-      subjects:      subjects      || [],
-      grades:        grades        || [],
-      attendance:    attendance    || [],
-      fees:          fees          || [],
-      payments:      payments      || [],
-      behaviour:     behaviour     || [],
-      announcements: announcements || [],
-      enrolments:    enrolments    || [],
-      users:         users         || [],
-      fee_templates: feeTemplates  || [],
-      fee_periods:   feePeriods    || [],
-      opening_balances: openingBalances || [],
-      examScores:    examScores    || [],
-    })
+    // Functional update: each field falls back to its PREVIOUS value (not [])
+    // when its fetch failed, so a partial failure never wipes data that was
+    // already showing on screen. Fields that succeeded always update normally,
+    // including on first load.
+    setData(prev => ({
+      students:      students      || prev.students      || [],
+      classes:       classes       || prev.classes       || [],
+      subjects:      subjects      || prev.subjects       || [],
+      grades:        grades        || prev.grades         || [],
+      attendance:    attendance    || prev.attendance     || [],
+      fees:          fees          || prev.fees           || [],
+      payments:      payments      || prev.payments       || [],
+      behaviour:     behaviour     || prev.behaviour      || [],
+      announcements: announcements || prev.announcements  || [],
+      enrolments:    enrolments    || prev.enrolments     || [],
+      users:         users         || prev.users          || [],
+      fee_templates: feeTemplates  || prev.fee_templates  || [],
+      fee_periods:   feePeriods    || prev.fee_periods    || [],
+      opening_balances: openingBalances || prev.opening_balances || [],
+      examScores:    examScores    || prev.examScores     || [],
+    }))
   }, [])
 
   useEffect(() => {
