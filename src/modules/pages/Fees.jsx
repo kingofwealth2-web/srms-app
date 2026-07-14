@@ -1570,7 +1570,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           const registerRows = allStudents.map(s=>{
             const feeRow  = periodFees.find(f=>f.student_id===s.id)
             const charged = Number(feeRow?.amount||0)
-            const paid    = Number(feeRow?.paid||0)
+            const paid    = feeRow ? effectivePaid(feeRow,payments) : 0
             const balance = Math.max(0, charged - paid)
             const status  = !feeRow ? 'Excluded' : balance===0 ? 'Paid' : paid>0 ? 'Partial' : 'Outstanding'
             return {student:s, feeRow, charged, paid, balance, status}
@@ -1600,7 +1600,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             const allRegRows = allStudents.map(s=>{
               const feeRow  = periodFees.find(f=>f.student_id===s.id)
               const charged = Number(feeRow?.amount||0)
-              const paid    = Number(feeRow?.paid||0)
+              const paid    = feeRow ? effectivePaid(feeRow,payments) : 0
               const balance = Math.max(0, charged - paid)
               const status  = !feeRow ? 'Excluded' : balance===0 ? 'Paid' : paid>0 ? 'Partial' : 'Outstanding'
               const cls     = classes.find(c=>c.id===s.class_id)

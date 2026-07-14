@@ -243,14 +243,8 @@ export default function App() {
 
   const loadData = useCallback(async (yr, prof, settingsRow) => {
     const year = yr || currentYearFromSettings(settingsRow)
-    const [
-      { data: students }, { data: classes }, { data: subjects },
-      { data: enrolments }, { data: users },
-      { data: grades }, { data: attendance }, { data: fees },
-      { data: payments }, { data: behaviour }, { data: announcements },
-      { data: feeTemplates }, { data: feePeriods }, { data: openingBalances },
-      { data: examScores },
-    ] = await Promise.all([
+    const TABLE_NAMES = ['students','classes','subjects','enrolments','users','grades','attendance','fees','payments','behaviour','announcements','fee_templates','fee_periods','opening_balances','examScores']
+    const results = await Promise.all([
       // Every one of these can pass PostgREST's default max-rows cap (1000) as a
       // school accumulates history or grows in size -- an unbounded select silently
       // returns only an arbitrary partial slice past that point instead of erroring,
@@ -271,6 +265,32 @@ export default function App() {
       fetchAllRows(() => supabase.from('attendance_opening_balances').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
       fetchAllRows(() => supabase.from('exam_scores').select('*').eq('school_id', prof?.school_id).eq('year', year).order('id')),
     ])
+    const failures = results
+      .map((r, i) => ({ table: TABLE_NAMES[i], error: r.error }))
+      .filter(f => f.error)
+
+    if (failures.length) {
+      failures.forEach(f => console.error(`Failed to load ${f.table}:`, f.error.message))
+      // Do NOT overwrite existing (good) data with empty arrays -- a partial/failed
+      // reload (e.g. a DB statement timeout on a large table) must never make data
+      // that was already showing on screen appear to vanish. Keep whatever was
+      // last successfully loaded and surface a clear, specific error instead.
+      showToast(
+        `Couldn't refresh ${failures.map(f => f.table).join(', ')} -- showing last loaded data. Please try again in a moment.`,
+        'error'
+      )
+      return
+    }
+
+    const [
+      { data: students }, { data: classes }, { data: subjects },
+      { data: enrolments }, { data: users },
+      { data: grades }, { data: attendance }, { data: fees },
+      { data: payments }, { data: behaviour }, { data: announcements },
+      { data: feeTemplates }, { data: feePeriods }, { data: openingBalances },
+      { data: examScores },
+    ] = results
+
     setData({
       students:      students      || [],
       classes:       classes       || [],

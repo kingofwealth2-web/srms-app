@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useIsMobile, usePageData } from '../lib/hooks'
 import { ROLE_META, BEHAVIOUR_META } from '../lib/constants'
-import { fmtDate, getLetter, calcTotal, getGradeComponents, canSeeAnnouncement, getCurrency, fmtMoney , fullName, calcAttendanceRate } from '../lib/helpers'
+import { fmtDate, getLetter, calcTotal, getGradeComponents, canSeeAnnouncement, getCurrency, fmtMoney , fullName, calcAttendanceRate, effectivePaid } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Card from '../components/Card'
 import KPI from '../components/KPI'
@@ -35,7 +35,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   const myClass = profile?.role==='classteacher' ? classes.find(c=>c.id===profile.class_id) : null
   const todayMarked = myClass ? attendance.some(a=>a.class_id===myClass.id&&a.date===today) : true
   const totalFees = fees.reduce((s,f)=>s+Number(f.amount||0),0)
-  const totalPaid = fees.reduce((s,f)=>s+Number(f.paid||0),0)
+  const totalPaid = fees.reduce((s,f)=>s+effectivePaid(f,payments),0)
   const isAdmin   = ['superadmin','admin'].includes(profile?.role)
   const overdueFeesCount = isAdmin ? fees.filter(fee2=>{
     const feePs = payments.filter(pmt=>pmt.fee_id===fee2.id)
