@@ -33,6 +33,9 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   const paymentsSumByFee = useMemo(() => buildPaymentsByFee(payments), [payments])
   const totalFees = fees.reduce((s,f)=>s+Number(f.amount||0),0)
   const totalPaid = fees.reduce((s,f)=>s+effectivePaid(f,paymentsSumByFee),0)
+  // Capped at 99% while any balance remains -- a plain Math.round can display "100%"
+  // (e.g. GH₵200 owed out of GH₵500,000) even though money is still outstanding.
+  const feeRate = !totalFees ? 0 : totalPaid>=totalFees ? 100 : Math.min(99, Math.round(totalPaid/totalFees*100))
   const isAdmin   = ['superadmin','admin'].includes(profile?.role)
   const overdueFeesCount = isAdmin ? fees.filter(fee2=>{
     const bal = Number(fee2.amount||0) - effectivePaid(fee2,paymentsSumByFee)
@@ -173,7 +176,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
           <KPI label='Total Students'   value={yearStudents.length}      color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
           <KPI label='Attendance Rate'  value={`${schoolAttRate}%`}  color='var(--emerald)' sub={`${schoolAttPresent} of ${schoolAttTotal} records`} index={1}/>
           <KPI label='Average Score'    value={avgScore}             color='var(--sky)'     sub={`Pass rate: ${passRate}%`} index={2}/>
-          <KPI label='Fee Collection'   value={`${totalFees?Math.round(totalPaid/totalFees*100):0}%`} color='var(--amber)' sub={overdueFeesCount>0?`${fmtMoney(totalPaid,currency)} collected · ${overdueFeesCount} overdue`:`${fmtMoney(totalPaid,currency)} collected`} index={3}/>
+          <KPI label='Fee Collection'   value={`${feeRate}%`} color='var(--amber)' sub={overdueFeesCount>0?`${fmtMoney(totalPaid,currency)} collected · ${overdueFeesCount} overdue`:`${fmtMoney(totalPaid,currency)} collected`} index={3}/>
         </>}
         {profile?.role==='classteacher' && <>
           <KPI label='My Class'         value={myClass?.name||'--'}   color='var(--gold)'    sub='Your assigned class' index={0}/>

@@ -467,6 +467,9 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const overdueCount = enriched.filter(r=>r.isOverdue).length
   const totalOwed = enriched.reduce((s,r)=>s+Number(r.amount||0),0)
   const totalPaid = enriched.reduce((s,r)=>s+r.effectivePaid,0)
+  // Capped at 99% while any balance remains -- a plain Math.round can display "100%"
+  // (e.g. GH₵200 owed out of GH₵500,000) even though money is still outstanding.
+  const collectionRate = !totalOwed ? 0 : totalPaid>=totalOwed ? 100 : Math.min(99, Math.round(totalPaid/totalOwed*100))
   const openAdd = ()=>{ window.scrollTo({top:0,behavior:'smooth'}); setForm({student_id:'',fee_type:'',amount:'',due_date:'',period:''}); setModal(true) }
   const [editFeeModal,setEditFeeModal] = useState(false)
   const [editFeeRow,setEditFeeRow]     = useState(null)
@@ -1396,7 +1399,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         <KPI label='Total Owed'      value={fmtMoney(totalOwed,currency)} color='var(--mist)'    sub='All fees' index={0}/>
         <KPI label='Collected'       value={fmtMoney(totalPaid,currency)} color='var(--emerald)' sub='Payments received' index={1}/>
         <KPI label='Outstanding'     value={fmtMoney(totalOwed-totalPaid,currency)} color='var(--rose)' sub='Awaiting payment' index={2}/>
-        <KPI label='Collection Rate' value={`${totalOwed?Math.round(totalPaid/totalOwed*100):0}%`} color='var(--gold)' sub='Of total owed' index={3}/>
+        <KPI label='Collection Rate' value={`${collectionRate}%`} color='var(--gold)' sub='Of total owed' index={3}/>
         {overdueCount>0 && <KPI label='Overdue' value={overdueCount} color='var(--rose)' sub='Past due date, unpaid' index={4}/>}
       </div>
 

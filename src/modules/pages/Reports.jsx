@@ -202,6 +202,9 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   const avgAtt    = withRate.length?Math.round(withRate.reduce((a,s)=>a+s.rate,0)/withRate.length):0
   const totalF    = feeData.reduce((a,s)=>a+s.owed,0)
   const totalP    = feeData.reduce((a,s)=>a+s.paid,0)
+  // Capped at 99% while any balance remains -- a plain Math.round can display "100%"
+  // (e.g. GH₵200 owed out of GH₵500,000) even though money is still outstanding.
+  const feeCollectionRate = !totalF ? 0 : totalP>=totalF ? 100 : Math.min(99, Math.round(totalP/totalF*100))
 
   // ── Excel Export ──
   const exportExcel = () => {
@@ -296,7 +299,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
         {isAdmin && <>
           <KPI label='Pass Rate'      value={`${passRate}%`}   color='var(--emerald)' index={0}/>
           <KPI label='Avg Attendance' value={`${avgAtt}%`}     color='var(--sky)'     index={1}/>
-          <KPI label='Fee Collection' value={`${totalF?Math.round(totalP/totalF*100):0}%`} color='var(--gold)' sub={fmtMoney(totalP,currency)} index={2}/>
+          <KPI label='Fee Collection' value={`${feeCollectionRate}%`} color='var(--gold)' sub={fmtMoney(totalP,currency)} index={2}/>
           <KPI label='Students'       value={scopedStudents.length} color='var(--amber)' index={3}/>
         </>}
         {/* Class teacher — class-scoped, no fees */}
