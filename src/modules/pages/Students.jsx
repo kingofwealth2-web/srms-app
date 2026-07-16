@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS } from '../lib/constants'
@@ -37,6 +37,8 @@ export default function Students({profile,data,setData,toast,settings,activeYear
   const [fReason,setFReason]               = useState('')
   const f = k => v => setForm(p=>({...p,[k]:v}))
   const [viewStudent, setViewStudent] = useState(null)
+  const [stuPage,setStuPage] = useState(0)
+  const STU_PAGE_SIZE = 100
   const canEdit = ['superadmin','admin'].includes(profile?.role) && !isViewingPast
 
   const handlePhotoUpload = (e) => {
@@ -76,6 +78,9 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     const nameB = `${b.last_name} ${b.first_name}`.toLowerCase()
     return sortAlpha==='asc' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA)
   })
+  useEffect(() => { setStuPage(0) }, [search, fc, fGender, sortAlpha, showArchived, fyear, fReason])
+  const stuPageCount = Math.max(1, Math.ceil(filtered.length / STU_PAGE_SIZE))
+  const pagedFiltered = filtered.slice(stuPage*STU_PAGE_SIZE, stuPage*STU_PAGE_SIZE + STU_PAGE_SIZE)
   const unarchive = async (student, classId) => {
     if(!classId){ toast('Please select a class to re-enrol the student into','error'); return }
     setSaving(true)
@@ -449,7 +454,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
         </div>
       </Card>
       <Card>
-        <DataTable onRow={s=>setViewStudent(s)} data={filtered} columns={[
+        <DataTable onRow={s=>setViewStudent(s)} data={pagedFiltered} columns={[
           {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
           {key:'first_name',label:'Student',render:(v,r)=>(
             <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -492,6 +497,18 @@ export default function Students({profile,data,setData,toast,settings,activeYear
                 )}
               : {key:'id',label:'',render:()=>null},
         ]}/>
+        {filtered.length>0 && (
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderTop:'1px solid var(--line)',flexWrap:'wrap',gap:10}}>
+            <span style={{fontSize:12,color:'var(--mist3)'}}>
+              Showing {stuPage*STU_PAGE_SIZE+1}-{Math.min(filtered.length,(stuPage+1)*STU_PAGE_SIZE)} of {filtered.length}
+            </span>
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              <Btn size='sm' variant='ghost' disabled={stuPage===0} onClick={()=>setStuPage(p=>Math.max(0,p-1))}>&larr; Previous</Btn>
+              <span style={{fontSize:12,color:'var(--mist3)'}}>Page {stuPage+1} of {stuPageCount}</span>
+              <Btn size='sm' variant='ghost' disabled={stuPage>=stuPageCount-1} onClick={()=>setStuPage(p=>Math.min(stuPageCount-1,p+1))}>Next &rarr;</Btn>
+            </div>
+          </div>
+        )}
       </Card>
       {modal && (
         <Modal title={edit?'Edit Student':'New Student'} subtitle={edit?`ID: ${edit.student_id}`:'A Student ID will be generated automatically.'} onClose={()=>setModal(false)} width={580}>

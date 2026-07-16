@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META } from '../lib/constants'
@@ -65,6 +65,8 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
   const [gradeMode,setGradeMode]       = useState('components') // 'components' | 'exam'
   const [examRows,setExamRows]         = useState({}) // { studentId: score string }
   const [examSaving,setExamSaving]     = useState(false)
+  const [gPage,setGPage] = useState(0)
+  const GRADE_PAGE_SIZE = 100
   const f = k => v => setForm(p=>({...p,[k]:v}))
 
   const periods = settings?.period_type==='term'
@@ -88,19 +90,24 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
     ? grades
     : grades.filter(g=>viewSubjects.some(s=>s.id===g.subject_id))
 
-  const filtered = myGrades.filter(g=>{
+  const studentsById = useMemo(() => new Map(students.map(s=>[s.id,s])), [students])
+  const subjectsById = useMemo(() => new Map(subjects.map(s=>[s.id,s])), [subjects])
+  const filtered = useMemo(() => myGrades.filter(g=>{
     // Scope to active year — skip only if year is explicitly set to a different year
     if(g.year && g.year !== activeYear) return false
     // Use subject's class_id (not student's current class_id) so that records remain
     // anchored to the class they were recorded for — correct for re-enrolled and promoted students
-    const student = students.find(s=>s.id===g.student_id)
+    const student = studentsById.get(g.student_id)
     if(!student || student.archived) return false
     if(fc) {
-      const subject = subjects.find(s=>s.id===g.subject_id)
+      const subject = subjectsById.get(g.subject_id)
       if(!subject || subject.class_id !== fc) return false
     }
     return (!fs||g.subject_id===fs)&&(!fp||g.period===fp)
-  })
+  }), [myGrades, activeYear, fc, fs, fp, studentsById, subjectsById])
+  useEffect(() => { setGPage(0) }, [fc, fs, fp])
+  const gPageCount = Math.max(1, Math.ceil(filtered.length / GRADE_PAGE_SIZE))
+  const pagedFiltered = filtered.slice(gPage*GRADE_PAGE_SIZE, gPage*GRADE_PAGE_SIZE + GRADE_PAGE_SIZE)
 
   // Score limit warnings
   const scoreWarnings = allComps.filter(c=>c.enabled && +form[c.key] > c.max_score && c.max_score>0)
@@ -584,9 +591,9 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
       ) : (
         /* ── NORMAL LIST VIEW ── */
         <Card>
-          <DataTable onRow={isViewingPast?null:(g=>mySubjects.some(s=>s.id===g.subject_id)?openEdit(g):null)} data={filtered} columns={[
-            {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?(<div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={fullName(s)} size={28}/><span style={{fontWeight:600}}>{fullName(s,true)}</span></div>):'--'}},
-            {key:'subject_id',label:'Subject',render:v=>subjects.find(s=>s.id===v)?.name||'--'},
+          <DataTable onRow={isViewingPast?null:(g=>mySubjects.some(s=>s.id===g.subject_id)?openEdit(g):null)} data={pagedFiltered} columns={[
+            {key:'student_id',label:'Student',render:v=>{const s=studentsById.get(v);return s?(<div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={fullName(s)} size={28}/><span style={{fontWeight:600}}>{fullName(s,true)}</span></div>):'--'}},
+            {key:'subject_id',label:'Subject',render:v=>subjectsById.get(v)?.name||'--'},
             {key:'period',label:'Period'},
             ...tableComps.map(c=>({
               key:c.key,
@@ -601,6 +608,18 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
               </div>
             )}},
           ]}/>
+          {filtered.length>0 && (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderTop:'1px solid var(--line)',flexWrap:'wrap',gap:10}}>
+              <span style={{fontSize:12,color:'var(--mist3)'}}>
+                Showing {gPage*GRADE_PAGE_SIZE+1}-{Math.min(filtered.length,(gPage+1)*GRADE_PAGE_SIZE)} of {filtered.length}
+              </span>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <Btn size='sm' variant='ghost' disabled={gPage===0} onClick={()=>setGPage(p=>Math.max(0,p-1))}>&larr; Previous</Btn>
+                <span style={{fontSize:12,color:'var(--mist3)'}}>Page {gPage+1} of {gPageCount}</span>
+                <Btn size='sm' variant='ghost' disabled={gPage>=gPageCount-1} onClick={()=>setGPage(p=>Math.min(gPageCount-1,p+1))}>Next &rarr;</Btn>
+              </div>
+            </div>
+          )}
         </Card>
       )}
       {modal && (
