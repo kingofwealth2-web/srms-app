@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useIsMobile, usePageData } from '../lib/hooks'
+import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, BEHAVIOUR_META } from '../lib/constants'
 import { fmtDate, getLetter, calcTotal, getGradeComponents, canSeeAnnouncement, getCurrency, fmtMoney , fullName, calcAttendanceRate, effectivePaid, buildPaymentsByFee } from '../lib/helpers'
 import Avatar from '../components/Avatar'
@@ -13,16 +13,12 @@ import Badge from '../components/Badge'
 export default function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,isViewingPast}) {
   const isMobile = useIsMobile()
 
-  // Global data (students, classes, subjects, enrolments) comes from props.
-  // Year-specific data is fetched here so the Dashboard doesn't depend on loadData for it.
-  const { data: fees }          = usePageData('fees',          profile, activeYear)
-  const { data: payments }      = usePageData('payments',      profile, activeYear)
-  const { data: grades }        = usePageData('grades',        profile, activeYear)
-  const { data: attendance }    = usePageData('attendance',    profile, activeYear)
-  const { data: announcements } = usePageData('announcements', profile, activeYear)
-  const { data: openingBalances } = usePageData('attendance_opening_balances', profile, activeYear)
-
-  const {students=[],classes=[],subjects=[],enrolments=[]} = data
+  // All of these already come from App.jsx's loadData() -- fetching them again here
+  // via usePageData() duplicated the request and, for fees/payments, used the older
+  // offset-based fetchAllRows() (not the cursor-based pagination loadData() uses),
+  // which silently drops to [] on a timeout on a large table instead of erroring
+  // loudly. That was zeroing out the Fee Collection KPI for large schools.
+  const {students=[],classes=[],subjects=[],enrolments=[],fees=[],payments=[],grades=[],attendance=[],announcements=[],opening_balances:openingBalances=[]} = data
   // When viewing past year, use enrolment records to know which students were enrolled
   const enrolledStudentIds = enrolments.length>0 ? new Set(enrolments.map(e=>e.student_id)) : null
   const yearStudents = enrolledStudentIds
