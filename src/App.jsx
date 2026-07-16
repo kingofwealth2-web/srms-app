@@ -368,7 +368,13 @@ export default function App() {
       setLoading(false)
     }
     loadAll()
-  }, [session])
+    // Deliberately keyed on the user id, not the `session` object itself -- Supabase
+    // hands back a brand-new session object (same user) on events beyond the already
+    // -filtered TOKEN_REFRESHED/USER_UPDATED (e.g. a SIGNED_IN re-fire when a tab/window
+    // regains focus). Depending on the whole object would re-run this full reload --
+    // refetching all 15 tables and flashing "Loading your workspace" -- every time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id])
 
   useEffect(() => {
     if (!session || !settings || !profile) return
