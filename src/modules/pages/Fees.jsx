@@ -213,6 +213,13 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const [fPeriod,setFPeriod]   = useState('')
   useEffect(()=>{ if(initialFeeFilter){setFstatus(initialFeeFilter);if(onFilterConsumed)onFilterConsumed()} },[])
   const [fClassId,setFClassId] = useState(profile?.role==='classteacher' ? (profile?.class_id||'') : '')
+  // The fee table has no windowing -- a school with a full year of fee/period
+  // history can easily reach several thousand rows, and rendering that many
+  // <tr>s (each with its own inline handlers/animation) in one go is what
+  // was freezing the tab, separately from the effectivePaid() computation
+  // cost fixed above. Page it client-side instead of rendering everything.
+  const [feePage,setFeePage] = useState(0)
+  const FEE_PAGE_SIZE = 100
   const [modal,setModal]       = useState(false)
   const [payModal,setPayModal] = useState(false)
   const [editFee,setEditFee]   = useState(null)
@@ -442,7 +449,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   }), [fees, studentsById, paymentsByFee, paymentsSumByFee, today])
   const filtered = enriched.filter(r=>{
     if(fClassId){
-      const s = activeStudents.find(x=>x.id===r.student_id)
+      const s = studentsById.get(r.student_id)
       if(!s || s.class_id!==fClassId) return false
     }
     if(fFeeType && r.fee_type!==fFeeType) return false
@@ -452,6 +459,11 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     else if(fstatus && fstatus!=='Overdue' && r.status!==fstatus) return false
     return true
   })
+  // Reset to page 1 whenever the result set changes shape -- otherwise
+  // filtering down to fewer rows can leave you stranded on a page past the end.
+  useEffect(() => { setFeePage(0) }, [search, fClassId, fFeeType, fPeriod, fstatus])
+  const feePageCount = Math.max(1, Math.ceil(filtered.length / FEE_PAGE_SIZE))
+  const pagedFiltered = filtered.slice(feePage*FEE_PAGE_SIZE, feePage*FEE_PAGE_SIZE + FEE_PAGE_SIZE)
   const overdueCount = enriched.filter(r=>r.isOverdue).length
   const totalOwed = enriched.reduce((s,r)=>s+Number(r.amount||0),0)
   const totalPaid = enriched.reduce((s,r)=>s+r.effectivePaid,0)
@@ -1414,7 +1426,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       </Card>
 
       <Card>
-        <DataTable data={filtered} columns={[
+        <DataTable data={pagedFiltered} columns={[
           {key:'student_name',label:'Student',render:(v,r)=>{const s=students.find(x=>x.id===r.student_id);return(<div style={{display:'flex',alignItems:'center',gap:10}}>{s&&<Avatar name={v} size={28}/>}<span style={{fontWeight:600}}>{v}</span></div>)}},
           {key:'fee_type',label:'Fee Type',render:(v,r)=>{const displayType=r.is_arrear?v.replace(/\s*\(Arrears from [^)]+\)/,''):v;return(<div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><span>{displayType}</span>{r.period&&<Badge color='var(--sky)' bg='rgba(91,168,245,0.08)'>{r.period}</Badge>}{r.is_arrear&&<Badge color='var(--amber)' bg='rgba(251,159,58,0.1)'>Arrear from {r.arrear_from_year}</Badge>}{r.isOverdue&&<Badge color='var(--rose)' bg='rgba(240,107,122,0.1)'>Overdue</Badge>}</div>)}},
           {key:'amount', label:'Amount',  render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
@@ -1434,6 +1446,18 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             </div>
           )},
         ]}/>
+        {filtered.length>0 && (
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderTop:'1px solid var(--line)',flexWrap:'wrap',gap:10}}>
+            <span style={{fontSize:12,color:'var(--mist3)'}}>
+              Showing {feePage*FEE_PAGE_SIZE+1}-{Math.min(filtered.length,(feePage+1)*FEE_PAGE_SIZE)} of {filtered.length}
+            </span>
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              <Btn size='sm' variant='ghost' disabled={feePage===0} onClick={()=>setFeePage(p=>Math.max(0,p-1))}>&larr; Previous</Btn>
+              <span style={{fontSize:12,color:'var(--mist3)'}}>Page {feePage+1} of {feePageCount}</span>
+              <Btn size='sm' variant='ghost' disabled={feePage>=feePageCount-1} onClick={()=>setFeePage(p=>Math.min(feePageCount-1,p+1))}>Next &rarr;</Btn>
+            </div>
+          </div>
+        )}
       </Card>
 
       </>)}
