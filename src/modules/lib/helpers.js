@@ -179,11 +179,30 @@ export const fmtMoney = (n, currency) => {
 // can drift apart (a "legacy" paid amount that predates a payment row, or a
 // write that only updated one side) -- always trust whichever is higher
 // rather than reading fee.paid directly, so every screen agrees on balance.
-export function effectivePaid(fee, allPayments) {
-  const paymentsSum = allPayments
-    .filter(p => p.fee_id === fee.id)
-    .reduce((a, p) => a + Number(p.amount || 0), 0)
+//
+// allPaymentsOrIndex may be either the raw payments array (fine for a single
+// one-off lookup) or a Map from buildPaymentsByFee() (fee_id -> summed
+// amount). Pass the array only when checking one fee in isolation -- looping
+// this over every fee with the raw array re-scans the whole payments table
+// per fee (O(fees x payments)); build the index once with buildPaymentsByFee
+// and pass that instead when computing this for many fees at once.
+export function effectivePaid(fee, allPaymentsOrIndex) {
+  const paymentsSum = allPaymentsOrIndex instanceof Map
+    ? (allPaymentsOrIndex.get(fee.id) || 0)
+    : allPaymentsOrIndex
+        .filter(p => p.fee_id === fee.id)
+        .reduce((a, p) => a + Number(p.amount || 0), 0)
   return Math.max(Number(fee.paid || 0), paymentsSum)
+}
+
+// Pre-sums payments by fee_id once (O(payments)) so effectivePaid() can be
+// called in a loop over many fees at O(1) each, instead of O(payments) each.
+export function buildPaymentsByFee(payments) {
+  const map = new Map()
+  for (const p of payments) {
+    map.set(p.fee_id, (map.get(p.fee_id) || 0) + Number(p.amount || 0))
+  }
+  return map
 }
 
 // ── YEAR HELPERS ───────────────────────────────────────────────

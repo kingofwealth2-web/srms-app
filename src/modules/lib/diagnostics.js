@@ -1,5 +1,5 @@
 import { supabase } from '../../supabase'
-import { fetchAllRows, effectivePaid, fullName } from './helpers'
+import { fetchAllRows, fullName } from './helpers'
 
 // Each check returns an array of issues: {school_id, check_key, severity, title, description, targetId}
 // targetId is null for school-level checks (no single row to point a Fix/dismiss at).
@@ -77,7 +77,9 @@ export async function runDiagnostics(schools) {
     if (Math.abs(raw - sum) > 0.01) {
       push(f.school_id, 'fee_paid_drift', 'warning', f.id, `${f.fee_type} (${f.academic_year}): recorded paid ₵${raw.toFixed(2)} doesn't match ₵${sum.toFixed(2)} in actual payments.`)
     }
-    const eff = effectivePaid(f, payments || [])
+    // Same max(raw, sum) rule as effectivePaid() -- reuses the `sum` already
+    // computed above instead of re-scanning the full payments array again.
+    const eff = Math.max(raw, sum)
     if (eff > Number(f.amount || 0) + 0.01) {
       push(f.school_id, 'fee_overpaid', 'warning', f.id, `${f.fee_type} (${f.academic_year}): ₵${eff.toFixed(2)} paid against a ₵${Number(f.amount).toFixed(2)} fee.`)
     }

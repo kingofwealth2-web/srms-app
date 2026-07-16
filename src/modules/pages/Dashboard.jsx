@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useIsMobile, usePageData } from '../lib/hooks'
 import { ROLE_META, BEHAVIOUR_META } from '../lib/constants'
-import { fmtDate, getLetter, calcTotal, getGradeComponents, canSeeAnnouncement, getCurrency, fmtMoney , fullName, calcAttendanceRate, effectivePaid } from '../lib/helpers'
+import { fmtDate, getLetter, calcTotal, getGradeComponents, canSeeAnnouncement, getCurrency, fmtMoney , fullName, calcAttendanceRate, effectivePaid, buildPaymentsByFee } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Card from '../components/Card'
 import KPI from '../components/KPI'
@@ -34,13 +34,12 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   const currency = getCurrency(settings)
   const myClass = profile?.role==='classteacher' ? classes.find(c=>c.id===profile.class_id) : null
   const todayMarked = myClass ? attendance.some(a=>a.class_id===myClass.id&&a.date===today) : true
+  const paymentsSumByFee = useMemo(() => buildPaymentsByFee(payments), [payments])
   const totalFees = fees.reduce((s,f)=>s+Number(f.amount||0),0)
-  const totalPaid = fees.reduce((s,f)=>s+effectivePaid(f,payments),0)
+  const totalPaid = fees.reduce((s,f)=>s+effectivePaid(f,paymentsSumByFee),0)
   const isAdmin   = ['superadmin','admin'].includes(profile?.role)
   const overdueFeesCount = isAdmin ? fees.filter(fee2=>{
-    const feePs = payments.filter(pmt=>pmt.fee_id===fee2.id)
-    const pmtTotal = feePs.reduce((sum,pmt)=>sum+Number(pmt.amount||0),0)
-    const bal = Number(fee2.amount||0) - Math.max(Number(fee2.paid||0), pmtTotal)
+    const bal = Number(fee2.amount||0) - effectivePaid(fee2,paymentsSumByFee)
     return fee2.due_date && fee2.due_date < today && bal > 0
   }).length : 0
   const myClassStudents = myClass ? students.filter(s=>s.class_id===myClass.id) : []

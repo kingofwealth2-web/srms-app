@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName, calcAttendanceRate, isPassing, rankByTotal, effectivePaid } from '../lib/helpers'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName, calcAttendanceRate, isPassing, rankByTotal, effectivePaid, buildPaymentsByFee } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
@@ -183,10 +183,15 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   })
 
   // ── Fee data ──
+  // Index payments by fee_id once instead of re-scanning the full payments
+  // array inside effectivePaid() for every student's every fee (O(students x
+  // fees x payments) otherwise -- slow enough to freeze the tab once a school
+  // actually has a realistic amount of fee/payment history loaded).
+  const paymentsSumByFee = buildPaymentsByFee(payments)
   const feeData = scopedStudents.map(s=>{
     const sf=fees.filter(f=>f.student_id===s.id)
     const owed=sf.reduce((a,f)=>a+Number(f.amount||0),0)
-    const paid=sf.reduce((a,f)=>a+effectivePaid(f,payments),0)
+    const paid=sf.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
     return{...s,owed,paid,balance:owed-paid,feeStatus:owed===0?'--':paid>owed?'Overpaid':paid>=owed?'Paid':paid>0?'Partial':'Outstanding'}
   })
 

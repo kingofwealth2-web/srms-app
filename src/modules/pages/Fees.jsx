@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS, CURRENCIES } from '../lib/constants'
 import PlanGate from '../components/PlanGate'
-import { fmtDate, fmtMoney, getCurrency, csvEscape, fullName, effectivePaid } from '../lib/helpers'
+import { fmtDate, fmtMoney, getCurrency, csvEscape, fullName, effectivePaid, buildPaymentsByFee } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -413,17 +413,33 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
   // ── Existing fee helpers ──
   const today = new Date().toISOString().split('T')[0]
-  const enriched = fees.filter(fee=>!students.find(s=>s.id===fee.student_id)?.archived).map(fee=>{
-    const s=students.find(x=>x.id===fee.student_id)
-    const feePayments = payments.filter(p=>p.fee_id===fee.id)
-    const paidAmt = effectivePaid(fee, payments)
+  // Index students/payments once instead of re-scanning the full array for
+  // every fee -- on a large school (thousands of fees/payments) the naive
+  // .find()/.filter() version is O(fees x (students + payments)), which is
+  // fast enough to freeze the tab once the data actually loads at real scale.
+  const studentsById = useMemo(() => new Map(students.map(s=>[s.id,s])), [students])
+  const paymentsSumByFee = useMemo(() => buildPaymentsByFee(payments), [payments])
+  const paymentsByFee = useMemo(() => {
+    const map = new Map()
+    for (const p of payments) {
+      if (!map.has(p.fee_id)) map.set(p.fee_id, [])
+      map.get(p.fee_id).push(p)
+    }
+    return map
+  }, [payments])
+  const enriched = useMemo(() => fees.filter(fee=>!studentsById.get(fee.student_id)?.archived).map(fee=>{
+    const s = studentsById.get(fee.student_id)
+    const feePayments = paymentsByFee.get(fee.id) || []
+    const paidAmt = effectivePaid(fee, paymentsSumByFee)
     const bal=Number(fee.amount||0)-paidAmt
     const status=bal<0?'Overpaid':bal===0?'Paid':paidAmt>0?'Partial':'Outstanding'
     const isOverdue = !!(fee.due_date && fee.due_date < today && bal > 0)
-    const latestPayment = feePayments.sort((a,b)=>b.created_at?.localeCompare(a.created_at))[0]
+    // feePayments is a shared array from the index above -- copy before
+    // sorting so we don't mutate it out from under other lookups.
+    const latestPayment = [...feePayments].sort((a,b)=>b.created_at?.localeCompare(a.created_at))[0]
     const latestReceipt = latestPayment?.receipt_no || fee.receipt_no || null
     return{...fee,student_name:s?fullName(s,true):'--',balance:bal,effectivePaid:paidAmt,status,isOverdue,hasPayments:feePayments.length>0||paidAmt>0,receipt_no:latestReceipt}
-  })
+  }), [fees, studentsById, paymentsByFee, paymentsSumByFee, today])
   const filtered = enriched.filter(r=>{
     if(fClassId){
       const s = activeStudents.find(x=>x.id===r.student_id)
@@ -704,7 +720,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     return pool.map(s=>{
       const studentFees = fees.filter(f=>f.student_id===s.id && f.template_id===templateId)
       const totalCharged = studentFees.reduce((a,f)=>a+Number(f.amount||0),0)
-      const totalPaidAmt = studentFees.reduce((a,f)=>a+effectivePaid(f,payments),0)
+      const totalPaidAmt = studentFees.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
       const existingBalance = Math.max(0, totalCharged - totalPaidAmt)
       // Flag students enrolled after template was created
       const isNew = tmpl.created_at && s.created_at && new Date(s.created_at) > new Date(tmpl.created_at)
@@ -1067,7 +1083,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       )
       const totalCharged = studentFees.reduce((a,f)=>a+Number(f.amount||0),0)
       // Use effectivePaid (same as enriched) — max of fee.paid vs payments sum
-      const totalPaid = studentFees.reduce((a,f)=>a+effectivePaid(f,payments),0)
+      const totalPaid = studentFees.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
       const balance = Math.max(0, totalCharged - totalPaid)
       const feeId   = studentFees[0]?.id || null
       if(balance===0 || !feeId) return null
@@ -1163,7 +1179,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         // sum, whichever is higher) -- not raw fee.paid -- so a fee that already
         // had legacy-drifted payments doesn't get silently under-credited.
         const fee = fees.find(f=>f.id===r.feeId)
-        const reconciledBase = fee ? effectivePaid(fee, payments) : 0
+        const reconciledBase = fee ? effectivePaid(fee, paymentsSumByFee) : 0
         const newPaid = reconciledBase + amt
         const {error:feeErr} = await supabase.from('fees').update({paid:newPaid}).eq('id',r.feeId).eq('school_id',profile?.school_id)
         if(feeErr) throw new Error(`Payment recorded for ${r.student.first_name} ${r.student.last_name} but the fee balance failed to update (${feeErr.message}). Some students in this batch may already be saved -- reload and check before retrying.`)
@@ -1176,7 +1192,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         fees: p.fees.map(f=>{
           const match = selected.find(r=>r.feeId===f.id)
           if(!match) return f
-          return {...f, paid: effectivePaid(f,payments) + parseFloat(match.amount)}
+          return {...f, paid: effectivePaid(f,paymentsSumByFee) + parseFloat(match.amount)}
         })
       }))
       auditLog(profile,'Fees','Bulk Payment Collected',
@@ -1441,7 +1457,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             {fee_templates.filter(t=>t.academic_year===activeYear).map(tmpl=>{
               const tmplPeriods  = fee_periods.filter(p=>p.template_id===tmpl.id)
               const tmplFees     = fees.filter(f=>f.template_id===tmpl.id && !students.find(s=>s.id===f.student_id)?.archived)
-              const tmplPaid     = tmplFees.reduce((a,f)=>a+Number(f.paid||0),0)
+              const tmplPaid     = tmplFees.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
               const isSelected   = selectedTemplate?.id===tmpl.id
               const tmplClasses  = (tmpl.class_ids||[]).map(id=>classes.find(c=>c.id===id)?.name).filter(Boolean)
               return (
@@ -1510,8 +1526,8 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                       {tmplPeriods.map(period=>{
                         const periodFees  = fees.filter(f=>f.fee_period_id===period.id && !students.find(s=>s.id===f.student_id)?.archived)
                         const charged     = periodFees.length
-                        const collected   = periodFees.reduce((a,f)=>a+Number(f.paid||0),0)
-                        const outstanding = periodFees.reduce((a,f)=>a+Math.max(0,Number(f.amount||0)-Number(f.paid||0)),0)
+                        const collected   = periodFees.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
+                        const outstanding = periodFees.reduce((a,f)=>a+Math.max(0,Number(f.amount||0)-effectivePaid(f,paymentsSumByFee)),0)
                         const tmpl        = fee_templates.find(t=>t.id===period.template_id)
                         const totalInClasses = activeStudents.filter(s=>(tmpl?.class_ids||[]).includes(s.class_id)).length
                         const excluded    = Math.max(0, totalInClasses - charged)
@@ -1570,7 +1586,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
           const registerRows = allStudents.map(s=>{
             const feeRow  = periodFees.find(f=>f.student_id===s.id)
             const charged = Number(feeRow?.amount||0)
-            const paid    = feeRow ? effectivePaid(feeRow,payments) : 0
+            const paid    = feeRow ? effectivePaid(feeRow,paymentsSumByFee) : 0
             const balance = Math.max(0, charged - paid)
             const status  = !feeRow ? 'Excluded' : balance===0 ? 'Paid' : paid>0 ? 'Partial' : 'Outstanding'
             return {student:s, feeRow, charged, paid, balance, status}
@@ -1600,7 +1616,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             const allRegRows = allStudents.map(s=>{
               const feeRow  = periodFees.find(f=>f.student_id===s.id)
               const charged = Number(feeRow?.amount||0)
-              const paid    = feeRow ? effectivePaid(feeRow,payments) : 0
+              const paid    = feeRow ? effectivePaid(feeRow,paymentsSumByFee) : 0
               const balance = Math.max(0, charged - paid)
               const status  = !feeRow ? 'Excluded' : balance===0 ? 'Paid' : paid>0 ? 'Partial' : 'Outstanding'
               const cls     = classes.find(c=>c.id===s.class_id)
@@ -1617,14 +1633,15 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                 <td style="padding:7px 10px;font-size:11px;font-weight:700;color:${sColor};">${status}</td>
               </tr>`
             }).join('')
-            const grandTotal = allStudents.reduce((a,s)=>{const f=periodFees.find(x=>x.student_id===s.id);return a+Number(f?.paid||0)},0)
+            const grandTotal = allStudents.reduce((a,s)=>{const f=periodFees.find(x=>x.student_id===s.id);return a+(f?effectivePaid(f,paymentsSumByFee):0)},0)
             // Same Paid/Partial/Outstanding/Excluded bucketing as the on-screen register --
             // the old footer only checked balance===0 vs paid===0, so a partial payer
             // (paid>0 but balance>0) matched neither and silently dropped from both counts.
             const printStatusCounts = allStudents.reduce((acc,s)=>{
               const f = periodFees.find(x=>x.student_id===s.id)
-              const balance = Math.max(0, Number(f?.amount||0)-Number(f?.paid||0))
-              const status = !f ? 'Excluded' : balance===0 ? 'Paid' : Number(f.paid||0)>0 ? 'Partial' : 'Outstanding'
+              const paid = f ? effectivePaid(f,paymentsSumByFee) : 0
+              const balance = Math.max(0, Number(f?.amount||0)-paid)
+              const status = !f ? 'Excluded' : balance===0 ? 'Paid' : paid>0 ? 'Partial' : 'Outstanding'
               acc[status]++
               return acc
             },{Paid:0,Partial:0,Outstanding:0,Excluded:0})
@@ -2126,7 +2143,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         {phDetail && (()=>{
           const p      = phDetail
           const feePs  = payments.filter(x=>x.fee_id===p.fee_id)
-          const paidTotal = p.fee_obj ? effectivePaid(p.fee_obj, payments) : 0
+          const paidTotal = p.fee_obj ? effectivePaid(p.fee_obj, paymentsSumByFee) : 0
           const balance   = Math.max(0, Number(p.fee_obj?.amount||0) - paidTotal)
           const dt = p.created_at ? new Date(p.created_at) : null
           return (
