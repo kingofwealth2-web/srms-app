@@ -1,9 +1,13 @@
-import { useState } from 'react'
+import { useState, useId } from 'react'
 import { useIsMobile } from '../lib/hooks'
 
-export default function Field({ label, value, onChange, type = 'text', placeholder, options, required, rows, style, onKeyDown }) {
+export default function Field({
+  label, value, onChange, type = 'text', placeholder, options, required, rows, style, onKeyDown,
+  autoComplete, name, autoFocus, inputRef, adornment, adornmentWidth = 40,
+}) {
   const isMobile = useIsMobile()
   const [focused, setFocused] = useState(false)
+  const fieldId = useId()
 
   const inputStyle = {
     width: '100%',
@@ -23,7 +27,8 @@ export default function Field({ label, value, onChange, type = 'text', placehold
   return (
     <div style={{ marginBottom: 14, position: 'relative', ...style }}>
       {label && (
-        <label style={{
+        <label htmlFor={fieldId} style={{
+          cursor: 'pointer',
           display: 'block', fontSize: 11, fontWeight: 600,
           color: focused ? 'var(--mist)' : 'var(--mist2)',
           textTransform: 'uppercase', letterSpacing: '0.07em',
@@ -39,6 +44,8 @@ export default function Field({ label, value, onChange, type = 'text', placehold
       {options ? (
         <div style={{ position: 'relative' }}>
           <select
+            id={fieldId}
+            name={name}
             value={value ?? ''}
             onChange={e => onChange(e.target.value)}
             onFocus={() => setFocused(true)}
@@ -57,6 +64,8 @@ export default function Field({ label, value, onChange, type = 'text', placehold
         </div>
       ) : rows ? (
         <textarea
+          id={fieldId}
+          name={name}
           value={value ?? ''}
           onChange={e => onChange(e.target.value)}
           rows={rows}
@@ -66,20 +75,32 @@ export default function Field({ label, value, onChange, type = 'text', placehold
           style={{ ...inputStyle, resize: 'vertical' }}
         />
       ) : (
-        <input
-          type={type}
-          value={value ?? ''}
-          onChange={e => onChange(e.target.value)}
-          placeholder={placeholder}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onWheel={type === 'number' ? e => e.target.blur() : undefined}
-          onKeyDown={e => {
-            if (type === 'number' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) e.preventDefault()
-            onKeyDown?.(e)
-          }}
-          style={inputStyle}
-        />
+        <div style={{ position: 'relative' }}>
+          <input
+            id={fieldId}
+            ref={inputRef}
+            name={name}
+            type={type}
+            value={value ?? ''}
+            onChange={e => onChange(e.target.value)}
+            placeholder={placeholder}
+            autoComplete={autoComplete}
+            autoFocus={autoFocus}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onWheel={type === 'number' ? e => e.target.blur() : undefined}
+            onKeyDown={e => {
+              if (type === 'number' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) e.preventDefault()
+              onKeyDown?.(e)
+            }}
+            style={adornment ? { ...inputStyle, paddingRight: adornmentWidth + 12 } : inputStyle}
+          />
+          {adornment && (
+            <div style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
+              {adornment}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )

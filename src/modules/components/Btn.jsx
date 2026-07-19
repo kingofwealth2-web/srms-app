@@ -1,4 +1,7 @@
-export default function Btn({ children, variant = 'primary', size = 'md', onClick, style, disabled, title }) {
+// `type` defaults to 'button' on purpose: a bare <button> inside a <form>
+// defaults to type="submit", so any Btn used as a plain control (a reveal
+// toggle, a "back" link) would silently submit the form it sits in.
+export default function Btn({ children, variant = 'primary', size = 'md', onClick, style, disabled, title, type = 'button' }) {
   const styles = {
     primary: {
       background: 'var(--gold)',
@@ -44,6 +47,7 @@ export default function Btn({ children, variant = 'primary', size = 'md', onClic
 
   return (
     <button
+      type={type}
       onClick={onClick}
       disabled={disabled}
       title={title}

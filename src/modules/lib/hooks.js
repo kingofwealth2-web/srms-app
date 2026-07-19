@@ -47,6 +47,25 @@ export function useIsMobile() {
   return isMobile
 }
 
+// ── Reduced-motion preference ───────────────────────────────────
+// Usage: const reduceMotion = useReducedMotion()
+export function useReducedMotion() {
+  const query = '(prefers-reduced-motion: reduce)'
+  const [reduced, setReduced] = useState(
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia(query).matches
+      : false
+  )
+  useEffect(() => {
+    if (!window.matchMedia) return
+    const mq = window.matchMedia(query)
+    const handler = e => setReduced(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  return reduced
+}
+
 // ── Count-up animation for numbers ─────────────────────────────
 // Usage: const displayed = useCountUp(value, { duration: 1000 })
 export function useCountUp(target, options = {}) {
