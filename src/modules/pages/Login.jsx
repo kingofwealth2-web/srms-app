@@ -12,14 +12,20 @@ import LogoMark from '../components/LogoMark'
 // at left:0/width:50%, so at the midpoint they overlap exactly —
 // the form panel carries the higher z-index and a travelling shadow
 // so it reads as passing *over* the info panel rather than clipping
-// through it. Content inside both panels is held at opacity 0 across
-// the crossing and swapped at SWAP_MID, so the copy is never seen
-// rewriting itself mid-flight.
-const SWAP_MS   = 480
-const SWAP_MID  = 200
-const FADE_OUT  = 170
-const FADE_IN   = 240
-const EASE      = 'cubic-bezier(.16,1,.3,1)'
+// through it. Content inside both panels dims across the crossing and
+// is swapped at SWAP_MID, so the copy is never seen rewriting itself
+// mid-flight.
+const SWAP_MS    = 480
+const SWAP_MID   = 165
+const FADE_OUT   = 130
+const FADE_IN    = 210
+// Content dims rather than disappearing. Both panel backgrounds are
+// near-black (#0c0c15 / #11111c), so fading all the way to 0 left a
+// uniform dark rectangle on screen and the whole page read as blacking
+// out mid-swap. Holding a floor keeps the layout legible throughout —
+// the panels are moving fast enough at SWAP_MID to mask the change.
+const FADE_FLOOR = 0.3
+const EASE       = 'cubic-bezier(.16,1,.3,1)'
 
 export default function Login({ onLogin, lockedError, onClearLockedError, onBack }) {
   const [email,setEmail]           = useState('')
@@ -386,7 +392,7 @@ export default function Login({ onLogin, lockedError, onClearLockedError, onBack
   const fuWrap      = { position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }
   const contentWrap = {
     width: '100%', display: 'flex', justifyContent: 'center',
-    opacity: moving ? 0 : 1,
+    opacity: moving ? FADE_FLOOR : 1,
     transition: reduceMotion ? 'none' : `opacity ${moving ? FADE_OUT : FADE_IN}ms ease`,
   }
 
@@ -398,7 +404,9 @@ export default function Login({ onLogin, lockedError, onClearLockedError, onBack
         style={{
           ...panelBase, zIndex: 2, background: 'var(--ink)', padding: '60px 56px',
           transform: `translateX(${swapped ? 100 : 0}%)`,
-          boxShadow: moving ? '0 0 80px rgba(0,0,0,0.75)' : 'none',
+          // Tight enough to read as a lifted edge, not a glow that
+          // darkens the whole viewport for the length of the swap.
+          boxShadow: moving ? '0 0 24px rgba(0,0,0,0.45)' : 'none',
         }}
       >
         <div style={{ ...gridBg(40), opacity: 0.3, maskImage: 'radial-gradient(ellipse at center,black 40%,transparent 80%)' }}/>
