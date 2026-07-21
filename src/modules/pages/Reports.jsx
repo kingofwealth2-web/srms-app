@@ -67,6 +67,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   const [rcRemarks,setRcRemarks]     = useState({}) // {studentId: remark}
   const [rcHeadRemark,setRcHeadRemark] = useState('')
   const [rcResumption,setRcResumption] = useState('')
+  const [rcPromotedTo,setRcPromotedTo] = useState('')
   const [rcHeadTeacher,setRcHeadTeacher] = useState('')
   const [rcStamp,setRcStamp]         = useState(false)
   const [rcClassTeacherName,setRcClassTeacherName] = useState('')
@@ -560,6 +561,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
           rcRemarks={rcRemarks} setRcRemarks={setRcRemarks}
           rcHeadRemark={rcHeadRemark} setRcHeadRemark={setRcHeadRemark}
           rcResumption={rcResumption} setRcResumption={setRcResumption}
+          rcPromotedTo={rcPromotedTo} setRcPromotedTo={setRcPromotedTo}
           rcHeadTeacher={rcHeadTeacher} setRcHeadTeacher={setRcHeadTeacher}
           rcStamp={rcStamp} setRcStamp={setRcStamp}
           rcClassTeacherName={rcClassTeacherName} setRcClassTeacherName={setRcClassTeacherName}
@@ -577,7 +579,7 @@ const thStyle={padding:'10px 12px',textAlign:'left',fontSize:10,fontWeight:600,c
 const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlign:'middle'}
 
 // ── REPORT CARDS ───────────────────────────────────────────────
-function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,rcReportTitle,setRcReportTitle,exportExcel,planHook,onShowPlans}) {
+function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcPromotedTo,setRcPromotedTo,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,rcReportTitle,setRcReportTitle,exportExcel,planHook,onShowPlans}) {
   const {students=[],grades=[],attendance=[],behaviour=[],classes=[],subjects=[],users=[],examScores=[],opening_balances:openingBalances=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
@@ -1115,7 +1117,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
           ${rcResumption?`<div style="padding:8px 14px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;font-size:11px;color:#1e3a8a;margin-bottom:10px;"><span style="font-weight:700;">Next Term Resumes:</span> ${rcResumption}</div>`:''}
 
-          ${isLastPeriod?`<div style="padding:8px 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;font-size:11px;color:#4b5563;margin-bottom:10px;"><span style="font-weight:700;color:#111827;">Promoted to:</span> _______________________________</div>`:''}
+          ${isLastPeriod?`<div style="padding:8px 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;font-size:11px;color:#4b5563;margin-bottom:10px;"><span style="font-weight:700;color:#111827;">Promoted to:</span> ${rcPromotedTo||'_______________________________'}</div>`:''}
         </div>
       </div>
 
@@ -1253,6 +1255,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           {rcType==='individual' && <>
             <Field label='Head Teacher Remark (optional)' value={rcHeadRemark} onChange={setRcHeadRemark} placeholder='Overall comment...'/>
             <Field label='Next Term Resumption Date' value={rcResumption} onChange={setRcResumption} placeholder='e.g. Jan 13, 2026'/>
+            <Field label='Promoted To (final period only)' value={rcPromotedTo} onChange={setRcPromotedTo}
+              options={[{value:'',label:'Leave blank for signature'},...classes.map(c=>({value:c.name,label:c.name})),{value:'Graduated',label:'Graduated'}]}/>
           </>}
           <div style={{display:'flex',alignItems:'center',gap:10,paddingTop:8}}>
             <button onClick={()=>setRcStamp(v=>!v)}
