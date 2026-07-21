@@ -1009,7 +1009,16 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Acad. Year</div>
           <div style="font-size:13px;font-weight:600;color:#111827;">${activeYear}</div>
         </div>
+        ${isLastPeriod?`<div style="padding:0 20px;border-right:1px solid #e5e7eb;">
+          <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Promoted To</div>
+          <div style="font-size:13px;font-weight:600;color:${rcPromotedTo?'#16a34a':'#9ca3af'};">${rcPromotedTo||'_____________'}</div>
+        </div>`:''}
         <div style="margin-left:auto;display:flex;align-items:center;gap:14px;padding-left:16px;">
+          <div style="text-align:center;padding:8px 16px;background:#fff;border:2px solid #e5e7eb;border-radius:10px;">
+            <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Average</div>
+            <div style="font-size:22px;font-weight:900;color:#111827;">${grandAvg!==null?Math.round(grandAvg):'—'}</div>
+            <div style="font-size:9px;color:#9ca3af;margin-top:1px;">of 100</div>
+          </div>
           <div style="text-align:center;padding:8px 16px;background:#fff;border:2px solid ${gradeC};border-radius:10px;">
             <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Grade</div>
             <div style="font-size:22px;font-weight:900;color:${gradeC};">${grandLetter}</div>
@@ -1049,9 +1058,9 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             <tbody>${subjectRows}</tbody>
             <tfoot>
               <tr style="background:linear-gradient(135deg,#eff6ff,#e0f2fe);border-top:2px solid #1e3a8a;">
-                <td style="padding:9px 12px;font-size:11px;font-weight:700;color:#1e3a8a;">Average</td>
+                <td style="padding:9px 12px;font-size:11px;font-weight:700;color:#1e3a8a;">Total</td>
                 ${gradeSource==='components' ? activeComps.map(()=>'<td style="border-top:2px solid #1e3a8a;"></td>').join('') : ''}
-                <td style="padding:9px 8px;text-align:center;font-size:16px;font-weight:900;color:#1e3a8a;">${grandAvg!==null?Math.round(grandAvg):'—'}</td>
+                <td style="padding:9px 8px;text-align:center;font-size:16px;font-weight:900;color:#1e3a8a;">${grandTotal!==null?grandTotal:'—'}</td>
                 <td style="padding:9px 8px;text-align:center;"><span style="display:inline-block;padding:3px 10px;background:#1e3a8a;border-radius:20px;font-size:11px;font-weight:800;color:#fff;">${grandLetter}</span></td>
                 <td style="padding:9px 10px;font-size:10px;color:#4b5563;">${grandRemark}</td>
               </tr>
@@ -1116,8 +1125,6 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           </div>`:''}
 
           ${rcResumption?`<div style="padding:8px 14px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;font-size:11px;color:#1e3a8a;margin-bottom:10px;"><span style="font-weight:700;">Next Term Resumes:</span> ${rcResumption}</div>`:''}
-
-          ${isLastPeriod?`<div style="padding:8px 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;font-size:11px;color:#4b5563;margin-bottom:10px;"><span style="font-weight:700;color:#111827;">Promoted to:</span> ${rcPromotedTo||'_______________________________'}</div>`:''}
         </div>
       </div>
 
