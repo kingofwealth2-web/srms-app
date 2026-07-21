@@ -689,8 +689,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   }
 
   const logoTag = schoolLogo
-    ? `<img src="${schoolLogo}" style="width:60px;height:60px;object-fit:contain;" />`
-    : `<div style="width:60px;height:60px;border-radius:50%;background:rgba(251,191,36,0.15);border:2px solid rgba(251,191,36,0.4);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fbbf24;">${schoolName.charAt(0)}</div>`
+    ? `<img src="${schoolLogo}" style="width:88px;height:88px;object-fit:contain;flex-shrink:0;" />`
+    : `<div style="width:88px;height:88px;border-radius:50%;background:rgba(251,191,36,0.15);border:2px solid rgba(251,191,36,0.4);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:700;color:#fbbf24;flex-shrink:0;">${schoolName.charAt(0)}</div>`
 
   const baseStyles = `
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@600;700&display=swap');
