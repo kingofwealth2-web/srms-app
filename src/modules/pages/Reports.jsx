@@ -671,6 +671,18 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     ? rankedStudents.filter(s=>s.scoredSubjectCount<classSubjects.length).length
     : 0
 
+  // Position within each subject, keyed {subjectId:{studentId:position}}. Built
+  // once for the whole class because a class print calls buildReportCard for
+  // every student. Same helper as the overall ranking, so ties share a position
+  // and a student with no score for that subject gets none rather than last.
+  const subjectPositions = Object.fromEntries(classSubjects.map(sub=>[
+    sub.id,
+    Object.fromEntries(
+      rankByTotal(classStudents.map(s=>({id:s.id,score:activeGetTotal(s.id,sub.id)})),'score')
+        .map(s=>[s.id,s.position])
+    )
+  ]))
+
   // Attendance helper
   const getAttendance = (studentId) => {
     const recs = attendance.filter(a=>a.student_id===studentId)
@@ -936,8 +948,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     const subjectRows = classSubjects.map((sub,si)=>{
       const g      = gradeSource==='components' ? grades.find(gr=>gr.student_id===student.id&&gr.subject_id===sub.id&&(!rcPeriod||gr.period===rcPeriod)) : null
       const total  = gradeSource==='exam' ? activeGetTotal(student.id,sub.id) : (g ? calcTotal(g,gradeComps) : null)
-      const letter = total!==null ? getGradeLetter(total,scale) : '--'
       const remark = total!==null ? getGradeRemark(total,scale) : '--'
+      const subPos = subjectPositions[sub.id]?.[student.id] ?? null
       const scoreC = total===null?'#9ca3af':total<50?'#dc2626':total>=75?'#16a34a':'#1d4ed8'
       const rowBg  = si%2===0 ? '#ffffff' : '#f9fafb'
       const compCells = activeComps.map(c=>{
@@ -959,7 +971,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           <span style="font-size:15px;font-weight:900;color:${scoreC};">${total!==null?total:'—'}</span>
         </td>
         <td style="padding:8px 8px;text-align:center;border:1.5px solid #000;background:${rowBg};">
-          <span style="display:inline-block;padding:2px 8px;background:${scoreC}18;border:1px solid ${scoreC}40;border-radius:20px;font-size:10px;font-weight:800;color:${scoreC};">${letter}</span>
+          <span style="font-size:13px;font-weight:800;color:${subPos!==null?'#111827':'#d1d5db'};">${subPos!==null?ordinal(subPos):'—'}</span>
         </td>
         <td style="padding:8px 10px;font-size:10px;border:1.5px solid #000;color:#4b5563;background:${rowBg};">${remark}</td>
       </tr>`
@@ -1060,7 +1072,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
                 <th style="padding:8px 12px;text-align:left;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border:1.5px solid #000;border-bottom:3px solid #1e3a8a;white-space:nowrap;">Subject</th>
                 ${activeComps.map(c=>`<th style="padding:8px 6px;text-align:center;font-size:8px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.06em;border:1.5px solid #000;border-bottom:3px solid #1e3a8a;white-space:nowrap;">${c.label}<br><span style="font-size:8px;font-weight:400;color:#6b7280;text-transform:none;letter-spacing:0;">(/${c.max_score})</span></th>`).join('')}
                 <th style="padding:8px 8px;text-align:center;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border:1.5px solid #000;border-bottom:3px solid #1e3a8a;white-space:nowrap;">Total<br><span style="font-size:8px;font-weight:400;color:#6b7280;text-transform:none;">/100</span></th>
-                <th style="padding:8px 8px;text-align:center;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border:1.5px solid #000;border-bottom:3px solid #1e3a8a;">Grade</th>
+                <th style="padding:8px 8px;text-align:center;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border:1.5px solid #000;border-bottom:3px solid #1e3a8a;white-space:nowrap;">Position<br><span style="font-size:8px;font-weight:400;color:#6b7280;text-transform:none;letter-spacing:0;">in subject</span></th>
                 <th style="padding:8px 10px;text-align:left;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border:1.5px solid #000;border-bottom:3px solid #1e3a8a;">Remark</th>
               </tr>
             </thead>
@@ -1070,7 +1082,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
                 <td style="padding:9px 12px;font-size:11px;font-weight:700;color:#1e3a8a;border:1.5px solid #000;border-top:3px solid #1e3a8a;">Total</td>
                 ${gradeSource==='components' ? activeComps.map(()=>'<td style="border:1.5px solid #000;border-top:3px solid #1e3a8a;"></td>').join('') : ''}
                 <td style="padding:9px 8px;text-align:center;font-size:16px;font-weight:900;color:#1e3a8a;border:1.5px solid #000;border-top:3px solid #1e3a8a;">${grandTotal!==null?grandTotal:'—'}</td>
-                <td style="padding:9px 8px;text-align:center;border:1.5px solid #000;border-top:3px solid #1e3a8a;"><span style="display:inline-block;padding:3px 10px;background:#1e3a8a;border-radius:20px;font-size:11px;font-weight:800;color:#fff;">${grandLetter}</span></td>
+                <td style="border:1.5px solid #000;border-top:3px solid #1e3a8a;"></td>
                 <td style="padding:9px 10px;font-size:10px;color:#4b5563;border:1.5px solid #000;border-top:3px solid #1e3a8a;">${grandRemark}</td>
               </tr>
             </tfoot>
@@ -1133,12 +1145,12 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             <div style="padding:10px 14px;background:#f8fafc;border-radius:8px;border-left:4px solid #fbbf24;font-size:12px;color:#374151;line-height:1.6;font-style:italic;">${rcHeadRemark}</div>
           </div>`:''}
 
-          ${(rcVacation||rcResumption)?`<div style="padding:8px 14px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;font-size:11px;color:#1e3a8a;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px 24px;">
+          ${(rcVacation||rcResumption)?`<div style="grid-column:1/-1;padding:8px 14px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;font-size:11px;color:#1e3a8a;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px 24px;">
             ${rcVacation?`<span><span style="font-weight:700;">Vacation Begins:</span> ${fmtDate(rcVacation)}</span>`:''}
             ${rcResumption?`<span><span style="font-weight:700;">Next Term Resumes:</span> ${fmtDate(rcResumption)}</span>`:''}
           </div>`:''}
 
-          ${isLastPeriod?`<div style="padding:8px 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;font-size:11px;color:#4b5563;margin-bottom:10px;"><span style="font-weight:700;color:#111827;">Promoted To:</span> <span style="font-weight:700;color:${promotedTo?'#16a34a':'#9ca3af'};">${promotedTo||'_______________________________'}</span></div>`:''}
+          ${isLastPeriod?`<div style="grid-column:1/-1;padding:8px 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;font-size:11px;color:#4b5563;margin-bottom:10px;"><span style="font-weight:700;color:#111827;">Promoted To:</span> <span style="font-weight:700;color:${promotedTo?'#16a34a':'#9ca3af'};">${promotedTo||'_______________________________'}</span></div>`:''}
         </div>
       </div>
 
