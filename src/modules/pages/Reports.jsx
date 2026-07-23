@@ -582,7 +582,7 @@ const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlig
 
 // ── REPORT CARDS ───────────────────────────────────────────────
 function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcVacation,setRcVacation,rcPromotedTo,setRcPromotedTo,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,rcReportTitle,setRcReportTitle,exportExcel,planHook,onShowPlans}) {
-  const {students=[],grades=[],attendance=[],behaviour=[],classes=[],subjects=[],users=[],examScores=[],opening_balances:openingBalances=[]} = data
+  const {students=[],grades=[],attendance=[],classes=[],subjects=[],users=[],examScores=[],opening_balances:openingBalances=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
   const schoolLogo = settings?.school_logo||null
@@ -693,13 +693,6 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     return calcAttendanceRate(recs, obs)
   }
 
-  // Behaviour helper
-  const getBehaviour = (studentId) => {
-    const recs = behaviour.filter(b=>b.student_id===studentId)
-    const achievements = recs.filter(b=>b.type==='Achievement').length
-    const discipline   = recs.filter(b=>b.type==='Discipline').length
-    return {achievements, discipline, total: recs.length}
-  }
 
   // ── PRINT FUNCTIONS ────────────────────────────────────────────
   const openPrint = (html, w=860, h=960) => {
@@ -942,7 +935,6 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   const buildReportCard = (student) => {
     const cls           = classes.find(c=>c.id===student.class_id)
     const att           = getAttendance(student.id)
-    const beh           = getBehaviour(student.id)
     const sPos          = rankedStudents.find(s=>s.id===student.id)?.position||'--'
     const teacherRemark = rcRemarks[student.id]||''
     const promotedTo    = rcPromotedTo[student.id]||''
@@ -1120,50 +1112,25 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           </table>
         </div>
 
-        <!-- Bottom: Attendance, Conduct, Remarks -->
+        <!-- Bottom: Attendance, Remark -->
         <div style="padding:20px 28px 20px 28px;display:grid;grid-template-columns:repeat(3,1fr);gap:24px;">
 
-          <!-- Attendance -->
+          <!-- Attendance: days present out of days school was in session -->
           <div>
             <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
               <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;flex-shrink:0;"></div>
               Attendance
             </div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-              <div style="flex:1;height:7px;background:#f3f4f6;border-radius:4px;overflow:hidden;">
-                <div style="width:${att.rate!==null?att.rate:0}%;height:100%;background:${att.rate!==null&&att.rate>=80?'#16a34a':att.rate!==null&&att.rate>=60?'#d97706':'#dc2626'};border-radius:4px;"></div>
-              </div>
-              <span style="font-size:16px;font-weight:800;color:${att.rate!==null&&att.rate>=80?'#16a34a':att.rate!==null&&att.rate>=60?'#d97706':'#dc2626'};">${att.rate!==null?att.rate+'%':'—'}</span>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-              ${[['Present',att.present,'#16a34a','#f0fdf4'],['Absent',att.absent,'#dc2626','#fef2f2'],['Late',att.late,'#d97706','#fef9ec']].map(([l,v,c,bg])=>`
-              <div style="text-align:center;padding:7px 6px;background:${bg};border-radius:8px;border:1px solid ${c}20;">
-                <div style="font-size:17px;font-weight:900;color:${c};">${v}</div>
-                <div style="font-size:9px;color:#6b7280;margin-top:2px;">${l}</div>
-              </div>`).join('')}
-            </div>
-          </div>
-
-          <!-- Conduct -->
-          <div>
-            <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-              <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;flex-shrink:0;"></div>
-              Conduct
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <div style="padding:10px;background:#f0fdf4;border-radius:8px;border:1px solid #16a34a30;text-align:center;">
-                <div style="font-size:17px;font-weight:900;color:#16a34a;">🏆 ${beh.achievements}</div>
-                <div style="font-size:9px;color:#6b7280;margin-top:3px;">Achievement${beh.achievements!==1?'s':''}</div>
-              </div>
-              <div style="padding:10px;background:#fef2f2;border-radius:8px;border:1px solid #dc262630;text-align:center;">
-                <div style="font-size:17px;font-weight:900;color:#dc2626;">⚡ ${beh.discipline}</div>
-                <div style="font-size:9px;color:#6b7280;margin-top:3px;">Discipline note${beh.discipline!==1?'s':''}</div>
-              </div>
+            <div style="padding:12px 14px;background:#f0fdf4;border-radius:8px;border:1px solid #16a34a20;">
+              ${att.total>0
+                ? `<div style="font-size:24px;font-weight:900;color:#16a34a;line-height:1;">${att.present} <span style="font-size:14px;font-weight:600;color:#6b7280;">out of ${att.total}</span></div>
+                   <div style="font-size:10px;color:#6b7280;margin-top:4px;">days present</div>`
+                : `<div style="font-size:13px;color:#9ca3af;">No attendance recorded</div>`}
             </div>
           </div>
 
           <!-- Teacher Remark -->
-          <div>
+          <div style="grid-column:span 2;">
             <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
               <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;flex-shrink:0;"></div>
               Class Teacher's Remark
