@@ -67,7 +67,8 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   const [rcRemarks,setRcRemarks]     = useState({}) // {studentId: remark}
   const [rcHeadRemark,setRcHeadRemark] = useState('')
   const [rcResumption,setRcResumption] = useState('')
-  const [rcPromotedTo,setRcPromotedTo] = useState('')
+  const [rcVacation,setRcVacation]     = useState('')
+  const [rcPromotedTo,setRcPromotedTo] = useState({}) // {studentId: class name | 'Graduated'}
   const [rcHeadTeacher,setRcHeadTeacher] = useState('')
   const [rcStamp,setRcStamp]         = useState(false)
   const [rcClassTeacherName,setRcClassTeacherName] = useState('')
@@ -561,6 +562,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
           rcRemarks={rcRemarks} setRcRemarks={setRcRemarks}
           rcHeadRemark={rcHeadRemark} setRcHeadRemark={setRcHeadRemark}
           rcResumption={rcResumption} setRcResumption={setRcResumption}
+          rcVacation={rcVacation} setRcVacation={setRcVacation}
           rcPromotedTo={rcPromotedTo} setRcPromotedTo={setRcPromotedTo}
           rcHeadTeacher={rcHeadTeacher} setRcHeadTeacher={setRcHeadTeacher}
           rcStamp={rcStamp} setRcStamp={setRcStamp}
@@ -579,7 +581,7 @@ const thStyle={padding:'10px 12px',textAlign:'left',fontSize:10,fontWeight:600,c
 const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlign:'middle'}
 
 // ── REPORT CARDS ───────────────────────────────────────────────
-function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcPromotedTo,setRcPromotedTo,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,rcReportTitle,setRcReportTitle,exportExcel,planHook,onShowPlans}) {
+function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcVacation,setRcVacation,rcPromotedTo,setRcPromotedTo,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,rcReportTitle,setRcReportTitle,exportExcel,planHook,onShowPlans}) {
   const {students=[],grades=[],attendance=[],behaviour=[],classes=[],subjects=[],users=[],examScores=[],opening_balances:openingBalances=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
@@ -613,6 +615,16 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   const classStudents = rcClass
     ? students.filter(s=>s.class_id===rcClass&&!s.archived).sort((a,b)=>a.last_name.localeCompare(b.last_name))
     : []
+
+  // Promotion destinations, in school order (not alphabetical) so "Basic 2"
+  // doesn't sort after "Basic 10". Mirrors the ordering used by Classes.
+  const rcClassName  = classes.find(c=>c.id===rcClass)?.name || ''
+  const promoClasses = [...classes].sort((a,b)=>{
+    if(a.sort_order!=null && b.sort_order!=null) return a.sort_order - b.sort_order
+    if(a.sort_order!=null) return -1
+    if(b.sort_order!=null) return 1
+    return a.name.localeCompare(b.name)
+  })
 
   // Helper: get total for a student/subject combo
   const getTotal = (studentId, subjectId) => {
@@ -918,6 +930,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     const beh           = getBehaviour(student.id)
     const sPos          = rankedStudents.find(s=>s.id===student.id)?.position||'--'
     const teacherRemark = rcRemarks[student.id]||''
+    const promotedTo    = rcPromotedTo[student.id]||''
 
     const activeComps = gradeComps.filter(c=>c.enabled)
     const subjectRows = classSubjects.map((sub,si)=>{
@@ -1009,10 +1022,6 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Acad. Year</div>
           <div style="font-size:13px;font-weight:600;color:#111827;">${activeYear}</div>
         </div>
-        ${isLastPeriod?`<div style="padding:0 20px;border-right:1px solid #e5e7eb;">
-          <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Promoted To</div>
-          <div style="font-size:13px;font-weight:600;color:${rcPromotedTo?'#16a34a':'#9ca3af'};">${rcPromotedTo||'_____________'}</div>
-        </div>`:''}
         <div style="margin-left:auto;display:flex;align-items:center;gap:14px;padding-left:16px;">
           <div style="text-align:center;padding:8px 16px;background:#fff;border:2px solid #e5e7eb;border-radius:10px;">
             <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Average</div>
@@ -1124,7 +1133,12 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             <div style="padding:10px 14px;background:#f8fafc;border-radius:8px;border-left:4px solid #fbbf24;font-size:12px;color:#374151;line-height:1.6;font-style:italic;">${rcHeadRemark}</div>
           </div>`:''}
 
-          ${rcResumption?`<div style="padding:8px 14px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;font-size:11px;color:#1e3a8a;margin-bottom:10px;"><span style="font-weight:700;">Next Term Resumes:</span> ${rcResumption}</div>`:''}
+          ${(rcVacation||rcResumption)?`<div style="padding:8px 14px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;font-size:11px;color:#1e3a8a;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px 24px;">
+            ${rcVacation?`<span><span style="font-weight:700;">Vacation Begins:</span> ${fmtDate(rcVacation)}</span>`:''}
+            ${rcResumption?`<span><span style="font-weight:700;">Next Term Resumes:</span> ${fmtDate(rcResumption)}</span>`:''}
+          </div>`:''}
+
+          ${isLastPeriod?`<div style="padding:8px 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;font-size:11px;color:#4b5563;margin-bottom:10px;"><span style="font-weight:700;color:#111827;">Promoted To:</span> <span style="font-weight:700;color:${promotedTo?'#16a34a':'#9ca3af'};">${promotedTo||'_______________________________'}</span></div>`:''}
         </div>
       </div>
 
@@ -1261,9 +1275,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             placeholder={rcType==='broadsheet'?'Terminal Report — Class Broadsheet':rcType==='subject'?'Subject Performance Report':'Student Terminal Report Card'}/>
           {rcType==='individual' && <>
             <Field label='Head Teacher Remark (optional)' value={rcHeadRemark} onChange={setRcHeadRemark} placeholder='Overall comment...'/>
-            <Field label='Next Term Resumption Date' value={rcResumption} onChange={setRcResumption} placeholder='e.g. Jan 13, 2026'/>
-            <Field label='Promoted To (final period only)' value={rcPromotedTo} onChange={setRcPromotedTo}
-              options={[{value:'',label:'Leave blank for signature'},...classes.map(c=>({value:c.name,label:c.name})),{value:'Graduated',label:'Graduated'}]}/>
+            <Field label='Vacation Begins' value={rcVacation} onChange={setRcVacation} type='date'/>
+            <Field label='Next Term Resumption Date' value={rcResumption} onChange={setRcResumption} type='date'/>
           </>}
           <div style={{display:'flex',alignItems:'center',gap:10,paddingTop:8}}>
             <button onClick={()=>setRcStamp(v=>!v)}
@@ -1275,14 +1288,24 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         </div>
       </Card>
 
-      {/* Per-student remarks for individual cards */}
+      {/* Per-student remarks (and end-of-year promotion) for individual cards */}
       {rcType==='individual' && rcClass && (
         <Card style={{marginBottom:16}}>
-          <SectionTitle>Class Teacher Remarks</SectionTitle>
-          <p style={{fontSize:12,color:'var(--mist2)',marginBottom:14}}>Enter a remark for each student. These will appear on their report cards.</p>
+          <SectionTitle>{isLastPeriod?'Class Teacher Remarks & Promotion':'Class Teacher Remarks'}</SectionTitle>
+          <p style={{fontSize:12,color:'var(--mist2)',marginBottom:14}}>
+            {isLastPeriod
+              ? `Enter a remark for each student and set where they go next. Pick ${rcClassName||'their current class'} again for a student who repeats. Both appear on the report card.`
+              : 'Enter a remark for each student. These will appear on their report cards.'}
+          </p>
+          {isLastPeriod && (
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6,paddingLeft:190}}>
+              <span style={{flex:'1 1 200px',fontSize:10,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.07em'}}>Remark</span>
+              <span style={{width:150,flexShrink:0,fontSize:10,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.07em'}}>Promoted To</span>
+            </div>
+          )}
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             {classStudents.map(s=>(
-              <div key={s.id} style={{display:'flex',alignItems:'center',gap:12}}>
+              <div key={s.id} style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,width:180,flexShrink:0}}>
                   <Avatar name={fullName(s)} size={26} photo={s.photo}/>
                   <span style={{fontSize:12,fontWeight:600,color:'var(--mist)'}}>{fullName(s,true)}</span>
@@ -1291,7 +1314,17 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
                   value={rcRemarks[s.id]||''}
                   onChange={e=>setRcRemarks(p=>({...p,[s.id]:e.target.value}))}
                   placeholder='Enter remark...'
-                  style={{flex:1,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'7px 12px',color:'var(--white)',fontSize:12,fontFamily:"'Cabinet Grotesk',sans-serif"}}/>
+                  style={{flex:'1 1 200px',minWidth:0,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'7px 12px',color:'var(--white)',fontSize:12,fontFamily:"'Cabinet Grotesk',sans-serif"}}/>
+                {isLastPeriod && (
+                  <select
+                    value={rcPromotedTo[s.id]||''}
+                    onChange={e=>setRcPromotedTo(p=>({...p,[s.id]:e.target.value}))}
+                    style={{width:150,flexShrink:0,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'7px 10px',color:rcPromotedTo[s.id]?'var(--white)':'var(--mist3)',fontSize:12,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>
+                    <option value=''>— Not set —</option>
+                    {promoClasses.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                    <option value='Graduated'>Graduated</option>
+                  </select>
+                )}
               </div>
             ))}
           </div>
