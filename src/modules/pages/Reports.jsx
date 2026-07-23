@@ -965,6 +965,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
     const subjectRows = subjectTotals.map(({sub,g,total},si)=>{
       const remark = total!==null ? getGradeRemark(total,scale) : '--'
+      const letter = total!==null ? getGradeLetter(total,scale) : '--'
       const subPos = subjectPositions[sub.id]?.[student.id] ?? null
       const scoreC = total===null?'#9ca3af':total<50?'#dc2626':total>=75?'#16a34a':'#1d4ed8'
       const rowBg  = si%2===0 ? '#ffffff' : '#f9fafb'
@@ -985,6 +986,9 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         ${gradeSource==='components' ? compCells : ''}
         <td style="padding:8px 8px;text-align:center;border:1.5px solid #000;background:${rowBg};">
           <span style="font-size:15px;font-weight:900;color:${scoreC};">${total!==null?total:'—'}</span>
+        </td>
+        <td style="padding:8px 8px;text-align:center;border:1.5px solid #000;background:${rowBg};">
+          <span style="display:inline-block;padding:2px 8px;background:${scoreC}18;border:1px solid ${scoreC}40;border-radius:20px;font-size:10px;font-weight:800;color:${scoreC};">${letter}</span>
         </td>
         <td style="padding:8px 8px;text-align:center;border:1.5px solid #000;background:${rowBg};">
           <span style="font-size:13px;font-weight:800;color:${subPos!==null?'#111827':'#d1d5db'};">${subPos!==null?ordinal(subPos):'—'}</span>
@@ -1097,6 +1101,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
                 <th style="padding:8px 12px;text-align:left;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border:1.5px solid #000;border-bottom:3px solid #1e3a8a;white-space:nowrap;">Subject</th>
                 ${activeComps.map(c=>`<th style="padding:8px 6px;text-align:center;font-size:8px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.06em;border:1.5px solid #000;border-bottom:3px solid #1e3a8a;white-space:nowrap;">${c.label}<br><span style="font-size:8px;font-weight:400;color:#6b7280;text-transform:none;letter-spacing:0;">(/${c.max_score})</span></th>`).join('')}
                 <th style="padding:8px 8px;text-align:center;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border:1.5px solid #000;border-bottom:3px solid #1e3a8a;white-space:nowrap;">Total<br><span style="font-size:8px;font-weight:400;color:#6b7280;text-transform:none;">/100</span></th>
+                <th style="padding:8px 8px;text-align:center;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border:1.5px solid #000;border-bottom:3px solid #1e3a8a;">Grade</th>
                 <th style="padding:8px 8px;text-align:center;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border:1.5px solid #000;border-bottom:3px solid #1e3a8a;white-space:nowrap;">Position<br><span style="font-size:8px;font-weight:400;color:#6b7280;text-transform:none;letter-spacing:0;">in subject</span></th>
                 <th style="padding:8px 10px;text-align:left;font-size:8.5px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.08em;border:1.5px solid #000;border-bottom:3px solid #1e3a8a;">Remark</th>
               </tr>
@@ -1107,6 +1112,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
                 <td style="padding:9px 12px;font-size:11px;font-weight:700;color:#1e3a8a;border:1.5px solid #000;border-top:3px solid #1e3a8a;">Total</td>
                 ${gradeSource==='components' ? activeComps.map(()=>'<td style="border:1.5px solid #000;border-top:3px solid #1e3a8a;"></td>').join('') : ''}
                 <td style="padding:9px 8px;text-align:center;font-size:16px;font-weight:900;color:#1e3a8a;border:1.5px solid #000;border-top:3px solid #1e3a8a;">${grandTotal!==null?grandTotal:'—'}</td>
+                <td style="padding:9px 8px;text-align:center;border:1.5px solid #000;border-top:3px solid #1e3a8a;"><span style="display:inline-block;padding:3px 10px;background:#1e3a8a;border-radius:20px;font-size:11px;font-weight:800;color:#fff;">${grandLetter}</span></td>
                 <td style="border:1.5px solid #000;border-top:3px solid #1e3a8a;"></td>
                 <td style="padding:9px 10px;font-size:12px;font-weight:600;color:#4b5563;border:1.5px solid #000;border-top:3px solid #1e3a8a;">${grandRemark}</td>
               </tr>
