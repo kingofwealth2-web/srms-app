@@ -875,48 +875,39 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       if(fErr) throw fErr
 
       // 3 — record payments only for 'paid' students.
-      // This used to be three sequential round-trips per student (receipt
-      // number, payment insert, fee update). At 300 paid students that is 900
-      // requests one after another -- minutes on a school's connection, long
-      // enough for the access token to need refreshing mid-save, and if that
-      // refresh fails the session drops and the whole batch is lost. The work
-      // is the same; it just no longer runs single file.
       const targets = paidRows
         .map(r => ({ r, feeRow: insertedFees.find(f => f.student_id === r.student.id), amt: parseFloat(r.amount) }))
         .filter(t => t.feeRow)
 
-      // Receipt numbers stay DB-side and atomic, so they are safe to allocate
-      // concurrently -- just not all at once, which would swamp a weak link.
-      const receipts = await mapWithConcurrency(targets, 6, async t => {
-        const {data:rcpt, error} = await supabase.rpc('generate_receipt_no', { p_school_id: profile?.school_id })
-        if(error) throw error
-        return {...t, rcpt}
-      })
-
-      // One insert for every payment rather than one insert each. If it fails,
-      // nothing is recorded, which is a cleaner outcome than the half-written
-      // batch the per-student loop could leave behind.
-      let payRows = []
-      if(receipts.length){
-        const {data:inserted, error:payErr} = await supabase.from('payments').insert(
-          receipts.map(({r,feeRow,amt,rcpt}) => ({
-            school_id:        profile?.school_id,
-            academic_year:    activeYear,
-            fee_id:           feeRow.id,
-            student_id:       r.student.id,
-            amount:           amt,
-            receipt_no:       rcpt,
-            recorded_by_id:   profile?.id,
-            recorded_by_name: profile?.full_name,
-            fee_period_id:    periodRow.id,
-          }))
-        ).select()
+      // Receipt number then payment, one student at a time, and it has to stay
+      // that way: generate_receipt_no is MAX(receipt_no)+1 over *committed*
+      // payments, so it only yields a fresh number once the previous payment is
+      // actually in the table. Allocating a batch up front -- concurrently or
+      // not -- makes every call read the same maximum and return the same
+      // number. Measured: 38 payments, 37 duplicate receipts.
+      const payRows = []
+      for(const {r, feeRow, amt} of targets){
+        const {data:rcpt, error:rcptErr} = await supabase.rpc('generate_receipt_no', { p_school_id: profile?.school_id })
+        if(rcptErr) throw rcptErr
+        const {data:payRow, error:payErr} = await supabase.from('payments').insert({
+          school_id:        profile?.school_id,
+          academic_year:    activeYear,
+          fee_id:           feeRow.id,
+          student_id:       r.student.id,
+          amount:           amt,
+          receipt_no:       rcpt,
+          recorded_by_id:   profile?.id,
+          recorded_by_name: profile?.full_name,
+          fee_period_id:    periodRow.id,
+        }).select().single()
         if(payErr) throw payErr
-        payRows = inserted || []
+        payRows.push(payRow)
       }
 
+      // The fee balance updates carry no such ordering constraint, so these can
+      // run together -- a third of the round-trips, with nothing to serialise.
       const feeUpdateErrors = []
-      await mapWithConcurrency(receipts, 6, async ({feeRow, amt, r}) => {
+      await mapWithConcurrency(targets, 6, async ({feeRow, amt, r}) => {
         const {error} = await supabase.from('fees').update({paid:amt}).eq('id',feeRow.id).eq('school_id',profile?.school_id)
         if(error) feeUpdateErrors.push(`${r.student.first_name} ${r.student.last_name}`)
       })
