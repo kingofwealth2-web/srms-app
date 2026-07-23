@@ -40,6 +40,25 @@ export async function fetchAllRowsByCursor(queryFactory, cursorCol = 'id') {
   return { data: all }
 }
 
+// Runs `fn` over `items` with at most `limit` calls in flight, preserving input
+// order in the result. For batches that would otherwise be hundreds of
+// sequential round-trips: over a slow school connection that is the difference
+// between a save taking seconds and taking minutes, and a save that takes
+// minutes can outlive its own access token.
+export async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length)
+  let next = 0
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (true) {
+      const i = next++
+      if (i >= items.length) return
+      results[i] = await fn(items[i], i)
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
 // ── ATTENDANCE HELPERS ──────────────────────────────────────────
 // Folds "opening balance" rows (a pre-tracking historical present/total
 // aggregate, entered once by a superadmin -- see Settings > Opening

@@ -190,6 +190,12 @@ export default function App() {
   // year's rows: every count filters down to 0 and the app looks like it has
   // lost the school's records.
   const [dataLoading,setDataLoading] = useState(false)
+  // Set when the profile lookup failed for a reason other than "no such row",
+  // so the app can say the connection failed instead of showing a login page
+  // to someone who is still perfectly well signed in.
+  const [profileLoadError,setProfileLoadError] = useState(false)
+  // Bumped by "Try again" to re-run the workspace load without a full reload.
+  const [authRetry,setAuthRetry] = useState(0)
   const [toast,setToast]           = useState(null)
   const [drawerOpen,setDrawerOpen] = useState(false)
   const [isDark,setIsDark]         = useState(() => {
@@ -328,7 +334,21 @@ export default function App() {
     if (!session) { setProfile(null); setLoading(false); return }
     setLoading(true)
     const loadAll = async () => {
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+      const { data: prof, error: profErr } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+
+      // A failed lookup is NOT a missing profile. PGRST116 ("no rows") is the
+      // only error that actually means the row isn't there; everything else is
+      // the request not completing -- offline, timeout, a flaky connection.
+      // Treating those as "no profile" left `profile` null, and the render
+      // guard below drops a null profile to the Login screen, so a momentary
+      // network blip logged the user out mid-work with a valid session still
+      // in storage. Keep them signed in and let them retry instead.
+      if (profErr && profErr.code !== 'PGRST116') {
+        console.error('Profile lookup failed:', profErr.message)
+        setProfileLoadError(true)
+        setLoading(false)
+        return
+      }
 
       // Handle missing profile (edge case: signup upsert failed)
       let resolvedProf = prof
@@ -386,7 +406,7 @@ export default function App() {
     // regains focus). Depending on the whole object would re-run this full reload --
     // refetching all 15 tables and flashing "Loading your workspace" -- every time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.user?.id])
+  }, [session?.user?.id, authRetry])
 
   useEffect(() => {
     if (!session || !settings || !profile) return
@@ -497,6 +517,21 @@ export default function App() {
   if (loading)    return <><style>{G}</style><LoadingScreen msg={session ? 'Loading your workspace...' : 'Initialising...'}/></>
   if (showPlans)               return <><style>{G}</style><Plans   onEnter={() => { setShowPlans(false); setShowLanding(false) }} onBack={() => setShowPlans(false)} /></>
   if (showLanding && !session) return <Landing onEnter={() => setShowLanding(false)} onShowPlans={() => setShowPlans(true)}/>
+  // Still signed in, we just could not reach the server. Showing Login here
+  // would be a lie -- and would make the user think their work was lost.
+  if (session && !profile && profileLoadError) return (
+    <><style>{G}</style>
+    <div style={{height:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,background:'var(--ink)',padding:24,textAlign:'center'}}>
+      <div style={{fontSize:32}}>⚠</div>
+      <div style={{fontSize:16,fontWeight:600,color:'var(--white)'}}>Couldn't reach the server</div>
+      <div style={{fontSize:13,color:'var(--mist2)',maxWidth:380,lineHeight:1.6}}>
+        You are still signed in — this is a connection problem, not a login problem.
+        Check your internet and try again.
+      </div>
+      <Btn onClick={() => { setProfileLoadError(false); setLoading(true); setAuthRetry(n => n + 1) }}>Try again</Btn>
+      <button onClick={logout} style={{background:'none',border:'none',color:'var(--mist3)',fontSize:12,cursor:'pointer',textDecoration:'underline'}}>Sign out instead</button>
+    </div></>
+  )
   if (!session || !profile) return <><style>{G}</style><Login onLogin={p => setProfile(p)} lockedError={lockedError} onClearLockedError={() => setLockedError(false)} onBack={() => setShowLanding(true)}/></>
   if (profile?.role === 'ministry_admin') return <><style>{G}</style><AdminConsole profile={profile} onSignOut={logout}/></>
   if (!profile.school_id)   return <><style>{G}</style><style>{"@keyframes srms-load{to{width:100%}}"}</style><SchoolSetup profile={profile} onComplete={async (schoolId) => { setLoading(true); const { data: prof, error: profErr } = await supabase.from('profiles').select('*').eq('id', profile.id).single(); const { data: settingsRow, error: setErr } = await supabase.from('settings').select('*').eq('school_id', schoolId).single(); if (profErr || setErr) { showToast('School created, but failed to load your new workspace -- please refresh.', 'error'); setLoading(false); return } setProfile(prof); setSettings(settingsRow); await loadData(null, prof, settingsRow); setLoading(false) }} onCancel={async () => { await supabase.auth.signOut(); setProfile(null); setSession(null); setShowLanding(false) }}/></>
