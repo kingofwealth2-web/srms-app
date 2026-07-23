@@ -771,8 +771,7 @@ function AggregateSection({form, setForm, data}) {
       <SectionTitle>BECE Aggregate</SectionTitle>
       <p style={{fontSize:12,color:'var(--mist2)',marginBottom:16,lineHeight:1.6}}>
         Adds an aggregate to the report cards of the classes you switch on here — the grades of the core
-        subjects plus the best of the rest. Lower is better. Leave a class off and its cards are unchanged,
-        so KG and primary need nothing.
+        subjects plus the best of the rest. Leave a class off and its cards are unchanged.
       </p>
 
       {!isNumeric && (
