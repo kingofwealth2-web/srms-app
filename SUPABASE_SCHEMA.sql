@@ -184,8 +184,16 @@ create table if not exists public.settings (
   ]'::jsonb,
   custom_holidays     jsonb default '[]'::jsonb,
   vacations           jsonb default '[]'::jsonb,
+  -- Per-class BECE aggregate config, keyed by class id:
+  --   {"<class_id>": {"core": ["<subject_id>", ...], "bestOf": 2}}
+  -- A class absent from this object gets no aggregate on its report cards,
+  -- which is how KG and primary classes opt out without any setting of their own.
+  aggregate           jsonb default '{}'::jsonb,
   updated_at          timestamptz default now()
 );
+
+-- Existing databases: add the aggregate column in place.
+alter table public.settings add column if not exists aggregate jsonb default '{}'::jsonb;
 alter table public.settings enable row level security;
 
 create policy "Ministry admins read all settings"

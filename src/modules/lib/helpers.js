@@ -142,6 +142,44 @@ export function rankByTotal(items, avgKey = 'avg') {
   return [...ranked, ...ungraded.map(s => ({ ...s, position: null }))]
 }
 
+// BECE-style aggregate: add up the grade numbers of the core subjects plus the
+// best few electives. Lower is better -- with 4 core subjects and the best 2
+// electives, 6 is the best obtainable score, so an aggregate built from fewer
+// subjects than it should be looks BETTER than the real one, not worse. That is
+// why an incomplete aggregate is reported as provisional rather than shown bare.
+//
+// `subjectGrades` is [{subjectId, grade}] where grade is the school's own grade
+// for that subject -- only meaningful on a numeric grading scale, so a scale
+// whose grades aren't numbers yields null rather than a wrong number.
+export function computeAggregate(subjectGrades = [], config) {
+  if (!config?.core?.length) return null
+  const bestOf = config.bestOf ?? 2
+  const num = g => {
+    const n = parseInt(g, 10)
+    return Number.isNaN(n) ? null : n
+  }
+  const coreIds   = new Set(config.core)
+  const core      = subjectGrades.filter(s => coreIds.has(s.subjectId))
+  const electives = subjectGrades.filter(s => !coreIds.has(s.subjectId))
+  const coreGraded = core.filter(s => num(s.grade) !== null)
+  const electivesTaken = electives
+    .filter(s => num(s.grade) !== null)
+    .sort((a, b) => num(a.grade) - num(b.grade))   // best grade == lowest number
+    .slice(0, bestOf)
+  const counted = [...coreGraded, ...electivesTaken]
+  if (!counted.length) return null
+  const expected = config.core.length + bestOf
+  return {
+    total:      counted.reduce((sum, s) => sum + num(s.grade), 0),
+    counted:    counted.length,
+    expected,
+    best:       expected,                          // every subject at grade 1
+    missingCore:      core.length - coreGraded.length,
+    missingElectives: Math.max(0, bestOf - electivesTaken.length),
+    provisional: counted.length < expected,
+  }
+}
+
 // School progression, used only to order classes a school hasn't explicitly
 // ordered itself. Earlier entries come first.
 const CLASS_LEVELS = [

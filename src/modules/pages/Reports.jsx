@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName, calcAttendanceRate, isPassing, rankByTotal, compareClasses, effectivePaid, buildPaymentsByFee } from '../lib/helpers'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName, calcAttendanceRate, isPassing, rankByTotal, compareClasses, computeAggregate, effectivePaid, buildPaymentsByFee } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
@@ -365,7 +365,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
             <select value={fc} onChange={e=>setFc(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
               <option value=''>All Classes</option>
-              {(isTeacher && teacherClassIds ? classes.filter(c=>teacherClassIds.includes(c.id)) : classes).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+              {(isTeacher && teacherClassIds ? classes.filter(c=>teacherClassIds.includes(c.id)) : classes).slice().sort(compareClasses).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
 
@@ -621,6 +621,13 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   // before "BASIC 1" and "BASIC 2" before "BASIC 10". Same comparator as Classes.
   const rcClassName  = classes.find(c=>c.id===rcClass)?.name || ''
   const promoClasses = [...classes].sort(compareClasses)
+
+  // BECE aggregate is opt-in per class, and only means anything when the
+  // school's grades are numbers to begin with -- there is nothing to add up on
+  // an A/B/C/F scale.
+  const aggregateConfig = settings?.grade_system==='number'
+    ? (settings?.aggregate||{})[rcClass] || null
+    : null
 
   // Helper: get total for a student/subject combo
   const getTotal = (studentId, subjectId) => {
@@ -941,9 +948,22 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     const promotedTo    = rcPromotedTo[student.id]||''
 
     const activeComps = gradeComps.filter(c=>c.enabled)
-    const subjectRows = classSubjects.map((sub,si)=>{
-      const g      = gradeSource==='components' ? grades.find(gr=>gr.student_id===student.id&&gr.subject_id===sub.id&&(!rcPeriod||gr.period===rcPeriod)) : null
-      const total  = gradeSource==='exam' ? activeGetTotal(student.id,sub.id) : (g ? calcTotal(g,gradeComps) : null)
+    // Totals are needed twice -- once per table row, once for the aggregate --
+    // so work them out before rendering rather than repeating the lookup.
+    const subjectTotals = classSubjects.map(sub=>{
+      const g     = gradeSource==='components' ? grades.find(gr=>gr.student_id===student.id&&gr.subject_id===sub.id&&(!rcPeriod||gr.period===rcPeriod)) : null
+      const total = gradeSource==='exam' ? activeGetTotal(student.id,sub.id) : (g ? calcTotal(g,gradeComps) : null)
+      return {sub, g, total}
+    })
+
+    const aggregate = aggregateConfig
+      ? computeAggregate(subjectTotals.map(({sub,total})=>({
+          subjectId: sub.id,
+          grade: total!==null ? getGradeLetter(total,scale) : null,
+        })), aggregateConfig)
+      : null
+
+    const subjectRows = subjectTotals.map(({sub,g,total},si)=>{
       const remark = total!==null ? getGradeRemark(total,scale) : '--'
       const subPos = subjectPositions[sub.id]?.[student.id] ?? null
       const scoreC = total===null?'#9ca3af':total<50?'#dc2626':total>=75?'#16a34a':'#1d4ed8'
@@ -969,7 +989,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         <td style="padding:8px 8px;text-align:center;border:1.5px solid #000;background:${rowBg};">
           <span style="font-size:13px;font-weight:800;color:${subPos!==null?'#111827':'#d1d5db'};">${subPos!==null?ordinal(subPos):'—'}</span>
         </td>
-        <td style="padding:8px 10px;font-size:10px;border:1.5px solid #000;color:#4b5563;background:${rowBg};">${remark}</td>
+        <td style="padding:8px 10px;font-size:12px;border:1.5px solid #000;color:#4b5563;background:${rowBg};">${remark}</td>
       </tr>`
     }).join('')
 
@@ -1046,11 +1066,20 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             <div style="font-size:22px;font-weight:900;color:#111827;">${sPos!=='--'?ordinal(sPos):'--'}</div>
             <div style="font-size:9px;color:rgba(0,0,0,0.45);">of ${classStudents.length}</div>
           </div>
+          ${aggregate?`<div style="text-align:center;padding:8px 16px;background:#fff;border:2px solid #1e3a8a;border-radius:10px;">
+            <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Aggregate</div>
+            <div style="font-size:22px;font-weight:900;color:#1e3a8a;">${aggregate.total}${aggregate.provisional?'<span style="font-size:12px;color:#b45309;">*</span>':''}</div>
+            <div style="font-size:9px;color:#9ca3af;margin-top:1px;">best is ${aggregate.best}</div>
+          </div>`:''}
         </div>
       </div>
       ${classSubjects.length>0 && subTotals.length<classSubjects.length?`
       <div style="padding:8px 28px;background:#fef9ec;border-bottom:1px solid #fde68a;font-size:10px;color:#92400e;">
         (!) Provisional -- graded in ${subTotals.length} of ${classSubjects.length} subjects. Position may change once grading is complete.
+      </div>`:''}
+      ${aggregate?.provisional?`
+      <div style="padding:8px 28px;background:#fef9ec;border-bottom:1px solid #fde68a;font-size:10px;color:#92400e;">
+        (*) Aggregate provisional -- built from ${aggregate.counted} of ${aggregate.expected} subjects${aggregate.missingCore?` (${aggregate.missingCore} core subject${aggregate.missingCore!==1?'s':''} not yet graded)`:''}. It can only go up once the rest are graded.
       </div>`:''}
 
       <!-- Body -->
@@ -1079,7 +1108,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
                 ${gradeSource==='components' ? activeComps.map(()=>'<td style="border:1.5px solid #000;border-top:3px solid #1e3a8a;"></td>').join('') : ''}
                 <td style="padding:9px 8px;text-align:center;font-size:16px;font-weight:900;color:#1e3a8a;border:1.5px solid #000;border-top:3px solid #1e3a8a;">${grandTotal!==null?grandTotal:'—'}</td>
                 <td style="border:1.5px solid #000;border-top:3px solid #1e3a8a;"></td>
-                <td style="padding:9px 10px;font-size:10px;color:#4b5563;border:1.5px solid #000;border-top:3px solid #1e3a8a;">${grandRemark}</td>
+                <td style="padding:9px 10px;font-size:12px;font-weight:600;color:#4b5563;border:1.5px solid #000;border-top:3px solid #1e3a8a;">${grandRemark}</td>
               </tr>
             </tfoot>
           </table>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, CURRENCIES, GHANA_PUBLIC_HOLIDAYS } from '../lib/constants'
-import { fmtDate, DEFAULT_GRADING_SCALE, DEFAULT_NUMBER_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, getCurrency, fmtMoney, generateYears, fullName } from '../lib/helpers'
+import { fmtDate, DEFAULT_GRADING_SCALE, DEFAULT_NUMBER_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, getCurrency, fmtMoney, generateYears, fullName, compareClasses } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -148,6 +148,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       if(JSON.stringify(settings?.grade_components) !== JSON.stringify(payload.grade_components)) changes.push('Grade components updated')
       if(settings?.school_logo !== payload.school_logo) changes.push('School logo updated')
       if(JSON.stringify(settings?.vacations) !== JSON.stringify(payload.vacations)) changes.push('Vacations updated')
+      if(JSON.stringify(settings?.aggregate) !== JSON.stringify(payload.aggregate)) changes.push('BECE aggregate config updated')
       if(JSON.stringify(settings?.custom_holidays) !== JSON.stringify(payload.custom_holidays)) changes.push('Custom holidays updated')
       if(JSON.stringify(settings?.disabled_holidays) !== JSON.stringify(payload.disabled_holidays)) changes.push('Ghana holiday overrides updated')
       const desc = changes.length ? changes.join(' · ') : 'No changes detected'
@@ -451,6 +452,13 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
         </div>
       )}
 
+      {/* ── BECE AGGREGATE ── */}
+      {canAdmin && (
+        <div style={{marginTop:20}}>
+          <AggregateSection form={form} setForm={setForm} data={data}/>
+        </div>
+      )}
+
       {/* ── OPENING ATTENDANCE BALANCE ── */}
       {profile?.role==='superadmin' && (
         <div style={{marginTop:20}}>
@@ -717,6 +725,143 @@ function OpeningBalanceSection({profile, toast, activeYear, data, setData}) {
 }
 
 // ── ACADEMIC CALENDAR SETTINGS ─────────────────────────────────
+// ── BECE AGGREGATE ─────────────────────────────────────────────
+// Opt-in per class. A class with no entry here gets no aggregate on its report
+// cards, which is how KG and primary opt out without anyone configuring them.
+function AggregateSection({form, setForm, data}) {
+  const classes  = [...(data?.classes||[])].sort(compareClasses)
+  const subjects = data?.subjects||[]
+  const config   = form.aggregate || {}
+  const isNumeric = (form.grade_system||'letter')==='number'
+
+  const setClassConfig = (classId, next) => setForm(p=>{
+    const agg = {...(p.aggregate||{})}
+    if(next) agg[classId] = next
+    else delete agg[classId]
+    return {...p, aggregate:agg}
+  })
+
+  // Decide add-or-remove out here from what the user actually clicked, then
+  // apply it inside the updater. Two things force this shape: the updater must
+  // merge into the latest state, or two quick ticks build on the same stale
+  // list and one is lost; and it must be idempotent, because StrictMode invokes
+  // updaters twice in development and a plain flip would just undo itself.
+  const toggleCore = (classId, subjectId) => {
+    const isCore = (config[classId]?.core||[]).includes(subjectId)
+    setForm(p=>{
+      const agg = {...(p.aggregate||{})}
+      const cur = agg[classId] || {core:[], bestOf:2}
+      const core = isCore
+        ? cur.core.filter(id=>id!==subjectId)
+        : (cur.core.includes(subjectId) ? cur.core : [...cur.core, subjectId])
+      agg[classId] = {...cur, core}
+      return {...p, aggregate:agg}
+    })
+  }
+
+  const setBestOf = (classId, n) => setForm(p=>{
+    const agg = {...(p.aggregate||{})}
+    const cur = agg[classId] || {core:[], bestOf:2}
+    agg[classId] = {...cur, bestOf:Math.max(0,n||0)}
+    return {...p, aggregate:agg}
+  })
+
+  return (
+    <Card>
+      <SectionTitle>BECE Aggregate</SectionTitle>
+      <p style={{fontSize:12,color:'var(--mist2)',marginBottom:16,lineHeight:1.6}}>
+        Adds an aggregate to the report cards of the classes you switch on here — the grades of the core
+        subjects plus the best of the rest. Lower is better. Leave a class off and its cards are unchanged,
+        so KG and primary need nothing.
+      </p>
+
+      {!isNumeric && (
+        <div style={{padding:'12px 16px',background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.25)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--amber)',lineHeight:1.6}}>
+          Your grading scale uses letters, so there are no numbers to add up. Switch the Grading Scale above
+          to the Number system (grades 1–9) to use aggregates.
+        </div>
+      )}
+
+      {isNumeric && classes.length===0 && (
+        <div style={{fontSize:12,color:'var(--mist3)'}}>No classes yet.</div>
+      )}
+
+      {isNumeric && classes.map(cls=>{
+        const clsSubjects = subjects.filter(s=>s.class_id===cls.id)
+        const cfg         = config[cls.id]
+        const on          = !!cfg
+        const core        = cfg?.core||[]
+        const bestOf      = cfg?.bestOf??2
+        const electives   = clsSubjects.length - core.length
+        return (
+          <div key={cls.id} style={{padding:'12px 14px',marginBottom:8,background:'var(--ink3)',border:`1px solid ${on?'rgba(45,212,160,0.22)':'var(--line)'}`,borderRadius:'var(--r-sm)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:12}}>
+              <button onClick={()=>setClassConfig(cls.id, on?null:{core:[],bestOf:2})}
+                style={{width:36,height:20,borderRadius:10,background:on?'var(--emerald)':'var(--line2)',border:'none',cursor:'pointer',position:'relative',transition:'background 0.2s',flexShrink:0}}>
+                <div style={{width:14,height:14,borderRadius:'50%',background:'white',position:'absolute',top:3,left:on?19:3,transition:'left 0.2s'}}/>
+              </button>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{cls.name}</div>
+                <div style={{fontSize:11,color:'var(--mist3)',marginTop:1}}>
+                  {clsSubjects.length} subject{clsSubjects.length!==1?'s':''}
+                  {on && ` · best possible aggregate ${core.length+bestOf}`}
+                </div>
+              </div>
+            </div>
+
+            {on && (
+              <div style={{marginTop:12,paddingTop:12,borderTop:'1px solid var(--line)'}}>
+                {clsSubjects.length===0 ? (
+                  <div style={{fontSize:11,color:'var(--mist3)'}}>Add subjects to this class first.</div>
+                ) : (
+                  <>
+                    <div style={{fontSize:10,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:8}}>
+                      Core subjects — always counted
+                    </div>
+                    <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12}}>
+                      {clsSubjects.map(s=>{
+                        const picked = core.includes(s.id)
+                        return (
+                          <button key={s.id} onClick={()=>toggleCore(cls.id,s.id)}
+                            style={{padding:'5px 11px',borderRadius:20,fontSize:11,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif",
+                              background:picked?'rgba(45,212,160,0.15)':'transparent',
+                              color:picked?'var(--emerald)':'var(--mist3)',
+                              border:`1px solid ${picked?'var(--emerald)':'var(--line2)'}`}}>
+                            {picked?'✓ ':''}{s.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+                      <span style={{fontSize:12,color:'var(--mist2)'}}>Best</span>
+                      <input type='number' min={0} max={Math.max(0,electives)} value={bestOf}
+                        onChange={e=>setBestOf(cls.id, +e.target.value)}
+                        style={{width:56,background:'var(--ink4)',border:'1px solid var(--line2)',borderRadius:'var(--r-sm)',padding:'6px 10px',color:'var(--white)',fontSize:12}}/>
+                      <span style={{fontSize:12,color:'var(--mist2)'}}>
+                        of the remaining {electives} subject{electives!==1?'s':''} also counted
+                      </span>
+                    </div>
+                    {core.length===0 && (
+                      <div style={{fontSize:11,color:'var(--amber)',marginTop:10}}>
+                        Pick the core subjects — nothing is counted until you do.
+                      </div>
+                    )}
+                    {core.length>0 && electives<bestOf && (
+                      <div style={{fontSize:11,color:'var(--amber)',marginTop:10}}>
+                        Only {electives} subject{electives!==1?'s':''} left over, so cards will show a provisional aggregate.
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </Card>
+  )
+}
+
 function AcademicCalendar({form, setForm, activeYear}) {
   const [vacTab, setVacTab] = useState('vacations')
   // Vacations
