@@ -1123,7 +1123,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             </div>
             <div style="padding:12px 14px;background:#f0fdf4;border-radius:8px;border:1px solid #16a34a20;">
               ${att.total>0
-                ? `<div style="font-size:24px;font-weight:900;color:#16a34a;line-height:1;">${att.present} <span style="font-size:14px;font-weight:600;color:#6b7280;">out of ${att.total}</span></div>
+                ? `<div style="font-size:24px;font-weight:900;color:#16a34a;line-height:1;">${att.present+att.late} <span style="font-size:14px;font-weight:600;color:#6b7280;">out of ${att.total}</span></div>
                    <div style="font-size:10px;color:#6b7280;margin-top:4px;">days present</div>`
                 : `<div style="font-size:13px;color:#9ca3af;">No attendance recorded</div>`}
             </div>
@@ -1148,7 +1148,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             ${rcResumption?`<span><span style="font-weight:700;">Next Term Resumes:</span> ${fmtDate(rcResumption)}</span>`:''}
           </div>`:''}
 
-          ${isLastPeriod?`<div style="grid-column:1/-1;padding:8px 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;font-size:11px;color:#4b5563;margin-bottom:10px;"><span style="font-weight:700;color:#111827;">Promoted To:</span> <span style="font-weight:700;color:${promotedTo?'#16a34a':'#9ca3af'};">${promotedTo||'_______________________________'}</span></div>`:''}
+          ${isLastPeriod?`<div style="grid-column:1/-1;padding:8px 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;font-size:11px;color:#4b5563;margin-bottom:10px;"><span style="font-weight:700;color:#111827;">Promoted To:</span> <span style="font-weight:700;color:${promotedTo==='Not Promoted'?'#b45309':promotedTo?'#16a34a':'#9ca3af'};">${promotedTo||'_______________________________'}</span></div>`:''}
         </div>
       </div>
 
@@ -1304,7 +1304,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           <SectionTitle>{isLastPeriod?'Class Teacher Remarks & Promotion':'Class Teacher Remarks'}</SectionTitle>
           <p style={{fontSize:12,color:'var(--mist2)',marginBottom:14}}>
             {isLastPeriod
-              ? `Enter a remark for each student and set where they go next. Pick ${rcClassName||'their current class'} again for a student who repeats. Both appear on the report card.`
+              ? `Enter a remark for each student and set where they go next. Choose Not Promoted for a student repeating ${rcClassName||'their class'}. Both appear on the report card.`
               : 'Enter a remark for each student. These will appear on their report cards.'}
           </p>
           {isLastPeriod && (
@@ -1331,7 +1331,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
                     onChange={e=>setRcPromotedTo(p=>({...p,[s.id]:e.target.value}))}
                     style={{width:150,flexShrink:0,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'7px 10px',color:rcPromotedTo[s.id]?'var(--white)':'var(--mist3)',fontSize:12,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>
                     <option value=''>— Not set —</option>
-                    {promoClasses.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                    <option value='Not Promoted'>Not Promoted (repeating)</option>
+                    {promoClasses.filter(c=>c.name!==rcClassName).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
                     <option value='Graduated'>Graduated</option>
                   </select>
                 )}
