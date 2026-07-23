@@ -190,6 +190,9 @@ export default function App() {
   // year's rows: every count filters down to 0 and the app looks like it has
   // lost the school's records.
   const [dataLoading,setDataLoading] = useState(false)
+  // True while fees/payments/attendance are still coming in behind the rendered
+  // app. Pages built on those tables must wait on this rather than render zeros.
+  const [deferredLoading,setDeferredLoading] = useState(true)
   // Set when the profile lookup failed for a reason other than "no such row",
   // so the app can say the connection failed instead of showing a login page
   // to someone who is still perfectly well signed in.
@@ -258,21 +261,20 @@ export default function App() {
     const year = yr || currentYearFromSettings(settingsRow)
     setDataLoading(true)
     try {
-    const TABLE_NAMES = ['students','classes','subjects','enrolments','users','grades','attendance','fees','payments','behaviour','announcements','fee_templates','fee_periods','opening_balances','examScores']
+    const TABLE_NAMES = ['students','classes','subjects','enrolments','users','grades','behaviour','announcements','fee_templates','fee_periods','opening_balances','examScores']
     const results = await Promise.all([
       // Every one of these can pass PostgREST's default max-rows cap (1000) as a
       // school accumulates history or grows in size -- an unbounded select silently
       // returns only an arbitrary partial slice past that point instead of erroring,
       // so all of them are paginated via fetchAllRows rather than a single select.
+      //
+      // fees, payments and attendance are NOT here -- see loadDeferred below.
       fetchAllRows(() => supabase.from('students').select('*').eq('school_id', prof?.school_id).order('student_id')),
       fetchAllRows(() => supabase.from('classes').select('*').eq('school_id', prof?.school_id).order('name')),
       fetchAllRows(() => supabase.from('subjects').select('*').eq('school_id', prof?.school_id).order('name')),
       fetchAllRows(() => supabase.from('student_year_enrolment').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
       fetchAllRows(() => supabase.from('profiles').select('*').eq('school_id', prof?.school_id).order('id')),
       fetchAllRows(() => supabase.from('grades').select('*').eq('school_id', prof?.school_id).eq('year', year).order('id')),
-      fetchAllRows(() => supabase.from('attendance').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
-      fetchAllRowsByCursor(() => supabase.from('fees').select('*').eq('school_id', prof?.school_id).eq('academic_year', year)),
-      fetchAllRowsByCursor(() => supabase.from('payments').select('*').eq('school_id', prof?.school_id).eq('academic_year', year)),
       fetchAllRows(() => supabase.from('behaviour').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
       fetchAllRows(() => supabase.from('announcements').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
       fetchAllRows(() => supabase.from('fee_templates').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
@@ -298,8 +300,7 @@ export default function App() {
     const [
       { data: students }, { data: classes }, { data: subjects },
       { data: enrolments }, { data: users },
-      { data: grades }, { data: attendance }, { data: fees },
-      { data: payments }, { data: behaviour }, { data: announcements },
+      { data: grades }, { data: behaviour }, { data: announcements },
       { data: feeTemplates }, { data: feePeriods }, { data: openingBalances },
       { data: examScores },
     ] = results
@@ -309,13 +310,11 @@ export default function App() {
     // already showing on screen. Fields that succeeded always update normally,
     // including on first load.
     setData(prev => ({
+      ...prev,
       students:      students      || prev.students      || [],
       classes:       classes       || prev.classes       || [],
       subjects:      subjects      || prev.subjects       || [],
       grades:        grades        || prev.grades         || [],
-      attendance:    attendance    || prev.attendance     || [],
-      fees:          fees          || prev.fees           || [],
-      payments:      payments      || prev.payments       || [],
       behaviour:     behaviour     || prev.behaviour      || [],
       announcements: announcements || prev.announcements  || [],
       enrolments:    enrolments    || prev.enrolments     || [],
@@ -329,6 +328,40 @@ export default function App() {
       setDataLoading(false)
     }
   }, [])
+
+  // fees, payments and attendance are 92% of the bytes a load pulls down (4.2MB
+  // of 4.6MB on a 380-pupil school) and the slowest three queries. Nothing in
+  // Students, Classes, Grades, Users or Settings needs them, so they are fetched
+  // after the app is already on screen rather than being the reason it isn't.
+  // The pages that DO need them wait on `deferredLoading` instead of rendering
+  // totals of zero.
+  const loadDeferred = useCallback(async (yr, prof, settingsRow) => {
+    const year = yr || currentYearFromSettings(settingsRow)
+    if (!prof?.school_id) return
+    setDeferredLoading(true)
+    try {
+      const NAMES = ['attendance','fees','payments']
+      const results = await Promise.all([
+        fetchAllRows(() => supabase.from('attendance').select('*').eq('school_id', prof.school_id).eq('academic_year', year).order('id')),
+        fetchAllRowsByCursor(() => supabase.from('fees').select('*').eq('school_id', prof.school_id).eq('academic_year', year)),
+        fetchAllRowsByCursor(() => supabase.from('payments').select('*').eq('school_id', prof.school_id).eq('academic_year', year)),
+      ])
+      const failures = results.map((r, i) => ({ table: NAMES[i], error: r.error })).filter(f => f.error)
+      if (failures.length) {
+        failures.forEach(f => console.error(`Failed to load ${f.table}:`, f.error.message))
+        showToast(`Couldn't load ${failures.map(f => f.table).join(', ')} -- reload to try again.`, 'error')
+      }
+      const [{ data: attendance }, { data: fees }, { data: payments }] = results
+      setData(prev => ({
+        ...prev,
+        attendance: attendance || prev.attendance || [],
+        fees:       fees       || prev.fees       || [],
+        payments:   payments   || prev.payments   || [],
+      }))
+    } finally {
+      setDeferredLoading(false)
+    }
+  }, [showToast])
 
   useEffect(() => {
     if (!session) { setProfile(null); setLoading(false); return }
@@ -395,6 +428,10 @@ export default function App() {
       if (resolvedProf?.school_id) {
         await loadData(selectedYear, resolvedProf, settingsRow)
         lastLoadedYear.current = selectedYear
+        // Deliberately not awaited -- this is the point of deferring it. The app
+        // paints as soon as the core tables are in, and the heavy three arrive
+        // behind it.
+        loadDeferred(selectedYear, resolvedProf, settingsRow)
       }
       initialLoadDone.current = true
       setLoading(false)
@@ -416,8 +453,8 @@ export default function App() {
     // first time), which was causing a redundant duplicate loadData() call on every login.
     if (selectedYear === lastLoadedYear.current) return
     lastLoadedYear.current = selectedYear
-    loadData(selectedYear, profile, settings)
-  }, [selectedYear, loadData, profile, settings])
+    loadData(selectedYear, profile, settings).then(() => loadDeferred(selectedYear, profile, settings))
+  }, [selectedYear, loadData, loadDeferred, profile, settings])
 
   const logout = async () => {
     await supabase.auth.signOut()
@@ -614,6 +651,12 @@ export default function App() {
     // reads only the profile, which a year switch never touches.
     if (dataLoading && safePage !== 'myprofile') {
       return <LoadingScreen msg={`Loading ${activeYear}...`} height='60vh'/>
+    }
+    // Everything on these four is computed from fees, payments or attendance,
+    // so rendering them early would show totals of zero rather than no totals.
+    // The rest of the app is usable while these are still arriving.
+    if (deferredLoading && ['dashboard','fees','attendance','reports'].includes(safePage)) {
+      return <LoadingScreen msg='Loading fees and attendance...' height='60vh'/>
     }
     switch (safePage) {
       case 'dashboard':     return <Dashboard    {...props} onNav={setPage} onNavFees={filter => { setFeeFilter(filter); setPage('fees') }}/>
