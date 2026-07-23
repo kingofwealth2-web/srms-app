@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, CURRENCIES, GHANA_PUBLIC_HOLIDAYS } from '../lib/constants'
-import { fmtDate, DEFAULT_GRADING_SCALE, DEFAULT_NUMBER_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, getCurrency, fmtMoney, generateYears, fullName, compareClasses } from '../lib/helpers'
+import { fmtDate, DEFAULT_GRADING_SCALE, DEFAULT_NUMBER_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, getCurrency, fmtMoney, generateYears, fullName, compareClasses, downscaleImageToDataUrl } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -171,14 +171,18 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
     }
     if(file.size > 2*1024*1024) { toast('Image must be under 2MB','error'); return }
     setLogoUploading(true)
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
-      const base64 = ev.target.result
-      setForm(p=>({...p, school_logo: base64}))
-      setLogoUploading(false)
+    try {
+      // Stored in the settings row, so it is re-downloaded on every app load by
+      // every user. It is displayed at 88px -- there is no reason to keep the
+      // full-size original.
+      const dataUrl = await downscaleImageToDataUrl(file, 256)
+      setForm(p=>({...p, school_logo: dataUrl}))
       toast('Logo uploaded -- click Save Changes to apply')
+    } catch(err) {
+      toast(err.message||'Could not process that image','error')
+    } finally {
+      setLogoUploading(false)
     }
-    reader.readAsDataURL(file)
   }
 
   const updGrade = (i,k,v)=>{const g=[...(form.grading_scale||DEFAULT_GRADING_SCALE)];g[i]={...g[i],[k]:k==='letter'||k==='remark'?v:parseFloat(v)||0};setForm(p=>({...p,grading_scale:g}))}

@@ -40,6 +40,46 @@ export async function fetchAllRowsByCursor(queryFactory, cursorCol = 'id') {
   return { data: all }
 }
 
+// Shrinks an uploaded image before it is stored as base64 in a row.
+//
+// These images are read back on EVERY app load -- the school logo sits in the
+// settings row, student photos in the students table -- so an untouched camera
+// photo is re-downloaded, in full, every single time anyone opens the app. One
+// school's 1373x1145 logo was 1.74MB, displayed at 88px; on a phone on a slow
+// connection that alone is about a minute of the load. At 256px it is 17KB.
+//
+// WebP where the browser supports it (keeps transparency, much smaller), PNG
+// otherwise. Never returns something larger than the original.
+export function downscaleImageToDataUrl(file, maxPx = 256, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Could not read that image file.'))
+    reader.onload = () => {
+      const original = String(reader.result)
+      const img = new Image()
+      img.onerror = () => reject(new Error('That file could not be read as an image.'))
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, maxPx / Math.max(img.width, img.height))
+          const w = Math.max(1, Math.round(img.width * scale))
+          const h = Math.max(1, Math.round(img.height * scale))
+          const canvas = document.createElement('canvas')
+          canvas.width = w
+          canvas.height = h
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+          const webp = canvas.toDataURL('image/webp', quality)
+          const out = webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/png')
+          resolve(out.length < original.length ? out : original)
+        } catch {
+          resolve(original)   // canvas unavailable -- storing the original beats failing the upload
+        }
+      }
+      img.src = original
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
 // Runs `fn` over `items` with at most `limit` calls in flight, preserving input
 // order in the result. For batches that would otherwise be hundreds of
 // sequential round-trips: over a slow school connection that is the difference

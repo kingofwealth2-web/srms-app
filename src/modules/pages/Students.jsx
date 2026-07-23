@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getGradeColor, getCurrency, fmtMoney, fullName, calcAttendanceRate, effectivePaid } from '../lib/helpers'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGradeColor, getCurrency, fmtMoney, fullName, calcAttendanceRate, effectivePaid, downscaleImageToDataUrl } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -46,9 +46,12 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     if(!file) return
     if(!file.type.startsWith('image/')) { toast('Please upload an image file','error'); return }
     if(file.size > 2*1024*1024) { toast('Image must be under 2MB','error'); return }
-    const reader = new FileReader()
-    reader.onload = ev => setForm(p=>({...p, photo: ev.target.result}))
-    reader.readAsDataURL(file)
+    // Every student photo is loaded on every app start, so a school with a few
+    // hundred pupils would otherwise re-download hundreds of full-size camera
+    // photos each time. Displayed at 80px at the largest.
+    downscaleImageToDataUrl(file, 256)
+      .then(dataUrl => setForm(p=>({...p, photo: dataUrl})))
+      .catch(err => toast(err.message||'Could not process that image','error'))
   }
   const activeStudents   = students.filter(s=>!s.archived)
   const archivedStudents = students.filter(s=>s.archived)
