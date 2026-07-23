@@ -1,9 +1,12 @@
 import LogoMark from './LogoMark'
 
-export default function LoadingScreen({ msg = 'Loading...' }) {
+// `height` lets this sit inside the page area (sidebar and topbar still
+// visible) rather than covering the viewport, for refetches of an already-open
+// workspace.
+export default function LoadingScreen({ msg = 'Loading...', height = '100vh' }) {
   return (
     <div style={{
-      height: '100vh', display: 'flex', flexDirection: 'column',
+      height, display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
       gap: 20, background: 'var(--ink)',
       animation: 'fadeIn 0.3s ease',

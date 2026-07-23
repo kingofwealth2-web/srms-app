@@ -183,6 +183,13 @@ export default function App() {
   const [feeFilter,setFeeFilter]   = useState('')
   const [collapsed,setCollapsed]   = useState(false)
   const [loading,setLoading]       = useState(true)
+  // Separate from `loading` (which covers first paint). This one covers a
+  // refetch of an already-open workspace -- switching academic year, or a
+  // reloadData() after a promotion. Without it the pages keep rendering off
+  // whatever is still in `data`, which during a year switch is the OTHER
+  // year's rows: every count filters down to 0 and the app looks like it has
+  // lost the school's records.
+  const [dataLoading,setDataLoading] = useState(false)
   const [toast,setToast]           = useState(null)
   const [drawerOpen,setDrawerOpen] = useState(false)
   const [isDark,setIsDark]         = useState(() => {
@@ -243,6 +250,8 @@ export default function App() {
 
   const loadData = useCallback(async (yr, prof, settingsRow) => {
     const year = yr || currentYearFromSettings(settingsRow)
+    setDataLoading(true)
+    try {
     const TABLE_NAMES = ['students','classes','subjects','enrolments','users','grades','attendance','fees','payments','behaviour','announcements','fee_templates','fee_periods','opening_balances','examScores']
     const results = await Promise.all([
       // Every one of these can pass PostgREST's default max-rows cap (1000) as a
@@ -310,6 +319,9 @@ export default function App() {
       opening_balances: openingBalances || prev.opening_balances || [],
       examScores:    examScores    || prev.examScores     || [],
     }))
+    } finally {
+      setDataLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -561,6 +573,13 @@ export default function App() {
     const allowedPages = NAV_ITEMS[profile?.role] || []
     const personalPages = ['myprofile']
     const safePage = allowedPages.includes(page) || personalPages.includes(page) ? page : 'dashboard'
+    // Mid-refetch, `data` still holds the year we are leaving, so every page
+    // would render counts filtered down to zero. Show that we are fetching
+    // instead of showing numbers that are wrong. My Profile is exempt -- it
+    // reads only the profile, which a year switch never touches.
+    if (dataLoading && safePage !== 'myprofile') {
+      return <LoadingScreen msg={`Loading ${activeYear}...`} height='60vh'/>
+    }
     switch (safePage) {
       case 'dashboard':     return <Dashboard    {...props} onNav={setPage} onNavFees={filter => { setFeeFilter(filter); setPage('fees') }}/>
       case 'students':      return <Students     {...props} planHook={planHook}/>
