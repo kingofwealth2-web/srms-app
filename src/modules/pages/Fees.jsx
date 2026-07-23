@@ -879,29 +879,60 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         .map(r => ({ r, feeRow: insertedFees.find(f => f.student_id === r.student.id), amt: parseFloat(r.amount) }))
         .filter(t => t.feeRow)
 
-      // Receipt number then payment, one student at a time, and it has to stay
-      // that way: generate_receipt_no is MAX(receipt_no)+1 over *committed*
-      // payments, so it only yields a fresh number once the previous payment is
-      // actually in the table. Allocating a batch up front -- concurrently or
-      // not -- makes every call read the same maximum and return the same
-      // number. Measured: 38 payments, 37 duplicate receipts.
-      const payRows = []
-      for(const {r, feeRow, amt} of targets){
-        const {data:rcpt, error:rcptErr} = await supabase.rpc('generate_receipt_no', { p_school_id: profile?.school_id })
-        if(rcptErr) throw rcptErr
-        const {data:payRow, error:payErr} = await supabase.from('payments').insert({
-          school_id:        profile?.school_id,
-          academic_year:    activeYear,
-          fee_id:           feeRow.id,
-          student_id:       r.student.id,
-          amount:           amt,
-          receipt_no:       rcpt,
-          recorded_by_id:   profile?.id,
-          recorded_by_name: profile?.full_name,
-          fee_period_id:    periodRow.id,
-        }).select().single()
+      // Receipt numbers. allocate_receipt_nos reserves a whole block under a row
+      // lock (database/receipt_allocator.sql), so the numbers can be taken in
+      // one round-trip and every payment then goes in a single insert.
+      //
+      // Where that function does not exist yet -- a database the migration has
+      // not been run against -- fall back to one at a time. That path is slow
+      // but it is the only safe way to use the old generate_receipt_no, which
+      // reads MAX(receipt_no)+1 over committed rows and therefore hands the
+      // same number to every caller if asked for several before any is written.
+      let payRows = []
+      let receiptNos = null
+      if(targets.length){
+        const {data, error} = await supabase.rpc('allocate_receipt_nos', {
+          p_school_id: profile?.school_id,
+          p_count:     targets.length,
+        })
+        if(!error && Array.isArray(data) && data.length === targets.length) receiptNos = data
+        else if(error) console.warn('Bulk receipt allocation unavailable, falling back to one at a time:', error.message)
+      }
+
+      if(receiptNos){
+        const {data:inserted, error:payErr} = await supabase.from('payments').insert(
+          targets.map(({r, feeRow, amt}, i) => ({
+            school_id:        profile?.school_id,
+            academic_year:    activeYear,
+            fee_id:           feeRow.id,
+            student_id:       r.student.id,
+            amount:           amt,
+            receipt_no:       receiptNos[i],
+            recorded_by_id:   profile?.id,
+            recorded_by_name: profile?.full_name,
+            fee_period_id:    periodRow.id,
+          }))
+        ).select()
         if(payErr) throw payErr
-        payRows.push(payRow)
+        payRows = inserted || []
+      } else {
+        for(const {r, feeRow, amt} of targets){
+          const {data:rcpt, error:rcptErr} = await supabase.rpc('generate_receipt_no', { p_school_id: profile?.school_id })
+          if(rcptErr) throw rcptErr
+          const {data:payRow, error:payErr} = await supabase.from('payments').insert({
+            school_id:        profile?.school_id,
+            academic_year:    activeYear,
+            fee_id:           feeRow.id,
+            student_id:       r.student.id,
+            amount:           amt,
+            receipt_no:       rcpt,
+            recorded_by_id:   profile?.id,
+            recorded_by_name: profile?.full_name,
+            fee_period_id:    periodRow.id,
+          }).select().single()
+          if(payErr) throw payErr
+          payRows.push(payRow)
+        }
       }
 
       // The fee balance updates carry no such ordering constraint, so these can
