@@ -142,6 +142,38 @@ export function rankByTotal(items, avgKey = 'avg') {
   return [...ranked, ...ungraded.map(s => ({ ...s, position: null }))]
 }
 
+// School progression, used only to order classes a school hasn't explicitly
+// ordered itself. Earlier entries come first.
+const CLASS_LEVELS = [
+  'creche', 'crèche', 'nursery', 'pre-school', 'preschool', 'pre-k', 'prek',
+  'kg', 'kindergarten',
+  'basic', 'primary', 'class', 'grade', 'form',
+  'jhs', 'j.h.s', 'js', 'junior',
+  'shs', 's.h.s', 'sss', 'senior',
+]
+
+// Sort comparator for classes. An explicit sort_order always wins -- that is
+// the school saying what its ladder looks like. Without one, fall back to
+// school progression rather than plain alphabetical, which put "KG 1" after
+// "BASIC 8" and "BASIC 10" before "BASIC 2". Unrecognised names keep their
+// name order, after everything recognised.
+export function compareClasses(a, b) {
+  if (a.sort_order != null && b.sort_order != null) return a.sort_order - b.sort_order
+  if (a.sort_order != null) return -1
+  if (b.sort_order != null) return 1
+  const rank = c => {
+    const name = (c.name || '').trim().toLowerCase()
+    const level = CLASS_LEVELS.findIndex(l => name.startsWith(l))
+    const num = parseInt((name.match(/\d+/) || [])[0], 10)
+    return [level < 0 ? CLASS_LEVELS.length : level, Number.isNaN(num) ? 0 : num]
+  }
+  const [levelA, numA] = rank(a)
+  const [levelB, numB] = rank(b)
+  if (levelA !== levelB) return levelA - levelB
+  if (numA !== numB) return numA - numB
+  return (a.name || '').localeCompare(b.name || '')
+}
+
 // ── DATE / FORMAT HELPERS ──────────────────────────────────────
 export const fmtDate = d => d
   ? new Date(d).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})

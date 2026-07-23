@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName, calcAttendanceRate, isPassing, rankByTotal, effectivePaid, buildPaymentsByFee } from '../lib/helpers'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName, calcAttendanceRate, isPassing, rankByTotal, compareClasses, effectivePaid, buildPaymentsByFee } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
@@ -597,12 +597,13 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   const isTeacher      = profile?.role==='teacher'
   const isAdmin        = ['superadmin','admin'].includes(profile?.role)
 
-  // Available classes for this user
-  const availableClasses = isClassTeacher
+  // Available classes for this user, in the same school order as everywhere else
+  const availableClasses = (isClassTeacher
     ? classes.filter(c=>c.id===profile?.class_id)
     : isTeacher
       ? classes.filter(c=>subjects.some(s=>s.class_id===c.id&&s.teacher_id===profile?.id))
       : classes
+  ).slice().sort(compareClasses)
 
   // Subjects for selected class
   const classSubjects = rcClass ? subjects.filter(s=>s.class_id===rcClass) : []
@@ -616,15 +617,10 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     ? students.filter(s=>s.class_id===rcClass&&!s.archived).sort((a,b)=>a.last_name.localeCompare(b.last_name))
     : []
 
-  // Promotion destinations, in school order (not alphabetical) so "Basic 2"
-  // doesn't sort after "Basic 10". Mirrors the ordering used by Classes.
+  // Promotion destinations, in school order (not alphabetical) so "KG 2" comes
+  // before "BASIC 1" and "BASIC 2" before "BASIC 10". Same comparator as Classes.
   const rcClassName  = classes.find(c=>c.id===rcClass)?.name || ''
-  const promoClasses = [...classes].sort((a,b)=>{
-    if(a.sort_order!=null && b.sort_order!=null) return a.sort_order - b.sort_order
-    if(a.sort_order!=null) return -1
-    if(b.sort_order!=null) return 1
-    return a.name.localeCompare(b.name)
-  })
+  const promoClasses = [...classes].sort(compareClasses)
 
   // Helper: get total for a student/subject combo
   const getTotal = (studentId, subjectId) => {
@@ -1140,7 +1136,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             <div style="padding:10px 14px;background:#f8fafc;border-radius:8px;border-left:4px solid #1e3a8a;font-size:12px;color:#374151;min-height:44px;line-height:1.6;font-style:italic;">${teacherRemark||'<span style="color:#d1d5db;">No remark entered</span>'}</div>
           </div>
 
-          ${rcHeadRemark?`<div style="margin-bottom:14px;">
+          ${rcHeadRemark?`<div style="grid-column:1/-1;margin-bottom:14px;">
             <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px;">Head Teacher's Remark</div>
             <div style="padding:10px 14px;background:#f8fafc;border-radius:8px;border-left:4px solid #fbbf24;font-size:12px;color:#374151;line-height:1.6;font-style:italic;">${rcHeadRemark}</div>
           </div>`:''}

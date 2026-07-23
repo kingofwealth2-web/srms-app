@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META } from '../lib/constants'
-import { fmtDate, fullName } from '../lib/helpers'
+import { fmtDate, fullName, compareClasses } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -67,13 +67,8 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
     }})
   }
 
-  // Classes sorted by sort_order, then alphabetically
-  const orderedClasses = [...classes].sort((a,b)=>{
-    if(a.sort_order!=null && b.sort_order!=null) return a.sort_order - b.sort_order
-    if(a.sort_order!=null) return -1
-    if(b.sort_order!=null) return 1
-    return a.name.localeCompare(b.name)
-  })
+  // Classes sorted by sort_order, then by school progression
+  const orderedClasses = [...classes].sort(compareClasses)
 
   // Drag to reorder
   const handleDragStart = (e, idx) => { setDragging(idx); e.dataTransfer.effectAllowed='move' }
