@@ -501,7 +501,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
 // aggregate present/total day count per student rather than fabricating
 // individual daily records for a period nobody can accurately reconstruct.
 function OpeningBalanceSection({profile, toast, activeYear, data, setData}) {
-  const classes    = data?.classes || []
+  const classes    = [...(data?.classes || [])].sort(compareClasses)
   const students   = data?.students || []
   const attendance = data?.attendance || []
   const openingBalances = (data?.opening_balances || []).filter(b => b.academic_year === activeYear)
