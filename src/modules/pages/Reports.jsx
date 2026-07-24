@@ -966,7 +966,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         const pct  = raw!==null ? Math.round((raw/c.max_score)*100) : null
         const barC = pct===null?'#e5e7eb':pct<50?'#fecaca':pct>=75?'#bbf7d0':'#bfdbfe'
         const barFill = pct===null?'#d1d5db':pct<50?'#ef4444':pct>=75?'#16a34a':'#3b82f6'
-        return `<td style="padding:7px 6px;text-align:center;border:1.5px solid #000;background:${rowBg};">
+        return `<td style="padding:4px 6px;text-align:center;border:1.5px solid #000;background:${rowBg};">
           ${raw!==null ? `<div style="font-size:12px;font-weight:700;color:#111827;line-height:1;">${raw}<span style="font-size:9px;font-weight:400;color:#9ca3af;">/${c.max_score}</span></div>
           <div style="margin-top:4px;height:4px;border-radius:2px;background:${barC};overflow:hidden;">
             <div style="height:100%;width:${pct}%;background:${barFill};border-radius:2px;"></div>
@@ -974,18 +974,18 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         </td>`
       }).join('')
       return `<tr style="background:${rowBg};">
-        <td style="padding:8px 12px;font-size:12px;font-weight:600;border:1.5px solid #000;color:#111827;white-space:nowrap;">${sub.name}</td>
+        <td style="padding:5px 12px;font-size:12px;font-weight:600;border:1.5px solid #000;color:#111827;white-space:nowrap;">${sub.name}</td>
         ${gradeSource==='components' ? compCells : ''}
-        <td style="padding:8px 8px;text-align:center;border:1.5px solid #000;background:${rowBg};">
+        <td style="padding:5px 8px;text-align:center;border:1.5px solid #000;background:${rowBg};">
           <span style="font-size:15px;font-weight:900;color:${scoreC};">${total!==null?total:'—'}</span>
         </td>
-        <td style="padding:8px 8px;text-align:center;border:1.5px solid #000;background:${rowBg};">
+        <td style="padding:5px 8px;text-align:center;border:1.5px solid #000;background:${rowBg};">
           <span style="display:inline-block;padding:2px 8px;background:${scoreC}18;border:1px solid ${scoreC}40;border-radius:20px;font-size:10px;font-weight:800;color:${scoreC};">${letter}</span>
         </td>
-        <td style="padding:8px 8px;text-align:center;border:1.5px solid #000;background:${rowBg};">
+        <td style="padding:5px 8px;text-align:center;border:1.5px solid #000;background:${rowBg};">
           <span style="font-size:13px;font-weight:800;color:${subPos!==null?'#111827':'#d1d5db'};">${subPos!==null?ordinal(subPos):'—'}</span>
         </td>
-        <td style="padding:8px 10px;font-size:12px;border:1.5px solid #000;color:#4b5563;background:${rowBg};">${remark}</td>
+        <td style="padding:5px 10px;font-size:12px;border:1.5px solid #000;color:#4b5563;background:${rowBg};">${remark}</td>
       </tr>`
     }).join('')
 
@@ -1008,7 +1008,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     const isLastPeriod = rcPeriod===lastPeriodLabel
 
     return `
-    <div style="background:#fff;border-radius:14px;overflow:hidden;page-break-after:always;max-width:780px;margin:0 auto 24px;box-shadow:0 4px 32px rgba(0,0,0,0.10);">
+    <div class="rc-card" style="background:#fff;border-radius:14px;overflow:hidden;max-width:780px;margin:0 auto 24px;box-shadow:0 4px 32px rgba(0,0,0,0.10);">
       <div style="height:5px;background:linear-gradient(90deg,#1e3a8a,#3b82f6,#1e3a8a);"></div>
 
       <!-- Header -->
@@ -1052,11 +1052,11 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             <div style="font-size:22px;font-weight:900;color:#111827;">${grandAvg!==null?Math.round(grandAvg):'—'}</div>
             <div style="font-size:9px;color:#9ca3af;margin-top:1px;">of 100</div>
           </div>
-          <div style="text-align:center;padding:8px 16px;background:#fff;border:2px solid ${gradeC};border-radius:10px;">
+          ${aggregate?'':`<div style="text-align:center;padding:8px 16px;background:#fff;border:2px solid ${gradeC};border-radius:10px;">
             <div style="font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Grade</div>
             <div style="font-size:22px;font-weight:900;color:${gradeC};">${grandLetter}</div>
             <div style="font-size:9px;color:#9ca3af;margin-top:1px;">${grandRemark}</div>
-          </div>
+          </div>`}
           <div style="text-align:center;padding:8px 16px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border-radius:10px;">
             <div style="font-size:9px;color:rgba(0,0,0,0.45);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">Position</div>
             <div style="font-size:22px;font-weight:900;color:#111827;">${sPos!=='--'?ordinal(sPos):'--'}</div>
@@ -1082,7 +1082,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       <div style="display:block;">
 
         <!-- Academic: full width -->
-        <div style="padding:20px 28px 0 28px;border-bottom:1px solid #f3f4f6;">
+        <div style="padding:14px 28px 0 28px;border-bottom:1px solid #f3f4f6;">
           <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
             <div style="width:3px;height:12px;background:#1e3a8a;border-radius:2px;flex-shrink:0;"></div>
             Academic Performance
@@ -1101,19 +1101,19 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             <tbody>${subjectRows}</tbody>
             <tfoot>
               <tr style="background:linear-gradient(135deg,#eff6ff,#e0f2fe);">
-                <td style="padding:9px 12px;font-size:11px;font-weight:700;color:#1e3a8a;border:1.5px solid #000;border-top:3px solid #1e3a8a;">Total</td>
+                <td style="padding:6px 12px;font-size:11px;font-weight:700;color:#1e3a8a;border:1.5px solid #000;border-top:3px solid #1e3a8a;">Total</td>
                 ${gradeSource==='components' ? activeComps.map(()=>'<td style="border:1.5px solid #000;border-top:3px solid #1e3a8a;"></td>').join('') : ''}
-                <td style="padding:9px 8px;text-align:center;font-size:16px;font-weight:900;color:#1e3a8a;border:1.5px solid #000;border-top:3px solid #1e3a8a;">${grandTotal!==null?grandTotal:'—'}</td>
-                <td style="padding:9px 8px;text-align:center;border:1.5px solid #000;border-top:3px solid #1e3a8a;"><span style="display:inline-block;padding:3px 10px;background:#1e3a8a;border-radius:20px;font-size:11px;font-weight:800;color:#fff;">${grandLetter}</span></td>
+                <td style="padding:6px 8px;text-align:center;font-size:16px;font-weight:900;color:#1e3a8a;border:1.5px solid #000;border-top:3px solid #1e3a8a;">${grandTotal!==null?grandTotal:'—'}</td>
+                <td style="padding:6px 8px;text-align:center;border:1.5px solid #000;border-top:3px solid #1e3a8a;"><span style="display:inline-block;padding:3px 10px;background:#1e3a8a;border-radius:20px;font-size:11px;font-weight:800;color:#fff;">${grandLetter}</span></td>
                 <td style="border:1.5px solid #000;border-top:3px solid #1e3a8a;"></td>
-                <td style="padding:9px 10px;font-size:12px;font-weight:600;color:#4b5563;border:1.5px solid #000;border-top:3px solid #1e3a8a;">${grandRemark}</td>
+                <td style="padding:6px 10px;font-size:12px;font-weight:600;color:#4b5563;border:1.5px solid #000;border-top:3px solid #1e3a8a;">${grandRemark}</td>
               </tr>
             </tfoot>
           </table>
         </div>
 
         <!-- Bottom: Attendance, Remark -->
-        <div style="padding:20px 28px 20px 28px;display:grid;grid-template-columns:repeat(3,1fr);gap:24px;">
+        <div style="padding:14px 28px 14px 28px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
 
           <!-- Attendance: days present out of days school was in session -->
           <div>
@@ -1178,9 +1178,34 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Inter',sans-serif;background:#f0f2f5;color:#1a1a2e;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .no-print{display:block}
-    @media print{@page{size:A4 portrait;margin:8mm}body{background:#fff;padding:0}.no-print{display:none!important}}
+    .rc-page{page-break-after:always;break-after:page}
+    .rc-page:last-of-type{page-break-after:auto;break-after:auto}
+    @media print{@page{size:A4 portrait;margin:8mm}body{background:#fff;padding:0}.no-print{display:none!important}.rc-card{margin:0 auto!important}}
     @media screen{body{padding:20px}}
   `
+
+  // Guarantees a card never spills onto a second sheet, whatever its content
+  // (an optional head-teacher remark, both date bars and the promotion line can
+  // push a full card past one page). Runs in the print window: wraps each card
+  // in a page-sized box and, only if it would overflow, scales it down to fit.
+  // Cards that already fit are left at full size. Measured at the real print
+  // width (194mm of A4 minus 8mm margins) so the screen estimate matches print.
+  const fitScript = `<script>(function(){
+    function fit(){
+      var MAXH=1040; // A4 portrait printable height in px (297mm-16mm @96dpi), with safety
+      var cards=document.querySelectorAll('.rc-card');
+      for(var i=0;i<cards.length;i++){
+        var card=cards[i];
+        if(card.parentNode&&card.parentNode.className==='rc-page')continue;
+        card.style.width='733px';card.style.maxWidth='733px';
+        var page=document.createElement('div');page.className='rc-page';
+        card.parentNode.insertBefore(page,card);page.appendChild(card);
+        var h=card.getBoundingClientRect().height;
+        if(h>MAXH){var s=MAXH/h;card.style.transformOrigin='top center';card.style.transform='scale('+s+')';page.style.height=(h*s)+'px';page.style.overflow='hidden';}
+      }
+    }
+    if(document.readyState==='complete')fit();else window.addEventListener('load',fit);
+  })();<\/script>`
 
   const printOneCard = () => {
     if(!rcStudent||!rcReportTitle.trim()) return
@@ -1191,7 +1216,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     <body>${buildReportCard(student)}
     <div class="no-print" style="max-width:800px;margin:0 auto;text-align:center;padding:16px;">
       <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print Report Card</button>
-    </div></body></html>`
+    </div>${fitScript}</body></html>`
     openPrint(html, 860, 960)
   }
 
@@ -1202,7 +1227,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     <body>${classStudents.map(s=>buildReportCard(s)).join('')}
     <div class="no-print" style="max-width:800px;margin:0 auto;text-align:center;padding:16px;">
       <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print All Cards (${classStudents.length})</button>
-    </div></body></html>`
+    </div>${fitScript}</body></html>`
     openPrint(html, 860, 960)
   }
 
@@ -1220,7 +1245,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     <body>${buildReportCard(student)}
     <div class="no-print" style="max-width:800px;margin:0 auto;text-align:center;padding:16px;">
       <button onclick="window.print()" style="padding:12px 36px;background:#1e3a8a;border:none;border-radius:8px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">⎙ &nbsp;Print This Card</button>
-    </div></body></html>`
+    </div>${fitScript}</body></html>`
     openPrint(html, 860, 960)
   }
 
