@@ -146,7 +146,7 @@ export const getGradeColor = (grade, gradeSystem) => {
 }
 
 export const DEFAULT_GRADE_COMPONENTS = [
-  {key:'classwork',   label:'Classwork',   max_score:10, weight:10, enabled:true},
+  {key:'classwork',   label:'Class Score', max_score:10, weight:10, enabled:true},
   {key:'homework',    label:'Homework',    max_score:10, weight:10, enabled:true},
   {key:'midsemester', label:'Midsemester', max_score:20, weight:20, enabled:true},
   {key:'final_exam',  label:'Final Exam',  max_score:50, weight:50, enabled:true},
