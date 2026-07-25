@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS } from '../lib/constants'
 import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName, calcAttendanceRate, isPassing, rankByTotal, compareClasses, computeAggregate, effectivePaid, buildPaymentsByFee } from '../lib/helpers'
@@ -64,8 +65,8 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   const [rcType,setRcType]           = useState('broadsheet')
   const [rcSubject,setRcSubject]     = useState('')
   const [rcStudent,setRcStudent]     = useState('')
-  const [rcRemarks,setRcRemarks]     = useState({}) // {studentId: remark}
-  const [rcHeadRemark,setRcHeadRemark] = useState('')
+  const [rcRemarks,setRcRemarks]     = useState({}) // {studentId: class teacher remark}
+  const [rcHeadRemarks,setRcHeadRemarks] = useState({}) // {studentId: head teacher remark}
   const [rcResumption,setRcResumption] = useState('')
   const [rcVacation,setRcVacation]     = useState('')
   const [rcPromotedTo,setRcPromotedTo] = useState({}) // {studentId: class name | 'Graduated'}
@@ -560,7 +561,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
           rcSubject={rcSubject} setRcSubject={setRcSubject}
           rcStudent={rcStudent} setRcStudent={setRcStudent}
           rcRemarks={rcRemarks} setRcRemarks={setRcRemarks}
-          rcHeadRemark={rcHeadRemark} setRcHeadRemark={setRcHeadRemark}
+          rcHeadRemarks={rcHeadRemarks} setRcHeadRemarks={setRcHeadRemarks}
           rcResumption={rcResumption} setRcResumption={setRcResumption}
           rcVacation={rcVacation} setRcVacation={setRcVacation}
           rcPromotedTo={rcPromotedTo} setRcPromotedTo={setRcPromotedTo}
@@ -581,7 +582,7 @@ const thStyle={padding:'10px 12px',textAlign:'left',fontSize:10,fontWeight:600,c
 const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlign:'middle'}
 
 // ── REPORT CARDS ───────────────────────────────────────────────
-function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemark,setRcHeadRemark,rcResumption,setRcResumption,rcVacation,setRcVacation,rcPromotedTo,setRcPromotedTo,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,rcReportTitle,setRcReportTitle,exportExcel,planHook,onShowPlans}) {
+function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemarks,setRcHeadRemarks,rcResumption,setRcResumption,rcVacation,setRcVacation,rcPromotedTo,setRcPromotedTo,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,rcReportTitle,setRcReportTitle,exportExcel,planHook,onShowPlans}) {
   const {students=[],grades=[],attendance=[],classes=[],subjects=[],users=[],examScores=[],opening_balances:openingBalances=[]} = data
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
@@ -628,6 +629,88 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   const aggregateConfig = settings?.grade_system==='number'
     ? (settings?.aggregate||{})[rcClass] || null
     : null
+
+  // ── Persisted report-card remarks ──────────────────────────────
+  // Both remarks are stored per student per period per year, so a class
+  // teacher enters theirs on their own device and an admin prints from theirs.
+  const [remarksLoading,setRemarksLoading] = useState(false)
+  const [remarksSaving,setRemarksSaving]   = useState(false)
+  const [remarksSaved,setRemarksSaved]     = useState(false)
+  const [remarksError,setRemarksError]     = useState('')
+  const [headRemarkAll,setHeadRemarkAll]   = useState('')
+  // Student ids that already have a saved row for the loaded class/period, so a
+  // save can persist a cleared remark without writing an empty row for every
+  // other student in the class.
+  const savedIdsRef = useRef(new Set())
+
+  // Load saved remarks whenever the class or period changes for an individual
+  // card. Replaces in-memory state -- switching context reloads from the DB.
+  useEffect(() => {
+    if (rcType !== 'individual' || !rcClass || !rcPeriod || !profile?.school_id) return
+    const ids = students.filter(s=>s.class_id===rcClass && !s.archived).map(s=>s.id)
+    if (!ids.length) return
+    let cancelled = false
+    setRemarksLoading(true); setRemarksError('')
+    supabase.from('report_remarks')
+      .select('student_id,class_teacher_remark,head_teacher_remark,promoted_to')
+      .eq('school_id', profile.school_id).eq('period', rcPeriod).eq('year', activeYear)
+      .in('student_id', ids)
+      .then(({data,error}) => {
+        if (cancelled) return
+        // Fail soft: a load error (offline, or the table not migrated yet)
+        // leaves the fields empty and usable rather than blocking with a
+        // message. Only a failed Save, which the user actively triggered,
+        // surfaces an error.
+        if (error) { console.warn('Report remarks load failed:', error.message); setRemarksLoading(false); return }
+        const ct = {}, ht = {}, pt = {}
+        ;(data||[]).forEach(r => {
+          if (r.class_teacher_remark) ct[r.student_id] = r.class_teacher_remark
+          if (r.head_teacher_remark)  ht[r.student_id] = r.head_teacher_remark
+          if (r.promoted_to)          pt[r.student_id] = r.promoted_to
+        })
+        savedIdsRef.current = new Set((data||[]).map(r => r.student_id))
+        setRcRemarks(ct); setRcHeadRemarks(ht); setRcPromotedTo(pt); setRemarksLoading(false)
+      })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rcClass, rcPeriod, rcType, activeYear, profile?.school_id])
+
+  // Class teachers write only their own column; admins write both. An upsert
+  // omitting a column preserves whatever is already stored there, so a class
+  // teacher's save never clobbers the head teacher's remark and vice versa.
+  const saveRemarks = async () => {
+    if (!classStudents.length) return
+    setRemarksSaving(true); setRemarksSaved(false); setRemarksError('')
+    // Only write a row for a student who has something worth storing, or who
+    // already has a saved row (so clearing a remark persists). Students who are
+    // empty and were never saved are skipped, so a Save on a class where only a
+    // few pupils have remarks doesn't create an empty row for everyone else.
+    const rows = classStudents
+      .filter(s => rcRemarks[s.id] || rcHeadRemarks[s.id] || (isLastPeriod && rcPromotedTo[s.id]) || savedIdsRef.current.has(s.id))
+      .map(s => {
+        // Both roles write the class-teacher remark (the class teacher enters
+        // it; an admin may edit it). Only an admin writes the head-teacher one.
+        const row = { school_id: profile?.school_id, student_id: s.id, period: rcPeriod, year: activeYear, updated_by: profile?.id, updated_at: new Date().toISOString(), class_teacher_remark: rcRemarks[s.id] || null }
+        if (isAdmin) row.head_teacher_remark = rcHeadRemarks[s.id] || null
+        if (isLastPeriod) row.promoted_to = rcPromotedTo[s.id] || null  // promotion is only set on the final-period card
+        return row
+      })
+    if (!rows.length) { setRemarksSaving(false); setRemarksSaved(true); setTimeout(()=>setRemarksSaved(false), 2500); return }
+    const { error } = await supabase.from('report_remarks').upsert(rows, { onConflict: 'school_id,student_id,period,year' })
+    setRemarksSaving(false)
+    if (error) { setRemarksError('Could not save: ' + error.message); return }
+    rows.forEach(r => savedIdsRef.current.add(r.student_id))  // these now have rows
+    setRemarksSaved(true); setTimeout(()=>setRemarksSaved(false), 2500)
+  }
+
+  const applyHeadRemarkToAll = () => {
+    if (!headRemarkAll.trim()) return
+    setRcHeadRemarks(p => {
+      const next = { ...p }
+      classStudents.forEach(s => { next[s.id] = headRemarkAll })
+      return next
+    })
+  }
 
   // Helper: get total for a student/subject combo
   const getTotal = (studentId, subjectId) => {
@@ -937,6 +1020,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     const att           = getAttendance(student.id)
     const sPos          = rankedStudents.find(s=>s.id===student.id)?.position||'--'
     const teacherRemark = rcRemarks[student.id]||''
+    const headRemark    = rcHeadRemarks[student.id]||''
     const promotedTo    = rcPromotedTo[student.id]||''
 
     const activeComps = gradeComps.filter(c=>c.enabled)
@@ -1138,9 +1222,9 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
             <div style="padding:10px 14px;background:#f8fafc;border-radius:8px;border-left:4px solid #1e3a8a;font-size:12px;color:#374151;min-height:44px;line-height:1.6;font-style:italic;">${teacherRemark||'<span style="color:#d1d5db;">No remark entered</span>'}</div>
           </div>
 
-          ${rcHeadRemark?`<div style="grid-column:1/-1;margin-bottom:14px;">
+          ${headRemark?`<div style="grid-column:1/-1;margin-bottom:14px;">
             <div style="font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px;">Head Teacher's Remark</div>
-            <div style="padding:10px 14px;background:#f8fafc;border-radius:8px;border-left:4px solid #fbbf24;font-size:12px;color:#374151;line-height:1.6;font-style:italic;">${rcHeadRemark}</div>
+            <div style="padding:10px 14px;background:#f8fafc;border-radius:8px;border-left:4px solid #fbbf24;font-size:12px;color:#374151;line-height:1.6;font-style:italic;">${headRemark}</div>
           </div>`:''}
 
           ${(rcVacation||rcResumption)?`<div style="grid-column:1/-1;padding:8px 14px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;font-size:11px;color:#1e3a8a;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px 24px;">
@@ -1309,7 +1393,6 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
           <Field label='Report Header' value={rcReportTitle} onChange={setRcReportTitle} required
             placeholder={rcType==='broadsheet'?'Terminal Report — Class Broadsheet':rcType==='subject'?'Subject Performance Report':'Student Terminal Report Card'}/>
           {rcType==='individual' && <>
-            <Field label='Head Teacher Remark (optional)' value={rcHeadRemark} onChange={setRcHeadRemark} placeholder='Overall comment...'/>
             <Field label='Vacation Begins' value={rcVacation} onChange={setRcVacation} type='date'/>
             <Field label='Next Term Resumption Date' value={rcResumption} onChange={setRcResumption} type='date'/>
           </>}
@@ -1323,21 +1406,45 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         </div>
       </Card>
 
-      {/* Per-student remarks (and end-of-year promotion) for individual cards */}
+      {/* Per-student remarks (and end-of-year promotion) for individual cards.
+          Saved to the DB so class teacher and head/admin can work on separate
+          devices. Class teachers edit only their own remark; admins edit both. */}
       {rcType==='individual' && rcClass && (
         <Card style={{marginBottom:16}}>
-          <SectionTitle>{isLastPeriod?'Class Teacher Remarks & Promotion':'Class Teacher Remarks'}</SectionTitle>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginBottom:6}}>
+            <SectionTitle style={{margin:0}}>{isClassTeacher?'My Remarks':'Report Remarks'}{isLastPeriod?' & Promotion':''}</SectionTitle>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              {remarksLoading && <span style={{fontSize:12,color:'var(--mist3)'}}><Spinner/> Loading…</span>}
+              {remarksSaved && <span style={{fontSize:12,color:'var(--emerald)'}}>✓ Saved</span>}
+              {remarksError && <span style={{fontSize:12,color:'var(--rose)'}}>{remarksError}</span>}
+              <Btn size='sm' onClick={saveRemarks} disabled={remarksSaving||remarksLoading}>
+                {remarksSaving?<><Spinner/> Saving…</>:'Save Remarks'}
+              </Btn>
+            </div>
+          </div>
           <p style={{fontSize:12,color:'var(--mist2)',marginBottom:14}}>
-            {isLastPeriod
-              ? `Enter a remark for each student and set where they go next. Choose Not Promoted for a student repeating ${rcClassName||'their class'}. Both appear on the report card.`
-              : 'Enter a remark for each student. These will appear on their report cards.'}
+            {isClassTeacher
+              ? `Enter a remark for each student in ${rcClassName||'your class'} and save. An admin will see them and print the cards${isLastPeriod?' — set where each student goes next as well':''}.`
+              : `Enter the class teacher and head teacher remarks for each student, then save. Both appear on the report card${isLastPeriod?', along with where each student goes next':''}.`}
           </p>
-          {isLastPeriod && (
-            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6,paddingLeft:190}}>
-              <span style={{flex:'1 1 200px',fontSize:10,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.07em'}}>Remark</span>
-              <span style={{width:150,flexShrink:0,fontSize:10,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.07em'}}>Promoted To</span>
+
+          {isAdmin && (
+            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:14,padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)'}}>
+              <span style={{fontSize:11,color:'var(--mist2)',flexShrink:0}}>Head teacher remark — same for all:</span>
+              <input
+                value={headRemarkAll}
+                onChange={e=>setHeadRemarkAll(e.target.value)}
+                placeholder='e.g. A commendable term. Keep it up.'
+                style={{flex:'1 1 220px',minWidth:0,background:'var(--ink4)',border:'1px solid var(--line2)',borderRadius:'var(--r-sm)',padding:'7px 12px',color:'var(--white)',fontSize:12,fontFamily:"'Cabinet Grotesk',sans-serif"}}/>
+              <Btn size='sm' variant='secondary' onClick={applyHeadRemarkToAll} disabled={!headRemarkAll.trim()}>Apply to all</Btn>
             </div>
           )}
+
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6,paddingLeft:190,flexWrap:'wrap'}}>
+            <span style={{flex:'1 1 200px',fontSize:10,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.07em'}}>Class Teacher Remark</span>
+            {isAdmin && <span style={{flex:'1 1 200px',fontSize:10,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.07em'}}>Head Teacher Remark</span>}
+            {isLastPeriod && <span style={{width:150,flexShrink:0,fontSize:10,fontWeight:600,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.07em'}}>Promoted To</span>}
+          </div>
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             {classStudents.map(s=>(
               <div key={s.id} style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
@@ -1348,8 +1455,15 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
                 <input
                   value={rcRemarks[s.id]||''}
                   onChange={e=>setRcRemarks(p=>({...p,[s.id]:e.target.value}))}
-                  placeholder='Enter remark...'
+                  placeholder='Class teacher remark...'
                   style={{flex:'1 1 200px',minWidth:0,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'7px 12px',color:'var(--white)',fontSize:12,fontFamily:"'Cabinet Grotesk',sans-serif"}}/>
+                {isAdmin && (
+                  <input
+                    value={rcHeadRemarks[s.id]||''}
+                    onChange={e=>setRcHeadRemarks(p=>({...p,[s.id]:e.target.value}))}
+                    placeholder='Head teacher remark...'
+                    style={{flex:'1 1 200px',minWidth:0,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'7px 12px',color:'var(--white)',fontSize:12,fontFamily:"'Cabinet Grotesk',sans-serif"}}/>
+                )}
                 {isLastPeriod && (
                   <select
                     value={rcPromotedTo[s.id]||''}
