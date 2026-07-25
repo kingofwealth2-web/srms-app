@@ -2,9 +2,83 @@ import { useState, useEffect } from 'react'
 
 // ── Version history ──────────────────────────────────────────────
 // Add new entries at the TOP. Bump LATEST_VERSION when adding.
-const LATEST_VERSION = '2.0'
+const LATEST_VERSION = '3.0'
 
 const CHANGELOG = [
+  {
+    version: '3.0',
+    date: 'July 2026',
+    title: 'Report Cards, Reimagined',
+    entries: [
+      {
+        icon: '📝',
+        title: 'Remarks follow the student, not the device',
+        description: 'Class teachers now enter their remarks on their own device and save them. The head teacher or an admin sees those remarks on any computer, adds the head teacher\'s remark for each student, and prints the finished card. No more crowding around one machine to complete a report card.',
+        howto: 'Reports → Report Cards → pick a class & term → Save Remarks',
+      },
+      {
+        icon: '⬆',
+        title: 'Promotion on the report card',
+        description: 'On the final-term card, set where each student goes next — their next class, Graduated, or Not Promoted for a pupil who repeats. It saves alongside the remarks and prints on the card.',
+        howto: 'Reports → Report Cards → Individual → final term → Promoted To',
+      },
+      {
+        icon: '🗓',
+        title: 'Vacation & resumption dates',
+        description: 'Add the date the term ends and the date the next term resumes. Both print on the report card so parents know when school breaks and reopens.',
+        howto: 'Reports → Report Cards → Individual → Vacation Begins / Next Term Resumption',
+      },
+      {
+        icon: '🥇',
+        title: 'Position in each subject',
+        description: 'Every subject on the individual card now shows the student\'s position in that subject, next to the score and grade — so a parent can see how their child ranks subject by subject, not just overall.',
+        howto: 'Appears automatically on individual report cards',
+      },
+      {
+        icon: '🎯',
+        title: 'BECE Aggregate (optional)',
+        description: 'Turn on a BECE-style aggregate for JHS classes — the grades of the core subjects plus the best of the rest. It is off by default and set per class, so KG and primary cards are unaffected. Only works on the number grading system.',
+        howto: 'Settings → BECE Aggregate → switch on a class → tick its core subjects',
+      },
+      {
+        icon: '✅',
+        title: 'Simpler attendance',
+        description: 'The report card now shows days present out of the days school was in session — one clear line instead of a percentage and a breakdown. A day marked Late counts as present.',
+        howto: 'Appears automatically on individual report cards',
+      },
+      {
+        icon: '📄',
+        title: 'One page, every time',
+        description: 'Report cards are laid out to fit a single A4 sheet, so a full class prints one card per page with nothing spilling over.',
+        howto: 'Reports → Report Cards → Print',
+      },
+    ],
+  },
+  {
+    version: '2.5',
+    date: 'July 2026',
+    title: 'Grading, Attendance & Speed',
+    entries: [
+      {
+        icon: '🧮',
+        title: 'Grading improvements',
+        description: 'The "Classwork" component is now called "Class Score". Students are ranked by their average, so a pupil missing one subject\'s grade isn\'t unfairly pushed down, and your pass mark follows the grading scale you set. Classes now list in school order everywhere — KG before Basic, and Basic 2 before Basic 10.',
+        howto: 'Settings → Grade Components / Grading Scale',
+      },
+      {
+        icon: '📅',
+        title: 'Opening attendance balance',
+        description: 'Started tracking attendance partway through a term, or a pupil transferred in? Enter each student\'s present and total days so far, and the report card and attendance rate fold them in automatically.',
+        howto: 'Settings → Opening Attendance Balance',
+      },
+      {
+        icon: '⚡',
+        title: 'Faster and steadier',
+        description: 'The app opens faster on slow connections, recording a whole class\'s fees takes seconds instead of minutes, receipt numbers never clash, and switching academic year now shows a loading state instead of momentarily reading zero.',
+        howto: 'Everywhere — no action needed',
+      },
+    ],
+  },
   {
     version: '2.0',
     date: 'May 2026',
