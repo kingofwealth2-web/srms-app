@@ -708,6 +708,7 @@ export default function App() {
                 </button>
                 <span className='d' style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', flex: 1, textAlign: 'center' }}>{pageTitles[page] || 'SRMS'}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <WhatsNew/>
                   <ThemeToggle isDark={isDark} onToggle={() => setIsDark(d => !d)} size='sm'/>
                   <button onClick={() => setPage('myprofile')} style={{ background: 'none', borderRadius: '50%', cursor: 'pointer', lineHeight: 0 }}>
                     <Avatar name={profile?.full_name} size={32} color={ROLE_META[profile?.role]?.bg}/>
