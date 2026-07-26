@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, BEHAVIOUR_META } from '../lib/constants'
-import { fmtDate, getLetter, calcTotal, getGradeComponents, canSeeAnnouncement, getCurrency, fmtMoney , fullName, calcAttendanceRate, effectivePaid, buildPaymentsByFee } from '../lib/helpers'
+import { fmtDate, getLetter, calcTotal, getGradeComponents, canSeeAnnouncement, getCurrency, fmtMoney , fullName, calcAttendanceRate, effectivePaid, buildPaymentsByFee, isPassing } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Card from '../components/Card'
 import KPI from '../components/KPI'
@@ -32,10 +32,13 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   const todayMarked = myClass ? attendance.some(a=>a.class_id===myClass.id&&a.date===today) : true
   const paymentsSumByFee = useMemo(() => buildPaymentsByFee(payments), [payments])
   const totalFees = fees.reduce((s,f)=>s+Number(f.amount||0),0)
-  const totalPaid = fees.reduce((s,f)=>s+effectivePaid(f,paymentsSumByFee),0)
+  // Count payment only up to each fee's own amount, so overpayment credits on
+  // some pupils don't inflate "collected" or mask real arrears elsewhere.
+  const totalPaid = fees.reduce((s,f)=>s+Math.min(Number(f.amount||0), effectivePaid(f,paymentsSumByFee)),0)
+  const totalOutstanding = fees.reduce((s,f)=>s+Math.max(0, Number(f.amount||0)-effectivePaid(f,paymentsSumByFee)),0)
   // Capped at 99% while any balance remains -- a plain Math.round can display "100%"
   // (e.g. GH₵200 owed out of GH₵500,000) even though money is still outstanding.
-  const feeRate = !totalFees ? 0 : totalPaid>=totalFees ? 100 : Math.min(99, Math.round(totalPaid/totalFees*100))
+  const feeRate = !totalFees ? 0 : totalOutstanding<=0 ? 100 : Math.min(99, Math.round(totalPaid/totalFees*100))
   const isAdmin   = ['superadmin','admin'].includes(profile?.role)
   const overdueFeesCount = isAdmin ? fees.filter(fee2=>{
     const bal = Number(fee2.amount||0) - effectivePaid(fee2,paymentsSumByFee)
@@ -60,7 +63,10 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
     }).filter(v=>v!==null)
     if(!perStudent.length) return {avg:0, passRate:0}
     const avg      = Math.round(perStudent.reduce((a,b)=>a+b,0)/perStudent.length)
-    const passRate = Math.round(perStudent.filter(v=>v>=50).length/perStudent.length*100)
+    // Pass mark comes from the school's configured grading scale (isPassing),
+    // not a hardcoded 50 -- matches Reports, and is correct for schools whose
+    // pass band isn't 50 (e.g. the Number system fails below 35).
+    const passRate = Math.round(perStudent.filter(v=>isPassing(v,scale)).length/perStudent.length*100)
     return {avg, passRate}
   }
 

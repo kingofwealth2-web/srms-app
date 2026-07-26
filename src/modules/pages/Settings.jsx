@@ -24,7 +24,6 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
     return base
   })
   const [saving,setSaving] = useState(false)
-  const [weightWarning,setWeightWarning] = useState(false)
   const [releases,setReleases] = useState([])
   const [relLoading,setRelLoading] = useState(false)
   const [logoUploading,setLogoUploading] = useState(false)
@@ -78,13 +77,8 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
   const activeComps = gradeComponents.filter(c=>c.enabled)
   const totalWeight = activeComps.reduce((a,c)=>a+c.weight,0)
 
-  const save = async () => {
-    if(!form.id){ toast('Settings not loaded yet — please wait and try again.','error'); return }
-    if(totalWeight!==100 && activeComps.length>0){
-      setWeightWarning(true)
-      setTimeout(()=>setWeightWarning(false),4000)
-    }
-
+  // Everything after the weight gate: the prefix-migration confirm, then write.
+  const proceedSave = () => {
     // Check if prefix changed — if so, confirm migration first
     const oldPrefix = settings?.student_id_prefix||'STU'
     const newPrefix = (form.student_id_prefix||'STU').trim().toUpperCase()
@@ -104,6 +98,28 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
     }
 
     doSave(newPrefix, false)
+  }
+
+  const save = async () => {
+    if(!form.id){ toast('Settings not loaded yet — please wait and try again.','error'); return }
+    // Active weights ≠100 make calcTotal score every pupil out of the wrong
+    // maximum -- corrupting totals, letters, pass rates and report cards. Block
+    // with an explicit confirm instead of the old fire-and-forget toast.
+    if(totalWeight!==100 && activeComps.length>0){
+      setConfirmState({
+        title: "Weights don't total 100%",
+        body: `Active grade-component weights add up to ${totalWeight}%, not 100%. Every grade total will be calculated out of ${totalWeight}% — skewing letter grades, pass rates, class rankings and report cards. Save anyway?`,
+        icon: '⚠',
+        danger: true,
+        confirmLabel: 'Save anyway',
+        // Deferred a tick so this modal's own setConfirmState(null) runs first
+        // and doesn't clobber the prefix-migration confirm proceedSave may open.
+        onConfirm: () => setTimeout(proceedSave, 0)
+      })
+      return
+    }
+
+    proceedSave()
   }
 
   const doSave = async (newPrefix, migrateIds) => {
@@ -236,10 +252,10 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
         <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save Changes'}</Btn>
       </PageHeader>
 
-      {weightWarning && (
+      {totalWeight!==100 && activeComps.length>0 && (
         <div className='fi' style={{background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:20,display:'flex',alignItems:'center',gap:10}}>
           <span style={{fontSize:18}}>(!)</span>
-          <span style={{fontSize:13,color:'var(--amber)'}}>Active component weights add up to <strong>{totalWeight}%</strong> -- they should total 100% for accurate grade calculations. Settings saved anyway.</span>
+          <span style={{fontSize:13,color:'var(--amber)'}}>Active component weights add up to <strong>{totalWeight}%</strong> -- they should total 100% or grades are calculated out of {totalWeight}%, not 100%.</span>
         </div>
       )}
 

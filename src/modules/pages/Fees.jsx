@@ -466,10 +466,16 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const pagedFiltered = filtered.slice(feePage*FEE_PAGE_SIZE, feePage*FEE_PAGE_SIZE + FEE_PAGE_SIZE)
   const overdueCount = enriched.filter(r=>r.isOverdue).length
   const totalOwed = enriched.reduce((s,r)=>s+Number(r.amount||0),0)
-  const totalPaid = enriched.reduce((s,r)=>s+r.effectivePaid,0)
+  // Collected/outstanding must NOT net overpayment credits from one fee against
+  // another fee's unpaid balance, or a school with a few overpaid pupils sees
+  // "Outstanding" collapse toward zero while real arrears are still owed.
+  // Collected counts payment only up to each fee's own amount (a credit never
+  // "collects" a different fee); Outstanding sums positive balances only.
+  const totalPaid = enriched.reduce((s,r)=>s+Math.min(Number(r.amount||0), r.effectivePaid),0)
+  const totalOutstanding = enriched.reduce((s,r)=>s+Math.max(0, r.balance),0)
   // Capped at 99% while any balance remains -- a plain Math.round can display "100%"
   // (e.g. GH₵200 owed out of GH₵500,000) even though money is still outstanding.
-  const collectionRate = !totalOwed ? 0 : totalPaid>=totalOwed ? 100 : Math.min(99, Math.round(totalPaid/totalOwed*100))
+  const collectionRate = !totalOwed ? 0 : totalOutstanding<=0 ? 100 : Math.min(99, Math.round(totalPaid/totalOwed*100))
   const openAdd = ()=>{ window.scrollTo({top:0,behavior:'smooth'}); setForm({student_id:'',fee_type:'',amount:'',due_date:'',period:''}); setModal(true) }
   const [editFeeModal,setEditFeeModal] = useState(false)
   const [editFeeRow,setEditFeeRow]     = useState(null)
@@ -1140,13 +1146,14 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         f.academic_year===activeYear &&
         (!period || f.period===period)
       )
-      const totalCharged = studentFees.reduce((a,f)=>a+Number(f.amount||0),0)
-      // Use effectivePaid (same as enriched) — max of fee.paid vs payments sum
-      const totalPaid = studentFees.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
-      const balance = Math.max(0, totalCharged - totalPaid)
-      const feeId   = studentFees[0]?.id || null
-      if(balance===0 || !feeId) return null
-      return {student:s, checked:true, amount:String(balance), balance, feeId}
+      // Target ONE fee row and cap the collectable amount to THAT row's own
+      // balance -- never the sum across duplicate rows. Summing the balance while
+      // applying the payment to only studentFees[0] could overpay one row and
+      // leave its duplicate outstanding (F-002). Pick the first row still owing.
+      const targetFee = studentFees.find(f => Number(f.amount||0) - effectivePaid(f,paymentsSumByFee) > 0)
+      if(!targetFee) return null
+      const balance = Math.max(0, Number(targetFee.amount||0) - effectivePaid(targetFee,paymentsSumByFee))
+      return {student:s, checked:true, amount:String(balance), balance, feeId:targetFee.id}
     }).filter(Boolean)
   }
 
@@ -1442,7 +1449,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16,marginBottom:24}}>
         <KPI label='Total Owed'      value={fmtMoney(totalOwed,currency)} color='var(--mist)'    sub='All fees' index={0}/>
         <KPI label='Collected'       value={fmtMoney(totalPaid,currency)} color='var(--emerald)' sub='Payments received' index={1}/>
-        <KPI label='Outstanding'     value={fmtMoney(totalOwed-totalPaid,currency)} color='var(--rose)' sub='Awaiting payment' index={2}/>
+        <KPI label='Outstanding'     value={fmtMoney(totalOutstanding,currency)} color='var(--rose)' sub='Awaiting payment' index={2}/>
         <KPI label='Collection Rate' value={`${collectionRate}%`} color='var(--gold)' sub='Of total owed' index={3}/>
         {overdueCount>0 && <KPI label='Overdue' value={overdueCount} color='var(--rose)' sub='Past due date, unpaid' index={4}/>}
       </div>

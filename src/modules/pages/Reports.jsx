@@ -195,7 +195,11 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
     const sf=fees.filter(f=>f.student_id===s.id)
     const owed=sf.reduce((a,f)=>a+Number(f.amount||0),0)
     const paid=sf.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
-    return{...s,owed,paid,balance:owed-paid,feeStatus:owed===0?'--':paid>owed?'Overpaid':paid>=owed?'Paid':paid>0?'Partial':'Outstanding'}
+    // Per-fee capped figures for the school-wide KPI totals below, so an
+    // overpaid fee's credit never counts as collecting another fee's balance.
+    const collected=sf.reduce((a,f)=>a+Math.min(Number(f.amount||0), effectivePaid(f,paymentsSumByFee)),0)
+    const outstanding=sf.reduce((a,f)=>a+Math.max(0, Number(f.amount||0)-effectivePaid(f,paymentsSumByFee)),0)
+    return{...s,owed,paid,collected,outstanding,balance:owed-paid,feeStatus:owed===0?'--':paid>owed?'Overpaid':paid>=owed?'Paid':paid>0?'Partial':'Outstanding'}
   })
 
   // ── Summary KPIs ──
@@ -204,10 +208,11 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   const withRate  = attData.filter(s=>s.rate!==null)
   const avgAtt    = withRate.length?Math.round(withRate.reduce((a,s)=>a+s.rate,0)/withRate.length):0
   const totalF    = feeData.reduce((a,s)=>a+s.owed,0)
-  const totalP    = feeData.reduce((a,s)=>a+s.paid,0)
+  const totalP    = feeData.reduce((a,s)=>a+s.collected,0)
+  const totalOut  = feeData.reduce((a,s)=>a+s.outstanding,0)
   // Capped at 99% while any balance remains -- a plain Math.round can display "100%"
   // (e.g. GH₵200 owed out of GH₵500,000) even though money is still outstanding.
-  const feeCollectionRate = !totalF ? 0 : totalP>=totalF ? 100 : Math.min(99, Math.round(totalP/totalF*100))
+  const feeCollectionRate = !totalF ? 0 : totalOut<=0 ? 100 : Math.min(99, Math.round(totalP/totalF*100))
 
   // ── Excel Export ──
   const exportExcel = () => {
