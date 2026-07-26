@@ -180,8 +180,10 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
 
   // ── Attendance data ──
   const attData = scopedStudents.map(s=>{
-    const sa=attendance.filter(a=>a.student_id===s.id)
-    const sob=openingBalances.filter(b=>b.student_id===s.id)
+    // Respect the period filter so attendance reads per-term, matching cards.
+    // Opening balances have no period, so they only count in the all-periods view.
+    const sa=attendance.filter(a=>a.student_id===s.id && (!fp||a.period===fp))
+    const sob=openingBalances.filter(b=>b.student_id===s.id && (!fp||b.period===fp))
     return{...s,...calcAttendanceRate(sa,sob)}
   })
 
@@ -267,10 +269,14 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
           csv+=',Total,Average,Grade,Remark,Status\n'
           rankedAcademic.forEach(s=>{
             let row=`${ordinal(s.position)},"${csvEscape(s.student_id)}","${csvEscape(fullName(s))}"`
-            visSubjects.forEach(sub=>{
-              const g=grades.find(gr=>gr.student_id===s.id&&gr.subject_id===sub.id&&(!fp||gr.period===fp))
-              gradeComps.filter(c=>c.enabled).forEach(c=>{ row+=`,${g?g[c.key]||0:'--'}` })
-            })
+            // One grade per subject, looked up once. The header lists all
+            // subject TOTAL columns first, then every subject's component
+            // columns, so the row must emit them in that same order. (F-005:
+            // rows previously skipped the subject-total columns, shifting the
+            // whole sheet left by one column per subject.)
+            const sGrades=visSubjects.map(sub=>grades.find(gr=>gr.student_id===s.id&&gr.subject_id===sub.id&&(!fp||gr.period===fp)))
+            sGrades.forEach(g=>{ row+=`,${g?(calcTotal(g,gradeComps)??'--'):'--'}` })
+            sGrades.forEach(g=>{ gradeComps.filter(c=>c.enabled).forEach(c=>{ row+=`,${g?g[c.key]||0:'--'}` }) })
             row+=`,${s.total??'--'},${s.avg??'--'},${csvEscape(s.letter)},"${csvEscape(s.remark||'')}",${s.pass===null?'--':s.pass?'Pass':'Fail'}\n`
             csv+=row
           })
@@ -375,7 +381,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
             </select>
           )}
 
-          {rtype==='academic' && (
+          {(rtype==='academic' || rtype==='attendance') && (
             <select value={fp} onChange={e=>setFp(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
               <option value=''>All Periods</option>
@@ -776,8 +782,11 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   // Attendance helper
   const getAttendance = (studentId) => {
-    const recs = attendance.filter(a=>a.student_id===studentId)
-    const obs  = openingBalances.filter(b=>b.student_id===studentId)
+    // Per-period card: only this term's daily records. Opening balances carry no
+    // period (a pre-SRMS annual figure), so they'd multi-count if added to every
+    // term -- include them only in the whole-year view (no period selected).
+    const recs = attendance.filter(a=>a.student_id===studentId && (!rcPeriod || a.period===rcPeriod))
+    const obs  = openingBalances.filter(b=>b.student_id===studentId && (!rcPeriod || b.period===rcPeriod))
     return calcAttendanceRate(recs, obs)
   }
 

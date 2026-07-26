@@ -36,6 +36,18 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   const [confirmState,setConfirmState] = useState(null)
   const [pendingMarks,setPendingMarks] = useState({})
   const [hasUnsaved,setHasUnsaved] = useState(false)
+  // Attendance is stamped with the term/semester it was marked in (like grades
+  // & fees), so report cards and Reports can show per-period attendance.
+  const periods = settings?.period_type==='term'
+    ? Array.from({length:settings?.period_count||2},(_,i)=>`Term ${i+1}`)
+    : Array.from({length:settings?.period_count||2},(_,i)=>`Semester ${i+1}`)
+  const periodKey = `srms_att_period_${profile?.school_id}`
+  const [period,setPeriodState] = useState(()=>{ try { return localStorage.getItem(periodKey)||'' } catch { return '' } })
+  // No automatic default: each school explicitly picks its current term the first
+  // time (the choice then persists per device). A silent default would bias a
+  // brand-new school -- which may be in any term -- toward the wrong one; saving
+  // is blocked until a term is chosen, so nothing gets mis-stamped.
+  const setPeriod = v => { setPeriodState(v); try { localStorage.setItem(periodKey,v) } catch {} }
   const myClasses = profile?.role==='classteacher' ? classes.filter(c=>c.id===profile.class_id) : classes
   const cls = myClasses.find(c=>c.id===cid)
   const classStudents = cls ? students.filter(s=>s.class_id===cls.id) : []
@@ -81,10 +93,11 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
 
   const saveAttendance = async () => {
     if(!cls || saving) return
+    if(!period){toast('Select a term/semester before saving attendance.','error');return}
     setSaving(true)
     try {
       const allMarks = classStudents
-        .map(s=>({school_id:profile?.school_id,student_id:s.id,class_id:cid,date,status:getStatus(s.id)||null,marked_by:profile?.id,academic_year:activeYear}))
+        .map(s=>({school_id:profile?.school_id,student_id:s.id,class_id:cid,date,status:getStatus(s.id)||null,marked_by:profile?.id,academic_year:activeYear,period}))
         .filter(m=>m.status)
       if(allMarks.length===0){toast('No students marked -- nothing to save','error');setSaving(false);return}
       // Single atomic upsert -- no delete-then-insert gap where data could be lost
@@ -97,7 +110,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
       setData(p=>({...p,attendance:[...p.attendance.filter(a=>!(a.class_id===cid&&a.date===date)),...(rows||[])]}))
       setPendingMarks({})
       setHasUnsaved(false)
-      auditLog(profile,'Attendance','Marked',`${cls?.name} · ${date} · ${allMarks.length} students`,{class:cls?.name,date,count:allMarks.length},null,null)
+      auditLog(profile,'Attendance','Marked',`${cls?.name} · ${period} · ${date} · ${allMarks.length} students`,{class:cls?.name,period,date,count:allMarks.length},null,null)
       toast(`Attendance saved -- ${allMarks.length} student${allMarks.length!==1?'s':''} recorded done`)
     } catch(err) {
       toast(`Save failed: ${err.message}. Please try again.`,'error')
@@ -119,11 +132,11 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
         if(v===null||v===undefined) return ''
         return String(v).replace(/"/g,'""')
       }
-      let csv = 'Date,Class,Student ID,Student,Status\n'
+      let csv = 'Date,Term,Class,Student ID,Student,Status\n'
       histRecs.forEach(r=>{
         const cls = classes.find(c=>c.id===r.class_id)
         const s   = students.find(st=>st.id===r.student_id)
-        csv += `"${esc(r.date)}","${esc(cls?.name)}","${esc(s?.student_id)}","${esc(s?`${s.first_name} ${s.last_name}`:'')}","${esc(r.status)}"\n`
+        csv += `"${esc(r.date)}","${esc(r.period)}","${esc(cls?.name)}","${esc(s?.student_id)}","${esc(s?`${s.first_name} ${s.last_name}`:'')}","${esc(r.status)}"\n`
       })
       const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
       const url  = URL.createObjectURL(blob)
@@ -157,6 +170,13 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
           )}
           <input type='date' value={date} onChange={e=>changeContext(undefined,e.target.value)}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--white)',fontSize:13}}/>
+          {tab==='mark' && !isBlocked && (
+            <select value={period} onChange={e=>setPeriod(e.target.value)} title='The term/semester this attendance counts towards'
+              style={{background:'var(--ink3)',border:`1px solid ${period?'var(--line)':'var(--rose)'}`,borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'0 1 140px'}}>
+              <option value=''>Select term…</option>
+              {periods.map(p=><option key={p} value={p}>{p}</option>)}
+            </select>
+          )}
           {tab==='mark'&&cls&&!isBlocked&&!isViewingPast&&(
             <div style={{display:'flex',gap:6,marginLeft:'auto',flexWrap:'wrap',alignItems:'center'}}>
               <span style={{fontSize:12,color:'var(--mist3)',marginRight:4}}>Mark all:</span>
@@ -263,6 +283,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
           {histRecs.length>500&&<div style={{padding:'8px 14px',background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--amber)',marginBottom:12}}>⚠ Showing the 500 most recent records. Export CSV to access the full history.</div>}
           <DataTable data={histRecs.slice(0,500)} columns={[
             {key:'date',label:'Date',render:v=>fmtDate(v)},
+            {key:'period',label:'Term',render:v=>v||'--'},
             {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
             {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?fullName(s,true):'--'}},
             {key:'status',label:'Status',render:v=><Badge color={STATUS_META[v]?.color} bg={STATUS_META[v]?.bg}>{v}</Badge>},
