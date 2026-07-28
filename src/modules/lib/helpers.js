@@ -169,7 +169,7 @@ export const calcTotal = (g, gradeComponents) => {
 export const getLetter     = (t, scale) => { for (const s of scale) if (t >= s.min && t <= s.max) return s.letter;       return 'F'  }
 export const getGPA        = (t, scale) => { for (const s of scale) if (t >= s.min && t <= s.max) return s.gpa;          return 0    }
 export const getGradeLetter = (t, scale) => { for (const s of scale) if (t >= s.min && t <= s.max) return s.letter || '--'; return '--' }
-export const getGradeRemark = (t, scale) => { for (const s of scale) if (t >= s.min && t <= s.max) return s.remark || ''; return ''  }
+export const getGradeRemark = (t, scale) => { for (const s of scale) if (t >= s.min && t <= s.max) return s.remark || '--'; return '--' }
 
 // Pass/fail derived from the school's own configured scale rather than a fixed
 // number -- the lowest-min tier is always the fail band, whatever range that

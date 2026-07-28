@@ -369,7 +369,7 @@ export default function ParentPortal({ profile, onSignOut }) {
                     if (periodGrades.length === 0) return null
                     const totals = periodGrades.map(g => calcTotal(g, gradeComps)).filter(t => t !== null)
                     const avg = totals.length ? Math.round(totals.reduce((a,b)=>a+b,0)/totals.length*10)/10 : null
-                    const avgLetter = avg !== null ? getLetter(avg, scale) : '—'
+                    const avgLetter = avg !== null ? getLetter(Math.round(avg), scale) : '—'
                     const avgColor = avg >= 80 ? 'var(--emerald)' : avg >= 60 ? 'var(--sky)' : avg >= 50 ? 'var(--amber)' : 'var(--rose)'
                     return (
                       <Card key={`${year}-${period}`} style={{ marginBottom: 16 }}>

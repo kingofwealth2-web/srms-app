@@ -840,8 +840,9 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
       }).join('')
       const total  = s.total
       const avg    = s.avg
-      const letter = avg!==null ? getGradeLetter(avg,scale) : '--'
-      const remark = avg!==null ? getGradeRemark(avg,scale) : '--'
+      const avgRounded = avg!==null ? Math.round(avg) : null
+      const letter = avgRounded!==null ? getGradeLetter(avgRounded,scale) : '--'
+      const remark = avgRounded!==null ? getGradeRemark(avgRounded,scale) : '--'
       const posOrd = s.position!==null ? ordinal(s.position) : '—'
       const posC   = s.position===null?'#9ca3af':s.position===1?'#b45309':s.position===2?'#6b7280':s.position===3?'#92400e':'#6d28d9'
       const posBg  = s.position===null?'#f9fafb':s.position===1?'#fef3c7':s.position===2?'#f3f4f6':s.position===3?'#fef3c7':'#f5f3ff'
@@ -1090,8 +1091,9 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
     const subTotals  = classSubjects.map(s=>activeGetTotal(student.id,s.id)).filter(t=>t!==null)
     const grandTotal  = subTotals.length ? subTotals.reduce((a,b)=>a+b,0) : null
     const grandAvg    = grandTotal!==null ? grandTotal/subTotals.length : null
-    const grandLetter = grandAvg!==null ? getGradeLetter(grandAvg,scale) : '--'
-    const grandRemark = grandAvg!==null ? getGradeRemark(grandAvg,scale) : '--'
+    const grandAvgRounded = grandAvg!==null ? Math.round(grandAvg) : null
+    const grandLetter = grandAvgRounded!==null ? getGradeLetter(grandAvgRounded,scale) : '--'
+    const grandRemark = grandAvgRounded!==null ? getGradeRemark(grandAvgRounded,scale) : '--'
     const gradeC      = grandAvg===null?'#6b7280':grandAvg>=75?'#16a34a':grandAvg>=50?'#1d4ed8':'#dc2626'
 
     const photoTag = student.photo
