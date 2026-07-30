@@ -90,6 +90,7 @@ export default function AdminConsole({ profile, onSignOut }) {
       { data: sc }, { data: st }, { data: py },
       { data: nt }, { data: cm }, { data: ob }, { data: ac },
       { data: stuCounts }, { data: staffProfiles }, { data: pc },
+      { data: ll },
     ] = await Promise.all([
       fetchAllRows(() => supabase.from('schools').select('id,name,address,phone,email,region,district,active,created_at').order('name')),
       fetchAllRows(() => supabase.from('settings').select('school_id,plan,trial_ends_at,plan_expires_at,grace_ends_at,cancelled_at,academic_year').order('id')),
@@ -101,6 +102,9 @@ export default function AdminConsole({ profile, onSignOut }) {
       fetchAllRows(() => supabase.from('students').select('school_id').eq('archived', false)),
       fetchAllRows(() => supabase.from('profiles').select('id,school_id')),
       fetchAllRows(() => supabase.from('admin_plan_changes').select('*').order('created_at', { ascending: false })),
+      // Per-school most-recent user sign-in. Falls back to empty if the
+      // admin_last_login_by_school() migration hasn't been run yet.
+      supabase.rpc('admin_last_login_by_school'),
     ])
 
     const now = new Date()
@@ -131,6 +135,9 @@ export default function AdminConsole({ profile, onSignOut }) {
     })
 
     setSchools(mapped)
+    const llMap = {}
+    ;(ll || []).forEach(r => { if (r?.school_id) llMap[r.school_id] = r.last_sign_in_at })
+    setLastLoginBySchool(llMap)
     setPlanChanges(pc || [])
     setPayments(py || [])
     setNotes(nt || [])

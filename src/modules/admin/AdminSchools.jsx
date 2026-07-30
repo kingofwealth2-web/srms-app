@@ -19,8 +19,19 @@ function daysLeftLabel(d, status) {
   return <span style={{ color, fontWeight: 600 }}>{d} days</span>
 }
 
+// Most-recent sign-in of any user in the school, shown as a relative time
+// (full date on hover). Green if recent, greys out as it goes stale.
+function lastSignInLabel(ts) {
+  if (!ts) return <span style={{ color: 'var(--mist3)' }}>Never</span>
+  const days = Math.floor((Date.now() - new Date(ts).getTime()) / 86400000)
+  const label = days <= 0 ? 'Today' : days === 1 ? 'Yesterday'
+    : days < 30 ? `${days}d ago` : days < 365 ? `${Math.floor(days / 30)}mo ago` : `${Math.floor(days / 365)}y ago`
+  const color = days <= 7 ? 'var(--emerald)' : days <= 30 ? 'var(--amber)' : 'var(--mist3)'
+  return <span style={{ color, fontWeight: 500 }} title={fmtDate(ts)}>{label}</span>
+}
+
 export default function AdminSchools(props) {
-  const { schools, daysLeft, getExpiry, openActivate, openAddSchool, confirmSuspend, unsuspend, jumpToSchoolId } = props
+  const { schools, daysLeft, getExpiry, openActivate, openAddSchool, confirmSuspend, unsuspend, jumpToSchoolId, lastLoginBySchool = {} } = props
   const [search, setSearch]   = useState('')
   const [fStatus, setFStatus] = useState('')
   const [fPlan, setFPlan]     = useState('')
@@ -51,6 +62,7 @@ export default function AdminSchools(props) {
     { key: 'id', label: 'Expiry', render: (_, s) => fmtDate(getExpiry(s)) },
     { key: 'plan_expires_at', label: 'Days Left', render: (_, s) => daysLeftLabel(daysLeft(getExpiry(s)), s.status) },
     { key: 'student_count', label: 'Students', render: v => <><strong>{v}</strong> <span style={{ color: 'var(--mist3)', fontSize: 11 }}>students</span></> },
+    { key: '_lastlogin', label: 'Last Sign-in', render: (_, s) => lastSignInLabel(lastLoginBySchool[s.id]) },
     { key: '_actions', label: 'Actions', render: (_, s) => (
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
         <Btn size='sm' onClick={() => openActivate(s.id)}>Activate</Btn>

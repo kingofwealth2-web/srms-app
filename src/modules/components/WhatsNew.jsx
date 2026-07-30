@@ -2,9 +2,46 @@ import { useState, useEffect } from 'react'
 
 // ── Version history ──────────────────────────────────────────────
 // Add new entries at the TOP. Bump LATEST_VERSION when adding.
-const LATEST_VERSION = '3.0'
+const LATEST_VERSION = '4.0'
 
 const CHANGELOG = [
+  {
+    version: '4.0',
+    date: 'July 2026',
+    title: 'Smarter Search, Per-Term Attendance & Tidier Settings',
+    entries: [
+      {
+        icon: '🔍',
+        title: 'Search for a student instead of scrolling',
+        description: 'Everywhere you pick a student — recording grades, printing a report card, adding a fee, logging behaviour — you now type a name or student ID and the list filters as you type, instead of scrolling a long list. It respects the class you\'ve already chosen, so you only search within it.',
+        howto: 'Grades / Reports / Fees → the Student box',
+      },
+      {
+        icon: '📅',
+        title: 'Attendance by term',
+        description: 'Attendance is now kept per term, so each term\'s report card shows that term\'s attendance instead of the whole year. Pick the term once on the marking screen and it is remembered. Opening attendance balances are also tagged to a term now, so they show on the right card.',
+        howto: 'Attendance → choose the term before saving',
+      },
+      {
+        icon: '🗂',
+        title: 'Settings, organised into tabs',
+        description: 'The Settings page is now grouped into four tabs — School, Academic Year, Grades and Attendance — so everything for one area sits in one place. No more hunting down a single setting in a long scroll.',
+        howto: 'Settings → tabs at the top',
+      },
+      {
+        icon: '📏',
+        title: 'Grading scale gap warning',
+        description: 'When you edit the grading scale, SRMS now warns you if any score from 0 to 100 has no grade band — or if two bands overlap — and won\'t let you save it blind. So a pupil can never land on a score that has no grade.',
+        howto: 'Settings → Grades → Grading Scale',
+      },
+      {
+        icon: '🧾',
+        title: 'Truer fee totals',
+        description: 'Outstanding and collection figures no longer hide behind overpayments. If one pupil overpays, that credit no longer cancels out another pupil\'s arrears — so the summary reflects what is genuinely still owed.',
+        howto: 'Fees → the summary cards at the top',
+      },
+    ],
+  },
   {
     version: '3.0',
     date: 'July 2026',
