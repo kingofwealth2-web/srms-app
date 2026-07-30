@@ -28,6 +28,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
   const [relLoading,setRelLoading] = useState(false)
   const [logoUploading,setLogoUploading] = useState(false)
   const [confirmState,setConfirmState]   = useState(null)
+  const [settingsTab,setSettingsTab]     = useState('school') // school | year | grades | attendance
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
   const canAdmin = ['superadmin','admin'].includes(profile?.role)
 
@@ -287,7 +288,20 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
         <Btn onClick={save} disabled={saving}>{saving?<><Spinner/> Saving...</>:'Save Changes'}</Btn>
       </PageHeader>
 
-      {totalWeight!==100 && activeComps.length>0 && (
+      {/* Domain tabs -- one place to change School, Academic Year, Grades or Attendance settings. */}
+      <div style={{display:'flex',gap:4,marginBottom:22,flexWrap:'wrap',borderBottom:'1px solid var(--line)'}}>
+        {[['school','School'],['year','Academic Year'],['grades','Grades'],['attendance','Attendance']].map(([key,label])=>(
+          <button key={key} onClick={()=>setSettingsTab(key)}
+            style={{padding:'9px 16px',fontSize:13,fontWeight:600,cursor:'pointer',border:'none',background:'transparent',
+              color:settingsTab===key?'var(--white)':'var(--mist3)',
+              borderBottom:`2px solid ${settingsTab===key?'var(--gold)':'transparent'}`,
+              marginBottom:-1,fontFamily:"'Cabinet Grotesk',sans-serif",transition:'color 0.15s'}}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {settingsTab==='grades' && totalWeight!==100 && activeComps.length>0 && (
         <div className='fi' style={{background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:'var(--r)',padding:'12px 20px',marginBottom:20,display:'flex',alignItems:'center',gap:10}}>
           <span style={{fontSize:18}}>(!)</span>
           <span style={{fontSize:13,color:'var(--amber)'}}>Active component weights add up to <strong>{totalWeight}%</strong> -- they should total 100% or grades are calculated out of {totalWeight}%, not 100%.</span>
@@ -295,7 +309,9 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       )}
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:20,alignItems:'start'}}>
+        {(settingsTab==='school' || settingsTab==='year') && (
         <div>
+          {settingsTab==='school' && (<>
           <Card style={{marginBottom:20}}>
             <SectionTitle>School Information</SectionTitle>
             <Field label='School Name'   value={form.school_name}   onChange={f('school_name')} required/>
@@ -303,20 +319,6 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
             <Field label='School Motto'  value={form.motto}         onChange={f('motto')}/>
             <Field label='Student ID Prefix' value={form.student_id_prefix||''} onChange={f('student_id_prefix')} placeholder='e.g. GMS, KASS, STU' style={{textTransform:'uppercase'}}/>
             <div style={{fontSize:11,color:'var(--mist3)',marginTop:-10,marginBottom:4}}>Used when generating new student IDs — e.g. <strong>GMS</strong>-0001. Only affects new students.</div>
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Academic Year</div>
-              <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>
-                {form.academic_year || activeYear}
-              </div>
-              <div style={{fontSize:11,color:'var(--mist3)',marginTop:5}}>Use "Start New Academic Year" below to change this.</div>
-            </div>
-            {profile?.role==='superadmin' && (
-              <div style={{padding:'14px 16px',background:'rgba(45,212,160,0.04)',border:'1px solid rgba(45,212,160,0.15)',borderRadius:'var(--r-sm)',marginBottom:8}}>
-                <div style={{fontSize:13,fontWeight:600,color:'var(--emerald)',marginBottom:4}}>Ready to close this year?</div>
-                <div style={{fontSize:12,color:'var(--mist2)',marginBottom:12}}>Archive all {activeYear} data and open a new academic year. All history is preserved.</div>
-                <Btn onClick={onStartNewYear} size='sm'>Start New Academic Year &rarr;</Btn>
-              </div>
-            )}
           </Card>
 
           {canAdmin && (
@@ -369,12 +371,33 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
             <Field label='Decimal Places' value={form.currency_decimals??2} onChange={v=>setForm(p=>({...p,currency_decimals:parseInt(v)||0}))}
               options={[{value:0,label:'0 -- No decimals (e.g. ₵100)'},{value:2,label:'2 -- Standard (e.g. ₵100.00)'}]}/>
           </Card>
+          </>)}
+          {settingsTab==='year' && (<>
+          <Card style={{marginBottom:20}}>
+            <SectionTitle>Academic Year</SectionTitle>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Current Academic Year</div>
+              <div style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',fontSize:13,color:'var(--mist3)'}}>
+                {form.academic_year || activeYear}
+              </div>
+            </div>
+            {profile?.role==='superadmin' && (
+              <div style={{padding:'14px 16px',background:'rgba(45,212,160,0.04)',border:'1px solid rgba(45,212,160,0.15)',borderRadius:'var(--r-sm)'}}>
+                <div style={{fontSize:13,fontWeight:600,color:'var(--emerald)',marginBottom:4}}>Ready to close this year?</div>
+                <div style={{fontSize:12,color:'var(--mist2)',marginBottom:12}}>Archive all {activeYear} data and open a new academic year. All history is preserved.</div>
+                <Btn onClick={onStartNewYear} size='sm'>Start New Academic Year &rarr;</Btn>
+              </div>
+            )}
+          </Card>
           <Card>
             <SectionTitle>Academic Periods</SectionTitle>
             <Field label='Period Structure' value={form.period_type} onChange={f('period_type')} options={[{value:'semester',label:'Semester-based'},{value:'term',label:'Term-based'}]}/>
             <Field label='Periods per Year' value={form.period_count} onChange={f('period_count')} options={[{value:2,label:'2 Periods'},{value:3,label:'3 Periods'}]}/>
           </Card>
+          </>)}
         </div>
+        )}
+        {settingsTab==='grades' && (
         <div>
           <Card style={{marginBottom:20}}>
             <SectionTitle>Grade Components</SectionTitle>
@@ -484,10 +507,11 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
             )}
           </Card>
         </div>
+        )}
       </div>
 
       {/* ── GRADE RELEASES ── */}
-      {canAdmin && (
+      {canAdmin && settingsTab==='grades' && (
         <div style={{marginTop:20}}>
           <Card>
             <SectionTitle>Release Grades to Parents</SectionTitle>
@@ -518,14 +542,14 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       )}
 
       {/* ── BECE AGGREGATE ── */}
-      {canAdmin && (
+      {canAdmin && settingsTab==='grades' && (
         <div style={{marginTop:20}}>
           <AggregateSection form={form} setForm={setForm} data={data}/>
         </div>
       )}
 
       {/* ── OPENING ATTENDANCE BALANCE ── */}
-      {profile?.role==='superadmin' && (
+      {profile?.role==='superadmin' && settingsTab==='attendance' && (
         <div style={{marginTop:20}}>
           <OpeningBalanceSection
             profile={profile}
@@ -539,7 +563,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       )}
 
       {/* ── ACADEMIC CALENDAR ── */}
-      {profile?.role==='superadmin' && (
+      {profile?.role==='superadmin' && settingsTab==='year' && (
         <div style={{marginTop:20}}>
           <AcademicCalendar
             form={form}
