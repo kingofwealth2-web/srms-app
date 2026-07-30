@@ -7,6 +7,7 @@ import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
 import Field from '../components/Field'
+import StudentSearchSelect from '../components/StudentSearchSelect'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
@@ -1376,8 +1377,8 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
               options={[{value:'',label:'Select subject'},...(isTeacher?mySubjects.filter(s=>s.class_id===rcClass):classSubjects).map(s=>({value:s.id,label:s.name}))]}/>
           )}
           {rcType==='individual' && rcClass && (
-            <Field label='Student' value={rcStudent} onChange={setRcStudent}
-              options={[{value:'',label:'All students'},...classStudents.map(s=>({value:s.id,label:fullName(s,true)}))]}/>
+            <StudentSearchSelect label='Student' value={rcStudent} onChange={setRcStudent}
+              students={classStudents} classes={classes}/>
           )}
         </div>
 
@@ -1535,11 +1536,9 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
         </div>
         {rcType==='individual'&&rcClass&&rcPeriod&&(
           <div style={{marginTop:12,paddingTop:12,borderTop:'1px solid var(--line)',display:'flex',alignItems:'center',gap:10}}>
-            <span style={{fontSize:12,color:'var(--mist3)'}}>Preview student:</span>
-            <select value={previewStudent||classStudents[0]?.id||''} onChange={e=>setPreviewStudent(e.target.value)}
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'6px 12px',color:'var(--mist)',fontSize:12,cursor:'pointer'}}>
-              {classStudents.map(s=><option key={s.id} value={s.id}>{fullName(s,true)}</option>)}
-            </select>
+            <span style={{fontSize:12,color:'var(--mist3)',whiteSpace:'nowrap'}}>Preview student:</span>
+            <StudentSearchSelect value={previewStudent||classStudents[0]?.id||''} onChange={setPreviewStudent}
+              students={classStudents} classes={classes} style={{marginBottom:0,flex:'1 1 240px',maxWidth:320}}/>
           </div>
         )}
         {!rcClass&&<p style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>Select a class and period to continue.</p>}

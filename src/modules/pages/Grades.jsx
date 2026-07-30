@@ -8,6 +8,7 @@ import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
 import Field from '../components/Field'
+import StudentSearchSelect from '../components/StudentSearchSelect'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
@@ -56,8 +57,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
   const [saving,setSaving] = useState(false)
   const [bulkMode,setBulkMode] = useState(false)
   const [confirmState,setConfirmState] = useState(null)
-  const [studentSearch,setStudentSearch] = useState('')
-  const [showStudentDrop,setShowStudentDrop] = useState(false)
+  const [studentQuery,setStudentQuery] = useState('')
   // bulkRows: { [studentId]: { ...scores, skip:bool, dirty:bool, existingId:string|null } }
   const [bulkRows,setBulkRows] = useState({})
   const [bulkSaving,setBulkSaving] = useState(false)
@@ -92,6 +92,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
 
   const studentsById = useMemo(() => new Map(students.map(s=>[s.id,s])), [students])
   const subjectsById = useMemo(() => new Map(subjects.map(s=>[s.id,s])), [subjects])
+  const gq = studentQuery.trim().toLowerCase()
   const filtered = useMemo(() => myGrades.filter(g=>{
     // Scope to active year — skip only if year is explicitly set to a different year
     if(g.year && g.year !== activeYear) return false
@@ -103,9 +104,11 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
       const subject = subjectsById.get(g.subject_id)
       if(!subject || subject.class_id !== fc) return false
     }
+    // Student search -- filters the list by name or ID, on top of the other filters
+    if(gq && !(fullName(student).toLowerCase().includes(gq) || (student.student_id||'').toLowerCase().includes(gq))) return false
     return (!fs||g.subject_id===fs)&&(!fp||g.period===fp)
-  }), [myGrades, activeYear, fc, fs, fp, studentsById, subjectsById])
-  useEffect(() => { setGPage(0) }, [fc, fs, fp])
+  }), [myGrades, activeYear, fc, fs, fp, gq, studentsById, subjectsById])
+  useEffect(() => { setGPage(0) }, [fc, fs, fp, gq])
   const gPageCount = Math.max(1, Math.ceil(filtered.length / GRADE_PAGE_SIZE))
   const pagedFiltered = filtered.slice(gPage*GRADE_PAGE_SIZE, gPage*GRADE_PAGE_SIZE + GRADE_PAGE_SIZE)
 
@@ -233,7 +236,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
     })
   }
 
-  const bulkStudents = students.filter(s=>s.class_id===fc&&!s.archived)
+  const bulkStudents = students.filter(s=>s.class_id===fc&&!s.archived&&(!gq||fullName(s).toLowerCase().includes(gq)||(s.student_id||'').toLowerCase().includes(gq)))
   const dirtyCount = Object.values(bulkRows).filter(r=>r.dirty).length
 
   // Students who have a grade for this exact subject+period+year but aren't in
@@ -395,6 +398,13 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
             <option value=''>All Periods</option>
             {periods.map(p=><option key={p}>{p}</option>)}
           </select>
+          <div style={{position:'relative',flex:'1 1 170px'}}>
+            <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:14,pointerEvents:'none'}}>⌕</span>
+            <input value={studentQuery} onChange={e=>setStudentQuery(e.target.value)} placeholder='Search student…'
+              style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 30px 8px 34px',color:'var(--white)',fontSize:13,boxSizing:'border-box'}}/>
+            {studentQuery && <button onClick={()=>setStudentQuery('')} aria-label='Clear'
+              style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',color:'var(--mist3)',fontSize:16,cursor:'pointer',lineHeight:1}}>×</button>}
+          </div>
           {!bulkMode && !fc && !fs && !fp && gradeMode==='components' && (
             <span style={{fontSize:12,color:'var(--mist3)',marginLeft:4}}>
               ← Select Class + Subject + Period to unlock Class View
@@ -625,38 +635,10 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
       {modal && (
         <Modal title={edit?'Edit Grade':'Record Grades'} onClose={()=>setModal(false)} width={600}>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'0 20px'}}>
-            <div style={{marginBottom:16,position:'relative'}}>
-              <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6,fontFamily:"'Clash Display',sans-serif"}}>Student <span style={{color:'var(--rose)'}}>*</span></div>
-              <input
-                value={studentSearch || (form.student_id ? fullName(myStudents.find(s=>s.id===form.student_id),true)||'' : '')}
-                onChange={e=>{setStudentSearch(e.target.value);setShowStudentDrop(true);if(!e.target.value){f('student_id')('');f('subject_id')('')}}}
-                onFocus={()=>{setStudentSearch('');setShowStudentDrop(true)}}
-                onBlur={()=>setTimeout(()=>setShowStudentDrop(false),150)}
-                placeholder='Search student...'
-                style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',color:'var(--white)',fontSize:13,boxSizing:'border-box'}}
-              />
-              {showStudentDrop && (
-                <div style={{position:'absolute',top:'100%',left:0,right:0,background:'var(--ink3)',border:'1px solid var(--line2)',borderRadius:'var(--r-sm)',zIndex:50,maxHeight:200,overflowY:'auto',boxShadow:'0 8px 24px rgba(0,0,0,0.4)'}}>
-                  {myStudents.filter(s=>{
-                    if(!studentSearch) return true
-                    const q=studentSearch.toLowerCase()
-                    return fullName(s).toLowerCase().includes(q)||s.student_id?.toLowerCase().includes(q)
-                  }).slice(0,20).map(s=>(
-                    <div key={s.id}
-                      onMouseDown={()=>{f('student_id')(s.id);f('subject_id')('');setStudentSearch('');setShowStudentDrop(false)}}
-                      style={{padding:'9px 14px',cursor:'pointer',fontSize:13,display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid var(--line)'}}
-                      onMouseEnter={e=>e.currentTarget.style.background='var(--ink4)'}
-                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                      <span style={{fontWeight:500}}>{fullName(s,true)}</span>
-                      <span style={{fontSize:11,color:'var(--mist3)'}}>{data.classes?.find(c=>c.id===s.class_id)?.name||''}</span>
-                    </div>
-                  ))}
-                  {myStudents.filter(s=>!studentSearch||fullName(s).toLowerCase().includes(studentSearch.toLowerCase())).length===0 && (
-                    <div style={{padding:'12px 14px',fontSize:12,color:'var(--mist3)'}}>No students found</div>
-                  )}
-                </div>
-              )}
-            </div>
+            <StudentSearchSelect label='Student' required
+              value={form.student_id}
+              onChange={sid=>{f('student_id')(sid);f('subject_id')('')}}
+              students={myStudents} classes={data.classes||[]}/>
             <Field label='Subject' value={form.subject_id} onChange={v=>{f('subject_id')(v)}} required options={(() => {
               // Filter subjects by the selected student's class, not the page-level filter
               const selectedStudent = students.find(s=>s.id===form.student_id)

@@ -8,6 +8,7 @@ import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
 import Field from '../components/Field'
+import StudentSearchSelect from '../components/StudentSearchSelect'
 import PlanGate from '../components/PlanGate'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
@@ -176,7 +177,7 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
       </div>
       {modal && (
         <Modal title={editRow?'Edit Behaviour Record':'New Behaviour Record'} onClose={()=>{setModal(false);setEditRow(null)}}>
-          <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={studentsInClass.map(s=>({value:s.id,label:`${fullName(s,true)} · ${classes.find(c=>c.id===s.class_id)?.name||''}`}))}/>
+          <StudentSearchSelect label='Student' value={form.student_id} onChange={f('student_id')} required students={studentsInClass} classes={classes}/>
           <Field label='Record Type' value={form.type} onChange={f('type')} options={types}/>
           <Field label='Title' value={form.title} onChange={f('title')} placeholder='Brief descriptive title' required/>
           <Field label='Description' value={form.description} onChange={f('description')} rows={3} placeholder='Provide full details...'/>

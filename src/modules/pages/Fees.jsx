@@ -9,6 +9,7 @@ import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
 import Field from '../components/Field'
+import StudentSearchSelect from '../components/StudentSearchSelect'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
@@ -2297,7 +2298,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       {/* ── Single Add Fee Modal ── */}
       {modal && (
         <Modal title='Add Fee Record' onClose={()=>setModal(false)}>
-          <Field label='Student' value={form.student_id} onChange={f('student_id')} required options={studentsInClass.map(s=>({value:s.id,label:`${fullName(s,true)} · ${classes.find(c=>c.id===s.class_id)?.name||''}`}))}/>
+          <StudentSearchSelect label='Student' value={form.student_id} onChange={f('student_id')} required students={studentsInClass} classes={classes}/>
           <Field label='Fee Type' value={form.fee_type} onChange={f('fee_type')} placeholder='e.g. Tuition, Activity Fee' required/>
           <Field label='Period' value={form.period} onChange={f('period')} options={feePeriods.map(p=>({value:p,label:p}))}/>
           <Field label='Amount' value={form.amount} onChange={f('amount')} type='number' required/>
