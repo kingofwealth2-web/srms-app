@@ -486,6 +486,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
             profile={profile}
             toast={toast}
             activeYear={activeYear}
+            settings={settings}
             data={data}
             setData={setData}
           />
@@ -520,13 +521,19 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
 // live tracking (an outage, or a school onboarding mid-term). Stores an
 // aggregate present/total day count per student rather than fabricating
 // individual daily records for a period nobody can accurately reconstruct.
-function OpeningBalanceSection({profile, toast, activeYear, data, setData}) {
+function OpeningBalanceSection({profile, toast, activeYear, settings, data, setData}) {
   const classes    = [...(data?.classes || [])].sort(compareClasses)
   const students   = data?.students || []
   const attendance = data?.attendance || []
   const openingBalances = (data?.opening_balances || []).filter(b => b.academic_year === activeYear)
 
+  // Which term/semester this opening balance counts towards -- report cards and
+  // Reports filter attendance by period, so an untagged balance shows nowhere.
+  const termWord = settings?.period_type === 'term' ? 'Term' : 'Semester'
+  const periods  = Array.from({length: settings?.period_count || 2}, (_, i) => `${termWord} ${i+1}`)
+
   const [selectedClass, setSelectedClass] = useState('')
+  const [period, setPeriod]       = useState('')
   const [label, setLabel]         = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate]     = useState('')
@@ -546,6 +553,7 @@ function OpeningBalanceSection({profile, toast, activeYear, data, setData}) {
       student_id:    e.student.id,
       class_id:      selectedClass,
       academic_year: activeYear,
+      period,
       label:         label.trim(),
       start_date:    startDate,
       end_date:      endDate,
@@ -557,7 +565,7 @@ function OpeningBalanceSection({profile, toast, activeYear, data, setData}) {
     setSaving(false)
     if (error) { toast('Failed to save: ' + error.message, 'error'); return }
     setData(p => ({...p, opening_balances: [...(p.opening_balances||[]), ...(inserted||[])]}))
-    setRows({}); setLabel(''); setStartDate(''); setEndDate('')
+    setRows({}); setPeriod(''); setLabel(''); setStartDate(''); setEndDate('')
     toast(`Saved opening balance for ${entries.length} student${entries.length!==1?'s':''}.`)
   }
 
@@ -566,6 +574,7 @@ function OpeningBalanceSection({profile, toast, activeYear, data, setData}) {
       .map(s => ({student: s, total: rows[s.id]?.total, present: rows[s.id]?.present}))
       .filter(e => e.total !== undefined && e.total !== '')
 
+    if (!period)                  { toast(`Please select which ${termWord.toLowerCase()} this opening balance counts towards.`, 'error'); return }
     if (!label.trim())            { toast('Please enter a period label.', 'error'); return }
     if (!startDate || !endDate)   { toast('Please enter a start and end date.', 'error'); return }
     if (endDate < startDate)      { toast('End date must be on or after the start date.', 'error'); return }
@@ -611,6 +620,7 @@ function OpeningBalanceSection({profile, toast, activeYear, data, setData}) {
     if (present < 0 || present > total) { toast('Present Days must be between 0 and Total Days.', 'error'); return }
     setEditSaving(true)
     const {error} = await supabase.from('attendance_opening_balances').update({
+      period: editEntry.period || null,
       label: editEntry.label, start_date: editEntry.start_date, end_date: editEntry.end_date,
       total_days: total, present_days: present,
     }).eq('id', editEntry.id)
@@ -634,6 +644,13 @@ function OpeningBalanceSection({profile, toast, activeYear, data, setData}) {
 
       {selectedClass && (
         <>
+          <div style={{marginBottom:14,maxWidth:320}}>
+            <Field label={`Applies to ${termWord}`} value={period} onChange={setPeriod} required
+              options={periods.map(p=>({value:p, label:p}))}/>
+            <p style={{fontSize:11,color:'var(--mist3)',marginTop:4}}>
+              Which {termWord.toLowerCase()}'s report cards should include these days. Attendance is filtered by {termWord.toLowerCase()}, so an untagged balance won't appear on any card.
+            </p>
+          </div>
           <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr',gap:'0 14px'}}>
             <Field label='Period Label' value={label} onChange={setLabel} placeholder='e.g. Pre-onboarding period'/>
             <Field label='Start Date' value={startDate} onChange={setStartDate} type='date'/>
@@ -683,7 +700,7 @@ function OpeningBalanceSection({profile, toast, activeYear, data, setData}) {
           <table style={{width:'100%',borderCollapse:'collapse'}}>
             <thead>
               <tr>
-                {['Student','Period','Dates','Present / Total','Rate',''].map(h=>(
+                {['Student','Term','Period','Dates','Present / Total','Rate',''].map(h=>(
                   <th key={h} style={{textAlign:'left',fontSize:11,color:'var(--mist3)',padding:'6px 8px 6px 0',borderBottom:'1px solid var(--line)'}}>{h}</th>
                 ))}
               </tr>
@@ -695,6 +712,7 @@ function OpeningBalanceSection({profile, toast, activeYear, data, setData}) {
                 return (
                   <tr key={b.id}>
                     <td style={{padding:'8px 8px 8px 0',fontSize:13,fontWeight:600}}>{student?fullName(student,true):'--'}</td>
+                    <td style={{padding:'8px',fontSize:13,color:b.period?'var(--mist)':'var(--rose)'}}>{b.period||'untagged'}</td>
                     <td style={{padding:'8px',fontSize:13,color:'var(--mist2)'}}>{b.label||'--'}</td>
                     <td style={{padding:'8px',fontSize:12,color:'var(--mist3)'}}>{fmtDate(b.start_date)} – {fmtDate(b.end_date)}</td>
                     <td style={{padding:'8px',fontSize:13}}>{b.present_days} / {b.total_days}</td>
@@ -715,6 +733,8 @@ function OpeningBalanceSection({profile, toast, activeYear, data, setData}) {
 
       {editEntry && (
         <Modal title='Edit Opening Balance' onClose={()=>setEditEntry(null)} width={420}>
+          <Field label={`Applies to ${termWord}`} value={editEntry.period||''} onChange={v=>setEditEntry(p=>({...p,period:v}))} required
+            options={periods.map(p=>({value:p, label:p}))}/>
           <Field label='Period Label' value={editEntry.label||''} onChange={v=>setEditEntry(p=>({...p,label:v}))}/>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 14px'}}>
             <Field label='Start Date' value={editEntry.start_date} onChange={v=>setEditEntry(p=>({...p,start_date:v}))} type='date'/>
