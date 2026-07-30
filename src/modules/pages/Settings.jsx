@@ -102,13 +102,26 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
 
   const save = async () => {
     if(!form.id){ toast('Settings not loaded yet — please wait and try again.','error'); return }
-    // Active weights ≠100 make calcTotal score every pupil out of the wrong
-    // maximum -- corrupting totals, letters, pass rates and report cards. Block
-    // with an explicit confirm instead of the old fire-and-forget toast.
-    if(totalWeight!==100 && activeComps.length>0){
+    // Grading-setup problems each produce wrong or missing grades. Collect them
+    // all into ONE blocking confirm (never stacked dialogs), consistent with how
+    // the weight mismatch is handled -- visible warning above AND a save gate.
+    const issues = []
+    if(totalWeight!==100 && activeComps.length>0)
+      issues.push(`Component weights add up to ${totalWeight}%, not 100% — every grade total would be scored out of ${totalWeight}%.`)
+    if(scaleCoverage.gaps.length>0)
+      issues.push(`Scores ${scaleCoverage.gaps.map(fmtScoreRange).join(', ')} fall outside every grading band — a pupil scoring there gets no grade.`)
+    if(scaleCoverage.hasOverlap)
+      issues.push(`Grading bands overlap, so a score could match two grades.`)
+    if(issues.length){
       setConfirmState({
-        title: "Weights don't total 100%",
-        body: `Active grade-component weights add up to ${totalWeight}%, not 100%. Every grade total will be calculated out of ${totalWeight}% — skewing letter grades, pass rates, class rankings and report cards. Save anyway?`,
+        title: 'Grading setup needs attention',
+        body: (
+          <>
+            <div style={{marginBottom:8}}>Saving with {issues.length>1?'these problems':'this problem'} can produce wrong or missing grades:</div>
+            <ul style={{margin:0,paddingLeft:18}}>{issues.map((x,i)=><li key={i} style={{marginBottom:4}}>{x}</li>)}</ul>
+            <div style={{marginTop:8}}>Save anyway?</div>
+          </>
+        ),
         icon: '⚠',
         danger: true,
         confirmLabel: 'Save anyway',
@@ -205,6 +218,28 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
 
   const addGradeRow    = () => setForm(p=>({...p, grading_scale:[...(p.grading_scale||DEFAULT_GRADING_SCALE), {min:0,max:0,letter:'',gpa:0,remark:''}]}))
   const removeGradeRow = (i) => setForm(p=>({...p, grading_scale:(p.grading_scale||[]).filter((_,idx)=>idx!==i)}))
+
+  // Grading-scale coverage. Grades are matched on the rounded score (an integer
+  // 0-100), so every one of those must fall in exactly one band -- otherwise
+  // getLetter drops to its 'F'/'--' fallback and a pupil in the gap gets no
+  // grade. Report any uncovered scores (gaps) and any double-covered ones (overlaps).
+  const scaleCoverage = (() => {
+    const scale = form.grading_scale || DEFAULT_GRADING_SCALE
+    const covered = new Array(101).fill(0)
+    scale.forEach(b => {
+      const lo = Math.max(0,   Math.ceil (Number(b.min) || 0))
+      const hi = Math.min(100, Math.floor(Number(b.max) || 0))
+      for (let x = lo; x <= hi; x++) covered[x]++
+    })
+    const gaps = []; let start = null
+    for (let x = 0; x <= 100; x++) {
+      if (covered[x] === 0 && start === null) start = x
+      else if (covered[x] !== 0 && start !== null) { gaps.push([start, x - 1]); start = null }
+    }
+    if (start !== null) gaps.push([start, 100])
+    return { gaps, hasOverlap: covered.some(c => c > 1) }
+  })()
+  const fmtScoreRange = ([a, b]) => a === b ? `${a}` : `${a}–${b}`
 
   const updComponent = (i,k,v) => {
     setForm(p => {
@@ -437,6 +472,16 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
             </table>
             </div>
             <button onClick={addGradeRow} style={{marginTop:10,padding:'6px 14px',borderRadius:'var(--r-sm)',background:'var(--ink3)',border:'1px solid var(--line)',color:'var(--mist2)',fontSize:12,cursor:'pointer'}}>+ Add Row</button>
+            {(scaleCoverage.gaps.length > 0 || scaleCoverage.hasOverlap) && (
+              <div className='fi' style={{marginTop:12,background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.3)',borderRadius:'var(--r-sm)',padding:'10px 14px',display:'flex',alignItems:'flex-start',gap:10}}>
+                <span style={{fontSize:16,lineHeight:1.2}}>(!)</span>
+                <span style={{fontSize:12.5,color:'var(--amber)',lineHeight:1.5}}>
+                  {scaleCoverage.gaps.length > 0 && <>These scores fall outside every band: <strong>{scaleCoverage.gaps.map(fmtScoreRange).join(', ')}</strong> — a pupil scoring there gets no grade. </>}
+                  {scaleCoverage.hasOverlap && <>Some bands overlap, so a score could match two grades. </>}
+                  Every score from <strong>0 to 100</strong> should sit in exactly one band, with no gaps or overlaps.
+                </span>
+              </div>
+            )}
           </Card>
         </div>
       </div>
