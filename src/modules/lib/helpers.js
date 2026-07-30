@@ -113,7 +113,11 @@ export function calcAttendanceRate(records, openingBalances = []) {
   const late    = records.filter(a => a.status === 'Late').length
   const excused = records.filter(a => a.status === 'Excused').length
   const total   = records.length + obTotal
-  const rate    = total ? Math.round(present / total * 100) : null
+  // "Late" counts as present -- matches the report card ("present + late") and the
+  // stated policy. "Excused" stays in the denominator like Absent, lowering the
+  // rate. `present` is kept Present-only so callers that add `present + late`
+  // themselves (e.g. the report card) don't double-count.
+  const rate    = total ? Math.round((present + late) / total * 100) : null
   return { total, present, absent, late, excused, rate }
 }
 
