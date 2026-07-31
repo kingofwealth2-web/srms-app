@@ -19,8 +19,8 @@ Cadence: audit → user triages → fix → verify, one stage at a time.
 | 3 | Reports & Report Cards | ✅ done — F-005 fixed; per-period attendance built |
 | 4 | Attendance | ✅ done — F-006 fixed |
 | 5 | Students & Classes | ✅ audited — 1 finding (F-007) |
-| 6 | Users, Roles & Access | 🔎 audited — 2 findings (F-008 security, F-009) |
-| 7 | Settings & Year Rollover | not started |
+| 6 | Users, Roles & Access | ✅ audited — F-008 fixed; F-009 open (policy) |
+| 7 | Settings & Year Rollover | ✅ audited — F-010 fixed; F-011 open (design) |
 | 8 | Parent Portal | not started |
 | 9 | Ministry Console | not started |
 | 10 | Cross-cutting | not started |
@@ -50,16 +50,30 @@ F-003 hardcoded pass mark, F-004 grade-weight guard, F-005 academic CSV misalign
 - **Note:** Rest of Stage 5 is clean — atomic student-ID RPC, FK-safe delete (23503 → archive instead), class delete blocked when students/subjects exist (+ teacher unassigned), single & bulk promotion both write enrolment history (upsert, no dupes), track per-student failures, and guard against students added mid-wizard.
 - **Verified:** Not yet fixed.
 
-### [F-008] User RPCs don't validate the role — a school superadmin can grant `ministry_admin` (cross-school access) — 🟠 High (security / tenant isolation) — open
+### [F-008] User RPCs don't validate the role — a school superadmin can grant `ministry_admin` (cross-school access) — 🟠 High (security) — ✅ fixed & verified (staging)
 - **Stage / area:** 6 — Users, Roles & Access
 - **File(s):** `database/srms_migration.sql` `create_auth_user` (449) & `update_auth_user` (521) — both check caller = superadmin + same school, but never validate `p_role`; `is_ministry_admin()` (326) just checks `role='ministry_admin'`.
 - **What's wrong:** A school superadmin can call `supabase.rpc('create_auth_user', {p_role:'ministry_admin', ...})` (or `update_auth_user`) directly — not offered in the UI, but trivial via the API. The resulting profile passes `is_ministry_admin()`, which the RLS policies treat as vendor-level access to **every** school's data. A per-school superadmin can thus escalate to all-schools access, breaking tenant isolation.
-- **Fix:** in both RPCs, reject any `p_role` not in the school-role set: `IF p_role NOT IN ('superadmin','admin','classteacher','teacher','parent') THEN RAISE EXCEPTION 'Not authorised'; END IF;`. SQL migration.
-- **Verified:** exploit path confirmed by reading the functions (caller=superadmin + same school → inserts profile with unchecked `p_role`). Not yet fixed.
+- **Fix (DONE):** `database/validate_user_role.sql` re-declares `create_auth_user` & `update_auth_user` with a `p_role IN ('superadmin','admin','classteacher','teacher','parent')` whitelist. Run on staging ✓ (prod pending).
+- **Verified (live, staging):** as superadmin, `create_auth_user(role:'ministry_admin')` → **"Not authorised"** (no account created); with a valid role (`teacher`) + existing email → **"already exists"** (whitelist lets valid roles through). No regression.
 
 ### [F-009] Admin user-management UI vs superadmin-only RPCs — admins get "Not authorised" — 🟡 Medium — open
 - **Stage / area:** 6 — Users, Roles & Access
 - **File(s):** UI `src/modules/pages/Users.jsx:199` (`canEdit` lets admins edit non-privileged users), `:279-280` (admin role dropdown) + admin has `users` in `NAV_ITEMS`; backend `create_auth_user`/`update_auth_user`/`reset_user_password` all require caller = superadmin.
 - **What's wrong:** The UI gives admins the Users page, an Edit button on teachers/parents, and a create role dropdown — but every user RPC is superadmin-only, so an admin's create/edit fails with "Not authorised." Affordance and backend disagree.
 - **Fix (needs a policy call):** either (a) let admins manage lower-role users — loosen the RPC guard to allow admin for non-privileged target roles (and never for superadmin/admin/ministry_admin); or (b) superadmin-only — hide user-management affordances from admins in the UI. (a) matches the UI's apparent intent.
+- **Verified:** Not yet fixed.
+
+### [F-010] `rollover_academic_year` is directly callable by any authenticated user — 🔴 Critical (security) — ✅ fixed & verified (staging)
+- **Stage / area:** 7 — Settings & Year Rollover
+- **File(s):** `database/srms_migration.sql:664` (`rollover_academic_year`, SECURITY DEFINER, **no auth guard, no REVOKE**); intended caller `supabase/functions/start-new-year/index.ts` (verifies superadmin + same school, then calls it with the **service role**).
+- **What's wrong:** The normal path (client → `start-new-year` edge function → RPC) is properly secured. But the SQL function itself has no internal caller check and execute is never revoked, so by Postgres default any `authenticated` (likely `anon` too) role can call `supabase.rpc('rollover_academic_year', {p_school_id:<ANY school>, p_old_year, p_new_year})` **directly**, bypassing the edge function. `p_school_id` is client-supplied → a user of school A can force a destructive year rollover on school B (moves the year pointer, generates arrears, mutates settings). No elevated role needed.
+- **Fix (DONE):** `database/lock_rollover_function.sql` — `revoke execute ... from public, anon, authenticated; grant execute ... to service_role`. Run on staging ✓ (prod pending).
+- **Verified (live, staging):** direct `supabase.rpc('rollover_academic_year', …)` as superadmin → **"permission denied for function rollover_academic_year"** (blocked; tested with equal years so nothing could execute). Edge-function path unaffected (service role keeps execute).
+
+### [F-011] Unpaid arrears stop carrying forward after one rollover — 🟡 Medium (design question) — open
+- **Stage / area:** 7 — Year Rollover (arrears carry)
+- **File(s):** `database/srms_migration.sql:697-721` (arrears INSERT, line 709 `AND NOT COALESCE(f.is_arrear, false)`).
+- **What's wrong:** The carry excludes fees already marked `is_arrear`, so a debt carried from year X into X+1 as an arrears fee is NOT carried again into X+2 if still unpaid — the outstanding balance drops off the active ledger after one year. The original fee remains in the archived year, but a multi-year debtor stops showing as owing.
+- **Fix (design call):** decide whether unpaid arrears should keep rolling forward (carry `is_arrear` fees too, guarding against label chains) or intentionally stop after one year to avoid "arrears of arrears" clutter. Currently the latter, undocumented.
 - **Verified:** Not yet fixed.
