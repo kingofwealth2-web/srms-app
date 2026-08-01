@@ -117,14 +117,7 @@ CREATE TABLE IF NOT EXISTS students (
   middle_name     text,
   guardian_name   text,
   guardian_phone  text,
-  guardian_dob    date,
-  archived        boolean DEFAULT false,
-  graduation_year text,
-  leaving_reason  text,
-  leaving_notes   text,
-  entry_year      text,
-  middle_name     text,
-  school_id       uuid REFERENCES schools(id)
+  guardian_dob    date
 );
 
 CREATE TABLE IF NOT EXISTS student_year_enrolment (

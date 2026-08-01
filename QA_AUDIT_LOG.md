@@ -102,13 +102,15 @@ F-003 hardcoded pass mark, F-004 grade-weight guard, F-005 academic CSV misalign
 - **Fix (optional, if it matters):** (a) a DB trigger/policy rejecting writes whose `academic_year` ≠ the school's current `settings.academic_year`; (b) enforce plan limits in RLS/RPCs. Both are non-trivial; common SaaS accepts client-side gating.
 - **Note:** locked-account enforcement IS server-side (`is_active_user()` in 47 policies) — good.
 
----
-
-## Audit complete — all 10 stages
+### [F-015] `srms_migration.sql` can't run fresh — `students` CREATE TABLE has duplicate columns — 🟡 Medium (repo/DR) — ✅ fixed
+- **Stage / area:** 9/10 — repo hygiene (found while fixing F-013)
+- **What's wrong:** The `students` CREATE TABLE listed 7 columns twice (`archived`, `graduation_year`, `leaving_reason`, `leaving_notes`, `entry_year`, `middle_name`, `school_id`) — a bad merge duplicated a block. Postgres rejects a `CREATE TABLE` with a column named twice, so the whole migration aborts on a fresh project. Compounds F-013: the repo couldn't reproduce prod.
+- **Fix (DONE):** removed the duplicate block (kept the first occurrence of each) and the trailing comma. Re-scanned every `CREATE TABLE` — no other table affected. `students` now has 22 distinct columns.
+- **Verified:** duplicate-column scan across all tables is now empty.
 
 **Fixed & shipped:** F-001 (fee-credit masking), F-002 (bulk-collect misallocation), F-003 (hardcoded pass mark), F-004 (grade-weight guard), F-005 (academic CSV misalignment), F-006 (Late in attendance rate), F-008 (ministry_admin escalation — SQL), F-010 (rollover lockdown — SQL), F-012 (parent-portal fee masking).
 
-**Also resolved:** F-013 (ministry RLS drift — confirmed drift via live pg_policies; the two missing policies added to `srms_migration.sql`, no DB change needed).
+**Also resolved:** F-013 (ministry RLS drift — confirmed drift via live pg_policies; the two missing policies added to `srms_migration.sql`, no DB change needed) · F-015 (duplicate columns in `students` broke `srms_migration.sql` for fresh installs — removed).
 
 **Open / parked (decisions or optional):** F-007 (re-enrol vs student limit — policy), F-009 (admin user-mgmt — policy), F-011 (multi-year arrears carry — design), F-014 (UI-only gating — optional).
 
