@@ -791,6 +791,8 @@ CREATE POLICY "settings_select"    ON settings FOR SELECT USING (school_id = my_
 CREATE POLICY "settings_parent_select" ON settings FOR SELECT USING (my_role() = 'parent' AND school_id = my_school_id());
 CREATE POLICY "settings_insert_sa" ON settings FOR INSERT WITH CHECK (school_id = my_school_id() AND my_role() = 'superadmin');
 CREATE POLICY "settings_update_sa" ON settings FOR UPDATE USING (school_id = my_school_id() AND my_role() = 'superadmin' AND is_active_user()) WITH CHECK (school_id = my_school_id());
+-- Ministry Console reads all schools' plan/status and activates/suspends/extends plans (QA audit F-013).
+CREATE POLICY "Ministry admins manage all settings" ON settings FOR ALL USING (is_ministry_admin()) WITH CHECK (is_ministry_admin());
 
 -- classes
 CREATE POLICY "classes_select"    ON classes FOR SELECT USING (school_id = my_school_id() AND is_active_user());
@@ -813,6 +815,8 @@ CREATE POLICY "students_parent_select" ON students FOR SELECT USING (my_role() =
 CREATE POLICY "students_insert"        ON students FOR INSERT WITH CHECK (school_id = my_school_id() AND my_role() = ANY(ARRAY['superadmin','admin']) AND is_active_user());
 CREATE POLICY "students_update"        ON students FOR UPDATE USING (school_id = my_school_id() AND my_role() = ANY(ARRAY['superadmin','admin']) AND is_active_user()) WITH CHECK (school_id = my_school_id());
 CREATE POLICY "students_delete"        ON students FOR DELETE USING (school_id = my_school_id() AND my_role() = ANY(ARRAY['superadmin','admin']) AND is_active_user());
+-- Ministry Console reads per-school student counts (QA audit F-013).
+CREATE POLICY "Ministry admins read all students" ON students FOR SELECT USING (is_ministry_admin());
 
 -- student_year_enrolment
 CREATE POLICY "School staff read own enrolments"      ON student_year_enrolment FOR SELECT USING (school_id = my_school_id() AND is_active_user());

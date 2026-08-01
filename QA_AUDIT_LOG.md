@@ -22,7 +22,7 @@ Cadence: audit → user triages → fix → verify, one stage at a time.
 | 6 | Users, Roles & Access | ✅ audited — F-008 fixed; F-009 open (policy) |
 | 7 | Settings & Year Rollover | ✅ audited — F-010 fixed; F-011 open (design) |
 | 8 | Parent Portal | ✅ done — security clean; F-012 fixed |
-| 9 | Ministry Console | ✅ audited — impersonation secure; F-013 (RLS drift) |
+| 9 | Ministry Console | ✅ audited — impersonation secure; F-013 fixed (repo drift) |
 | 10 | Cross-cutting | ✅ audited — locked=server-enforced; F-014 (UI-only gating) |
 
 Fixed in stages 1–3 (all shipped): F-001 fee-credit masking, F-002 bulk-collect misallocation,
@@ -86,12 +86,12 @@ F-003 hardcoded pass mark, F-004 grade-weight guard, F-005 academic CSV misalign
 - **Verified:** ParentPortal.jsx compiles clean (esbuild); logic checked (overpaid 150 on a 100 fee + unpaid 100 fee → balance 100, not the masked 50). Full parent-login walkthrough not done (test account is a school superadmin, not a parent).
 - **Note:** Parent-portal SECURITY is excellent — RLS scopes every table to `parent_students WHERE parent_id = auth.uid()`, and `grades_parent_select` enforces release-gating server-side (`EXISTS grade_releases …`), so a parent can't read unreleased grades even via a direct API call.
 
-### [F-013] Ministry-console RLS policies are missing from the repo migrations (drift) — 🟡 Medium (repo/DR hygiene; possible live bug) — open (needs live verify)
+### [F-013] Ministry-console RLS policies missing from the repo migrations (drift) — 🟡 Medium (repo/DR hygiene) — ✅ resolved (confirmed drift; policies added to repo)
 - **Stage / area:** 9 — Ministry Console
 - **File(s):** `database/srms_migration.sql` — `settings` has only school-scoped policies (790-793), **no `is_ministry_admin()` policy**; same for `students` (and likely `grades`/`attendance`/`behaviour`/`announcements`/`subjects`). But `AdminConsole.jsx:96` reads all schools' `settings`, `:101` reads all `students`, and the Activate/Suspend/Extend modals UPDATE `settings`.
 - **What's wrong:** Under the policies as written, a `ministry_admin` can't read other schools' `settings`/`students`, and their settings UPDATEs are RLS-filtered to 0 rows. Since your live console works, those policies exist in the live DB but were never captured in `srms_migration.sql`. Risks: (1) re-provisioning from the repo (new env / disaster recovery) yields a broken console; (2) security-relevant policies aren't version-controlled/reviewable; (3) the Activate/Suspend/Extend modals only check `error`, not rows-affected — so if the policy is ever absent, plan changes **silently appear to succeed** (toast + audit row) while nothing changes.
-- **Fix:** add the missing `Ministry admins read all …` (SELECT) + a `Ministry admins manage all settings` (UPDATE) policy to the repo migrations and confirm they match live; consider making the plan modals assert `rows affected > 0`.
-- **Verify (needs ministry login):** in the console, activate a plan on a test school and confirm it actually sticks — if yes, it's pure repo drift; if it silently reverts, it's a live bug.
+- **Confirmed (live pg_policies query):** the live DB HAS `Ministry admins manage all settings` (ALL, `is_ministry_admin()`) and `Ministry admins read all students` (SELECT, `is_ministry_admin()`) — so it's pure repo drift, the console works, NOT a live bug. Only settings & students were missing (grades/attendance/etc. have no ministry policy live either — the console doesn't read them directly).
+- **Fix (DONE):** added both policies to `database/srms_migration.sql` (after the settings and students policy blocks) so a fresh provision reproduces prod. **No DB change needed** — the live DBs already have them; do NOT re-run srms_migration.sql on an existing DB (it's a fresh-install script). Residual (optional): make the plan modals assert rows-affected > 0 as defence-in-depth.
 - **Note:** Impersonation ("view as user") edge function is SECURE — verifies caller is a real `ministry_admin` server-side, refuses to impersonate another ministry admin, checks target has a school + not locked, logs every impersonation. Plan-activation logic (expiry math, downgrade detection, audit trails) is sound.
 - **Verified:** static only (no ministry_admin login available to test the console live).
 
@@ -108,6 +108,8 @@ F-003 hardcoded pass mark, F-004 grade-weight guard, F-005 academic CSV misalign
 
 **Fixed & shipped:** F-001 (fee-credit masking), F-002 (bulk-collect misallocation), F-003 (hardcoded pass mark), F-004 (grade-weight guard), F-005 (academic CSV misalignment), F-006 (Late in attendance rate), F-008 (ministry_admin escalation — SQL), F-010 (rollover lockdown — SQL), F-012 (parent-portal fee masking).
 
-**Open / parked (decisions or optional):** F-007 (re-enrol vs student limit — policy), F-009 (admin user-mgmt — policy), F-011 (multi-year arrears carry — design), F-013 (ministry RLS drift — verify + add to repo), F-014 (UI-only gating — optional).
+**Also resolved:** F-013 (ministry RLS drift — confirmed drift via live pg_policies; the two missing policies added to `srms_migration.sql`, no DB change needed).
+
+**Open / parked (decisions or optional):** F-007 (re-enrol vs student limit — policy), F-009 (admin user-mgmt — policy), F-011 (multi-year arrears carry — design), F-014 (UI-only gating — optional).
 
 **Security posture:** parent portal RLS excellent (release-gating server-side); locked accounts server-enforced; impersonation properly gated; the two real security holes (F-008, F-010) are fixed. F-013 needs a live check + repo capture.
