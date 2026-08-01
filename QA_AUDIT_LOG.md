@@ -21,7 +21,7 @@ Cadence: audit → user triages → fix → verify, one stage at a time.
 | 5 | Students & Classes | ✅ audited — 1 finding (F-007) |
 | 6 | Users, Roles & Access | ✅ audited — F-008 fixed; F-009 open (policy) |
 | 7 | Settings & Year Rollover | ✅ audited — F-010 fixed; F-011 open (design) |
-| 8 | Parent Portal | not started |
+| 8 | Parent Portal | ✅ done — security clean; F-012 fixed |
 | 9 | Ministry Console | not started |
 | 10 | Cross-cutting | not started |
 
@@ -77,3 +77,11 @@ F-003 hardcoded pass mark, F-004 grade-weight guard, F-005 academic CSV misalign
 - **What's wrong:** The carry excludes fees already marked `is_arrear`, so a debt carried from year X into X+1 as an arrears fee is NOT carried again into X+2 if still unpaid — the outstanding balance drops off the active ledger after one year. The original fee remains in the archived year, but a multi-year debtor stops showing as owing.
 - **Fix (design call):** decide whether unpaid arrears should keep rolling forward (carry `is_arrear` fees too, guarding against label chains) or intentionally stop after one year to avoid "arrears of arrears" clutter. Currently the latter, undocumented.
 - **Verified:** Not yet fixed.
+
+### [F-012] Parent Portal "Fee Balance" masked by overpayment credits (same as F-001) — 🟡 Medium — ✅ fixed & verified
+- **Stage / area:** 8 — Parent Portal
+- **File(s):** `src/modules/pages/ParentPortal.jsx:126-132` (`feeSummary`), shown as the "Fee Balance" KPI at `:280`.
+- **What's wrong:** `totalPaid = Σ effectivePaid` (uncapped) and `balance = totalCharged − totalPaid`, so an overpayment on one of a child's fees cancels out arrears on another — the parent sees an understated balance. Same class as F-001, which was never extended to the parent portal.
+- **Fix (DONE — extends the decided F-001 approach):** cap `totalPaid` at each fee's amount (`Math.min(amount, effectivePaid)`); `balance = charged − paid` then resolves to `Σ max(0, per-fee outstanding)` and the three figures stay arithmetically consistent.
+- **Verified:** ParentPortal.jsx compiles clean (esbuild); logic checked (overpaid 150 on a 100 fee + unpaid 100 fee → balance 100, not the masked 50). Full parent-login walkthrough not done (test account is a school superadmin, not a parent).
+- **Note:** Parent-portal SECURITY is excellent — RLS scopes every table to `parent_students WHERE parent_id = auth.uid()`, and `grades_parent_select` enforces release-gating server-side (`EXISTS grade_releases …`), so a parent can't read unreleased grades even via a direct API call.

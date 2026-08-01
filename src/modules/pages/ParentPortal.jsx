@@ -125,9 +125,10 @@ export default function ParentPortal({ profile, onSignOut }) {
 
   const feeSummary = (() => {
     const totalCharged = fees.reduce((a, f) => a + Number(f.amount || 0), 0)
-    // Reconciled per-fee (fee.paid vs actual payments, whichever is higher) --
-    // matches every other screen, instead of trusting the payments table alone.
-    const totalPaid    = fees.reduce((a, f) => a + effectivePaid(f, payments), 0)
+    // Reconciled per-fee (fee.paid vs actual payments, whichever is higher),
+    // capped at each fee's own amount so an overpayment on one fee can't mask
+    // another fee's arrears in the balance (same fix as the main Fees screen, F-001).
+    const totalPaid    = fees.reduce((a, f) => a + Math.min(Number(f.amount || 0), effectivePaid(f, payments)), 0)
     const balance      = totalCharged - totalPaid
     return { totalCharged, totalPaid, balance }
   })()
