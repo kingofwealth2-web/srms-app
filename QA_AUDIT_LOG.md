@@ -41,14 +41,14 @@ F-003 hardcoded pass mark, F-004 grade-weight guard, F-005 academic CSV misalign
 - **Fix (DONE — user confirmed):** `calcAttendanceRate` now uses `rate = (present + late) / total`. `present` field left Present-only so the report card's `present + late` doesn't double-count. Excused kept as-is (stays in denominator, lowers rate — user's choice).
 - **Verified (live, via the actual helper):** Present+Late+Absent → 67%; all-Late → 100%; Present×2+Excused → 67%; with opening balance 8/10 → 82%; `present` field stays Present-only. Every attendance-% screen now matches the report card.
 
-### [F-007] Re-enrolling an archived student bypasses the plan student limit — 🔵 Low (vendor policy) — open
+### [F-007] Re-enrolling an archived student bypasses the plan student limit — 🔵 Low (vendor policy) — ✅ fixed
 - **Stage / area:** 5 — Students & Classes
 - **File(s):** `src/modules/pages/Students.jsx:87-94` (`unarchive`) vs `:133` (`save` checks `atStudentLimit`)
 - **What's wrong:** Adding a new student is blocked at the plan's student cap, but `unarchive` (re-enrol) sets `archived:false` with no limit check — a school at its cap can push active students past it by re-enrolling archived pupils.
 - **Failure scenario:** School on a 100-student plan, 100 active + archived → re-enrol an archived pupil → 101 active, over the paid cap.
-- **Fix (needs a call):** add the same `atStudentLimit` guard to `unarchive`. Product decision: re-enrolling a genuine former pupil is legitimate, so you may prefer to allow it — your call as the vendor.
+- **Fix (DONE — user chose to enforce):** added the same `atStudentLimit` guard to `unarchive` (`Students.jsx:87-94`), with a re-enrol-specific message. Re-enrolling now respects the plan cap like adding a new student.
+- **Verified:** Students.jsx compiles clean (esbuild); guard mirrors the existing `openAdd`/`save` check (same `atStudentLimit`/`studentLimit`). Live cap test impractical (test school is on Pro).
 - **Note:** Rest of Stage 5 is clean — atomic student-ID RPC, FK-safe delete (23503 → archive instead), class delete blocked when students/subjects exist (+ teacher unassigned), single & bulk promotion both write enrolment history (upsert, no dupes), track per-student failures, and guard against students added mid-wizard.
-- **Verified:** Not yet fixed.
 
 ### [F-008] User RPCs don't validate the role — a school superadmin can grant `ministry_admin` (cross-school access) — 🟠 High (security) — ✅ fixed & verified (staging)
 - **Stage / area:** 6 — Users, Roles & Access

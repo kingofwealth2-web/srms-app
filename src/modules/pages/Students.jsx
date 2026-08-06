@@ -86,6 +86,9 @@ export default function Students({profile,data,setData,toast,settings,activeYear
   const pagedFiltered = filtered.slice(stuPage*STU_PAGE_SIZE, stuPage*STU_PAGE_SIZE + STU_PAGE_SIZE)
   const unarchive = async (student, classId) => {
     if(!classId){ toast('Please select a class to re-enrol the student into','error'); return }
+    // Re-enrolling adds an active student, so it must respect the plan cap too --
+    // otherwise a school at its limit could slip past it via archived pupils.
+    if(atStudentLimit){ toast(`Your ${planHook?.plan || 'current'} plan is limited to ${studentLimit} students. Re-enrolling would exceed it — upgrade to add more.`,'error'); return }
     setSaving(true)
     const {error} = await supabase.from('students').update({archived:false, class_id:classId, graduation_year:null, leaving_reason:null, leaving_notes:null}).eq('id',student.id).eq('school_id',profile?.school_id)
     if(error){ toast(error.message,'error'); setSaving(false); return }
