@@ -682,16 +682,20 @@ BEGIN
   ON CONFLICT DO NOTHING;
 
   -- Arrears: carry forward what's still owed, reconciled against the actual
-  -- payments ledger (fee.paid alone can drift from the real total -- same
-  -- issue fixed on the app side via effectivePaid()). Duplicate guard is per
-  -- original fee type, not just per student, so re-running this after a
-  -- newly-discovered unpaid fee doesn't skip it just because the student
-  -- already has some other arrear from that year.
+  -- payments ledger (fee.paid alone can drift from the real total -- same issue
+  -- fixed on the app side via effectivePaid()). Arrears keep carrying year after
+  -- year until paid (F-011): an already-arrear fee keeps its ORIGINAL
+  -- "Arrears from <year>" label and arrear_from_year (no chaining), and only its
+  -- remaining unpaid balance carries. Duplicate guard is per student + final
+  -- label + origin year, so re-running is safe and nothing double-counts.
   INSERT INTO fees (school_id, student_id, fee_type, amount, paid, academic_year, is_arrear, arrear_from_year)
   SELECT
     f.school_id, f.student_id,
-    f.fee_type || ' (Arrears from ' || p_old_year || ')',
-    f.amount - GREATEST(f.paid, COALESCE(ps.paid_sum, 0)), 0, p_new_year, true, p_old_year
+    CASE WHEN COALESCE(f.is_arrear, false)
+         THEN f.fee_type
+         ELSE f.fee_type || ' (Arrears from ' || p_old_year || ')' END,
+    f.amount - GREATEST(f.paid, COALESCE(ps.paid_sum, 0)), 0, p_new_year, true,
+    CASE WHEN COALESCE(f.is_arrear, false) THEN f.arrear_from_year ELSE p_old_year END
   FROM fees f
   LEFT JOIN (
     SELECT fee_id, SUM(amount) AS paid_sum FROM payments GROUP BY fee_id
@@ -699,7 +703,6 @@ BEGIN
   WHERE f.school_id     = p_school_id
     AND f.academic_year = p_old_year
     AND f.amount - GREATEST(f.paid, COALESCE(ps.paid_sum, 0)) > 0
-    AND NOT COALESCE(f.is_arrear, false)
     AND EXISTS (
       SELECT 1 FROM students s
       WHERE s.id = f.student_id AND s.school_id = p_school_id AND NOT s.archived
@@ -707,9 +710,10 @@ BEGIN
     AND NOT EXISTS (
       SELECT 1 FROM fees f2
       WHERE f2.school_id = p_school_id AND f2.academic_year = p_new_year
-        AND f2.is_arrear = true AND f2.arrear_from_year = p_old_year
+        AND f2.is_arrear = true
         AND f2.student_id = f.student_id
-        AND f2.fee_type = f.fee_type || ' (Arrears from ' || p_old_year || ')'
+        AND f2.arrear_from_year = CASE WHEN COALESCE(f.is_arrear, false) THEN f.arrear_from_year ELSE p_old_year END
+        AND f2.fee_type = CASE WHEN COALESCE(f.is_arrear, false) THEN f.fee_type ELSE f.fee_type || ' (Arrears from ' || p_old_year || ')' END
       LIMIT 1
     );
 

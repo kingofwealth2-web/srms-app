@@ -71,12 +71,12 @@ F-003 hardcoded pass mark, F-004 grade-weight guard, F-005 academic CSV misalign
 - **Fix (DONE):** `database/lock_rollover_function.sql` — `revoke execute ... from public, anon, authenticated; grant execute ... to service_role`. Run on staging ✓ (prod pending).
 - **Verified (live, staging):** direct `supabase.rpc('rollover_academic_year', …)` as superadmin → **"permission denied for function rollover_academic_year"** (blocked; tested with equal years so nothing could execute). Edge-function path unaffected (service role keeps execute).
 
-### [F-011] Unpaid arrears stop carrying forward after one rollover — 🟡 Medium (design question) — open
+### [F-011] Unpaid arrears stop carrying forward after one rollover — 🟡 Medium (design question) — ✅ fixed (needs migration run)
 - **Stage / area:** 7 — Year Rollover (arrears carry)
 - **File(s):** `database/srms_migration.sql:697-721` (arrears INSERT, line 709 `AND NOT COALESCE(f.is_arrear, false)`).
 - **What's wrong:** The carry excludes fees already marked `is_arrear`, so a debt carried from year X into X+1 as an arrears fee is NOT carried again into X+2 if still unpaid — the outstanding balance drops off the active ledger after one year. The original fee remains in the archived year, but a multi-year debtor stops showing as owing.
-- **Fix (design call):** decide whether unpaid arrears should keep rolling forward (carry `is_arrear` fees too, guarding against label chains) or intentionally stop after one year to avoid "arrears of arrears" clutter. Currently the latter, undocumented.
-- **Verified:** Not yet fixed.
+- **Fix (DONE — user chose keep-carrying):** `rollover_academic_year` now carries `is_arrear` fees forward too. An already-arrear fee keeps its ORIGINAL `fee_type`/`arrear_from_year` (CASE, no chaining), carries only its remaining unpaid balance (`amount − effectivePaid`), and the dup-guard matches on the final label + origin year so re-runs don't duplicate. Updated in `srms_migration.sql`; migration `database/arrears_carry_forward.sql` (`CREATE OR REPLACE` + re-asserts the F-010 revoke). **User runs it on staging + prod.**
+- **Verified:** logic review + `diff` confirms the migration's function is identical to the reviewed `srms_migration.sql` version (only comments differ). Not live-tested — running the rollover is destructive (and F-010 blocks direct calls).
 
 ### [F-012] Parent Portal "Fee Balance" masked by overpayment credits (same as F-001) — 🟡 Medium — ✅ fixed & verified
 - **Stage / area:** 8 — Parent Portal
