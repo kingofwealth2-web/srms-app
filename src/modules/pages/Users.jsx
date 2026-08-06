@@ -177,7 +177,7 @@ export default function Users({profile,toast,planHook}) {
             {atUserLimit && <span style={{fontSize:10,fontWeight:700,color:'var(--rose)'}}>LIMIT REACHED</span>}
           </div>
         )}
-        <Btn onClick={openAdd} disabled={atUserLimit}>+ Add User</Btn>
+        {profile?.role==='superadmin' && <Btn onClick={openAdd} disabled={atUserLimit}>+ Add User</Btn>}
       </PageHeader>
       <Card>
         <DataTable data={users} columns={[
@@ -195,8 +195,9 @@ export default function Users({profile,toast,planHook}) {
           {key:'id',label:'',render:(v,r)=>{
             const isSelf = r.id===profile?.id
             const viewerIsAdmin = profile?.role==='admin'
-            const targetIsPrivileged = r.role==='superadmin'||r.role==='admin'
-            const canEdit = !viewerIsAdmin || !targetIsPrivileged
+            // F-009: account create/edit runs through superadmin-only RPCs, so
+            // only a superadmin sees Add User / Edit -- admins never hit the error.
+            const canEdit = profile?.role==='superadmin'
             const canLock = !isSelf && r.role!=='superadmin' && !(viewerIsAdmin && r.role==='admin')
             return(
             <div style={{display:'flex',gap:8}}>

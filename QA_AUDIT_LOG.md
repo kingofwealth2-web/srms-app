@@ -57,12 +57,12 @@ F-003 hardcoded pass mark, F-004 grade-weight guard, F-005 academic CSV misalign
 - **Fix (DONE):** `database/validate_user_role.sql` re-declares `create_auth_user` & `update_auth_user` with a `p_role IN ('superadmin','admin','classteacher','teacher','parent')` whitelist. Run on staging ✓ (prod pending).
 - **Verified (live, staging):** as superadmin, `create_auth_user(role:'ministry_admin')` → **"Not authorised"** (no account created); with a valid role (`teacher`) + existing email → **"already exists"** (whitelist lets valid roles through). No regression.
 
-### [F-009] Admin user-management UI vs superadmin-only RPCs — admins get "Not authorised" — 🟡 Medium — open
+### [F-009] Admin user-management UI vs superadmin-only RPCs — admins get "Not authorised" — 🟡 Medium — ✅ fixed
 - **Stage / area:** 6 — Users, Roles & Access
 - **File(s):** UI `src/modules/pages/Users.jsx:199` (`canEdit` lets admins edit non-privileged users), `:279-280` (admin role dropdown) + admin has `users` in `NAV_ITEMS`; backend `create_auth_user`/`update_auth_user`/`reset_user_password` all require caller = superadmin.
 - **What's wrong:** The UI gives admins the Users page, an Edit button on teachers/parents, and a create role dropdown — but every user RPC is superadmin-only, so an admin's create/edit fails with "Not authorised." Affordance and backend disagree.
-- **Fix (needs a policy call):** either (a) let admins manage lower-role users — loosen the RPC guard to allow admin for non-privileged target roles (and never for superadmin/admin/ministry_admin); or (b) superadmin-only — hide user-management affordances from admins in the UI. (a) matches the UI's apparent intent.
-- **Verified:** Not yet fixed.
+- **Fix (DONE — user chose superadmin-only):** `Users.jsx` — Add User button and Edit action are now gated to `profile.role==='superadmin'` (Reset PW already was; Lock left as a moderation action for admins). Admins no longer see the affordances that hit the RPCs, so no "Not authorised". Superadmin experience unchanged.
+- **Verified:** Users.jsx compiles clean (esbuild); gate is a plain role check (superadmin → shown, admin → hidden). Admin-hidden case not click-tested (no admin login available).
 
 ### [F-010] `rollover_academic_year` is directly callable by any authenticated user — 🔴 Critical (security) — ✅ fixed & verified (staging)
 - **Stage / area:** 7 — Settings & Year Rollover
