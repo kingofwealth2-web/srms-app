@@ -95,11 +95,15 @@ F-003 hardcoded pass mark, F-004 grade-weight guard, F-005 academic CSV misalign
 - **Note:** Impersonation ("view as user") edge function is SECURE — verifies caller is a real `ministry_admin` server-side, refuses to impersonate another ministry admin, checks target has a school + not locked, logs every impersonation. Plan-activation logic (expiry math, downgrade detection, audit trails) is sound.
 - **Verified:** static only (no ministry_admin login available to test the console live).
 
-### [F-014] Past-year read-only and plan gating are UI-only (not server-enforced) — 🔵 Low (within-tenant) — open
+### [F-014] Past-year read-only and plan gating are UI-only (not server-enforced) — 🔵 Low (within-tenant) — 🟠 fix written, pending staging test
 - **Stage / area:** 10 — Cross-cutting
 - **What's wrong:** (a) Viewing an archived year shows a read-only banner and disables save buttons, but nothing server-side stops a write to a past `academic_year` — a user could insert/edit archived-year data via a direct API call. (b) Plan features (`planHook.can(...)`) and student/user limits are enforced only in the client, so a technical user could bypass PRO gating or the student cap via the API.
 - **Impact:** both are confined to the user's OWN school (not a cross-tenant breach). (a) is a data-integrity/audit concern; (b) is a revenue concern for the vendor.
-- **Fix (optional, if it matters):** (a) a DB trigger/policy rejecting writes whose `academic_year` ≠ the school's current `settings.academic_year`; (b) enforce plan limits in RLS/RPCs. Both are non-trivial; common SaaS accepts client-side gating.
+- **Decision (user):** enforce BOTH server-side.
+- **Fix (WRITTEN — highest-blast-radius change in the audit; test on staging before prod):**
+  - (a) `database/lock_past_years.sql` — `BEFORE INSERT/UPDATE` trigger `enforce_current_academic_year()` on 8 year-scoped tables (grades·attendance·fees·payments·behaviour·announcements·student_year_enrolment·attendance_opening_balances) rejecting any write whose year ≠ the school's current `settings.academic_year`. Normalises dash/slash (settings is `2024-2025` on a fresh school but `2027/2028` after a rollover, while records always use slash); bypasses privileged roles + the rollover GUC; allows NULL years. `database/arrears_carry_forward.sql` updated to set `srms.year_rollover=on` so year transitions still write across years.
+  - (b) `database/enforce_plan_limits.sql` — `school_student_limit()` / `school_user_limit()` keyed off RAW `settings.plan` (starter 80/2, basic 500/10, pro·trial unlimited — mirrors `constants.js`); a `students` trigger caps active students (only when a row becomes/stays active); the user cap baked into `create_auth_user` (keeps the F-008 role whitelist). Raw plan avoids the grace-window false-block that `school_plan()` would cause.
+- **Verify:** staging-run each file, then confirm via the app — past-year write blocked / current-year write ok; a Starter school blocked at 80 students & 2 users; a rollover still succeeds end-to-end.
 - **Note:** locked-account enforcement IS server-side (`is_active_user()` in 47 policies) — good.
 
 ### [F-015] `srms_migration.sql` can't run fresh — `students` CREATE TABLE has duplicate columns — 🟡 Medium (repo/DR) — ✅ fixed
@@ -112,6 +116,6 @@ F-003 hardcoded pass mark, F-004 grade-weight guard, F-005 academic CSV misalign
 
 **Also resolved:** F-013 (ministry RLS drift — confirmed drift via live pg_policies; the two missing policies added to `srms_migration.sql`, no DB change needed) · F-015 (duplicate columns in `students` broke `srms_migration.sql` for fresh installs — removed).
 
-**Open / parked (decisions or optional):** F-007 (re-enrol vs student limit — policy), F-009 (admin user-mgmt — policy), F-011 (multi-year arrears carry — design), F-014 (UI-only gating — optional).
+**Open / parked (decisions or optional):** all cleared — F-007, F-009, F-011 fixed & shipped; F-014 (server-side year-lock + plan-limit enforcement) written, pending staging test then prod.
 
 **Security posture:** parent portal RLS excellent (release-gating server-side); locked accounts server-enforced; impersonation properly gated; the two real security holes (F-008, F-010) are fixed. F-013 needs a live check + repo capture.

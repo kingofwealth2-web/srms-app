@@ -26,6 +26,10 @@ BEGIN
     RAISE EXCEPTION 'old_year and new_year must be different';
   END IF;
 
+  -- Let this function's cross-year writes through the past-year lock
+  -- (F-014a). Scoped to this transaction; see database/lock_past_years.sql.
+  PERFORM set_config('srms.year_rollover', 'on', true);
+
   UPDATE grades        SET year          = p_old_year WHERE school_id = p_school_id AND year IS NULL;
   UPDATE attendance    SET academic_year = p_old_year WHERE school_id = p_school_id AND academic_year IS NULL;
   UPDATE fees          SET academic_year = p_old_year WHERE school_id = p_school_id AND academic_year IS NULL;
