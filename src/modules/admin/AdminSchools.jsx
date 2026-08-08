@@ -109,7 +109,7 @@ export default function AdminSchools(props) {
   )
 }
 
-function SchoolDetail({ school, notes, comms, payments, onboarding, planChanges, ONBOARDING_ITEMS, openLogPayment, openNote, openComm, toggleObItem, confirmLockUser, unlockUser, openPasswordReset, confirmViewAs, openExtendTrial, openExtendGrace }) {
+function SchoolDetail({ school, notes, comms, payments, onboarding, planChanges, ONBOARDING_ITEMS, openLogPayment, openNote, openComm, toggleObItem, confirmLockUser, unlockUser, openPasswordReset, confirmViewAs, openExtendTrial, openExtendGrace, openChangeYear }) {
   const [tab, setTab] = useState('info')
   const sNotes = notes.filter(n => n.school_id === school.id)
   const sComms = comms.filter(c => c.school_id === school.id)
@@ -164,6 +164,10 @@ function SchoolDetail({ school, notes, comms, payments, onboarding, planChanges,
             <InfoLine>Expiry: <strong style={{ color: 'var(--white)' }}>{fmtDate(school.plan_expires_at || school.trial_ends_at)}</strong></InfoLine>
             <InfoLine>Students: <strong style={{ color: 'var(--white)' }}>{school.student_count}</strong></InfoLine>
             <InfoLine>Staff: <strong style={{ color: 'var(--white)' }}>{school.staff_count}</strong></InfoLine>
+            <InfoLine>
+              Academic year: <strong style={{ color: 'var(--white)' }}>{school.academic_year || 'not set'}</strong>
+              <Btn size='sm' variant='ghost' onClick={() => openChangeYear(school.id)} style={{ marginLeft: 8 }}>Change</Btn>
+            </InfoLine>
             <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
               <Btn size='sm' variant='ghost' onClick={() => openExtendTrial(school.id)}>Extend Trial</Btn>
               <Btn size='sm' variant='ghost' onClick={() => openExtendGrace(school.id)}>Extend Grace</Btn>
@@ -302,6 +306,7 @@ const CHANGE_TYPE_META = {
   grace_extend:  { icon: '🕊', label: 'Grace period extended' },
   suspend:       { icon: '⛔', label: 'Suspended' },
   unsuspend:     { icon: '✅', label: 'Unsuspended' },
+  year_change:   { icon: '📅', label: 'Academic year changed' },
 }
 
 function PlanChangeRow({ h }) {

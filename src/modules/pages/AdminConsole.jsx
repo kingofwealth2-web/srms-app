@@ -21,6 +21,7 @@ import CommModal           from '../admin/modals/CommModal'
 import PasswordResetModal  from '../admin/modals/PasswordResetModal'
 import ExtendDateModal     from '../admin/modals/ExtendDateModal'
 import SuspendModal        from '../admin/modals/SuspendModal'
+import ChangeYearModal     from '../admin/modals/ChangeYearModal'
 import ConfirmModal from '../components/ConfirmModal'
 
 const NAV = [
@@ -173,6 +174,7 @@ export default function AdminConsole({ profile, onSignOut }) {
   const openDiagnostics = () => setSection('diagnostics')
   const openExtendTrial = (schoolId) => setModal({ type: 'extendDate', schoolId, field: 'trial_ends_at', label: 'Trial', changeType: 'trial_extend' })
   const openExtendGrace = (schoolId) => setModal({ type: 'extendDate', schoolId, field: 'grace_ends_at', label: 'Grace Period', changeType: 'grace_extend' })
+  const openChangeYear  = (schoolId) => setModal({ type: 'changeYear', schoolId })
 
   const confirmSuspend = (schoolId) => setModal({ type: 'suspend', schoolId })
 
@@ -244,7 +246,7 @@ export default function AdminConsole({ profile, onSignOut }) {
     schools, notes, comms, payments, onboarding, activity, lastLoginBySchool, planChanges,
     daysLeft, getExpiry, ONBOARDING_ITEMS, profile,
     openActivate, openAddSchool, openLogPayment, openNote, openComm, openPasswordReset, openSchool, openDiagnostics,
-    openExtendTrial, openExtendGrace,
+    openExtendTrial, openExtendGrace, openChangeYear,
     confirmSuspend, unsuspend, toggleObItem, confirmLockUser, unlockUser, confirmViewAs,
     logActivity, showToast, reload: loadAll, jumpToSchoolId,
     diagnosticIssues, diagnosticsLoading, reloadDiagnostics: loadDiagnostics,
@@ -334,6 +336,12 @@ export default function AdminConsole({ profile, onSignOut }) {
       )}
       {modal?.type === 'suspend' && (
         <SuspendModal
+          school={schools.find(s => s.id === modal.schoolId)} profile={profile}
+          onClose={closeModal} onSaved={loadAll} logActivity={logActivity} showToast={showToast}
+        />
+      )}
+      {modal?.type === 'changeYear' && (
+        <ChangeYearModal
           school={schools.find(s => s.id === modal.schoolId)} profile={profile}
           onClose={closeModal} onSaved={loadAll} logActivity={logActivity} showToast={showToast}
         />
