@@ -17,6 +17,7 @@ import Modal    from './modules/components/Modal'
 import Field    from './modules/components/Field'
 import Avatar   from './modules/components/Avatar'
 import LoadingScreen from './modules/components/LoadingScreen'
+import LoadErrorScreen from './modules/components/LoadErrorScreen'
 import LogoMark from './modules/components/LogoMark'
 
 import Landing        from './modules/pages/Landing'
@@ -193,6 +194,10 @@ export default function App() {
   // True while fees/payments/attendance are still coming in behind the rendered
   // app. Pages built on those tables must wait on this rather than render zeros.
   const [deferredLoading,setDeferredLoading] = useState(true)
+  // Names of the deferred tables (fees/payments/attendance) whose last load
+  // failed, so the pages that need them show a retry state instead of an empty
+  // ledger. Cleared on a successful load.
+  const [deferredError,setDeferredError] = useState(null)
   // Set when the profile lookup failed for a reason other than "no such row",
   // so the app can say the connection failed instead of showing a login page
   // to someone who is still perfectly well signed in.
@@ -380,7 +385,10 @@ export default function App() {
       const failures = results.map((r, i) => ({ table: NAMES[i], error: r.error })).filter(f => f.error)
       if (failures.length) {
         failures.forEach(f => console.error(`Failed to load ${f.table}:`, f.error.message))
-        showToast(`Couldn't load ${failures.map(f => f.table).join(', ')} -- reload to try again.`, 'error')
+        setDeferredError(failures.map(f => f.table))
+        showToast(`Couldn't load ${failures.map(f => f.table).join(', ')} -- tap Try again on the page.`, 'error')
+      } else {
+        setDeferredError(null)
       }
       const [{ data: attendance }, { data: fees }, { data: payments }] = results
       setData(prev => ({
@@ -393,6 +401,14 @@ export default function App() {
       if (wantedYear.current === null || year === wantedYear.current) setDeferredLoading(false)
     }
   }, [showToast])
+
+  // Re-run just the heavy deferred load (fees/payments/attendance) for the year
+  // currently on screen -- wired to the "Try again" button on its error state.
+  const retryDeferred = useCallback(() => {
+    if (!profile?.school_id || !settings) return
+    setDeferredError(null)
+    loadDeferred(selectedYear, profile, settings)
+  }, [loadDeferred, profile, settings, selectedYear])
 
   useEffect(() => {
     if (!session) { setProfile(null); setLoading(false); return }
@@ -690,6 +706,14 @@ export default function App() {
     // The rest of the app is usable while these are still arriving.
     if (deferredLoading && ['dashboard','fees','attendance','reports'].includes(safePage)) {
       return <LoadingScreen msg='Loading fees and attendance...' height='60vh'/>
+    }
+    // Which deferred tables each of those pages actually needs -- so e.g. an
+    // attendance-only failure doesn't hide fees that loaded fine.
+    const PAGE_NEEDS = { dashboard: ['fees','payments','attendance'], fees: ['fees','payments'], attendance: ['attendance'], reports: ['fees','payments','attendance'] }
+    const needed = PAGE_NEEDS[safePage]
+    if (needed && deferredError && deferredError.some(t => needed.includes(t))) {
+      const label = safePage === 'attendance' ? 'attendance' : safePage === 'fees' ? 'fee records' : 'fees and attendance'
+      return <LoadErrorScreen msg={`Couldn't load ${label}.`} onRetry={retryDeferred} retrying={deferredLoading} height='60vh'/>
     }
     switch (safePage) {
       case 'dashboard':     return <Dashboard    {...props} onNav={setPage} onNavFees={filter => { setFeeFilter(filter); setPage('fees') }}/>
