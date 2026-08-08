@@ -212,6 +212,11 @@ export default function App() {
   const isMobile = useIsMobile()
   const initialLoadDone = useRef(false)
   const lastLoadedYear = useRef(null)
+  // The year the app is currently meant to be showing. A slow fetch for a year
+  // the user has since switched away from must not overwrite the newer year's
+  // data (which on a Pro school's year switcher showed as fees "vanishing").
+  // loadData / loadDeferred discard their results when their year != this.
+  const wantedYear = useRef(null)
   const planHook = usePlan(settings)
   const reloadSettings = useCallback(async () => {
     if (!profile?.school_id) return
@@ -305,6 +310,10 @@ export default function App() {
       { data: examScores },
     ] = results
 
+    // Drop a stale response: the user switched year while this was in flight,
+    // so applying it now would overwrite the year they're actually looking at.
+    if (wantedYear.current !== null && year !== wantedYear.current) return
+
     // Functional update: each field falls back to its PREVIOUS value (not [])
     // when its fetch failed, so a partial failure never wipes data that was
     // already showing on screen. Fields that succeeded always update normally,
@@ -325,7 +334,9 @@ export default function App() {
       examScores:    examScores    || prev.examScores     || [],
     }))
     } finally {
-      setDataLoading(false)
+      // Only clear the spinner if this is still the year being shown, so a stale
+      // load finishing doesn't flip the UI to "loaded" while the current one runs.
+      if (wantedYear.current === null || year === wantedYear.current) setDataLoading(false)
     }
   }, [])
 
@@ -341,11 +352,31 @@ export default function App() {
     setDeferredLoading(true)
     try {
       const NAMES = ['attendance','fees','payments']
+      // These three are the heaviest queries (≈92% of the payload) and the ones
+      // most likely to fail on a slow/flaky connection. A single failure used to
+      // leave the list empty until a manual reload -- which read as fee records
+      // "vanishing". Retry each a few times before giving up so a transient blip
+      // recovers on its own.
+      const withRetry = async (factory, tries = 3, delayMs = 1200) => {
+        let res
+        for (let i = 0; i < tries; i++) {
+          res = await factory()
+          if (!res.error) return res
+          // Bail out early if the user has switched year -- a retry would be wasted.
+          if (year !== wantedYear.current && wantedYear.current !== null) return res
+          if (i < tries - 1) await new Promise(r => setTimeout(r, delayMs * (i + 1)))
+        }
+        return res
+      }
       const results = await Promise.all([
-        fetchAllRows(() => supabase.from('attendance').select('*').eq('school_id', prof.school_id).eq('academic_year', year).order('id')),
-        fetchAllRowsByCursor(() => supabase.from('fees').select('*').eq('school_id', prof.school_id).eq('academic_year', year)),
-        fetchAllRowsByCursor(() => supabase.from('payments').select('*').eq('school_id', prof.school_id).eq('academic_year', year)),
+        withRetry(() => fetchAllRows(() => supabase.from('attendance').select('*').eq('school_id', prof.school_id).eq('academic_year', year).order('id'))),
+        withRetry(() => fetchAllRowsByCursor(() => supabase.from('fees').select('*').eq('school_id', prof.school_id).eq('academic_year', year))),
+        withRetry(() => fetchAllRowsByCursor(() => supabase.from('payments').select('*').eq('school_id', prof.school_id).eq('academic_year', year))),
       ])
+
+      // Drop a stale response: user switched year while this was loading.
+      if (wantedYear.current !== null && year !== wantedYear.current) return
+
       const failures = results.map((r, i) => ({ table: NAMES[i], error: r.error })).filter(f => f.error)
       if (failures.length) {
         failures.forEach(f => console.error(`Failed to load ${f.table}:`, f.error.message))
@@ -359,7 +390,7 @@ export default function App() {
         payments:   payments   || prev.payments   || [],
       }))
     } finally {
-      setDeferredLoading(false)
+      if (wantedYear.current === null || year === wantedYear.current) setDeferredLoading(false)
     }
   }, [showToast])
 
@@ -426,6 +457,7 @@ export default function App() {
       setSettings(settingsRow)
 
       if (resolvedProf?.school_id) {
+        wantedYear.current = selectedYear || currentYearFromSettings(settingsRow)
         await loadData(selectedYear, resolvedProf, settingsRow)
         lastLoadedYear.current = selectedYear
         // Deliberately not awaited -- this is the point of deferring it. The app
@@ -453,6 +485,7 @@ export default function App() {
     // first time), which was causing a redundant duplicate loadData() call on every login.
     if (selectedYear === lastLoadedYear.current) return
     lastLoadedYear.current = selectedYear
+    wantedYear.current = selectedYear || currentYearFromSettings(settings)
     loadData(selectedYear, profile, settings).then(() => loadDeferred(selectedYear, profile, settings))
   }, [selectedYear, loadData, loadDeferred, profile, settings])
 
