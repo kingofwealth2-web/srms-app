@@ -1,5 +1,17 @@
 # SRMS QA / Bug Audit — Running Log
 
+> **CLOSE-OUT (2026-08-09).** All 10 stages audited; all 15 findings (F-001…F-015)
+> resolved. The two real security holes — F-008 (privilege escalation to
+> ministry_admin) and F-010 (cross-tenant year rollover) — are fixed and verified
+> live. F-014 server-side hardening (past-year read-only lock + plan-cap
+> enforcement) built, verified on staging incl. a real end-to-end rollover, and
+> **confirmed applied to production** (diagnostic: all objects present).
+> Follow-ups shipped after the audit: ministry-only "Change Academic Year"
+> correction tool, and a fix for fee records appearing to "vanish" on slow
+> connections (stale-year load guard + deferred-load retry + a "couldn't load /
+> try again" state instead of a blank ledger). All frontend changes pushed.
+> **Prod DB migrations: all applied. Nothing outstanding on the SQL side.**
+
 Staged, feature-by-feature quality audit. Per feature: static code review + dynamic testing.
 Cadence: audit → user triages → fix → verify, one stage at a time.
 
