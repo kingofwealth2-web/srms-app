@@ -4,3 +4,6 @@ node_modules/
 .env.*.local
 .claude/
 supabase/.temp/
+.agents/
+AGENTS.md
+.codex-*.log
