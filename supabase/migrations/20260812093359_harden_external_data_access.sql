@@ -143,3 +143,5 @@ revoke execute on function public.allocate_receipt_nos(uuid, integer) from publi
 revoke execute on function public.generate_student_id(uuid, text) from public, anon;
 grant execute on function public.allocate_receipt_nos(uuid, integer) to authenticated;
 grant execute on function public.generate_student_id(uuid, text) to authenticated;
+-- Ensure the plan-status view observes the caller's RLS policies.
+alter view public.v_school_plan_status set (security_invoker = true);
