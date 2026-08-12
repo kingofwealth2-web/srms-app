@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import Modal from './Modal'
 
 // ── Version history ──────────────────────────────────────────────
 // Add new entries at the TOP. Bump LATEST_VERSION when adding.
@@ -208,28 +209,9 @@ export default function WhatsNew() {
 
       {/* Modal */}
       {open && (
-        <div style={{position:'fixed',inset:0,zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
-          onClick={e=>{if(e.target===e.currentTarget)setOpen(false)}}>
-          {/* Backdrop */}
-          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.6)',backdropFilter:'blur(4px)'}}/>
-          {/* Panel */}
-          <div style={{position:'relative',width:'100%',maxWidth:560,maxHeight:'85vh',display:'flex',flexDirection:'column',background:'var(--ink2)',borderRadius:16,border:'1px solid var(--line)',boxShadow:'0 24px 80px rgba(0,0,0,0.4)',overflow:'hidden'}}>
-            {/* Header */}
-            <div style={{padding:'20px 24px 16px',borderBottom:'1px solid var(--line)',flexShrink:0}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                <div>
-                  <div style={{fontSize:16,fontWeight:800,color:'var(--white)',fontFamily:"'Clash Display',sans-serif"}}>What's New ✨</div>
-                  <div style={{fontSize:12,color:'var(--mist3)',marginTop:2}}>Latest updates to SRMS</div>
-                </div>
-                <button onClick={()=>setOpen(false)}
-                  style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:8,width:32,height:32,cursor:'pointer',color:'var(--mist2)',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  ✕
-                </button>
-              </div>
-            </div>
-
-            {/* Scrollable content */}
-            <div style={{overflowY:'auto',flex:1,padding:'20px 24px'}}>
+        <Modal title="What's New" subtitle='Latest updates to SRMS' onClose={()=>setOpen(false)} width={560}>
+          <div>
+            <div>
               {CHANGELOG.map(release=>(
                 <div key={release.version}>
                   {/* Release header */}
@@ -269,7 +251,7 @@ export default function WhatsNew() {
               </div>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </>
   )

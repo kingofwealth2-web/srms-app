@@ -4,9 +4,10 @@
 // Optionally POSTs to FEEDBACK_WEBHOOK_URL in constants.js (works with
 // Formspree, Make, Zapier, n8n — any URL that accepts a JSON POST).
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { supabase } from '../../supabase'
 import { FEEDBACK_WEBHOOK_URL } from '../lib/constants'
+import Modal from './Modal'
 
 const TYPES = [
   { key: 'bug',        label: '🐛  Bug report',       desc: 'Something is broken or not working right' },
@@ -21,15 +22,6 @@ export default function FeedbackButton({ profile, settings, currentPage }) {
   const [saving,  setSaving]  = useState(false)
   const [done,    setDone]    = useState(false)
   const [error,   setError]   = useState('')
-
-  // ── Prevent body scroll when modal is open ──
-  useEffect(() => {
-    if (open) {
-      const prev = document.body.style.overflow
-      document.body.style.overflow = 'hidden'
-      return () => { document.body.style.overflow = prev }
-    }
-  }, [open])
 
   const reset = () => {
     setType('bug'); setDesc(''); setError(''); setDone(false)
@@ -112,34 +104,13 @@ export default function FeedbackButton({ profile, settings, currentPage }) {
 
       {/* ── Modal ── */}
       {open && (
-        <>
+        <Modal title={done ? 'Feedback sent' : 'Send Feedback'} subtitle={done ? undefined : (settings?.school_name || 'Your school')} onClose={close} width={380}>
           <style>{`
             @keyframes fbFade   { from { opacity:0 } to { opacity:1 } }
             @keyframes fbSlide  { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
           `}</style>
 
-          {/* backdrop */}
-          <div
-            onClick={close}
-            style={{
-              position: 'fixed', inset: 0, zIndex: 1000,
-              background: 'rgba(8,8,18,0.7)',
-              backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
-              animation: 'fbFade 0.18s ease both',
-            }}
-          />
-
-          {/* panel */}
-          <div style={{
-            position: 'fixed', bottom: 80, right: 24, zIndex: 1001,
-            width: 380, maxWidth: 'calc(100vw - 32px)',
-            maxHeight: 'calc(100vh - 120px)',
-            overflowY: 'auto',
-            background: 'var(--ink2)', border: '1px solid var(--line2)',
-            borderRadius: 'var(--r-xl)',
-            boxShadow: '0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03)',
-            animation: 'fbSlide 0.22s cubic-bezier(.16,1,.3,1) both',
-          }}>
+          <div>
 
             {/* accent strip */}
             <div style={{ height: 3, background: 'linear-gradient(90deg, transparent, var(--gold), transparent)', opacity: 0.6 }}/>
@@ -169,23 +140,6 @@ export default function FeedbackButton({ profile, settings, currentPage }) {
             ) : (
               /* ── Form ── */
               <div style={{ padding: '24px 24px 20px' }}>
-
-                {/* header */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                  <div>
-                    <div className="d" style={{ fontSize: 15, fontWeight: 700, color: 'var(--white)' }}>Send Feedback</div>
-                    <div style={{ fontSize: 11, color: 'var(--mist3)', marginTop: 2 }}>
-                      {settings?.school_name || 'Your school'}
-                    </div>
-                  </div>
-                  <button onClick={close} style={{
-                    width: 28, height: 28, borderRadius: 8,
-                    background: 'var(--ink4)', border: '1px solid var(--line2)',
-                    color: 'var(--mist3)', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14, fontFamily: 'inherit',
-                  }}>✕</button>
-                </div>
 
                 {/* type selector */}
                 <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--mist3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8, fontFamily: "'Clash Display',sans-serif" }}>
@@ -266,7 +220,7 @@ export default function FeedbackButton({ profile, settings, currentPage }) {
               </div>
             )}
           </div>
-        </>
+        </Modal>
       )}
     </>
   )

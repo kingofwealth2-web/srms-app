@@ -12,8 +12,8 @@
 //   mode="sidebar"— slim locked state for nav items
 
 import { useState } from 'react'
-import { createPortal } from 'react-dom'
 import { PLANS, PLAN_ORDER, FEATURE_LABELS } from '../lib/constants'
+import Modal from './Modal'
 
 const UPGRADE_DESCRIPTIONS = {
   feeReceipts:   'Generate and print professional fee receipts for parents.',
@@ -85,7 +85,7 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
             {targetConfig?.label?.toUpperCase()}
           </span>
         </div>
-        {showModal && createPortal(
+        {showModal && (
           <UpgradeModal
             featureLabel={featureLabel}
             featureDesc={featureDesc}
@@ -93,8 +93,7 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
             currentPlan={plan}
             onClose={() => setShowModal(false)}
             onUpgrade={onUpgrade}
-          />,
-          document.body
+          />
         )}
       </>
     )
@@ -145,7 +144,7 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
         </div>
       </div>
 
-      {showModal && createPortal(
+      {showModal && (
         <UpgradeModal
           featureLabel={featureLabel}
           featureDesc={featureDesc}
@@ -153,8 +152,7 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
           currentPlan={plan}
           onClose={() => setShowModal(false)}
           onUpgrade={onUpgrade}
-        />,
-        document.body
+        />
       )}
     </>
   )
@@ -162,14 +160,6 @@ export default function PlanGate({ planHook, feature, requiredPlan, children, mo
 
 // ── Upgrade Modal ──────────────────────────────────────────────
 function UpgradeModal({ featureLabel, featureDesc, targetPlan, currentPlan, onClose }) {
-  // Close on Escape
-  if (typeof document !== 'undefined') {
-    const prev = document._pgEsc
-    document._pgEsc && document.removeEventListener('keydown', document._pgEsc)
-    document._pgEsc = e => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', document._pgEsc)
-  }
-
   const planColors = { starter: 'var(--emerald)', basic: 'var(--gold)', pro: 'var(--amber)' }
   const planGlows  = { starter: 'rgba(45,212,160,0.12)', basic: 'rgba(232,184,75,0.12)', pro: 'rgba(251,159,58,0.12)' }
   const planLines  = { starter: 'rgba(45,212,160,0.25)', basic: 'rgba(232,184,75,0.25)', pro: 'rgba(251,159,58,0.25)' }
@@ -178,31 +168,9 @@ function UpgradeModal({ featureLabel, featureDesc, targetPlan, currentPlan, onCl
   const glow       = planGlows[key]  || 'rgba(232,184,75,0.12)'
   const line       = planLines[key]  || 'rgba(232,184,75,0.25)'
 
-  const backdrop = {
-    position: 'fixed', inset: 0, zIndex: 9999,
-    background: 'rgba(8,8,18,0.78)',
-    backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-    display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-    padding: '5vh 20px 20px',
-    animation: 'pgFadeIn 0.18s ease both',
-  }
-
   return (
-    <>
-      <style>{`
-        @keyframes pgFadeIn { from { opacity:0 } to { opacity:1 } }
-        @keyframes pgSlideIn { from { opacity:0; transform:translateY(-12px) } to { opacity:1; transform:translateY(0) } }
-      `}</style>
-      <div onClick={e => { if (e.target === e.currentTarget) onClose() }} style={backdrop}>
-        <div style={{
-          width: '100%', maxWidth: 440,
-          background: 'var(--ink2)',
-          border: '1px solid var(--line2)',
-          borderRadius: 'var(--r-xl, 24px)',
-          boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04)',
-          overflow: 'hidden',
-          animation: 'pgSlideIn 0.22s cubic-bezier(.16,1,.3,1) both',
-        }}>
+    <Modal title='Upgrade required' onClose={onClose} width={440}>
+        <div>
 
           {/* ── Top accent strip ── */}
           <div style={{ height: 3, background: `linear-gradient(90deg, transparent, ${color}, transparent)`, opacity: 0.7 }} />
@@ -286,8 +254,7 @@ function UpgradeModal({ featureLabel, featureDesc, targetPlan, currentPlan, onCl
             </button>
           </div>
         </div>
-      </div>
-    </>
+    </Modal>
   )
 }
 
