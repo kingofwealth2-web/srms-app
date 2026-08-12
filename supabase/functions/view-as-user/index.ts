@@ -1,11 +1,24 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+const allowedOrigins = new Set([
+  'https://srms-app.vercel.app',
+  'https://srms-app-kingofwealth2-webs-projects.vercel.app',
+  'https://srms-app-git-main-kingofwealth2-webs-projects.vercel.app',
+  'http://127.0.0.1:5173',
+  'http://localhost:5173',
+])
+
+const corsHeadersFor = (req: Request) => {
+  const origin = req.headers.get('Origin') || ''
+  return {
+    ...(allowedOrigins.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}),
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Vary': 'Origin',
+  }
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   const authHeader = req.headers.get('Authorization')
