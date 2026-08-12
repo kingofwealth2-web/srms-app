@@ -135,6 +135,43 @@ alter function public.prevent_self_privilege_escalation() set search_path = publ
 alter function public.school_student_limit(uuid) set search_path = public;
 alter function public.school_user_limit(uuid) set search_path = public;
 alter function public.enforce_student_limit() set search_path = public;
+
+-- The student-limit trigger must be able to call its private plan helper even
+-- though browser roles cannot execute that helper directly.
+alter function public.enforce_student_limit() security definer;
+revoke execute on function public.enforce_student_limit() from public, anon, authenticated;
+
+-- RLS plan gates call this function while evaluating rows. Keep it callable by
+-- signed-in users, but disclose a plan only for their own school (or ministry).
+create or replace function public.school_plan(p_school_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select case
+    when p_school_id is distinct from public.my_school_id()
+         and not public.is_ministry_admin() then null
+    else (
+      select case
+        when cancelled_at is not null
+             and now() > cancelled_at + (30 * interval '1 day') then 'none'
+        when plan = 'trial'
+             and trial_ends_at is not null
+             and now() <= trial_ends_at then 'pro'
+        when plan = 'trial' then 'none'
+        when plan_expires_at is not null
+             and now() > plan_expires_at then 'none'
+        else plan
+      end
+      from public.settings
+      where school_id = p_school_id
+    )
+  end;
+$$;
+revoke execute on function public.school_plan(uuid) from public, anon;
+grant execute on function public.school_plan(uuid) to authenticated;
 alter function public.update_auth_user(uuid, text, text, text) set search_path = public, auth, extensions;
 alter function public.enforce_current_academic_year() set search_path = public;
 
