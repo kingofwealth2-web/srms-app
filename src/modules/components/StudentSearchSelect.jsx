@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useId } from 'react'
 import { fullName } from '../lib/helpers'
 
 // Type-to-filter single-student picker. Replaces scroll-list <select>s anywhere
@@ -15,6 +15,7 @@ export default function StudentSearchSelect({
   const [editing, setEditing]     = useState(false)  // typing a query vs. showing the picked name
   const [highlight, setHighlight] = useState(0)
   const wrapRef = useRef(null)
+  const inputId = useId()
 
   const classNameOf = id => classes.find(c => c.id === id)?.name || ''
   const selected    = students.find(s => s.id === value) || null
@@ -40,23 +41,13 @@ export default function StudentSearchSelect({
   // Input shows the live query while typing, otherwise the selected student's name.
   const inputValue = editing ? query : (selected ? fullName(selected, true) : '')
 
-  const labelStyle = {
-    display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--mist2)',
-    textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6,
-    fontFamily: "'Clash Display',sans-serif",
-  }
-  const inputStyle = {
-    width: '100%', background: 'var(--ink3)', border: '1px solid var(--line2)',
-    borderRadius: 10, padding: '9px 34px', color: 'var(--white)', fontSize: 13.5,
-    boxSizing: 'border-box', cursor: disabled ? 'not-allowed' : 'text', opacity: disabled ? 0.5 : 1,
-  }
-
   return (
-    <div ref={wrapRef} style={{ marginBottom: 14, position: 'relative', ...style }}>
-      {label && <label style={labelStyle}>{label}{required && <span style={{ color: 'var(--gold)', marginLeft: 3 }}>*</span>}</label>}
-      <div style={{ position: 'relative' }}>
-        <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--mist3)', fontSize: 14, pointerEvents: 'none' }}>⌕</span>
+    <div ref={wrapRef} className={`srms-search-select ${open ? 'is-open' : ''}`} style={{ marginBottom: 14, ...style }}>
+      {label && <label htmlFor={inputId} className="srms-search-select__label">{label}{required && <span style={{ color: 'var(--gold)', marginLeft: 3 }}>*</span>}</label>}
+      <div className="srms-search-select__control">
+        <svg className="srms-search-select__icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" strokeWidth="1.6"/><path d="m13 13 4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
         <input
+          id={inputId}
           value={inputValue}
           disabled={disabled}
           autoFocus={autoFocus}
@@ -69,26 +60,27 @@ export default function StudentSearchSelect({
             else if (e.key === 'Enter')     { if (open && matches[highlight]) { e.preventDefault(); pick(matches[highlight]) } }
             else if (e.key === 'Escape')    { setOpen(false); setEditing(false) }
           }}
-          style={inputStyle}
+          className="srms-search-select__input"
         />
         {value && !disabled && (
           <button type='button' onMouseDown={e => { e.preventDefault(); clear() }} aria-label='Clear'
-            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--mist3)', fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>×</button>
+            className="srms-search-select__clear">×</button>
         )}
       </div>
       {open && !disabled && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--ink3)', border: '1px solid var(--line2)', borderRadius: 10, zIndex: 100, maxHeight: 240, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+        <div className="srms-search-select__menu" role="listbox">
+          <div className="srms-search-select__header"><span>Students</span><span>{matches.length} result{matches.length===1?'':'s'}</span></div>
           {matches.length === 0 ? (
-            <div style={{ padding: '12px 14px', fontSize: 12, color: 'var(--mist3)' }}>No students found</div>
+            <div className="srms-search-select__empty">No students found</div>
           ) : matches.map((s, i) => (
-            <div key={s.id}
+            <button type="button" role="option" aria-selected={selected?.id === s.id} key={s.id}
               onMouseDown={e => { e.preventDefault(); pick(s) }}
               onMouseEnter={() => setHighlight(i)}
-              style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--line)', background: i === highlight ? 'var(--ink4)' : 'transparent' }}>
+              className={`srms-search-select__option ${i === highlight ? 'is-active' : ''} ${selected?.id === s.id ? 'is-selected' : ''}`}>
               {/* name truncates so it can't push the class/ID off a narrow (phone) row */}
-              <span style={{ fontWeight: 500, color: 'var(--white)', flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fullName(s, true)}</span>
-              <span style={{ fontSize: 11, color: 'var(--mist3)', whiteSpace: 'nowrap', flexShrink: 0 }}>{[classNameOf(s.class_id), s.student_id].filter(Boolean).join(' · ')}</span>
-            </div>
+              <span className="srms-search-select__name">{fullName(s, true)}</span>
+              <span className="srms-search-select__meta">{[classNameOf(s.class_id), s.student_id].filter(Boolean).join(' · ')}</span>
+            </button>
           ))}
         </div>
       )}

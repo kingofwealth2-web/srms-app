@@ -16,6 +16,7 @@ import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 import DataTable from '../components/DataTable'
 import ConfirmModal from '../components/ConfirmModal'
+import Select from '../components/Select'
 
 // ── GRADES ─────────────────────────────────────────────────────
 export default function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
@@ -383,21 +384,21 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
       {/* ── FILTERS ── */}
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
-          <select value={fc} onChange={e=>{setFc(e.target.value);setFs('');setBulkMode(false)}}
+          <Select value={fc} onChange={e=>{setFc(e.target.value);setFs('');setBulkMode(false)}}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>
             {isAdminGrades ? <option value=''>All Classes</option> : <option value=''>All My Classes</option>}
             {teacherClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <select value={fs} onChange={e=>{setFs(e.target.value);setBulkMode(false)}}
+          </Select>
+          <Select value={fs} onChange={e=>{setFs(e.target.value);setBulkMode(false)}}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>
             <option value=''>All Subjects</option>
             {fcSubjects.map(s=><option key={s.id} value={s.id}>{s.name}{!fc ? ` — ${data.classes?.find(c=>c.id===s.class_id)?.name||''}` : ''}{!mySubjects.some(m=>m.id===s.id)?' (view only)':''}</option>)}
-          </select>
-          <select value={fp} onChange={e=>{setFp(e.target.value);setBulkMode(false)}}
+          </Select>
+          <Select value={fp} onChange={e=>{setFp(e.target.value);setBulkMode(false)}}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Periods</option>
             {periods.map(p=><option key={p}>{p}</option>)}
-          </select>
+          </Select>
           <div style={{position:'relative',flex:'1 1 170px'}}>
             <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:14,pointerEvents:'none'}}>⌕</span>
             <input value={studentQuery} onChange={e=>setStudentQuery(e.target.value)} placeholder='Search student…'

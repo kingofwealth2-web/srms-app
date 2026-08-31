@@ -16,6 +16,7 @@ import Card from '../components/Card'
 import DataTable from '../components/DataTable'
 import KPI from '../components/KPI'
 import PlanGate from '../components/PlanGate'
+import Select from '../components/Select'
 
 // ── HELPERS ────────────────────────────────────────────────────
 const ordinal = n => {
@@ -375,26 +376,26 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
 
           {/* Class filter -- disabled when student selected */}
           {!selectedStudent && !isClassTeacher && (
-            <select value={fc} onChange={e=>setFc(e.target.value)}
+            <Select value={fc} onChange={e=>setFc(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
               <option value=''>All Classes</option>
               {(isTeacher && teacherClassIds ? classes.filter(c=>teacherClassIds.includes(c.id)) : classes).slice().sort(compareClasses).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            </Select>
           )}
 
           {(rtype==='academic' || rtype==='attendance') && (
-            <select value={fp} onChange={e=>setFp(e.target.value)}
+            <Select value={fp} onChange={e=>setFp(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
               <option value=''>All Periods</option>
               {periods.map(p=><option key={p}>{p}</option>)}
-            </select>
+            </Select>
           )}
           {rtype==='academic' && isTeacher && effectiveClassId && (
-            <select value={fsub} onChange={e=>setFsub(e.target.value)}
+            <Select value={fsub} onChange={e=>setFsub(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>
               <option value=''>All My Subjects</option>
               {teacherSubjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            </Select>
           )}
           <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)'}}>
             <span style={{fontSize:11,color:'var(--mist3)'}}>Year:</span>
@@ -1482,7 +1483,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
                     style={{flex:'1 1 200px',minWidth:0,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'7px 12px',color:'var(--white)',fontSize:12,fontFamily:"'Cabinet Grotesk',sans-serif"}}/>
                 )}
                 {isLastPeriod && (
-                  <select
+                  <Select
                     value={rcPromotedTo[s.id]||''}
                     onChange={e=>setRcPromotedTo(p=>({...p,[s.id]:e.target.value}))}
                     style={{width:150,flexShrink:0,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'7px 10px',color:rcPromotedTo[s.id]?'var(--white)':'var(--mist3)',fontSize:12,cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>
@@ -1490,7 +1491,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
                     <option value='Not Promoted'>Not Promoted (repeating)</option>
                     {promoClasses.filter(c=>c.name!==rcClassName).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
                     <option value='Graduated'>Graduated</option>
-                  </select>
+                  </Select>
                 )}
               </div>
             ))}

@@ -3,6 +3,7 @@ import { supabase } from '../../supabase'
 import { DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, generateYears } from '../lib/helpers'
 import { CURRENCIES } from '../lib/constants'
 import Spinner from '../components/Spinner'
+import Select from '../components/Select'
 
 // ── SCHOOL SETUP WIZARD ────────────────────────────────────────
 // Shown when a logged-in user has no school_id assigned.
@@ -130,10 +131,10 @@ export default function SchoolSetup({ profile, onComplete, onCancel }) {
               />
             </FormField>
             <FormField label='Region' required>
-              <select value={form.region} onChange={e => f('region')(e.target.value)} style={styles.input}>
+              <Select value={form.region} onChange={e => f('region')(e.target.value)} style={styles.input}>
                 <option value=''>Select region...</option>
                 {GHANA_REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
+              </Select>
             </FormField>
             <FormField label='Address'>
               <input
@@ -158,9 +159,9 @@ export default function SchoolSetup({ profile, onComplete, onCancel }) {
         {step === 1 && (
           <div style={styles.fields}>
             <FormField label='Current Academic Year'>
-              <select value={form.academic_year} onChange={e => f('academic_year')(e.target.value)} style={styles.input}>
+              <Select value={form.academic_year} onChange={e => f('academic_year')(e.target.value)} style={styles.input}>
                 {generateYears(form.academic_year).map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
+              </Select>
             </FormField>
             <FormField label='Period Structure'>
               <div style={styles.radioGroup}>
@@ -180,9 +181,9 @@ export default function SchoolSetup({ profile, onComplete, onCancel }) {
               </div>
             </FormField>
             <FormField label='Currency'>
-              <select value={form.currency_code} onChange={e => f('currency_code')(e.target.value)} style={styles.input}>
+              <Select value={form.currency_code} onChange={e => f('currency_code')(e.target.value)} style={styles.input}>
                 {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.symbol} — {c.name} ({c.code})</option>)}
-              </select>
+              </Select>
             </FormField>
             <div style={styles.note}>
               ⓘ You can change all of these later in Settings.

@@ -15,6 +15,7 @@ import SectionTitle from '../components/SectionTitle'
 import DataTable from '../components/DataTable'
 import Card from '../components/Card'
 import ConfirmModal from '../components/ConfirmModal'
+import Select from '../components/Select'
 
 // ── ATTENDANCE ─────────────────────────────────────────────────
 export default function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
@@ -162,20 +163,20 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
           {['superadmin','admin'].includes(profile?.role) && tab==='mark' && !isBlocked && (
-            <select value={cid} onChange={e=>changeContext(e.target.value,undefined)}
+            <Select value={cid} onChange={e=>changeContext(e.target.value,undefined)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
               <option value=''>Select a class</option>
               {myClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            </Select>
           )}
           <input type='date' value={date} onChange={e=>changeContext(undefined,e.target.value)}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--white)',fontSize:13}}/>
           {tab==='mark' && !isBlocked && (
-            <select value={period} onChange={e=>setPeriod(e.target.value)} title='The term/semester this attendance counts towards'
+            <Select value={period} onChange={e=>setPeriod(e.target.value)} title='The term/semester this attendance counts towards'
               style={{background:'var(--ink3)',border:`1px solid ${period?'var(--line)':'var(--rose)'}`,borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'0 1 140px'}}>
               <option value=''>Select term…</option>
               {periods.map(p=><option key={p} value={p}>{p}</option>)}
-            </select>
+            </Select>
           )}
           {tab==='mark'&&cls&&!isBlocked&&!isViewingPast&&(
             <div style={{display:'flex',gap:6,marginLeft:'auto',flexWrap:'wrap',alignItems:'center'}}>

@@ -1,5 +1,6 @@
 import { useState, useId } from 'react'
 import { useIsMobile } from '../lib/hooks'
+import Select from './Select'
 
 export default function Field({
   label, value, onChange, type = 'text', placeholder, options, required, rows, style, onKeyDown,
@@ -22,8 +23,6 @@ export default function Field({
     boxShadow: focused ? '0 0 0 3px rgba(232,184,75,0.07)' : 'none',
   }
 
-  const selectStyle = { ...inputStyle, cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', paddingRight: 36 }
-
   return (
     <div style={{ marginBottom: 14, position: 'relative', ...style }}>
       {label && (
@@ -42,26 +41,21 @@ export default function Field({
       )}
 
       {options ? (
-        <div style={{ position: 'relative' }}>
-          <select
-            id={fieldId}
-            name={name}
-            value={value ?? ''}
-            onChange={e => onChange(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            style={selectStyle}
-          >
-            <option value='' disabled={required && !!value}>— Select —</option>
-            {options.map(o => (
-              <option key={o.value ?? o} value={o.value ?? o}>{o.label ?? o}</option>
-            ))}
-          </select>
-          <div style={{
-            position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-            pointerEvents: 'none', color: 'var(--mist3)', fontSize: 10,
-          }}>▾</div>
-        </div>
+        <Select
+          id={fieldId}
+          name={name}
+          value={value ?? ''}
+          onChange={e => onChange(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          menuLabel={label}
+          placeholder='— Select —'
+          options={[
+            { value: '', label: '— Select —', disabled: required && !!value },
+            ...options.map(o => ({ value: o.value ?? o, label: o.label ?? o })),
+          ]}
+          style={{ width: '100%' }}
+        />
       ) : rows ? (
         <textarea
           id={fieldId}

@@ -16,6 +16,7 @@ import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 import ConfirmModal from '../components/ConfirmModal'
+import Select from '../components/Select'
 
 // ── BEHAVIOUR ──────────────────────────────────────────────────
 export default function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast,planHook}) {
@@ -122,18 +123,18 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
       </div>
       <Card style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-          <select value={fClassId} onChange={e=>{setFClassId(e.target.value);setFsid('')}} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
+          <Select value={fClassId} onChange={e=>{setFClassId(e.target.value);setFsid('')}} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
             <option value=''>All Classes</option>
             {myClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <select value={fsid} onChange={e=>setFsid(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 150px'}}>
+          </Select>
+          <Select value={fsid} onChange={e=>setFsid(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 150px'}}>
             <option value=''>All Students</option>
             {studentsInClass.map(s=><option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
-          </select>
-          <select value={ftype} onChange={e=>setFtype(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
+          </Select>
+          <Select value={ftype} onChange={e=>setFtype(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Types</option>
             {types.map(t=><option key={t}>{t}</option>)}
-          </select>
+          </Select>
         </div>
       </Card>
       <div style={{display:'flex',flexDirection:'column',gap:10}}>

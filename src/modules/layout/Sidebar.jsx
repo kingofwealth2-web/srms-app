@@ -2,81 +2,39 @@ import { useState } from 'react'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import LogoMark from '../components/LogoMark'
+import Select from '../components/Select'
 import { NAV_ITEMS, NAV_META, ROLE_META } from '../lib/constants'
 import { generateYears } from '../lib/helpers'
 
 // ── YEAR SWITCHER ──────────────────────────────────────────────
 export function YearSwitcher({ activeYear, currentYear, selectedYear, setSelectedYear, isMobile }) {
-  const [open, setOpen] = useState(false)
   const years = generateYears(currentYear)
   const isViewingPast = selectedYear && selectedYear !== currentYear
-  const select = (y) => { setSelectedYear(y === currentYear ? null : y); setOpen(false) }
+  const yearOptions = [...years].reverse().map(year => ({
+    value: year,
+    label: year,
+    isCurrent: year === currentYear,
+  }))
 
   return (
-    <div style={{ position: 'relative' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '4px 10px',
-          background: isViewingPast ? 'rgba(251,159,58,0.08)' : 'rgba(255,255,255,0.04)',
-          border: `1px solid ${isViewingPast ? 'rgba(251,159,58,0.3)' : 'var(--line2)'}`,
-          borderRadius: 8, cursor: 'pointer',
-          transition: 'all var(--t-fast)',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.background = isViewingPast ? 'rgba(251,159,58,0.12)' : 'rgba(255,255,255,0.07)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = isViewingPast ? 'rgba(251,159,58,0.08)' : 'rgba(255,255,255,0.04)' }}
-      >
-        <span style={{ fontSize: 11, fontWeight: 600, color: isViewingPast ? 'var(--amber)' : 'var(--mist2)', letterSpacing: '0.02em' }}>{activeYear}</span>
-        <svg width={8} height={8} viewBox="0 0 8 8" fill="none" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-          <path d="M1.5 2.5L4 5L6.5 2.5" stroke={isViewingPast ? 'var(--amber)' : 'var(--mist3)'} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
-
-      {open && (
-        <>
-          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }}/>
-          <div style={{
-            position: 'absolute', top: 'calc(100% + 8px)',
-            left: isMobile ? '50%' : 0,
-            transform: isMobile ? 'translateX(-50%)' : 'none',
-            zIndex: 999,
-            background: 'var(--ink4)',
-            border: '1px solid var(--line2)',
-            borderRadius: 12,
-            boxShadow: '0 16px 48px rgba(0,0,0,0.7)',
-            minWidth: 160, maxWidth: 'calc(100vw - 32px)', overflow: 'hidden',
-            animation: 'fadeDown 0.2s cubic-bezier(.16,1,.3,1) both',
-          }}>
-            <div style={{ padding: '10px 14px 8px', fontSize: 9, fontWeight: 700, color: 'var(--mist3)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Academic Year</div>
-            {[...years].reverse().map(y => {
-              const isCurrent = y === currentYear
-              const isActive  = y === activeYear
-              return (
-                <button key={y} onClick={() => select(y)} style={{
-                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '9px 14px',
-                  background: isActive ? 'rgba(232,184,75,0.07)' : 'transparent',
-                  borderBottom: '1px solid var(--line)',
-                  color: isActive ? 'var(--gold)' : isCurrent ? 'var(--white)' : 'var(--mist2)',
-                  fontSize: 13, fontWeight: isActive ? 600 : 400, cursor: 'pointer',
-                  transition: 'background var(--t-fast)',
-                }}
-                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
-                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
-                >
-                  <span>{y}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {isCurrent && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--emerald)', background: 'rgba(45,212,160,0.1)', borderRadius: 3, padding: '1px 5px' }}>Current</span>}
-                    {isActive && <svg width={12} height={12} viewBox="0 0 12 12" fill="none"><path d="M2 6L5 9L10 3" stroke="var(--gold)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </>
+    <Select
+      value={activeYear}
+      options={yearOptions}
+      onChange={e => setSelectedYear(e.target.value === currentYear ? null : e.target.value)}
+      menuLabel='Academic year'
+      compact
+      accent={isViewingPast ? 'amber' : 'gold'}
+      aria-label='Academic year'
+      style={{ minWidth: isMobile ? 92 : 108 }}
+      renderOption={option => (
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%' }}>
+          <span>{option.label}</span>
+          <span style={{ fontSize: 9, fontWeight: 700, color: option.isCurrent ? 'var(--emerald)' : 'var(--mist3)', background: option.isCurrent ? 'rgba(45,212,160,0.1)' : 'rgba(255,255,255,0.04)', borderRadius: 3, padding: '2px 6px' }}>
+            {option.isCurrent ? 'Current' : 'Archived'}
+          </span>
+        </span>
       )}
-    </div>
+    />
   )
 }
 

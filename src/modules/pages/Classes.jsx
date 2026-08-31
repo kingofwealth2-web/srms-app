@@ -15,6 +15,7 @@ import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
+import Select from '../components/Select'
 
 // ── CLASSES ────────────────────────────────────────────────────
 export default function Classes({profile,data,setData,toast,activeYear,isViewingPast,onPromotionComplete}) {
@@ -641,12 +642,12 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                                     ))}
                                   </div>
                                   {p.action==='promote' && (
-                                    <select value={p.destClassId}
+                                    <Select value={p.destClassId} className={p.destClassId ? '' : 'is-error'}
                                       onChange={e=>setBulkStudents(prev=>prev.map((x,j)=>j===globalIdx?{...x,destClassId:e.target.value}:x))}
                                       style={{background:'var(--ink4)',border:`1px solid ${p.destClassId?'var(--line)':'var(--rose)'}`,borderRadius:'var(--r-sm)',padding:'4px 8px',color:p.destClassId?'var(--mist)':'var(--rose)',fontSize:11,cursor:'pointer'}}>
                                       <option value=''>Select a class...</option>
                                       {orderedClasses.filter(c=>c.id!==cls.id).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
+                                    </Select>
                                   )}
                                 </div>
                               )
@@ -762,11 +763,11 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                       ))}
                     </div>
                     {p.action==='promote' && (
-                      <select value={p.destClassId} onChange={e=>setPromoStudents(prev=>prev.map((x,j)=>j===i?{...x,destClassId:e.target.value}:x))}
+                      <Select value={p.destClassId} className={p.destClassId ? '' : 'is-error'} onChange={e=>setPromoStudents(prev=>prev.map((x,j)=>j===i?{...x,destClassId:e.target.value}:x))}
                         style={{background:'var(--ink4)',border:`1px solid ${p.destClassId?'var(--line)':'var(--rose)'}`,borderRadius:'var(--r-sm)',padding:'5px 10px',color:p.destClassId?'var(--mist)':'var(--rose)',fontSize:12,cursor:'pointer'}}>
                         <option value=''>Select a class...</option>
                         {classes.filter(c=>c.id!==promoSource).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
+                      </Select>
                     )}
                   </div>
                 ))}

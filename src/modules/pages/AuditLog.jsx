@@ -14,6 +14,7 @@ import PlanGate from '../components/PlanGate'
 import Card from '../components/Card'
 import Avatar from '../components/Avatar'
 import LoadingScreen from '../components/LoadingScreen'
+import Select from '../components/Select'
 
 const MODULE_META = {
   Students:      { icon: '👤', color: 'var(--sky)' },
@@ -149,16 +150,16 @@ export default function AuditLog({profile,settings,planHook,onShowPlans}) {
             <input value={fSearch} onChange={e=>setFSearch(e.target.value)} placeholder='Search actions, users, descriptions...'
               style={{width:'100%',paddingLeft:32,paddingRight:12,paddingTop:8,paddingBottom:8,background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13,boxSizing:'border-box'}}/>
           </div>
-          <select value={fModule} onChange={e=>setFModule(e.target.value)}
+          <Select value={fModule} onChange={e=>setFModule(e.target.value)}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 120px'}}>
             <option value=''>All Modules</option>
             {modules.map(m=><option key={m} value={m}>{m}</option>)}
-          </select>
-          <select value={fUser} onChange={e=>setFUser(e.target.value)}
+          </Select>
+          <Select value={fUser} onChange={e=>setFUser(e.target.value)}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>
             <option value=''>All Users</option>
             {users.map(u=><option key={u.id} value={u.id}>{u.full_name||u.email}</option>)}
-          </select>
+          </Select>
           {(fModule||fUser||fSearch) && (
             <button onClick={()=>{setFModule('');setFUser('');setFSearch('')}}
               style={{padding:'8px 14px',background:'transparent',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--mist3)',fontSize:12,cursor:'pointer'}}>

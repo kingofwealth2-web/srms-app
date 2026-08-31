@@ -15,6 +15,7 @@ import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import DataTable from '../components/DataTable'
 import ConfirmModal from '../components/ConfirmModal'
+import Select from '../components/Select'
 
 // ── STUDENTS ───────────────────────────────────────────────────
 export default function Students({profile,data,setData,toast,settings,activeYear,isViewingPast,planHook}) {
@@ -422,34 +423,34 @@ export default function Students({profile,data,setData,toast,settings,activeYear
           </div>
           {showArchived ? (
             <>
-            <select value={fyear} onChange={e=>setFyear(e.target.value)}
+            <Select value={fyear} onChange={e=>setFyear(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 120px'}}>
               <option value=''>All Years</option>
               {graduationYears.map(y=><option key={y} value={y}>{y}</option>)}
-            </select>
-            <select value={fReason} onChange={e=>setFReason(e.target.value)}
+            </Select>
+            <Select value={fReason} onChange={e=>setFReason(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>
               <option value=''>All Reasons</option>
               {leavingReasons.map(r=><option key={r} value={r}>{r}</option>)}
-            </select>
+            </Select>
             </>
           ) : (
             (canEdit || profile?.role==='teacher') && (
-              <select value={fc} onChange={e=>setFc(e.target.value)}
+              <Select value={fc} onChange={e=>setFc(e.target.value)}
                 style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
                 <option value=''>All Classes</option>
                 {(profile?.role==='teacher' ? classes.filter(c=>teacherSubjectClassIds.includes(c.id)) : classes).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              </Select>
             )
           )}
           {!showArchived && (
             <>
-              <select value={fGender} onChange={e=>setFGender(e.target.value)}
+              <Select value={fGender} onChange={e=>setFGender(e.target.value)}
                 style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 110px'}}>
                 <option value=''>All Genders</option>
                 <option value='Male'>Male</option>
                 <option value='Female'>Female</option>
-              </select>
+              </Select>
               <button onClick={()=>setSortAlpha(v=>v==='asc'?'desc':'asc')}
                 title={sortAlpha==='asc'?'Sorted A→Z (click for Z→A)':'Sorted Z→A (click for A→Z)'}
                 style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist)',fontSize:13,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>

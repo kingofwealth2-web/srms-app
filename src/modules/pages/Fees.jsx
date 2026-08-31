@@ -18,6 +18,7 @@ import Card from '../components/Card'
 import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
 import KPI from '../components/KPI'
+import Select from '../components/Select'
 
 // ── RECEIPT PRINTER ────────────────────────────────────────────
 function printReceipt({fee, feePayments, student, cls, settings, currency}) {
@@ -1461,22 +1462,22 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:14}}>⌕</span>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search student...' style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
           </div>
-          <select value={fClassId} onChange={e=>setFClassId(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
+          <Select value={fClassId} onChange={e=>setFClassId(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
             <option value=''>All Classes</option>
             {myClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <select value={fFeeType} onChange={e=>{setFFeeType(e.target.value);setFPeriod('')}} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
+          </Select>
+          <Select value={fFeeType} onChange={e=>{setFFeeType(e.target.value);setFPeriod('')}} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
             <option value=''>All Fee Types</option>
             {allFeeTypes.map(t=><option key={t} value={t}>{t}</option>)}
-          </select>
-          <select value={fPeriod} onChange={e=>setFPeriod(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
+          </Select>
+          <Select value={fPeriod} onChange={e=>setFPeriod(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
             <option value=''>All Periods</option>
             {[...new Set(fees.filter(f=>f.academic_year===activeYear&&(!fFeeType||f.fee_type===fFeeType)&&f.period).map(f=>f.period))].sort().map(p=><option key={p} value={p}>{p}</option>)}
-          </select>
-          <select value={fstatus} onChange={e=>setFstatus(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
+          </Select>
+          <Select value={fstatus} onChange={e=>setFstatus(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Status</option>
             <option>Paid</option><option>Partial</option><option>Outstanding</option><option>Overpaid</option><option value='Overdue'>Overdue</option>
-          </select>
+          </Select>
         </div>
       </Card>
 
@@ -1781,17 +1782,17 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                 </div>
                 <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
                   {/* Class filter */}
-                  <select value={regClassFilter} onChange={e=>setRegClassFilter(e.target.value)}
+                  <Select value={regClassFilter} onChange={e=>setRegClassFilter(e.target.value)}
                     style={{background:'var(--ink)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'6px 10px',color:'var(--mist)',fontSize:12,cursor:'pointer'}}>
                     <option value=''>All Classes</option>
                     {tmplClassIds.map(id=>{const c=classes.find(x=>x.id===id);return c?<option key={id} value={id}>{c.name}</option>:null})}
-                  </select>
+                  </Select>
                   {/* Status filter */}
-                  <select value={regStatusFilter} onChange={e=>setRegStatusFilter(e.target.value)}
+                  <Select value={regStatusFilter} onChange={e=>setRegStatusFilter(e.target.value)}
                     style={{background:'var(--ink)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'6px 10px',color:'var(--mist)',fontSize:12,cursor:'pointer'}}>
                     <option value=''>All Statuses</option>
                     {['Paid','Partial','Outstanding','Excluded'].map(s=><option key={s} value={s}>{s}</option>)}
-                  </select>
+                  </Select>
                   <Btn size='sm' onClick={printRegister}>⎙ Print</Btn>
                   <Btn size='sm' variant='ghost' onClick={()=>setSelectedPeriod(null)}>✕</Btn>
                 </div>
@@ -1918,13 +1919,13 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
                 {/* Template selector */}
                 <div>
                   <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:6}}>Recurring Fee</div>
-                  <select value={brp.template_id} onChange={e=>{brf('template_id')(e.target.value);const t=fee_templates.find(x=>x.id===e.target.value);if(t)brf('same_amount')(String(t.amount_per_period))}}
+                  <Select value={brp.template_id} onChange={e=>{brf('template_id')(e.target.value);const t=fee_templates.find(x=>x.id===e.target.value);if(t)brf('same_amount')(String(t.amount_per_period))}}
                     style={{width:'100%',padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:'var(--white)',fontSize:13}}>
                     <option value=''>Select fee type…</option>
                     {fee_templates.filter(t=>t.academic_year===activeYear).map(t=>(
                       <option key={t.id} value={t.id}>{t.name} — {fmtMoney(t.amount_per_period,currency)}/period</option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <Field label='Period Label' placeholder='e.g. Monday 19 May, Week 3, Day 12' value={brp.label} onChange={brf('label')}/>
                 <Field label='Period Date' type='date' value={brp.period_date} onChange={brf('period_date')}/>
@@ -2106,21 +2107,21 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
               <input value={phSearch} onChange={e=>setPhSearch(e.target.value)} placeholder='Search student, receipt, recorder...'
                 style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px 8px 36px',color:'var(--white)',fontSize:13}}/>
             </div>
-            <select value={phClass} onChange={e=>{setPhClass(e.target.value);setPhStudent('')}}
+            <Select value={phClass} onChange={e=>{setPhClass(e.target.value);setPhStudent('')}}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>
               <option value=''>All Classes</option>
               {myClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <select value={phStudent} onChange={e=>setPhStudent(e.target.value)}
+            </Select>
+            <Select value={phStudent} onChange={e=>setPhStudent(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
               <option value=''>All Students</option>
               {phStudentsInClass.sort((a,b)=>(a.last_name||'').localeCompare(b.last_name||'')).map(s=><option key={s.id} value={s.id}>{fullName(s,true)}</option>)}
-            </select>
-            <select value={phFeeType} onChange={e=>setPhFeeType(e.target.value)}
+            </Select>
+            <Select value={phFeeType} onChange={e=>setPhFeeType(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>
               <option value=''>All Fee Types</option>
               {phFeeTypes.map(t=><option key={t} value={t}>{t}</option>)}
-            </select>
+            </Select>
             <input type='date' value={phDateFrom} onChange={e=>setPhDateFrom(e.target.value)}
               title='From date'
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist)',fontSize:13,flex:'1 1 120px'}}/>
@@ -2583,19 +2584,19 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               <div>
                 <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:6}}>Fee Type ✦</div>
-                <select value={bcp.fee_type} onChange={e=>{bcf('fee_type')(e.target.value);bcf('period')('')}}
+                <Select value={bcp.fee_type} onChange={e=>{bcf('fee_type')(e.target.value);bcf('period')('')}}
                   style={{width:'100%',padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:bcp.fee_type?'var(--white)':'var(--mist3)',fontSize:13}}>
                   <option value=''>Select fee type…</option>
                   {feeTypes.map(t=><option key={t} value={t}>{t}</option>)}
-                </select>
+                </Select>
               </div>
               <div>
                 <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:6}}>Period ✦</div>
-                <select value={bcp.period} onChange={e=>bcf('period')(e.target.value)}
+                <Select value={bcp.period} onChange={e=>bcf('period')(e.target.value)}
                   style={{width:'100%',padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',color:bcp.period?'var(--white)':'var(--mist3)',fontSize:13}}>
                   <option value=''>Select a period…</option>
                   {feePeriodLabels.map(p=><option key={p} value={p}>{p}</option>)}
-                </select>
+                </Select>
               </div>
               <div>
                 <div style={{fontSize:12,fontWeight:600,color:'var(--mist2)',marginBottom:8}}>Classes <span style={{color:'var(--mist3)',fontWeight:400}}>(optional — leave blank for all)</span></div>
