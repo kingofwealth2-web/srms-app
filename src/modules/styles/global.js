@@ -253,7 +253,7 @@ html,body,#root{
 .srms-select__chevron{width:16px;height:16px;flex:0 0 auto;color:var(--gold);transition:transform .18s cubic-bezier(.22,.8,.22,1)}
 .srms-select__trigger:hover .srms-select__chevron{transform:translateY(2px)}
 .srms-select.is-open .srms-select__chevron{transform:rotate(180deg)}
-.srms-select.is-compact .srms-select__trigger{min-height:30px;padding:4px 10px;font-size:11px;font-weight:600;border-radius:8px}
+.srms-select.is-compact .srms-select__trigger{min-height:34px;padding:5px 10px;font-size:12px;font-weight:600;border-radius:8px}
 .srms-select.is-amber .srms-select__trigger{color:var(--amber);background:rgba(251,159,58,.08);border-color:rgba(251,159,58,.3)}
 .srms-select.is-amber .srms-select__chevron,.srms-select.is-amber .srms-select__trigger::after{color:var(--amber);background:var(--amber)}
 
@@ -275,7 +275,7 @@ html,body,#root{
 .srms-select-option:hover,.srms-select-option.is-active{background:var(--ink5);color:var(--white);padding-left:13px}
 .srms-select-option.is-selected{color:var(--gold);background:rgba(232,184,75,.07)}
 .srms-select-option:disabled{opacity:.4;cursor:not-allowed}
-.srms-select-option__content{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis}
+.srms-select-option__content{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .srms-select-option__check{width:17px;height:17px;flex:0 0 auto;color:var(--gold);opacity:0;transform:scale(.7);transition:opacity .12s ease,transform .16s cubic-bezier(.22,.8,.22,1)}
 .srms-select-option.is-selected .srms-select-option__check{opacity:1;transform:scale(1)}
 .srms-select-menu.is-mobile{border-radius:14px;animation:srmsSelectSheet .22s cubic-bezier(.22,.8,.22,1) both;padding:8px;max-width:none}
@@ -285,7 +285,7 @@ html,body,#root{
   .srms-select{display:block;width:100%}
   .srms-select__trigger{min-height:46px;font-size:16px}
   .srms-select.is-compact{display:inline-block;width:auto}
-  .srms-select.is-compact .srms-select__trigger{min-height:26px;font-size:10px;padding:3px 8px}
+  .srms-select.is-compact .srms-select__trigger{min-height:34px;font-size:12px;padding:5px 9px}
   .srms-select-option{min-height:48px;font-size:16px}
 }
 @media(prefers-reduced-motion:reduce){.srms-select-menu{animation:none}.srms-select *{transition-duration:1ms!important}}

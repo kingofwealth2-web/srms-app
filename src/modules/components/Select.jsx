@@ -70,13 +70,14 @@ export default function Select({
       return
     }
     const desired = Math.min(320, Math.max(160, parsedOptions.length * 43 + (menuLabel ? 42 : 12)))
+    const menuWidth = Math.min(Math.max(rect.width, menuLabel ? 220 : 200), window.innerWidth - rect.left - 12)
     const roomBelow = window.innerHeight - rect.bottom - 12
     const opensUp = roomBelow < Math.min(desired, 220) && rect.top > roomBelow
     setMenuPos({
       mobile: false,
       left: rect.left,
       top: opensUp ? Math.max(8, rect.top - Math.min(desired, rect.top - 12) - 7) : rect.bottom + 7,
-      width: rect.width,
+      width: menuWidth,
       maxHeight: opensUp ? Math.max(140, rect.top - 20) : Math.max(140, roomBelow - 4),
       opensUp,
     })

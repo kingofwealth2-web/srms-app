@@ -25,7 +25,7 @@ export function YearSwitcher({ activeYear, currentYear, selectedYear, setSelecte
       compact
       accent={isViewingPast ? 'amber' : 'gold'}
       aria-label='Academic year'
-      style={{ minWidth: isMobile ? 92 : 108 }}
+      style={{ width: isMobile ? 112 : 120, minWidth: isMobile ? 112 : 120 }}
       renderOption={option => (
         <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%' }}>
           <span>{option.label}</span>

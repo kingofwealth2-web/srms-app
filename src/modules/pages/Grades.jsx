@@ -390,7 +390,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
             {teacherClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
           <Select value={fs} onChange={e=>{setFs(e.target.value);setBulkMode(false)}}
-            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>
+            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1.35 1 180px'}}>
             <option value=''>All Subjects</option>
             {fcSubjects.map(s=><option key={s.id} value={s.id}>{s.name}{!fc ? ` — ${data.classes?.find(c=>c.id===s.class_id)?.name||''}` : ''}{!mySubjects.some(m=>m.id===s.id)?' (view only)':''}</option>)}
           </Select>
