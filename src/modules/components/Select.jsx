@@ -53,6 +53,7 @@ export default function Select({
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
   const [menuPos, setMenuPos] = useState(null)
+  const [tooltip, setTooltip] = useState(null)
   const parsedOptions = useMemo(() => optionItems
     ? optionItems.map(o => typeof o === 'object' ? { ...o, value: String(o.value ?? '') } : { value: String(o), label: o })
     : optionsFromChildren(children), [children, optionItems])
@@ -93,6 +94,7 @@ export default function Select({
 
   const closeMenu = ({ focus = false } = {}) => {
     setOpen(false)
+    setTooltip(null)
     onBlur?.()
     if (focus) requestAnimationFrame(() => triggerRef.current?.focus())
   }
@@ -101,6 +103,20 @@ export default function Select({
     if (!option || option.disabled) return
     onChange?.({ target: { value: option.value, name }, currentTarget: { value: option.value, name } })
     closeMenu({ focus: true })
+  }
+
+  const showOptionTooltip = (event, option) => {
+    if (menuPos?.mobile || !['string', 'number'].includes(typeof option.label)) return
+    const content = event.currentTarget.querySelector('.srms-select-option__content')
+    if (!content || content.scrollWidth <= content.clientWidth) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const opensBelow = rect.top < 62
+    setTooltip({
+      text: String(option.label),
+      left: Math.max(12, Math.min(rect.left, window.innerWidth - 332)),
+      top: opensBelow ? rect.bottom + 7 : rect.top - 7,
+      opensBelow,
+    })
   }
 
   useEffect(() => {
@@ -172,7 +188,7 @@ export default function Select({
           <span>{parsedOptions.length} option{parsedOptions.length === 1 ? '' : 's'}</span>
         </div>
       )}
-      <div className="srms-select-menu__options">
+      <div className="srms-select-menu__options" onScroll={() => setTooltip(null)}>
         {parsedOptions.map((option, index) => {
           const isSelected = index === selectedIndex
           const content = renderOption ? renderOption(option, { selected: isSelected, active: index === activeIndex }) : option.label
@@ -187,7 +203,12 @@ export default function Select({
                 disabled={option.disabled}
                 data-option-index={index}
                 className={`srms-select-option ${isSelected ? 'is-selected' : ''} ${index === activeIndex ? 'is-active' : ''}`}
-                onPointerEnter={() => !option.disabled && setActiveIndex(index)}
+                onPointerEnter={event => {
+                  if (option.disabled) return
+                  setActiveIndex(index)
+                  showOptionTooltip(event, option)
+                }}
+                onPointerLeave={() => setTooltip(null)}
                 onClick={() => choose(option)}
               >
                 <span className="srms-select-option__content">{content}</span>
@@ -199,6 +220,17 @@ export default function Select({
           )
         })}
       </div>
+    </div>,
+    document.body,
+  )
+
+  const optionTooltip = tooltip && createPortal(
+    <div
+      role="tooltip"
+      className={`srms-select-tooltip ${tooltip.opensBelow ? 'opens-below' : ''}`}
+      style={{ left: tooltip.left, top: tooltip.top }}
+    >
+      {tooltip.text}
     </div>,
     document.body,
   )
@@ -228,6 +260,7 @@ export default function Select({
         </svg>
       </button>
       {menu}
+      {optionTooltip}
     </div>
   )
 }

@@ -9,11 +9,13 @@ import { generateYears } from '../lib/helpers'
 // ── YEAR SWITCHER ──────────────────────────────────────────────
 export function YearSwitcher({ activeYear, currentYear, selectedYear, setSelectedYear, isMobile }) {
   const years = generateYears(currentYear)
-  const isViewingPast = selectedYear && selectedYear !== currentYear
+  const currentStart = parseInt(currentYear, 10)
+  const isViewingPast = selectedYear && parseInt(selectedYear, 10) < currentStart
   const yearOptions = [...years].reverse().map(year => ({
     value: year,
     label: year,
     isCurrent: year === currentYear,
+    status: year === currentYear ? 'Current' : parseInt(year, 10) < currentStart ? 'Archived' : 'Upcoming',
   }))
 
   return (
@@ -29,8 +31,8 @@ export function YearSwitcher({ activeYear, currentYear, selectedYear, setSelecte
       renderOption={option => (
         <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%' }}>
           <span>{option.label}</span>
-          <span style={{ fontSize: 9, fontWeight: 700, color: option.isCurrent ? 'var(--emerald)' : 'var(--mist3)', background: option.isCurrent ? 'rgba(45,212,160,0.1)' : 'rgba(255,255,255,0.04)', borderRadius: 3, padding: '2px 6px' }}>
-            {option.isCurrent ? 'Current' : 'Archived'}
+          <span style={{ fontSize: 9, fontWeight: 700, color: option.isCurrent ? 'var(--emerald)' : option.status === 'Upcoming' ? 'var(--gold)' : 'var(--mist3)', background: option.isCurrent ? 'rgba(45,212,160,0.1)' : option.status === 'Upcoming' ? 'rgba(232,184,75,0.08)' : 'rgba(255,255,255,0.04)', borderRadius: 3, padding: '2px 6px' }}>
+            {option.status}
           </span>
         </span>
       )}
