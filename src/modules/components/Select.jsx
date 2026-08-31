@@ -110,12 +110,14 @@ export default function Select({
     const content = event.currentTarget.querySelector('.srms-select-option__content')
     if (!content || content.scrollWidth <= content.clientWidth) return
     const rect = event.currentTarget.getBoundingClientRect()
-    const opensBelow = rect.top < 62
+    const tooltipWidth = 320
+    const opensLeft = rect.right + tooltipWidth + 20 > window.innerWidth
     setTooltip({
       text: content.textContent?.trim() || String(option.value),
-      left: Math.max(12, Math.min(rect.left, window.innerWidth - 332)),
-      top: opensBelow ? rect.bottom + 7 : rect.top - 7,
-      opensBelow,
+      left: opensLeft ? undefined : rect.right + 8,
+      right: opensLeft ? window.innerWidth - rect.left + 8 : undefined,
+      top: Math.max(24, Math.min(rect.top + rect.height / 2, window.innerHeight - 24)),
+      opensLeft,
     })
   }
 
@@ -227,8 +229,8 @@ export default function Select({
   const optionTooltip = tooltip && createPortal(
     <div
       role="tooltip"
-      className={`srms-select-tooltip ${tooltip.opensBelow ? 'opens-below' : ''}`}
-      style={{ left: tooltip.left, top: tooltip.top }}
+      className={`srms-select-tooltip ${tooltip.opensLeft ? 'opens-left' : ''}`}
+      style={{ left: tooltip.left, right: tooltip.right, top: tooltip.top }}
     >
       {tooltip.text}
     </div>,

@@ -279,11 +279,11 @@ html,body,#root{
 .srms-select-option__check{width:17px;height:17px;flex:0 0 auto;color:var(--gold);opacity:0;transform:scale(.7);transition:opacity .12s ease,transform .16s cubic-bezier(.22,.8,.22,1)}
 .srms-select-option.is-selected .srms-select-option__check{opacity:1;transform:scale(1)}
 .srms-select-tooltip{
-  position:fixed;z-index:4100;max-width:320px;padding:8px 10px;background:var(--ink2);border:1px solid var(--line2);
+  position:fixed;z-index:4100;width:max-content;max-width:320px;padding:8px 10px;background:var(--ink2);border:1px solid var(--line2);
   border-radius:7px;box-shadow:0 8px 22px rgba(0,0,0,.38);color:var(--white);font-size:12px;line-height:1.35;
-  pointer-events:none;transform:translateY(-100%);animation:srmsSelectTooltip .12s ease both;
+  pointer-events:none;transform:translateY(-50%);animation:srmsSelectTooltip .12s ease both;
 }
-.srms-select-tooltip.opens-below{transform:none}
+.srms-select-tooltip.opens-left{text-align:right}
 @keyframes srmsSelectTooltip{from{opacity:0}to{opacity:1}}
 .srms-select-menu.is-mobile{border-radius:14px;animation:srmsSelectSheet .22s cubic-bezier(.22,.8,.22,1) both;padding:8px;max-width:none}
 .srms-select-menu__handle{width:34px;height:4px;border-radius:4px;background:var(--line2);margin:2px auto 8px}
