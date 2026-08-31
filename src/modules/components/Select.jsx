@@ -106,13 +106,13 @@ export default function Select({
   }
 
   const showOptionTooltip = (event, option) => {
-    if (menuPos?.mobile || !['string', 'number'].includes(typeof option.label)) return
+    if (menuPos?.mobile) return
     const content = event.currentTarget.querySelector('.srms-select-option__content')
     if (!content || content.scrollWidth <= content.clientWidth) return
     const rect = event.currentTarget.getBoundingClientRect()
     const opensBelow = rect.top < 62
     setTooltip({
-      text: String(option.label),
+      text: content.textContent?.trim() || String(option.value),
       left: Math.max(12, Math.min(rect.left, window.innerWidth - 332)),
       top: opensBelow ? rect.bottom + 7 : rect.top - 7,
       opensBelow,
