@@ -197,6 +197,38 @@ html,body,#root{
 @keyframes toastIn  {from{opacity:0;transform:translateY(10px) scale(0.96)}to{opacity:1;transform:translateY(0) scale(1)}}
 @keyframes drawerIn {from{transform:translateX(-100%)}to{transform:translateX(0)}}
 @keyframes pulse    {0%,100%{opacity:1}50%{opacity:0.5}}
+@keyframes srmsMarkDrawErase {
+  0%,8%   {stroke-dashoffset:150}
+  42%,68% {stroke-dashoffset:0}
+  100%    {stroke-dashoffset:-150}
+}
+
+.srms-loading-mark {
+  width:clamp(76px,8vw,88px);
+  height:auto;
+  overflow:visible;
+  flex-shrink:0;
+}
+.srms-loading-mark__guide,
+.srms-loading-mark__stroke {
+  fill:none;
+  stroke-width:5;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.srms-loading-mark__guide {stroke:var(--ink4)}
+.srms-loading-mark__stroke {
+  stroke:var(--gold);
+  stroke-dasharray:150 150;
+  stroke-dashoffset:150;
+  animation:srmsMarkDrawErase 2.8s cubic-bezier(.65,0,.35,1) infinite;
+}
+@media (prefers-reduced-motion:reduce) {
+  .srms-loading-mark__stroke {
+    animation:none;
+    stroke-dashoffset:0;
+  }
+}
 
 /* ── Animation classes ─────────────────────────────────────── */
 .fu  {animation:fadeUp  0.42s cubic-bezier(.16,1,.3,1) both}
