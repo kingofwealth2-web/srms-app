@@ -11,6 +11,7 @@ import Modal from '../components/Modal'
 import PlanGate from '../components/PlanGate'
 import ConfirmModal from '../components/ConfirmModal'
 import PageHeader from '../components/PageHeader'
+import EmptyState from '../components/EmptyState'
 import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
@@ -73,7 +74,7 @@ export default function Announcements({profile,data,setData,toast,settings,activ
       <PageHeader title='Announcements' sub={`${announcements.filter(a=>a.active).length} active`}>
         {canManage && !isViewingPast && <Btn onClick={openAdd}>+ Post Announcement</Btn>}
       </PageHeader>
-      {visible.length===0 && <Card style={{textAlign:'center',padding:60}}><div style={{fontSize:32,marginBottom:12}}>◯</div><div style={{fontWeight:600,marginBottom:6}}>No announcements</div><div style={{color:'var(--mist3)',fontSize:13,marginBottom:20}}>Nothing posted yet.</div>{canManage&&!isViewingPast&&<Btn onClick={openAdd}>Post First Announcement</Btn>}</Card>}
+      {visible.length===0 && <Card><EmptyState title='No announcements yet' hint={canManage&&!isViewingPast?'Post an update for staff, parents or the whole school.':'School announcements will appear here when they are posted.'} actionLabel={canManage&&!isViewingPast?'Post announcement':undefined} onAction={openAdd}/></Card>}
       <div style={{display:'flex',flexDirection:'column',gap:10}}>
         {visible.map((a,i)=>{
           const rc=roleColor[a.target_role]||'var(--gold)'

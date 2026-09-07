@@ -601,7 +601,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
       ) : (
         /* ── NORMAL LIST VIEW ── */
         <Card>
-          <DataTable onRow={isViewingPast?null:(g=>mySubjects.some(s=>s.id===g.subject_id)?openEdit(g):null)} data={pagedFiltered} columns={[
+          <DataTable onRow={isViewingPast?null:(g=>mySubjects.some(s=>s.id===g.subject_id)?openEdit(g):null)} data={pagedFiltered} emptyTitle='No grade records match' emptyHint='Change the class, subject, period or search filters.' columns={[
             {key:'student_id',label:'Student',render:v=>{const s=studentsById.get(v);return s?(<div style={{display:'flex',alignItems:'center',gap:10}}><Avatar name={fullName(s)} size={28}/><span style={{fontWeight:600}}>{fullName(s,true)}</span></div>):'--'}},
             {key:'subject_id',label:'Subject',render:v=>subjectsById.get(v)?.name||'--'},
             {key:'period',label:'Period'},

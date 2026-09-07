@@ -1,4 +1,6 @@
-export default function DataTable({ columns, data, onRow, emptyTitle = 'No records found', emptyHint = 'Try adjusting your filters', minWidth = 640 }) {
+import EmptyState from './EmptyState'
+
+export default function DataTable({ columns, data, onRow, emptyTitle = 'No records found', emptyHint = 'Try changing or clearing the filters above.', emptyAction, onEmptyAction, minWidth = 640 }) {
   return (
     <div className='daybook-table-wrap' tabIndex='0' aria-label='Scrollable records table'>
       <table className='daybook-table' style={{ minWidth }}>
@@ -13,16 +15,10 @@ export default function DataTable({ columns, data, onRow, emptyTitle = 'No recor
           {data.length === 0 && (
             <tr>
               <td colSpan={columns.length} style={{
-                padding: '60px 20px', textAlign: 'center',
+                padding: '20px', textAlign: 'center',
                 color: 'var(--mist3)', fontSize: 13,
               }}>
-                <div className='daybook-empty-state'>
-                  <div className='daybook-empty-state__mark' aria-hidden='true'/>
-                  <div>
-                    <div className='daybook-empty-state__title'>{emptyTitle}</div>
-                    <div className='daybook-empty-state__hint'>{emptyHint}</div>
-                  </div>
-                </div>
+                <EmptyState title={emptyTitle} hint={emptyHint} actionLabel={emptyAction} onAction={onEmptyAction}/>
               </td>
             </tr>
           )}

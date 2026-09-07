@@ -269,12 +269,13 @@ html,body,#root{
 .daybook-table tbody tr.is-clickable:focus-visible{outline:2px solid var(--gold);outline-offset:-2px;background:var(--ink3)}
 .daybook-table tbody tr:last-child td{border-bottom:0}
 .daybook-table .is-numeric{text-align:right!important;font-variant-numeric:tabular-nums}
-.daybook-empty-state{display:flex;flex-direction:column;align-items:center;gap:10px}
-.daybook-empty-state__mark{width:34px;height:24px;border:1px solid var(--line2);border-radius:4px;position:relative;opacity:.75}
-.daybook-empty-state__mark::before,.daybook-empty-state__mark::after{content:'';position:absolute;left:6px;right:6px;height:1px;background:var(--line2)}
-.daybook-empty-state__mark::before{top:8px}.daybook-empty-state__mark::after{top:14px}
-.daybook-empty-state__title{font-weight:600;color:var(--mist2);margin-bottom:3px}
-.daybook-empty-state__hint{font-size:12px;color:var(--mist3)}
+.daybook-empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:180px;padding:30px 20px;text-align:center}
+.daybook-empty-state.is-compact{min-height:110px;padding:20px}
+.daybook-empty-state__mark{width:46px;height:46px;border:1px solid var(--line2);border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--mist3);background:var(--ink3)}
+.daybook-empty-state__copy{max-width:360px}
+.daybook-empty-state__title{font-weight:650;color:var(--mist);margin-bottom:4px;font-size:14px}
+.daybook-empty-state__hint{font-size:12.5px;line-height:1.55;color:var(--mist3)}
+.daybook-empty-state .srms-btn{margin-top:4px}
 .daybook-list-page>.card-surface{border-radius:var(--r-sm)!important}
 .daybook-list-page input:not([type=checkbox]):not([type=radio]){min-height:40px;border-color:var(--line2)!important;transition:border-color var(--t-fast),background var(--t-fast)}
 .daybook-list-page input:not([type=checkbox]):not([type=radio]):hover{border-color:rgba(232,184,75,.38)!important;background:var(--ink4)!important}

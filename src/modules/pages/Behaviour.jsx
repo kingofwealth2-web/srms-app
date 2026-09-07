@@ -16,6 +16,7 @@ import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 import ConfirmModal from '../components/ConfirmModal'
+import EmptyState from '../components/EmptyState'
 import Select from '../components/Select'
 
 // ── BEHAVIOUR ──────────────────────────────────────────────────
@@ -138,7 +139,7 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
         </div>
       </Card>
       <div className='daybook-record-list'>
-        {filtered.length===0 && <div style={{padding:48,textAlign:'center',color:'var(--mist3)',fontSize:13}}>No records found.</div>}
+        {filtered.length===0 && <EmptyState title='No behaviour records found' hint='Try changing the class, student or record type filters.'/>}
         {filtered.map(b=>{
           const s=students.find(x=>x.id===b.student_id)
           const m=BEHAVIOUR_META[b.type]||{color:'var(--mist2)',icon:'◎'}

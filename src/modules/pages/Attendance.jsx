@@ -232,7 +232,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
                   ))}
                   {unmarkedCount>0 && <div style={{display:'flex',alignItems:'center',gap:8}}><div style={{width:8,height:8,borderRadius:'50%',background:'var(--mist3)'}}/><span style={{fontSize:13}}><strong style={{color:'var(--mist3)'}}>{unmarkedCount}</strong> <span style={{color:'var(--mist3)'}}>Unmarked</span></span></div>}
                 </div>
-                <DataTable data={classStudents} columns={[
+                <DataTable data={classStudents} emptyTitle='No students in this class' emptyHint='Add students to the class before marking attendance.' columns={[
                   {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
                   {key:'first_name',label:'Student',render:(v,r)=>(
                     <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -283,7 +283,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
       ) : (
         <Card>
           {histRecs.length>500&&<div style={{padding:'8px 14px',background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--amber)',marginBottom:12}}>⚠ Showing the 500 most recent records. Export CSV to access the full history.</div>}
-          <DataTable data={histRecs.slice(0,500)} columns={[
+          <DataTable data={histRecs.slice(0,500)} emptyTitle='No attendance history found' emptyHint='Attendance records will appear here after they are saved.' columns={[
             {key:'date',label:'Date',render:v=>fmtDate(v)},
             {key:'period',label:'Term',render:v=>v||'--'},
             {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},

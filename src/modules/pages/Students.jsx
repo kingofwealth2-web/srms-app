@@ -461,7 +461,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
         </div>
       </Card>
       <Card>
-        <DataTable onRow={s=>setViewStudent(s)} data={pagedFiltered} columns={[
+        <DataTable onRow={s=>setViewStudent(s)} data={pagedFiltered} emptyTitle='No students match these filters' emptyHint='Change the class, gender or search term to see more students.' columns={[
           {key:'student_id',label:'ID',render:v=><span className='mono' style={{color:'var(--gold2)',fontSize:12}}>{v}</span>},
           {key:'first_name',label:'Student',render:(v,r)=>(
             <div style={{display:'flex',alignItems:'center',gap:10}}>

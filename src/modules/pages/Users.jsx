@@ -180,7 +180,7 @@ export default function Users({profile,toast,planHook}) {
         {profile?.role==='superadmin' && <Btn onClick={openAdd} disabled={atUserLimit}>+ Add User</Btn>}
       </PageHeader>
       <Card>
-        <DataTable data={users} columns={[
+        <DataTable data={users} emptyTitle='No system users yet' emptyHint='Administrators can add staff accounts from this page.' columns={[
           {key:'full_name',label:'User',render:(v,r)=>(
             <div style={{display:'flex',alignItems:'center',gap:12}}>
               <Avatar name={v} size={36} color={ROLE_META[r.role]?.bg}/>

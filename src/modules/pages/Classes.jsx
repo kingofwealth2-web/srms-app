@@ -485,7 +485,7 @@ export default function Classes({profile,data,setData,toast,activeYear,isViewing
                 <SectionTitle>Subjects</SectionTitle>
                 <Btn size='sm' onClick={()=>{setEditS(null);setSf({name:'',code:'',class_id:selected.id,teacher_id:''});setSubjectModal(true)}}>+ Add</Btn>
               </div>
-              <DataTable data={classSubjects} columns={[
+              <DataTable data={classSubjects} emptyTitle='No subjects assigned' emptyHint='Add the first subject taught in this class.' columns={[
                 {key:'name',label:'Subject',render:(v,r)=><div><div style={{fontWeight:600}}>{v}</div><span className='mono' style={{fontSize:11,color:'var(--mist3)'}}>{r.code}</span></div>},
                 {key:'teacher_id',label:'Teacher',render:v=>v?allUsers.find(u=>u.id===v)?.full_name||'--':<span style={{color:'var(--mist3)'}}>Unassigned</span>},
                 {key:'id',label:'',render:(v,r)=>(
