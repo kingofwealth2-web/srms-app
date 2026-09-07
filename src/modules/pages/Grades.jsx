@@ -367,7 +367,6 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
                 background: bulkMode ? 'rgba(232,184,75,0.15)' : 'var(--ink4)',
                 border: bulkMode ? '1px solid rgba(232,184,75,0.4)' : '1px solid var(--line2)',
                 color: bulkMode ? 'var(--gold)' : 'var(--mist)'}}>
-              <span style={{fontSize:15}}>{bulkMode ? '☰' : '⊞'}</span>
               {bulkMode ? 'List View' : 'Class View'}
             </button>
           )}
@@ -382,7 +381,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
       </PageHeader>
 
       {/* ── FILTERS ── */}
-      <Card style={{marginBottom:16,padding:'14px 20px'}}>
+      <Card className='daybook-filter-bar' style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
           <Select value={fc} onChange={e=>{setFc(e.target.value);setFs('');setBulkMode(false)}}
             style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>

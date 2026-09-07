@@ -160,7 +160,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
           <Btn variant='ghost' size='sm' onClick={exportAttendanceCsv}>Export CSV</Btn>
         )}
       </PageHeader>
-      <Card style={{marginBottom:16,padding:'14px 20px'}}>
+      <Card className='daybook-filter-bar' style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
           {['superadmin','admin'].includes(profile?.role) && tab==='mark' && !isBlocked && (
             <Select value={cid} onChange={e=>changeContext(e.target.value,undefined)}

@@ -1420,6 +1420,10 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   return (
     <div className='daybook-list-page fees-page'>
       <PageHeader title='Fee Management' sub='Track payments, balances and receipts'>
+        {feeActiveTab==='fees' && !isViewingPast && <Btn onClick={openAdd}>+ Add Fee Record</Btn>}
+        {feeActiveTab==='recurring' && !isViewingPast && canBulk && (
+          <Btn onClick={()=>{setTmplForm({name:'',amount_per_period:'',class_ids:[]});setTmplModal(true)}}>+ New Recurring Fee</Btn>
+        )}
         {['superadmin','admin'].includes(profile?.role) && (
           <Btn variant='ghost' onClick={exportFeesCsv}>Export CSV</Btn>
         )}
@@ -1432,10 +1436,6 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         {feeActiveTab==='recurring' && !isViewingPast && canBulk && selectedTemplate && (
           <Btn variant='secondary' onClick={()=>openBrpModal(selectedTemplate)}>⊞ Bulk Record Payment</Btn>
         )}
-        {feeActiveTab==='recurring' && !isViewingPast && canBulk && (
-          <Btn onClick={()=>{setTmplForm({name:'',amount_per_period:'',class_ids:[]});setTmplModal(true)}}>+ New Recurring Fee</Btn>
-        )}
-        {feeActiveTab==='fees' && !isViewingPast && <Btn onClick={openAdd}>+ Add Fee Record</Btn>}
       </PageHeader>
 
       {/* ── Tab switcher ── */}
@@ -1456,7 +1456,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         {overdueCount>0 && <KPI label='Overdue' value={overdueCount} color='var(--rose)' sub='Past due date, unpaid' index={4}/>}
       </div>
 
-      <Card style={{marginBottom:16,padding:'14px 20px'}}>
+      <Card className='daybook-filter-bar' style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
           <div style={{position:'relative',flex:'1 1 200px'}}>
             <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:14}}>⌕</span>
@@ -2100,7 +2100,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         </div>
 
         {/* Filters */}
-        <Card style={{marginBottom:16,padding:'14px 20px'}}>
+        <Card className='daybook-filter-bar' style={{marginBottom:16,padding:'14px 20px'}}>
           <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
             <div style={{position:'relative',flex:'1 1 200px'}}>
               <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:14}}>⌕</span>

@@ -413,7 +413,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
           </Btn>
         )}
       </PageHeader>
-      <Card style={{marginBottom:16,padding:'14px 20px'}}>
+      <Card className='daybook-filter-bar' style={{marginBottom:16,padding:'14px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
           <div style={{position:'relative',flex:'1 1 240px'}}>
             <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--mist3)',fontSize:14}}>⌕</span>

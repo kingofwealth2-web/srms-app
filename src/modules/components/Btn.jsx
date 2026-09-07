@@ -1,16 +1,16 @@
 // `type` defaults to 'button' on purpose: a bare <button> inside a <form>
 // defaults to type="submit", so any Btn used as a plain control (a reveal
 // toggle, a "back" link) would silently submit the form it sits in.
-export default function Btn({ children, variant = 'primary', size = 'md', onClick, style, disabled, title, type = 'button' }) {
+export default function Btn({ children, variant = 'primary', size = 'md', onClick, style, disabled, title, type = 'button', className = '' }) {
   const styles = {
     primary: {
       background: 'var(--gold)',
       color: '#0c0c15',
       fontWeight: 700,
       border: 'none',
-      shadow: '0 1px 0 rgba(255,255,255,0.15) inset, 0 4px 12px rgba(232,184,75,0.22)',
+      shadow: 'none',
       hoverBg: 'var(--gold2)',
-      hoverShadow: '0 1px 0 rgba(255,255,255,0.15) inset, 0 6px 20px rgba(232,184,75,0.32)',
+      hoverShadow: 'none',
     },
     secondary: {
       background: 'var(--ink4)',
@@ -49,6 +49,8 @@ export default function Btn({ children, variant = 'primary', size = 'md', onClic
     <button
       type={type}
       onClick={onClick}
+      className={`srms-btn is-${variant} is-${size} ${className}`}
+      data-variant={variant}
       disabled={disabled}
       title={title}
       style={{
@@ -60,25 +62,20 @@ export default function Btn({ children, variant = 'primary', size = 'md', onClic
         color: styles.color,
         border: styles.border || 'none',
         boxShadow: styles.shadow,
-        transition: 'background var(--t-fast), box-shadow var(--t-fast), opacity var(--t-fast), transform var(--t-snap)',
+        transition: 'background var(--t-fast), border-color var(--t-fast), color var(--t-fast), opacity var(--t-fast)',
         opacity: disabled ? 0.4 : 1,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        transform: 'translateY(0)',
         ...style,
       }}
       onMouseEnter={e => {
         if (disabled) return
         e.currentTarget.style.background  = styles.hoverBg
         e.currentTarget.style.boxShadow   = styles.hoverShadow
-        e.currentTarget.style.transform   = 'translateY(-1px)'
       }}
       onMouseLeave={e => {
         e.currentTarget.style.background  = styles.background
         e.currentTarget.style.boxShadow   = styles.shadow
-        e.currentTarget.style.transform   = 'translateY(0)'
       }}
-      onMouseDown={e => { if (!disabled) e.currentTarget.style.transform = 'translateY(0) scale(0.98)' }}
-      onMouseUp={e => { if (!disabled) e.currentTarget.style.transform = 'translateY(-1px)' }}
     >
       {children}
     </button>

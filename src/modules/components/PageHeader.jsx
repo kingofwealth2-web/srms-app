@@ -21,7 +21,7 @@ export default function PageHeader({ title, sub, children }) {
         }}>{sub}</p>}
       </div>
       {children && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', width: isMobile ? '100%' : 'auto' }}>
+        <div className='page-header__actions' style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', width: isMobile ? '100%' : 'auto' }}>
           {children}
         </div>
       )}

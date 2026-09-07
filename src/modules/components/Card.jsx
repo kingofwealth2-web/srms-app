@@ -1,4 +1,4 @@
-export default function Card({ children, style, hover = false, onClick }) {
+export default function Card({ children, style, hover = false, onClick, className = '' }) {
   const base = {
     background: 'var(--ink2)',
     border: '1px solid var(--line)',
@@ -8,10 +8,10 @@ export default function Card({ children, style, hover = false, onClick }) {
     transition: 'border-color var(--t-fast), background var(--t-fast)',
     ...style,
   }
-  if (!hover && !onClick) return <div className='card-surface' style={base}>{children}</div>
+  if (!hover && !onClick) return <div className={`card-surface ${className}`} style={base}>{children}</div>
   return (
     <div
-      className='card-surface is-interactive'
+      className={`card-surface is-interactive ${className}`}
       style={{ ...base, cursor: onClick ? 'pointer' : 'default' }}
       onClick={onClick}
       onMouseEnter={e => {

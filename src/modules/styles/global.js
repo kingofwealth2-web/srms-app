@@ -198,6 +198,12 @@ html,body,#root{
 
 .page-header{padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:24px!important}
 .page-header h1{text-shadow:none!important}
+.page-header__actions{justify-content:flex-end}
+.srms-btn{min-height:40px;justify-content:center;white-space:nowrap}
+.srms-btn.is-primary{border:1px solid transparent!important}
+.srms-btn.is-primary:hover{border-color:rgba(255,255,255,.14)!important}
+.srms-btn:active{filter:brightness(.96)}
+.srms-btn:disabled:active{filter:none}
 .card-surface{box-shadow:none!important}
 .card-surface.is-interactive:active{background:var(--ink4)!important}
 
@@ -241,7 +247,10 @@ html,body,#root{
 .daybook-empty-state__hint{font-size:12px;color:var(--mist3)}
 .daybook-list-page>.card-surface{border-radius:var(--r-sm)!important}
 .daybook-list-page input:not([type=checkbox]):not([type=radio]){min-height:40px;border-color:var(--line2)!important;transition:border-color var(--t-fast),background var(--t-fast)}
+.daybook-list-page input:not([type=checkbox]):not([type=radio]):hover{border-color:rgba(232,184,75,.38)!important;background:var(--ink4)!important}
 .daybook-list-page input:not([type=checkbox]):not([type=radio]):focus{border-color:var(--gold)!important;background:var(--ink2)!important}
+.daybook-filter-bar{background:var(--ink2)!important;border-color:var(--line)!important}
+.daybook-filter-bar>div{row-gap:10px!important}
 .daybook-record-list{display:flex;flex-direction:column;gap:8px}
 .daybook-record-row{background:var(--ink2);border:1px solid var(--line);border-radius:var(--r-sm);transition:background var(--t-fast),border-color var(--t-fast)}
 .daybook-record-row:hover{background:var(--ink3);border-color:var(--line2)}
@@ -260,6 +269,14 @@ body.light .daybook-kpi:hover{background:#f7f3eb!important}
 @media(max-width:640px){
   .srms-page-scroll{padding:20px 14px!important}
   .page-header{padding-bottom:14px;margin-bottom:20px!important}
+  .page-header__actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));width:100%!important}
+  .page-header__actions>.srms-btn{width:100%}
+  .page-header__actions>div{min-width:0}
+  .page-header__actions>div:only-child{grid-column:1/-1}
+  .srms-btn{min-height:42px}
+  .srms-btn.is-sm{min-height:38px}
+  .daybook-filter-bar{padding:12px!important}
+  .daybook-filter-bar>div>*{min-width:0!important;flex-basis:100%!important;width:100%!important}
   .daybook-intro{gap:16px;padding-top:2px;margin-bottom:16px}
   .daybook-intro h1{font-size:27px}
   .daybook-intro__ledger{grid-template-columns:1fr 1fr}
