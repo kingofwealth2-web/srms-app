@@ -166,7 +166,7 @@ export default function Users({profile,toast,planHook}) {
 
   if(loading) return <LoadingScreen msg='Loading users...'/>
   return (
-    <div>
+    <div className='daybook-list-page users-page'>
       <PageHeader title='User Management' sub={`${users.length} system users`}>
         {userLimit !== null && (
           <div style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:atUserLimit?'var(--rose)':'var(--mist3)',background:atUserLimit?'rgba(240,107,122,0.08)':'rgba(255,255,255,0.04)',border:`1px solid ${atUserLimit?'rgba(240,107,122,0.2)':'var(--line2)'}`,borderRadius:8,padding:'5px 10px'}}>

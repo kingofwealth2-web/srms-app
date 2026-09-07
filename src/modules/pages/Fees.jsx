@@ -1485,9 +1485,9 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
         <DataTable data={pagedFiltered} columns={[
           {key:'student_name',label:'Student',render:(v,r)=>{const s=students.find(x=>x.id===r.student_id);return(<div style={{display:'flex',alignItems:'center',gap:10}}>{s&&<Avatar name={v} size={28}/>}<span style={{fontWeight:600}}>{v}</span></div>)}},
           {key:'fee_type',label:'Fee Type',render:(v,r)=>{const displayType=r.is_arrear?v.replace(/\s*\(Arrears from [^)]+\)/,''):v;return(<div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><span>{displayType}</span>{r.period&&<Badge color='var(--sky)' bg='rgba(91,168,245,0.08)'>{r.period}</Badge>}{r.is_arrear&&<Badge color='var(--amber)' bg='rgba(251,159,58,0.1)'>Arrear from {r.arrear_from_year}</Badge>}{r.isOverdue&&<Badge color='var(--rose)' bg='rgba(240,107,122,0.1)'>Overdue</Badge>}</div>)}},
-          {key:'amount', label:'Amount',  render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
-          {key:'paid',   label:'Paid',    render:(_,r)=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(r.effectivePaid,currency)}</span>},
-          {key:'balance',label:'Balance', render:v=>v<0
+          {key:'amount', label:'Amount', numeric:true, nowrap:true, render:v=><span className='mono'>{fmtMoney(v,currency)}</span>},
+          {key:'paid',   label:'Paid', numeric:true, nowrap:true, render:(_,r)=><span className='mono' style={{color:'var(--emerald)'}}>{fmtMoney(r.effectivePaid,currency)}</span>},
+          {key:'balance',label:'Balance', numeric:true, nowrap:true, render:v=>v<0
             ? <span className='mono' style={{color:'var(--sky)'}}>{fmtMoney(Math.abs(v),currency)} credit</span>
             : <span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
           {key:'status', label:'Status',  render:v=><Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>},

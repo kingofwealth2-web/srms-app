@@ -101,11 +101,11 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
   }
 
   return (
-    <div>
+    <div className='daybook-list-page behaviour-page'>
       <PageHeader title='Behaviour & Extracurricular' sub='Discipline, achievements and co-curricular records'>
         {!isViewingPast && <Btn onClick={openAdd}>+ Add Record</Btn>}
         {['superadmin','admin'].includes(profile?.role) && (
-          <Btn variant='ghost' onClick={exportBehaviourCsv}>⬇ Export CSV</Btn>
+          <Btn variant='ghost' onClick={exportBehaviourCsv}>Export CSV</Btn>
         )}
       </PageHeader>
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
@@ -137,16 +137,13 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
           </Select>
         </div>
       </Card>
-      <div style={{display:'flex',flexDirection:'column',gap:10}}>
+      <div className='daybook-record-list'>
         {filtered.length===0 && <div style={{padding:48,textAlign:'center',color:'var(--mist3)',fontSize:13}}>No records found.</div>}
         {filtered.map(b=>{
           const s=students.find(x=>x.id===b.student_id)
           const m=BEHAVIOUR_META[b.type]||{color:'var(--mist2)',icon:'◎'}
           return(
-            <div key={b.id} style={{background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:'18px 20px',display:'flex',gap:14,alignItems:'flex-start',transition:'border-color 0.15s'}}
-              onMouseEnter={e=>e.currentTarget.style.borderColor='var(--line2)'}
-              onMouseLeave={e=>e.currentTarget.style.borderColor='var(--line)'}>
-              <div style={{width:4,borderRadius:2,alignSelf:'stretch',background:m.color,flexShrink:0}}/>
+            <div key={b.id} className='daybook-record-row' style={{padding:'18px 20px',display:'flex',gap:14,alignItems:'flex-start'}}>
               <div style={{width:36,height:36,borderRadius:'50%',background:`${m.color}18`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>{m.icon}</div>
               <div style={{flex:1}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:8}}>

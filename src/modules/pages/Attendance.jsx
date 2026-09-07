@@ -152,12 +152,12 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   }
 
   return (
-    <div>
+    <div className='daybook-list-page attendance-page'>
       <PageHeader title='Attendance' sub='Mark and review daily attendance records'>
         <Btn variant={tab==='mark'?'primary':'ghost'} size='sm' onClick={()=>setTab('mark')}>Mark Attendance</Btn>
         <Btn variant={tab==='history'?'primary':'ghost'} size='sm' onClick={()=>setTab('history')}>History</Btn>
         {['superadmin','admin'].includes(profile?.role) && tab==='history' && (
-          <Btn variant='ghost' size='sm' onClick={exportAttendanceCsv}>⬇ Export CSV</Btn>
+          <Btn variant='ghost' size='sm' onClick={exportAttendanceCsv}>Export CSV</Btn>
         )}
       </PageHeader>
       <Card style={{marginBottom:16,padding:'14px 20px'}}>

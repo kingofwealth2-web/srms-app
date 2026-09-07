@@ -1,20 +1,11 @@
-export default function DataTable({ columns, data, onRow }) {
+export default function DataTable({ columns, data, onRow, emptyTitle = 'No records found', emptyHint = 'Try adjusting your filters', minWidth = 640 }) {
   return (
-    <div className='daybook-table-wrap' style={{ overflowX: 'auto', marginInline: -2, WebkitOverflowScrolling: 'touch' }}>
-      <table className='daybook-table' style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
+    <div className='daybook-table-wrap' tabIndex='0' aria-label='Scrollable records table'>
+      <table className='daybook-table' style={{ minWidth }}>
         <thead>
           <tr>
             {columns.map(c => (
-              <th key={c.key} style={{
-                padding: '9px 16px',
-                textAlign: 'left',
-                fontSize: 10, fontWeight: 700, color: 'var(--mist3)',
-                textTransform: 'uppercase', letterSpacing: '0.1em',
-                whiteSpace: 'nowrap',
-                fontFamily: "'Clash Display',sans-serif",
-                borderBottom: '1px solid var(--line)',
-                background: 'transparent',
-              }}>{c.label}</th>
+              <th key={c.key} className={c.numeric ? 'is-numeric' : ''} style={{textAlign:c.align||'left',width:c.width}}>{c.label}</th>
             ))}
           </tr>
         </thead>
@@ -25,16 +16,11 @@ export default function DataTable({ columns, data, onRow }) {
                 padding: '60px 20px', textAlign: 'center',
                 color: 'var(--mist3)', fontSize: 13,
               }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                  <div style={{
-                    width: 48, height: 48, borderRadius: '50%',
-                    background: 'var(--ink4)', border: '1px solid var(--line2)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 20, opacity: 0.5,
-                  }}>◌</div>
+                <div className='daybook-empty-state'>
+                  <div className='daybook-empty-state__mark' aria-hidden='true'/>
                   <div>
-                    <div style={{ fontWeight: 600, color: 'var(--mist2)', marginBottom: 3 }}>No records found</div>
-                    <div style={{ fontSize: 12, color: 'var(--mist3)' }}>Try adjusting your filters</div>
+                    <div className='daybook-empty-state__title'>{emptyTitle}</div>
+                    <div className='daybook-empty-state__hint'>{emptyHint}</div>
                   </div>
                 </div>
               </td>
@@ -43,27 +29,13 @@ export default function DataTable({ columns, data, onRow }) {
           {data.map((row, i) => (
             <tr
               key={row.id != null ? String(row.id) : `row-${i}`}
-              onClick={() => onRow && onRow(row)}
-              style={{
-                borderBottom: '1px solid var(--line)',
-                cursor: onRow ? 'pointer' : 'default',
-                transition: 'background var(--t-snap), box-shadow var(--t-snap)',
-                animation: `fadeIn 0.18s ${Math.min(i * 0.012, 0.12)}s both`,
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'var(--ink3)'
-                if (onRow) e.currentTarget.style.boxShadow = 'inset 3px 0 0 var(--gold)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
+              className={onRow ? 'is-clickable' : ''}
+              tabIndex={onRow ? 0 : undefined}
+              onClick={e => onRow && !e.target.closest('button,a,input,select,textarea') && onRow(row)}
+              onKeyDown={e => { if(onRow && (e.key==='Enter'||e.key===' ')){e.preventDefault();onRow(row)} }}
             >
               {columns.map(c => (
-                <td key={c.key} style={{
-                  padding: '13px 16px', fontSize: 13,
-                  color: 'var(--white)', verticalAlign: 'middle',
-                }}>
+                <td key={c.key} className={c.numeric ? 'is-numeric' : ''} style={{textAlign:c.align||'left',whiteSpace:c.nowrap?'nowrap':undefined}}>
                   {c.render ? c.render(row[c.key], row) : (row[c.key] ?? '—')}
                 </td>
               ))}

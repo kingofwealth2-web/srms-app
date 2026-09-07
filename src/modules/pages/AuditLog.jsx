@@ -139,7 +139,7 @@ export default function AuditLog({profile,settings,planHook,onShowPlans}) {
   if(loading) return <LoadingScreen msg='Loading audit log...'/>
 
   return (
-    <div>
+    <div className='daybook-list-page audit-page'>
       <PageHeader title='Audit Log' sub={`${filtered.length} of ${logs.length} events · last 50 days · max 500 records`}/>
 
       {/* Filters */}
@@ -185,7 +185,7 @@ export default function AuditLog({profile,settings,planHook,onShowPlans}) {
       </div>
 
       {/* Timeline */}
-      <div style={{display:'flex',flexDirection:'column',gap:4}}>
+      <div className='daybook-record-list'>
         {filtered.length===0 ? (
           <Card style={{padding:'48px 20px',textAlign:'center'}}>
             <div style={{fontSize:32,marginBottom:12}}>◫</div>
@@ -198,7 +198,7 @@ export default function AuditLog({profile,settings,planHook,onShowPlans}) {
           const isOpen = expanded===log.id
           const hasDiff = log.before_data||log.after_data
           return (
-            <div key={log.id}
+            <div key={log.id} className='daybook-record-row'
               style={{background:'var(--ink2)',border:`1px solid ${isOpen?meta.color+'40':'var(--line)'}`,borderRadius:'var(--r)',overflow:'hidden',transition:'border-color 0.15s'}}>
               {/* Main row */}
               <div onClick={()=>setExpanded(isOpen?null:log.id)}

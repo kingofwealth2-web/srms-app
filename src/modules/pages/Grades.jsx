@@ -358,7 +358,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
   }
 
   return (
-    <div>
+    <div className='daybook-list-page grades-page'>
       <PageHeader title='Grades & Records' sub={bulkMode ? `Class View · ${data.classes?.find(c=>c.id===fc)?.name||''} · ${subjects.find(s=>s.id===fs)?.name||''} · ${fp}` : `${filtered.length} grade records`}>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           {!isViewingPast && activeComps.length>0 && canBulk && (
@@ -609,10 +609,11 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
             ...tableComps.map(c=>({
               key:c.key,
               label:`${c.label} /${c.max_score}`,
+              numeric:true,
               render:v=><span className='mono' style={{color:c.enabled?'var(--white)':'var(--mist3)'}}>{v||0}</span>
             })),
-            {key:'id',label:'Total',render:(_,r)=>{const t=calcTotal(r,allComps);const l=getLetter(t,scale);return(
-              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            {key:'id',label:'Total',numeric:true,render:(_,r)=>{const t=calcTotal(r,allComps);const l=getLetter(t,scale);return(
+              <div style={{display:'flex',gap:8,alignItems:'center',justifyContent:'flex-end'}}>
                 <span className='mono' style={{fontWeight:700,fontSize:14}}>{t}</span>
                 <Badge color={getGradeColor(l, settings?.grade_system)||'var(--mist2)'}>{l}</Badge>
                 <span style={{fontSize:11,color:'var(--mist3)'}}>GPA {getGPA(t,scale).toFixed(1)}</span>

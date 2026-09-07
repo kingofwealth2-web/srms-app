@@ -222,13 +222,29 @@ html,body,#root{
 .daybook-kpi:hover{border-color:var(--line2)!important;background:var(--ink3)!important}
 .daybook-kpi .d{font-variant-numeric:tabular-nums}
 
-.daybook-table-wrap{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ink2)}
-.daybook-table thead th{position:sticky;top:0;z-index:1;background:var(--ink3)!important;padding-top:11px!important;padding-bottom:11px!important}
-.daybook-table tbody tr:last-child{border-bottom:0!important}
-.daybook-table td{font-variant-numeric:tabular-nums}
+.daybook-table-wrap{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ink2);overflow:auto;margin-inline:-2px;max-width:calc(100% + 4px);-webkit-overflow-scrolling:touch;scrollbar-width:thin;outline:none}
+.daybook-table-wrap:focus-visible{border-color:var(--gold);box-shadow:0 0 0 2px rgba(232,184,75,.12)}
+.daybook-table{width:100%;border-collapse:separate!important;border-spacing:0}
+.daybook-table thead th{position:sticky;top:0;z-index:1;background:var(--ink3)!important;padding:11px 16px;font-size:10px;font-weight:700;color:var(--mist3);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;font-family:"Clash Display",sans-serif;border-bottom:1px solid var(--line);box-shadow:0 1px 0 var(--line)}
+.daybook-table td{padding:12px 16px;font-size:13px;color:var(--white);vertical-align:middle;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--line)}
+.daybook-table tbody tr{transition:background var(--t-fast)}
+.daybook-table tbody tr:hover{background:var(--ink3)}
+.daybook-table tbody tr.is-clickable{cursor:pointer}
+.daybook-table tbody tr.is-clickable:focus-visible{outline:2px solid var(--gold);outline-offset:-2px;background:var(--ink3)}
+.daybook-table tbody tr:last-child td{border-bottom:0}
+.daybook-table .is-numeric{text-align:right!important;font-variant-numeric:tabular-nums}
+.daybook-empty-state{display:flex;flex-direction:column;align-items:center;gap:10px}
+.daybook-empty-state__mark{width:34px;height:24px;border:1px solid var(--line2);border-radius:4px;position:relative;opacity:.75}
+.daybook-empty-state__mark::before,.daybook-empty-state__mark::after{content:'';position:absolute;left:6px;right:6px;height:1px;background:var(--line2)}
+.daybook-empty-state__mark::before{top:8px}.daybook-empty-state__mark::after{top:14px}
+.daybook-empty-state__title{font-weight:600;color:var(--mist2);margin-bottom:3px}
+.daybook-empty-state__hint{font-size:12px;color:var(--mist3)}
 .daybook-list-page>.card-surface{border-radius:var(--r-sm)!important}
 .daybook-list-page input:not([type=checkbox]):not([type=radio]){min-height:40px;border-color:var(--line2)!important;transition:border-color var(--t-fast),background var(--t-fast)}
 .daybook-list-page input:not([type=checkbox]):not([type=radio]):focus{border-color:var(--gold)!important;background:var(--ink2)!important}
+.daybook-record-list{display:flex;flex-direction:column;gap:8px}
+.daybook-record-row{background:var(--ink2);border:1px solid var(--line);border-radius:var(--r-sm);transition:background var(--t-fast),border-color var(--t-fast)}
+.daybook-record-row:hover{background:var(--ink3);border-color:var(--line2)}
 .daybook-tabs{border-radius:9px!important;padding:4px!important;background:var(--ink2)!important}
 .daybook-tabs button{min-height:36px}
 
@@ -252,6 +268,8 @@ body.light .daybook-kpi:hover{background:#f7f3eb!important}
   .daybook-kpi{padding:15px 14px 14px!important}
   .daybook-kpi .d{font-size:26px!important}
   .daybook-table-wrap{border-radius:8px}
+  .daybook-table thead th{padding:10px 12px}
+  .daybook-table td{padding:11px 12px}
 }
 @media(prefers-reduced-motion:reduce){.page{animation:none}}
 
