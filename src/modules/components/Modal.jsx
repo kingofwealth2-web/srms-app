@@ -94,7 +94,6 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
               <h3 id={titleId} className='d' style={{ fontSize: isMobile ? 16 : 17, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--white)' }}>{title}</h3>
               {subtitle && <p id={subtitleId} style={{ fontSize: 12, color: 'var(--mist2)', marginTop: isMobile ? 3 : 4, lineHeight: 1.5 }}>{subtitle}</p>}
             </div>
-            <CloseBtn onClick={onClose}/>
           </div>
         )}
         <div style={{
@@ -108,22 +107,5 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
       </div>
     </div>,
     document.body,
-  )
-}
-
-function CloseBtn({ onClick }) {
-  return (
-    <button onClick={onClick} aria-label='Close dialog' style={{
-      width: 30, height: 30, borderRadius: '50%',
-      background: 'var(--ink4)', border: '1px solid var(--line)',
-      color: 'var(--mist2)', fontSize: 18,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      cursor: 'pointer', flexShrink: 0,
-      transition: 'background var(--t-fast), color var(--t-fast)',
-      lineHeight: 1,
-    }}
-      onMouseEnter={e => { e.currentTarget.style.background = 'var(--ink5)'; e.currentTarget.style.color = 'var(--white)' }}
-      onMouseLeave={e => { e.currentTarget.style.background = 'var(--ink4)'; e.currentTarget.style.color = 'var(--mist2)' }}
-    >×</button>
   )
 }

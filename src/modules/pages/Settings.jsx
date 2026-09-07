@@ -14,6 +14,7 @@ import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import Card from '../components/Card'
 import ConfirmModal from '../components/ConfirmModal'
+import DatePicker from '../components/DatePicker'
 
 export default function Settings({profile,settings,setSettings,toast,activeYear,onStartNewYear,data,setData}) {
   const [form,setForm]   = useState(()=>{
@@ -1163,12 +1164,12 @@ function AcademicCalendar({form, setForm, activeYear}) {
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,marginBottom:20}}>
             <div>
               <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Start Date</div>
-              <input type='date' value={vacForm.start_date} onChange={e=>setVacForm(p=>({...p,start_date:e.target.value}))}
+              <DatePicker value={vacForm.start_date} onChange={value=>setVacForm(p=>({...p,start_date:value}))} label='Start date' required
                 style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',color:'var(--white)',fontSize:13}}/>
             </div>
             <div>
               <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>End Date</div>
-              <input type='date' value={vacForm.end_date} onChange={e=>setVacForm(p=>({...p,end_date:e.target.value}))}
+              <DatePicker value={vacForm.end_date} onChange={value=>setVacForm(p=>({...p,end_date:value}))} label='End date' required
                 style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',color:'var(--white)',fontSize:13}}/>
             </div>
           </div>
@@ -1191,7 +1192,7 @@ function AcademicCalendar({form, setForm, activeYear}) {
           </div>
           <div style={{marginBottom:20}}>
             <div style={{fontSize:11,fontWeight:600,color:'var(--mist2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Date</div>
-            <input type='date' value={holForm.date} onChange={e=>setHolForm(p=>({...p,date:e.target.value}))}
+            <DatePicker value={holForm.date} onChange={value=>setHolForm(p=>({...p,date:value}))} label='Holiday date' required
               style={{width:'100%',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'9px 14px',color:'var(--white)',fontSize:13}}/>
           </div>
           <div style={{display:'flex',justifyContent:'space-between',gap:10}}>

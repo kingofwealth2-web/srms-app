@@ -16,6 +16,7 @@ import DataTable from '../components/DataTable'
 import Card from '../components/Card'
 import ConfirmModal from '../components/ConfirmModal'
 import Select from '../components/Select'
+import DatePicker from '../components/DatePicker'
 
 // ── ATTENDANCE ─────────────────────────────────────────────────
 export default function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
@@ -169,8 +170,8 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
               {myClasses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           )}
-          <input type='date' value={date} onChange={e=>changeContext(undefined,e.target.value)}
-            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--white)',fontSize:13}}/>
+          <DatePicker value={date} onChange={value=>changeContext(undefined,value)} label='Attendance date' required
+            style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--white)',fontSize:13,flex:'0 1 170px'}}/>
           {tab==='mark' && !isBlocked && (
             <Select value={period} onChange={e=>setPeriod(e.target.value)} title='The term/semester this attendance counts towards'
               style={{background:'var(--ink3)',border:`1px solid ${period?'var(--line)':'var(--rose)'}`,borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'0 1 140px'}}>

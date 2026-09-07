@@ -18,6 +18,7 @@ import Card from '../components/Card'
 import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
 import KPI from '../components/KPI'
+import DatePicker from '../components/DatePicker'
 import Select from '../components/Select'
 
 // ── RECEIPT PRINTER ────────────────────────────────────────────
@@ -2122,12 +2123,10 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
               <option value=''>All Fee Types</option>
               {phFeeTypes.map(t=><option key={t} value={t}>{t}</option>)}
             </Select>
-            <input type='date' value={phDateFrom} onChange={e=>setPhDateFrom(e.target.value)}
-              title='From date'
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist)',fontSize:13,flex:'1 1 120px'}}/>
-            <input type='date' value={phDateTo} onChange={e=>setPhDateTo(e.target.value)}
-              title='To date'
-              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist)',fontSize:13,flex:'1 1 120px'}}/>
+            <DatePicker value={phDateFrom} onChange={setPhDateFrom} label='From date'
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist)',fontSize:13,flex:'1 1 140px'}}/>
+            <DatePicker value={phDateTo} onChange={setPhDateTo} label='To date'
+              style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist)',fontSize:13,flex:'1 1 140px'}}/>
             {(phSearch||phClass||phStudent||phFeeType||phDateFrom||phDateTo) && (
               <button onClick={()=>{setPhSearch('');setPhClass('');setPhStudent('');setPhFeeType('');setPhDateFrom('');setPhDateTo('')}}
                 style={{background:'transparent',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 12px',color:'var(--mist3)',fontSize:12,cursor:'pointer'}}>

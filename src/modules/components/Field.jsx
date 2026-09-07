@@ -1,6 +1,7 @@
 import { useState, useId } from 'react'
 import { useIsMobile } from '../lib/hooks'
 import Select from './Select'
+import DatePicker from './DatePicker'
 
 export default function Field({
   label, value, onChange, type = 'text', placeholder, options, required, rows, style, onKeyDown,
@@ -56,6 +57,8 @@ export default function Field({
           ]}
           style={{ width: '100%' }}
         />
+      ) : type === 'date' ? (
+        <DatePicker id={fieldId} value={value ?? ''} onChange={onChange} label={label} required={required} style={inputStyle}/>
       ) : rows ? (
         <textarea
           id={fieldId}

@@ -204,6 +204,36 @@ html,body,#root{
 .srms-btn.is-primary:hover{border-color:rgba(255,255,255,.14)!important}
 .srms-btn:active{filter:brightness(.96)}
 .srms-btn:disabled:active{filter:none}
+.srms-date-trigger{display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;cursor:pointer;font-family:'Cabinet Grotesk',sans-serif}
+.srms-date-trigger .is-placeholder{color:var(--mist3)}
+.srms-date-trigger svg{flex:0 0 auto;color:var(--mist2)}
+.srms-date-backdrop{position:fixed;inset:0;z-index:1200;background:rgba(8,8,18,.66);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .18s ease both}
+.srms-date-picker{width:340px;max-width:100%;background:var(--ink2);border:1px solid var(--line2);border-radius:14px;box-shadow:0 18px 48px rgba(0,0,0,.42);overflow:hidden;padding-bottom:14px;animation:srmsDateIn .22s cubic-bezier(.22,1,.36,1) both}
+.srms-date-picker__header{height:54px;padding:0 16px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px}
+.srms-date-picker__header strong{font-size:14px;text-align:center;color:var(--white)}
+.srms-date-link{border:0;background:transparent;color:var(--mist2);font:600 13px 'Cabinet Grotesk',sans-serif;cursor:pointer;padding:10px 0;text-align:left}
+.srms-date-link.is-done{color:var(--gold);text-align:right}
+.srms-calendar{padding:14px 16px 8px}
+.srms-calendar__nav{display:grid;grid-template-columns:38px 1fr 38px;align-items:center;margin-bottom:8px}
+.srms-calendar__nav strong{text-align:center;font-size:14px}
+.srms-calendar__nav button{width:36px;height:36px;border:0;border-radius:9px;background:transparent;color:var(--mist);font-size:24px;cursor:pointer}
+.srms-calendar__nav button:hover{background:var(--ink4);color:var(--white)}
+.srms-calendar__grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center}
+.srms-calendar__grid>button,.srms-calendar__grid>span{height:38px;display:flex;align-items:center;justify-content:center}
+.srms-calendar__grid>button{border:0;border-radius:9px;background:transparent;color:var(--mist);font:500 13px 'Cabinet Grotesk',sans-serif;cursor:pointer}
+.srms-calendar__grid>button:hover{background:var(--ink4);color:var(--white)}
+.srms-calendar__grid>button.is-selected{background:var(--gold);color:#0c0c15;font-weight:700}
+.srms-calendar__weekday{height:28px!important;color:var(--mist3);font-size:10px;font-weight:700}
+.srms-date-today,.srms-date-clear{display:block;margin:5px auto 0;border:0;background:transparent;color:var(--gold);font:600 12px 'Cabinet Grotesk',sans-serif;cursor:pointer;padding:7px 12px}
+.srms-date-clear{color:var(--mist3);margin-top:0}
+.srms-date-wheels{position:relative;display:grid;grid-template-columns:.75fr 1.5fr 1fr;gap:4px;padding:18px 18px 10px;height:220px;overflow:hidden}
+.srms-date-wheels__focus{position:absolute;z-index:0;left:14px;right:14px;top:91px;height:42px;border-top:1px solid var(--line2);border-bottom:1px solid var(--line2);background:var(--ink3);border-radius:8px;pointer-events:none}
+.srms-date-wheels select{position:relative;z-index:1;width:100%;height:190px;border:0;outline:0;background:transparent;color:var(--mist);font:500 16px 'Cabinet Grotesk',sans-serif;text-align:center;scrollbar-width:none;padding:70px 0}
+.srms-date-wheels select::-webkit-scrollbar{display:none}
+.srms-date-wheels option{background:var(--ink2);color:var(--mist);padding:10px 4px}
+.srms-date-wheels option:checked{background:var(--ink3);color:var(--white);font-weight:700}
+@keyframes srmsDateIn{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.srms-date-picker{animation:none}}
 .card-surface{box-shadow:none!important}
 .card-surface.is-interactive:active{background:var(--ink4)!important}
 
@@ -275,6 +305,8 @@ body.light .daybook-kpi:hover{background:#f7f3eb!important}
   .page-header__actions>div:only-child{grid-column:1/-1}
   .srms-btn{min-height:38px;padding:7px 13px!important}
   .srms-btn.is-sm{min-height:34px;padding:5px 11px!important}
+  .srms-date-backdrop.is-mobile{align-items:flex-end;padding:0}
+  .srms-date-backdrop.is-mobile .srms-date-picker{width:100%;border-radius:16px 16px 0 0;border-left:0;border-right:0;border-bottom:0;padding-bottom:max(16px,env(safe-area-inset-bottom))}
   .daybook-filter-bar{padding:12px!important}
   .daybook-filter-bar>div>*{min-width:0!important;flex-basis:100%!important;width:100%!important}
   .daybook-intro{gap:16px;padding-top:2px;margin-bottom:16px}
