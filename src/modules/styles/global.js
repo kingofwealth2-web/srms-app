@@ -269,8 +269,8 @@ body.light .daybook-kpi:hover{background:#f7f3eb!important}
 @media(max-width:640px){
   .srms-page-scroll{padding:20px 14px!important}
   .page-header{padding-bottom:14px;margin-bottom:20px!important}
-  .page-header__actions{display:flex!important;justify-content:flex-start;width:100%!important;gap:7px!important}
-  .page-header__actions>.srms-btn{width:auto;flex:0 0 auto}
+  .page-header__actions{display:flex!important;justify-content:flex-start;width:fit-content!important;max-width:100%;gap:7px!important}
+  .page-header__actions>.srms-btn{width:max-content!important;max-width:100%;flex:0 0 auto!important}
   .page-header__actions>div{min-width:0}
   .page-header__actions>div:only-child{grid-column:1/-1}
   .srms-btn{min-height:38px;padding:7px 13px!important}
