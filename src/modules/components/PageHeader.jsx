@@ -3,7 +3,7 @@ import { useIsMobile } from '../lib/hooks'
 export default function PageHeader({ title, sub, children }) {
   const isMobile = useIsMobile()
   return (
-    <div className='fu' style={{
+    <div className='page-header fu' style={{
       display: 'flex', justifyContent: 'space-between',
       alignItems: isMobile ? 'flex-start' : 'center',
       marginBottom: isMobile ? 22 : 30,
@@ -14,8 +14,6 @@ export default function PageHeader({ title, sub, children }) {
           fontSize: isMobile ? 22 : 28,
           fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.15,
           color: 'var(--white)',
-          // Subtle gold text shadow for premium glow
-          textShadow: '0 0 40px rgba(232,184,75,0.12)',
         }}>{title}</h1>
         {sub && <p style={{
           color: 'var(--mist3)', fontSize: 12.5, marginTop: 5, lineHeight: 1.5,

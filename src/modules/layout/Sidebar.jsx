@@ -6,6 +6,25 @@ import Select from '../components/Select'
 import { NAV_ITEMS, NAV_META, ROLE_META } from '../lib/constants'
 import { generateYears } from '../lib/helpers'
 
+function NavIcon({ name }) {
+  const common = { fill:'none', stroke:'currentColor', strokeWidth:1.7, strokeLinecap:'round', strokeLinejoin:'round' }
+  const paths = {
+    dashboard:<><rect x='3' y='3' width='7' height='7' rx='1'/><rect x='14' y='3' width='7' height='7' rx='1'/><rect x='3' y='14' width='7' height='7' rx='1'/><rect x='14' y='14' width='7' height='7' rx='1'/></>,
+    students:<><path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'/></>,
+    classes:<><path d='M3 4h18v16H3z'/><path d='M8 9h8M8 13h5'/></>,
+    grades:<><path d='M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2.5'/><path d='m9 10 2 2 4-5'/></>,
+    attendance:<><rect x='3' y='5' width='18' height='16' rx='2'/><path d='M16 3v4M8 3v4M3 10h18m-13 5 2 2 4-4'/></>,
+    fees:<><rect x='3' y='5' width='18' height='14' rx='2'/><path d='M3 10h18M7 15h3'/></>,
+    behaviour:<><path d='M12 3 4 6v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V6z'/><path d='m9 12 2 2 4-4'/></>,
+    reports:<><path d='M4 19V9M10 19V5M16 19v-7M22 19H2'/></>,
+    announcements:<><path d='M3 11v2a2 2 0 0 0 2 2h2l4 4V5L7 9H5a2 2 0 0 0-2 2zM15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12'/></>,
+    users:<><circle cx='9' cy='8' r='4'/><path d='M3 21v-2a6 6 0 0 1 12 0v2M19 8v6M16 11h6'/></>,
+    settings:<><circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.4 4a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.4a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.1v4h-.1A1.7 1.7 0 0 0 20 14a1.7 1.7 0 0 0-.6 1z'/></>,
+    auditlog:<><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><path d='M14 2v6h6M8 13h8M8 17h6'/></>,
+  }
+  return <svg viewBox='0 0 24 24' width='18' height='18' aria-hidden='true' {...common}>{paths[name]}</svg>
+}
+
 // ── YEAR SWITCHER ──────────────────────────────────────────────
 export function YearSwitcher({ activeYear, currentYear, selectedYear, setSelectedYear, isMobile }) {
   const years = generateYears(currentYear)
@@ -55,9 +74,9 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 30, height: 30, borderRadius: 9,
-            background: 'linear-gradient(135deg, var(--gold3), var(--gold))',
+            background: 'var(--gold)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(232,184,75,0.25)',
+            boxShadow: 'none',
             flexShrink: 0,
           }}>
             <LogoMark size={16}/>
@@ -93,17 +112,17 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
           const m = NAV_META[key]
           const isAct = active === key
           return (
-            <button key={key}
+            <button key={key} className={`daybook-nav-item ${isAct ? 'is-active' : ''}`}
               onClick={() => { onNav(key); if (isMobile) onDrawerClose() }}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                 padding: '9px 12px', borderRadius: 10, marginBottom: 2,
-                background: isAct ? 'rgba(255,255,255,0.06)' : 'transparent',
+                background: isAct ? 'var(--gold-subtle)' : 'transparent',
                 color: isAct ? 'var(--white)' : 'var(--mist3)',
                 fontSize: 13.5, fontWeight: isAct ? 600 : 400,
                 transition: 'all var(--t-fast)',
                 position: 'relative',
-                animation: `fadeIn 0.3s ${i * 0.03}s both`,
+                animation: `fadeIn 0.2s ${i * 0.018}s both`,
               }}
               onMouseEnter={e => { if (!isAct) { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'var(--mist)' } }}
               onMouseLeave={e => { if (!isAct) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--mist3)' } }}
@@ -113,11 +132,10 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
                 <div style={{
                   position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
                   width: 3, height: 16, borderRadius: 2,
-                  background: 'linear-gradient(180deg, var(--gold2), var(--gold3))',
-                  boxShadow: '0 0 8px rgba(232,184,75,0.4)',
+                  background: 'var(--gold)',
                 }}/>
               )}
-              <span style={{ fontSize: 15, flexShrink: 0, opacity: isAct ? 1 : 0.5, transition: 'opacity var(--t-fast)' }}>{m.icon}</span>
+              <span style={{ display:'flex', flexShrink: 0, opacity: isAct ? 1 : 0.62, transition: 'opacity var(--t-fast)' }}><NavIcon name={key}/></span>
               <span style={{ letterSpacing: '0.005em' }}>{m.label}</span>
             </button>
           )
@@ -199,13 +217,13 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
           <div style={{ padding: '20px 0 16px', display: 'flex', justifyContent: 'center' }}>
             <div onClick={onToggle} style={{
               width: 30, height: 30, borderRadius: 9, cursor: 'pointer',
-              background: 'linear-gradient(135deg, var(--gold3), var(--gold))',
+              background: 'var(--gold)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(232,184,75,0.25)',
-              transition: 'box-shadow var(--t-fast)',
+              boxShadow: 'none',
+              transition: 'background var(--t-fast)',
             }}
-              onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 20px rgba(232,184,75,0.4)'}
-              onMouseLeave={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(232,184,75,0.25)'}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--gold2)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'var(--gold)'}
               title='Expand sidebar'
             >
               <LogoMark size={16}/>
@@ -215,7 +233,7 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
             {items.map(key => {
               const m = NAV_META[key]; const isAct = active === key
               return (
-                <button key={key} onClick={() => onNav(key)} title={m.label} style={{
+                <button key={key} className={`daybook-nav-item ${isAct ? 'is-active' : ''}`} onClick={() => onNav(key)} title={m.label} style={{
                   width: 40, height: 40, borderRadius: 10,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: isAct ? 'rgba(255,255,255,0.07)' : 'transparent',
@@ -226,8 +244,10 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
                   onMouseEnter={e => { if (!isAct) { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'var(--mist)' } }}
                   onMouseLeave={e => { if (!isAct) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--mist3)' } }}
                 >
-                  {isAct && <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 3, height: 16, borderRadius: 2, background: 'var(--gold)', boxShadow: '0 0 8px rgba(232,184,75,0.5)' }}/>}
-                  {m.icon}
+                  {isAct && (
+                    <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 3, height: 16, borderRadius: 2, background: 'var(--gold)' }}/>
+                  )}
+                  <NavIcon name={key}/>
                 </button>
               )
             })}

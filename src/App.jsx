@@ -751,7 +751,7 @@ export default function App() {
           drawerOpen={drawerOpen} onDrawerClose={() => setDrawerOpen(false)}
           planHook={planHook}
         />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--ink)' }}>
+        <div className='srms-workspace' style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--ink)', minWidth: 0 }}>
 
           {/* ── Topbar ── */}
           {isMobile ? (
@@ -919,7 +919,7 @@ export default function App() {
           )}
 
           {/* ── Page content ── */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '20px 16px' : '32px 36px' }}>
+          <div className='srms-page-scroll' style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '20px 16px' : '32px 36px' }}>
             <div key={page} className='page'>{renderPage()}</div>
           </div>
         </div>

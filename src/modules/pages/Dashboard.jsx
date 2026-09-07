@@ -6,7 +6,6 @@ import Avatar from '../components/Avatar'
 import Card from '../components/Card'
 import KPI from '../components/KPI'
 import SectionTitle from '../components/SectionTitle'
-import PageHeader from '../components/PageHeader'
 import Btn from '../components/Btn'
 import Badge from '../components/Badge'
 
@@ -133,6 +132,10 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   const unassignedClasses = profile?.role==='superadmin'
     ? classes.filter(c=>!c.class_teacher_id)
     : []
+  const formattedToday = new Intl.DateTimeFormat('en-GH', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  }).format(new Date())
+  const firstName = profile?.full_name?.split(' ')[0] || 'there'
 
   return (
     <div>
@@ -176,8 +179,19 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
           <span style={{fontSize:13,color:'var(--amber)'}}>You are viewing <strong>{activeYear}</strong> -- this is a read-only archive. Switch to the current year in the topbar to make changes.</span>
         </div>
       )}
-      <PageHeader title={`Good ${new Date().getHours()<12?'morning':'afternoon'}, ${profile?.full_name?.split(' ')[0]||'there'}.`} sub={`${settings?.school_name||'SRMS'} . ${activeYear}`}/>
-      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(2,1fr)',gap:12,marginBottom: isMobile?20:28}}>
+      <section className='daybook-intro fu'>
+        <div className='daybook-intro__copy'>
+          <div className='daybook-intro__date'>{formattedToday}</div>
+          <h1 className='d'>Good {new Date().getHours()<12?'morning':'afternoon'}, {firstName}.</h1>
+          <p>{settings?.school_name||'SRMS'} <span>·</span> {activeYear}</p>
+        </div>
+        <div className='daybook-intro__ledger' aria-label='Current school record status'>
+          <div><span>Current period</span><strong>{latestPeriod}</strong></div>
+          <div><span>Students on roll</span><strong>{yearStudents.length}</strong></div>
+          <div><span>Records today</span><strong>{attendance.filter(a=>a.date===today).length}</strong></div>
+        </div>
+      </section>
+      <div className='daybook-kpi-grid' style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,minmax(0,1fr))':'repeat(4,minmax(0,1fr))',gap:12,marginBottom: isMobile?20:28}}>
         {isAdmin && <>
           <KPI label='Total Students'   value={yearStudents.length}      color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
           <KPI label='Attendance Rate'  value={`${schoolAttRate}%`}  color='var(--emerald)' sub={`${schoolAttPresent} of ${schoolAttTotal} records`} index={1}/>

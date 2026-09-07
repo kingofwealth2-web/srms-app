@@ -123,7 +123,7 @@ body.light{
 /* Cards get real shadow separation instead of the dark inner glow */
 body.light .card-surface,
 body.light [class*="card"] {
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: none !important;
 }
 
 /* Select option elements use light bg in light mode */
@@ -183,6 +183,78 @@ html,body,#root{
 
 .d{font-family:'Clash Display',system-ui,sans-serif}
 .mono{font-family:'JetBrains Mono',monospace;font-size:0.87em;letter-spacing:-0.02em}
+
+/* ── School Daybook application system ───────────────────── */
+.srms-workspace{min-width:0}
+.srms-topbar{position:relative;z-index:30}
+.srms-page-scroll{scrollbar-gutter:stable}
+.page{max-width:1440px;margin:0 auto;animation:daybookPageIn .2s ease-out both}
+@keyframes daybookPageIn{from{opacity:0}to{opacity:1}}
+
+.srms-sidebar{box-shadow:none!important}
+.daybook-nav-item{outline:none}
+.daybook-nav-item:focus-visible{box-shadow:0 0 0 2px var(--gold)!important}
+.daybook-nav-item.is-active{color:var(--white)!important}
+
+.page-header{padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:24px!important}
+.page-header h1{text-shadow:none!important}
+.card-surface{box-shadow:none!important}
+.card-surface.is-interactive:active{background:var(--ink4)!important}
+
+.daybook-intro{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:28px;
+  padding:8px 0 24px;margin-bottom:20px;border-bottom:1px solid var(--line);
+}
+.daybook-intro__date{font-size:11px;color:var(--gold);font-weight:700;letter-spacing:.07em;margin-bottom:8px}
+.daybook-intro h1{font-size:clamp(26px,3vw,38px);line-height:1.05;letter-spacing:-.035em;color:var(--white)}
+.daybook-intro p{margin-top:8px;color:var(--mist2);font-size:13px}
+.daybook-intro p span{color:var(--gold);padding:0 5px}
+.daybook-intro__ledger{display:grid;grid-template-columns:repeat(3,minmax(112px,1fr));border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:var(--ink2)}
+.daybook-intro__ledger>div{padding:12px 15px;border-left:1px solid var(--line)}
+.daybook-intro__ledger>div:first-child{border-left:0}
+.daybook-intro__ledger span{display:block;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mist3);white-space:nowrap}
+.daybook-intro__ledger strong{display:block;margin-top:4px;font-size:14px;color:var(--white);font-variant-numeric:tabular-nums}
+
+.daybook-kpi{
+  box-shadow:none!important;transition:border-color var(--t-fast),background var(--t-fast)!important;
+  border-radius:var(--r-sm)!important;padding:18px 18px 16px!important;
+}
+.daybook-kpi::before{content:'';position:absolute;left:0;top:16px;bottom:16px;width:2px;background:var(--kpi-color)}
+.daybook-kpi:hover{border-color:var(--line2)!important;background:var(--ink3)!important}
+.daybook-kpi .d{font-variant-numeric:tabular-nums}
+
+.daybook-table-wrap{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ink2)}
+.daybook-table thead th{position:sticky;top:0;z-index:1;background:var(--ink3)!important;padding-top:11px!important;padding-bottom:11px!important}
+.daybook-table tbody tr:last-child{border-bottom:0!important}
+.daybook-table td{font-variant-numeric:tabular-nums}
+.daybook-list-page>.card-surface{border-radius:var(--r-sm)!important}
+.daybook-list-page input:not([type=checkbox]):not([type=radio]){min-height:40px;border-color:var(--line2)!important;transition:border-color var(--t-fast),background var(--t-fast)}
+.daybook-list-page input:not([type=checkbox]):not([type=radio]):focus{border-color:var(--gold)!important;background:var(--ink2)!important}
+.daybook-tabs{border-radius:9px!important;padding:4px!important;background:var(--ink2)!important}
+.daybook-tabs button{min-height:36px}
+
+body.light .srms-sidebar,body.light .srms-topbar{background:#fffdf9!important}
+body.light .daybook-intro__ledger,body.light .card-surface,body.light .daybook-table-wrap{background:#fffdf9!important}
+body.light .daybook-kpi:hover{background:#f7f3eb!important}
+
+@media(max-width:980px){
+  .daybook-intro{grid-template-columns:1fr;align-items:start}
+  .daybook-intro__ledger{width:100%}
+  .daybook-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:640px){
+  .srms-page-scroll{padding:20px 14px!important}
+  .page-header{padding-bottom:14px;margin-bottom:20px!important}
+  .daybook-intro{gap:16px;padding-top:2px;margin-bottom:16px}
+  .daybook-intro h1{font-size:27px}
+  .daybook-intro__ledger{grid-template-columns:1fr 1fr}
+  .daybook-intro__ledger>div{padding:10px 12px}
+  .daybook-intro__ledger>div:nth-child(3){grid-column:1/-1;border-left:0;border-top:1px solid var(--line)}
+  .daybook-kpi{padding:15px 14px 14px!important}
+  .daybook-kpi .d{font-size:26px!important}
+  .daybook-table-wrap{border-radius:8px}
+}
+@media(prefers-reduced-motion:reduce){.page{animation:none}}
 
 /* ── Keyframes ─────────────────────────────────────────────── */
 @keyframes fadeUp   {from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}

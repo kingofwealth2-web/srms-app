@@ -1,7 +1,7 @@
 export default function DataTable({ columns, data, onRow }) {
   return (
-    <div style={{ overflowX: 'auto', marginInline: -2, WebkitOverflowScrolling: 'touch' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
+    <div className='daybook-table-wrap' style={{ overflowX: 'auto', marginInline: -2, WebkitOverflowScrolling: 'touch' }}>
+      <table className='daybook-table' style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
         <thead>
           <tr>
             {columns.map(c => (
@@ -48,7 +48,7 @@ export default function DataTable({ columns, data, onRow }) {
                 borderBottom: '1px solid var(--line)',
                 cursor: onRow ? 'pointer' : 'default',
                 transition: 'background var(--t-snap), box-shadow var(--t-snap)',
-                animation: `fadeIn 0.3s ${Math.min(i * 0.025, 0.25)}s both`,
+                animation: `fadeIn 0.18s ${Math.min(i * 0.012, 0.12)}s both`,
               }}
               onMouseEnter={e => {
                 e.currentTarget.style.background = 'var(--ink3)'

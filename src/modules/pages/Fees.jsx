@@ -1418,7 +1418,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
 
   return (
-    <div>
+    <div className='daybook-list-page fees-page'>
       <PageHeader title='Fee Management' sub='Track payments, balances and receipts'>
         {['superadmin','admin'].includes(profile?.role) && (
           <Btn variant='ghost' onClick={exportFeesCsv}>⬇ Export CSV</Btn>
@@ -1439,7 +1439,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       </PageHeader>
 
       {/* ── Tab switcher ── */}
-      <div style={{display:'flex',gap:6,marginBottom:20,background:'var(--ink3)',borderRadius:12,padding:5,width:'fit-content',border:'1px solid var(--line)'}}>
+      <div className='daybook-tabs' style={{display:'flex',gap:6,marginBottom:20,background:'var(--ink3)',borderRadius:12,padding:5,width:'fit-content',border:'1px solid var(--line)'}}>
         <button style={tabStyle(feeActiveTab==='fees')}      onClick={()=>setFeeActiveTab('fees')}>💳 Fees</button>
         <button style={tabStyle(feeActiveTab==='recurring')} onClick={()=>setFeeActiveTab('recurring')}>🔁 Recurring</button>
         <button style={tabStyle(feeActiveTab==='history')}   onClick={()=>setFeeActiveTab('history')}>🧾 Payment History</button>

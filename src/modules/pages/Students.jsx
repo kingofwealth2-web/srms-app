@@ -388,7 +388,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
 
 
   return (
-    <div>
+    <div className='daybook-list-page students-page'>
       <PageHeader
         title={showArchived?'Archived Students':'Students'}
         sub={showArchived
