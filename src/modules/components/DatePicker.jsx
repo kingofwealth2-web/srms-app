@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useIsMobile } from '../lib/hooks'
 
@@ -21,6 +21,9 @@ export default function DatePicker({ id, value, onChange, label, required, style
   const initial = parseValue(value)
   const [draft, setDraft] = useState(initial)
   const [view, setView] = useState({ year: initial.year, month: initial.month })
+  const triggerRef = useRef(null)
+  const dialogRef = useRef(null)
+  const close = () => { setOpen(false); requestAnimationFrame(() => triggerRef.current?.focus()) }
 
   useEffect(() => {
     if (!open) return
@@ -31,7 +34,8 @@ export default function DatePicker({ id, value, onChange, label, required, style
 
   useEffect(() => {
     if (!open) return
-    const onKey = e => { if (e.key === 'Escape') setOpen(false) }
+    requestAnimationFrame(() => dialogRef.current?.querySelector('button,select')?.focus())
+    const onKey = e => { if (e.key === 'Escape') close() }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [open])
@@ -43,6 +47,7 @@ export default function DatePicker({ id, value, onChange, label, required, style
   return <>
     <button
       id={id}
+      ref={triggerRef}
       type='button'
       aria-label={`${label || 'Date'}: ${formatted}`}
       aria-haspopup='dialog'
@@ -55,12 +60,12 @@ export default function DatePicker({ id, value, onChange, label, required, style
       <CalendarIcon />
     </button>
     {open && createPortal(
-      <div className={`srms-date-backdrop${isMobile ? ' is-mobile' : ''}`} onMouseDown={e => { if (e.target === e.currentTarget) setOpen(false) }}>
-        <section className='srms-date-picker' role='dialog' aria-modal='true' aria-label={label || 'Choose date'}>
+      <div className={`srms-date-backdrop${isMobile ? ' is-mobile' : ''}`} onMouseDown={e => { if (e.target === e.currentTarget) close() }}>
+        <section ref={dialogRef} className='srms-date-picker' role='dialog' aria-modal='true' aria-label={label || 'Choose date'}>
           <header className='srms-date-picker__header'>
-            <button type='button' className='srms-date-link' onClick={() => setOpen(false)}>Cancel</button>
+            <button type='button' className='srms-date-link' onClick={close}>Cancel</button>
             <strong>{label || 'Choose date'}</strong>
-            <button type='button' className='srms-date-link is-done' onClick={() => { onChange(iso(draft.year, draft.month, draft.day)); setOpen(false) }}>Done</button>
+            <button type='button' className='srms-date-link is-done' onClick={() => { onChange(iso(draft.year, draft.month, draft.day)); close() }}>Done</button>
           </header>
           {isMobile
             ? <WheelPicker value={draft} onChange={setDraft}/>
@@ -70,7 +75,7 @@ export default function DatePicker({ id, value, onChange, label, required, style
             const now = new Date(); const next = { year: now.getFullYear(), month: now.getMonth(), day: now.getDate() }
             setDraft(next); setView({ year: next.year, month: next.month })
           }}>Today</button>
-          {!required && value && <button type='button' className='srms-date-clear' onClick={() => { onChange(''); setOpen(false) }}>Clear date</button>}
+          {!required && value && <button type='button' className='srms-date-clear' onClick={() => { onChange(''); close() }}>Clear date</button>}
         </section>
       </div>, document.body,
     )}
@@ -102,13 +107,35 @@ function WheelPicker({ value, onChange }) {
 }
 
 function CalendarGrid({ value, view, setView, onChange }) {
+  const gridRef = useRef(null)
   const first = new Date(view.year, view.month, 1)
   const offset = (first.getDay() + 6) % 7
   const count = new Date(view.year, view.month + 1, 0).getDate()
+  const selectedInView = value.year === view.year && value.month === view.month
   const cells = [...Array(offset).fill(null), ...Array.from({ length: count }, (_, i) => i + 1)]
   const shift = delta => {
     const next = new Date(view.year, view.month + delta, 1)
     setView({ year: next.getFullYear(), month: next.getMonth() })
+  }
+  const moveFocus = (button, delta) => {
+    const buttons = [...gridRef.current.querySelectorAll('button[data-day]')]
+    const index = buttons.indexOf(button)
+    buttons[Math.max(0, Math.min(buttons.length - 1, index + delta))]?.focus()
+  }
+  const onGridKeyDown = e => {
+    const button = e.target.closest('button[data-day]')
+    if (!button) return
+    const moves = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }
+    if (moves[e.key]) { e.preventDefault(); moveFocus(button, moves[e.key]); return }
+    if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault()
+      const day = Number(button.dataset.day)
+      moveFocus(button, e.key === 'Home' ? -((day + offset - 1) % 7) : 6 - ((day + offset - 1) % 7))
+      return
+    }
+    if (e.key === 'PageUp' || e.key === 'PageDown') {
+      e.preventDefault(); shift(e.key === 'PageUp' ? -1 : 1)
+    }
   }
   return <div className='srms-calendar'>
     <div className='srms-calendar__nav'>
@@ -116,10 +143,10 @@ function CalendarGrid({ value, view, setView, onChange }) {
       <strong>{MONTHS[view.month]} {view.year}</strong>
       <button type='button' aria-label='Next month' onClick={() => shift(1)}>›</button>
     </div>
-    <div className='srms-calendar__grid'>
+    <div className='srms-calendar__grid' ref={gridRef} onKeyDown={onGridKeyDown}>
       {WEEKDAYS.map(day => <span className='srms-calendar__weekday' key={day}>{day}</span>)}
       {cells.map((day, i) => day
-        ? <button type='button' key={i} className={value.year === view.year && value.month === view.month && value.day === day ? 'is-selected' : ''} onClick={() => onChange({ year: view.year, month: view.month, day })}>{day}</button>
+        ? <button type='button' key={i} data-day={day} tabIndex={(selectedInView && value.day === day) || (!selectedInView && day === 1) ? 0 : -1} className={selectedInView && value.day === day ? 'is-selected' : ''} onClick={() => onChange({ year: view.year, month: view.month, day })}>{day}</button>
         : <span key={i}/>
       )}
     </div>
