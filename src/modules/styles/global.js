@@ -219,7 +219,6 @@ html,body,#root{
   box-shadow:none!important;transition:border-color var(--t-fast),background var(--t-fast)!important;
   border-radius:var(--r-sm)!important;padding:18px 18px 16px!important;
 }
-.daybook-kpi::before{content:'';position:absolute;left:0;top:16px;bottom:16px;width:2px;background:var(--kpi-color)}
 .daybook-kpi:hover{border-color:var(--line2)!important;background:var(--ink3)!important}
 .daybook-kpi .d{font-variant-numeric:tabular-nums}
 

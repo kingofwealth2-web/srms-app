@@ -405,11 +405,11 @@ export default function Students({profile,data,setData,toast,settings,activeYear
         )}
         {canEdit && !showArchived && <Btn onClick={openAdd} disabled={atStudentLimit}>+ New Student</Btn>}
         {['superadmin','admin'].includes(profile?.role) && (
-          <Btn variant='ghost' onClick={exportStudentsCsv}>⬇ Export CSV</Btn>
+          <Btn variant='ghost' onClick={exportStudentsCsv}>Export CSV</Btn>
         )}
         {canEdit && (
           <Btn variant='ghost' onClick={()=>{setShowArchived(v=>!v);setSearch('');setFc('');setFyear('');setFReason('');setFGender('');setSortAlpha('asc')}}>
-            {showArchived?'← Back to Students':'⊡ Archived Students'}
+            {showArchived?'Back to Students':'Archived Students'}
           </Btn>
         )}
       </PageHeader>

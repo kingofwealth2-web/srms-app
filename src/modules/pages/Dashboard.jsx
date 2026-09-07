@@ -125,6 +125,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   const schoolAttTotal   = schoolAttSummary.total
   const schoolAttPresent = schoolAttSummary.present
   const schoolAttRate    = schoolAttSummary.rate ?? 0
+  const classesMarkedToday = new Set(attendance.filter(a=>a.date===today).map(a=>a.class_id)).size
   const myClassAtt       = myClass ? attendance.filter(a=>a.class_id===myClass.id) : []
   const myClassOB        = myClass ? openingBalances.filter(b=>b.class_id===myClass.id) : []
   const myClassAttRate   = calcAttendanceRate(myClassAtt, myClassOB).rate ?? 0
@@ -136,6 +137,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   }).format(new Date())
   const firstName = profile?.full_name?.split(' ')[0] || 'there'
+  const greeting = `Good ${new Date().getHours()<12?'morning':'afternoon'}, ${firstName}.`
 
   return (
     <div>
@@ -182,12 +184,12 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
       <section className='daybook-intro fu'>
         <div className='daybook-intro__copy'>
           <div className='daybook-intro__date'>{formattedToday}</div>
-          <h1 className='d'>Good {new Date().getHours()<12?'morning':'afternoon'}, {firstName}.</h1>
+          <h1 className='d'>{greeting}</h1>
           <p>{settings?.school_name||'SRMS'} <span>·</span> {activeYear}</p>
         </div>
         <div className='daybook-intro__ledger' aria-label='Current school record status'>
           <div><span>Current period</span><strong>{latestPeriod}</strong></div>
-          <div><span>Students on roll</span><strong>{yearStudents.length}</strong></div>
+          <div><span>Classes marked today</span><strong>{classesMarkedToday} of {classes.length}</strong></div>
           <div><span>Records today</span><strong>{attendance.filter(a=>a.date===today).length}</strong></div>
         </div>
       </section>
@@ -221,7 +223,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
                 <div style={{fontSize:11,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>{subject.name}</div>
                 <div style={{display:'flex',flexDirection:'column',gap:6}}>
                   {top.map(({student,total},i)=>(
-                    <div key={student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',borderLeft:`3px solid ${['var(--gold)','var(--mist2)','var(--amber)'][i]}`}}>
+                    <div key={student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:'1px solid var(--line)'}}>
                       <div style={{width:20,height:20,borderRadius:'50%',background:['rgba(232,184,75,0.15)','rgba(255,255,255,0.06)','rgba(251,159,58,0.12)'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:['var(--gold)','var(--mist2)','var(--amber)'][i],flexShrink:0}}>{i+1}</div>
                       <Avatar name={fullName(student)} size={26} photo={student.photo}/>
                       <div style={{flex:1,minWidth:0}}>
@@ -249,7 +251,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
                 <div style={{fontSize:11,fontWeight:700,color:'var(--mist3)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>{cls.name}</div>
                 <div style={{display:'flex',flexDirection:'column',gap:6}}>
                   {top.map(({student,total},i)=>(
-                    <div key={student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',borderLeft:`3px solid ${['var(--gold)','var(--mist2)','var(--amber)'][i]}`}}>
+                    <div key={student.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:'1px solid var(--line)'}}>
                       <div style={{width:20,height:20,borderRadius:'50%',background:['rgba(232,184,75,0.15)','rgba(255,255,255,0.06)','rgba(251,159,58,0.12)'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:['var(--gold)','var(--mist2)','var(--amber)'][i],flexShrink:0}}>{i+1}</div>
                       <Avatar name={fullName(student)} size={26} photo={student.photo}/>
                       <div style={{flex:1,minWidth:0}}>
@@ -271,7 +273,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
         <SectionTitle>Recent Announcements</SectionTitle>
         {activeAnn.length===0 && <div style={{padding:32,textAlign:'center',color:'var(--mist3)',fontSize:13}}>No announcements posted yet.</div>}
         {activeAnn.map(a=>(
-          <div key={a.id} style={{padding:14,background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:10,borderLeft:`3px solid ${{all:'var(--gold)',teacher:'var(--sky)'}[a.target_role]||'var(--line)'}`,transition:'background 0.15s'}}
+          <div key={a.id} style={{padding:14,background:'var(--ink3)',borderRadius:'var(--r-sm)',marginBottom:10,border:'1px solid var(--line)',transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='var(--ink4)'}
             onMouseLeave={e=>e.currentTarget.style.background='var(--ink3)'}>
             <div style={{display:'flex',justifyContent:'space-between',gap:12}}>

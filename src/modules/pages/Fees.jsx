@@ -1421,13 +1421,13 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     <div className='daybook-list-page fees-page'>
       <PageHeader title='Fee Management' sub='Track payments, balances and receipts'>
         {['superadmin','admin'].includes(profile?.role) && (
-          <Btn variant='ghost' onClick={exportFeesCsv}>⬇ Export CSV</Btn>
+          <Btn variant='ghost' onClick={exportFeesCsv}>Export CSV</Btn>
         )}
         {feeActiveTab==='fees' && !isViewingPast && canBulk && (
-          <Btn variant='secondary' onClick={()=>{ window.scrollTo({top:0,behavior:'smooth'}); setBulkModal(true);setBulkStep(1);setBulk(BULK_INIT)}}>⊞ Bulk Add Fee</Btn>
+          <Btn variant='secondary' onClick={()=>{ window.scrollTo({top:0,behavior:'smooth'}); setBulkModal(true);setBulkStep(1);setBulk(BULK_INIT)}}>Bulk Add Fee</Btn>
         )}
         {feeActiveTab==='fees' && !isViewingPast && canBulk && (
-          <Btn variant='secondary' onClick={openBcpModal}>💰 Bulk Collect Payment</Btn>
+          <Btn variant='secondary' onClick={openBcpModal}>Bulk Collect Payment</Btn>
         )}
         {feeActiveTab==='recurring' && !isViewingPast && canBulk && selectedTemplate && (
           <Btn variant='secondary' onClick={()=>openBrpModal(selectedTemplate)}>⊞ Bulk Record Payment</Btn>
@@ -1440,15 +1440,15 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
 
       {/* ── Tab switcher ── */}
       <div className='daybook-tabs' style={{display:'flex',gap:6,marginBottom:20,background:'var(--ink3)',borderRadius:12,padding:5,width:'fit-content',border:'1px solid var(--line)'}}>
-        <button style={tabStyle(feeActiveTab==='fees')}      onClick={()=>setFeeActiveTab('fees')}>💳 Fees</button>
-        <button style={tabStyle(feeActiveTab==='recurring')} onClick={()=>setFeeActiveTab('recurring')}>🔁 Recurring</button>
-        <button style={tabStyle(feeActiveTab==='history')}   onClick={()=>setFeeActiveTab('history')}>🧾 Payment History</button>
+        <button style={tabStyle(feeActiveTab==='fees')}      onClick={()=>setFeeActiveTab('fees')}>Fees</button>
+        <button style={tabStyle(feeActiveTab==='recurring')} onClick={()=>setFeeActiveTab('recurring')}>Recurring</button>
+        <button style={tabStyle(feeActiveTab==='history')}   onClick={()=>setFeeActiveTab('history')}>Payment History</button>
       </div>
 
       {/* ══════════════ FEES TAB ══════════════ */}
       {feeActiveTab==='fees' && (<>
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16,marginBottom:24}}>
+      <div className='daybook-kpi-grid' style={{display:'grid',gridTemplateColumns:`repeat(${overdueCount>0?5:4},minmax(0,1fr))`,gap:12,marginBottom:24}}>
         <KPI label='Total Owed'      value={fmtMoney(totalOwed,currency)} color='var(--mist)'    sub='All fees' index={0}/>
         <KPI label='Collected'       value={fmtMoney(totalPaid,currency)} color='var(--emerald)' sub='Payments received' index={1}/>
         <KPI label='Outstanding'     value={fmtMoney(totalOutstanding,currency)} color='var(--rose)' sub='Awaiting payment' index={2}/>
@@ -2092,7 +2092,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       {feeActiveTab==='history' && (<>
 
         {/* KPIs */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16,marginBottom:24}}>
+        <div className='daybook-kpi-grid' style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:12,marginBottom:24}}>
           <KPI label='Total Collected' value={fmtMoney(phTotalCollected,currency)} color='var(--emerald)' sub={`${phFiltered.length} payment${phFiltered.length!==1?'s':''}`} index={0}/>
           <KPI label='Receipts Issued' value={phReceiptsIssued} color='var(--gold)' sub='With receipt number' index={1}/>
           <KPI label='Students Paid'   value={[...new Set(phFiltered.map(p=>p.fee_obj?.student_id).filter(Boolean))].length} color='var(--sky)' sub='Unique students' index={2}/>
