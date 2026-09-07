@@ -271,6 +271,7 @@ body.light .daybook-kpi:hover{background:#f7f3eb!important}
   .page-header{padding-bottom:14px;margin-bottom:20px!important}
   .page-header__actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));width:100%!important}
   .page-header__actions>.srms-btn{width:100%}
+  .page-header__actions>.srms-btn:last-child:nth-child(odd){grid-column:1/-1}
   .page-header__actions>div{min-width:0}
   .page-header__actions>div:only-child{grid-column:1/-1}
   .srms-btn{min-height:42px}
