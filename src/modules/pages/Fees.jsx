@@ -455,7 +455,8 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
     return map
   }, [payments])
   const feePeriodsById = useMemo(() => new Map(fee_periods.map(p=>[p.id,p])), [fee_periods])
-  const enriched = useMemo(() => fees.filter(fee=>fee.academic_year!==activeYear||!studentsById.get(fee.student_id)?.archived).map(fee=>{
+  const operationalYear = currentYear || activeYear
+  const enriched = useMemo(() => fees.filter(fee=>fee.academic_year!==operationalYear||!studentsById.get(fee.student_id)?.archived).map(fee=>{
     const s = studentsById.get(fee.student_id)
     const feePayments = paymentsByFee.get(fee.id) || []
     const paidAmt = effectivePaid(fee, paymentsSumByFee)
@@ -467,7 +468,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
     const latestPayment = [...feePayments].sort((a,b)=>b.created_at?.localeCompare(a.created_at))[0]
     const latestReceipt = latestPayment?.receipt_no || fee.receipt_no || null
     return{...fee,student_name:s?fullName(s,true):'--',balance:bal,effectivePaid:paidAmt,status,isOverdue,hasPayments:feePayments.length>0||paidAmt>0,receipt_no:latestReceipt}
-  }), [fees, activeYear, studentsById, paymentsByFee, paymentsSumByFee, today])
+  }), [fees, operationalYear, studentsById, paymentsByFee, paymentsSumByFee, today])
   const feeAcademicYears = useMemo(() => [...new Set([activeYear,...generateYears(currentYear||activeYear)])]
     .sort((a,b)=>b.localeCompare(a)), [activeYear,currentYear])
   // This control selects the school's academic term/semester. Fee `period`
@@ -1599,7 +1600,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
                 f.template_id===tmpl.id &&
                 f.academic_year===fYear &&
                 (!fPeriod || academicPeriodForFee(f)===fPeriod) &&
-                !studentsById.get(f.student_id)?.archived
+                (fYear!==operationalYear || !studentsById.get(f.student_id)?.archived)
               )
               const tmplPaid     = tmplFees.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
               const isSelected   = selectedTemplate?.id===tmpl.id
@@ -1672,7 +1673,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
                     </thead>
                     <tbody>
                       {tmplPeriods.map(period=>{
-                        const periodFees  = fees.filter(f=>f.fee_period_id===period.id && !studentsById.get(f.student_id)?.archived)
+                        const periodFees  = fees.filter(f=>f.fee_period_id===period.id && (fYear!==operationalYear || !studentsById.get(f.student_id)?.archived))
                         const charged     = periodFees.length
                         const collected   = periodFees.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
                         const outstanding = periodFees.reduce((a,f)=>a+Math.max(0,Number(f.amount||0)-effectivePaid(f,paymentsSumByFee)),0)
@@ -1725,11 +1726,12 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
         {/* ── Period Register ── */}
         {selectedPeriod && selectedTemplate && (() => {
           const tmpl       = fee_templates.find(t=>t.id===selectedTemplate.id)
-          const periodFees = fees.filter(f=>f.fee_period_id===selectedPeriod.id && !studentsById.get(f.student_id)?.archived)
+          const periodFees = fees.filter(f=>f.fee_period_id===selectedPeriod.id && (fYear!==operationalYear || !studentsById.get(f.student_id)?.archived))
           const periodFeesByStudent = new Map(periodFees.map(f=>[f.student_id,f]))
           const tmplClassIds = tmpl?.class_ids||[]
           // All students in template's classes
-          const allStudents  = activeStudents.filter(s=>tmplClassIds.includes(s.class_id))
+          const registerStudents = fYear===operationalYear ? activeStudents : students
+          const allStudents  = registerStudents.filter(s=>tmplClassIds.includes(s.class_id))
           const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
 
           const registerRows = allStudents.map(s=>{
