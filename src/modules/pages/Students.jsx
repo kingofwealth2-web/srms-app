@@ -18,8 +18,8 @@ import ConfirmModal from '../components/ConfirmModal'
 import Select from '../components/Select'
 
 // ── STUDENTS ───────────────────────────────────────────────────
-export default function Students({profile,data,setData,toast,settings,activeYear,isViewingPast,planHook}) {
-  const {students=[],classes=[]} = data
+export default function Students({profile,data,setData,toast,settings,activeYear,currentYear,isViewingPast,planHook}) {
+  const {students=[],classes=[],enrolments=[]} = data
   const [search,setSearch] = useState('')
   const [fc,setFc]         = useState('')
   const [fGender,setFGender] = useState('')
@@ -41,6 +41,10 @@ export default function Students({profile,data,setData,toast,settings,activeYear
   const [stuPage,setStuPage] = useState(0)
   const STU_PAGE_SIZE = 100
   const canEdit = ['superadmin','admin'].includes(profile?.role) && !isViewingPast
+  const isHistoricalYear = !!currentYear && activeYear!==currentYear
+  useEffect(() => {
+    if (isHistoricalYear) setShowArchived(false)
+  }, [isHistoricalYear, activeYear])
 
   const handlePhotoUpload = (e) => {
     const file = e.target.files?.[0]
@@ -56,19 +60,24 @@ export default function Students({profile,data,setData,toast,settings,activeYear
   }
   const activeStudents   = students.filter(s=>!s.archived)
   const archivedStudents = students.filter(s=>s.archived)
+  const historicalIds    = new Set(enrolments.map(e=>e.student_id))
+  const yearStudents     = isHistoricalYear && historicalIds.size
+    ? students.filter(s=>historicalIds.has(s.id))
+    : activeStudents
   const graduationYears  = [...new Set(archivedStudents.map(s=>s.graduation_year).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
   const leavingReasons   = ['Graduated','Transferred','Withdrawn']
   // Subject teacher: view students in classes they teach
   const teacherSubjectClassIds = profile?.role==='teacher'
     ? [...new Set(data.subjects?.filter(s=>s.teacher_id===profile?.id).map(s=>s.class_id)||[])]
     : []
-  const pool = showArchived
+  const regularPool = profile?.role==='classteacher'
+    ? yearStudents.filter(s=>s.class_id===profile.class_id)
+    : profile?.role==='teacher'
+      ? yearStudents.filter(s=>teacherSubjectClassIds.includes(s.class_id))
+      : yearStudents
+  const pool = !isHistoricalYear && showArchived
     ? archivedStudents
-    : profile?.role==='classteacher'
-      ? activeStudents.filter(s=>s.class_id===profile.class_id)
-      : profile?.role==='teacher'
-        ? activeStudents.filter(s=>teacherSubjectClassIds.includes(s.class_id))
-        : activeStudents
+    : regularPool
   const filtered = pool.filter(s=>{
     const q=search.toLowerCase()
     if(!(`${s.first_name} ${s.last_name} ${s.student_id}`).toLowerCase().includes(q)) return false
@@ -393,7 +402,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
         title={showArchived?'Archived Students':'Students'}
         sub={showArchived
           ? `${filtered.length} of ${archivedStudents.length} archived${fyear?' · '+fyear:''}`
-          : `${filtered.length} of ${activeStudents.length} students`}>
+          : `${filtered.length} of ${yearStudents.length} students`}>
         {canEdit && !showArchived && studentLimit !== null && (
           <div style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:atStudentLimit?'var(--rose)':'var(--mist3)',background:atStudentLimit?'rgba(240,107,122,0.08)':'rgba(255,255,255,0.04)',border:`1px solid ${atStudentLimit?'rgba(240,107,122,0.2)':'var(--line2)'}`,borderRadius:8,padding:'5px 10px'}}>
             <span style={{fontWeight:600,color:atStudentLimit?'var(--rose)':'var(--white)'}}>{activeStudents.length}</span>

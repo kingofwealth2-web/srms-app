@@ -20,14 +20,15 @@ import EmptyState from '../components/EmptyState'
 import Select from '../components/Select'
 
 // ── BEHAVIOUR ──────────────────────────────────────────────────
-export default function Behaviour({profile,data,setData,toast,settings,activeYear,isViewingPast,planHook}) {
+export default function Behaviour({profile,data,setData,toast,settings,activeYear,currentYear,isViewingPast,planHook}) {
   if (!planHook.can('behaviour')) return (
     <div style={{padding:'40px 24px'}}>
       <PlanGate planHook={planHook} feature='behaviour' mode='block'><></></PlanGate>
     </div>
   )
   const {behaviour=[],students=[],classes=[]} = data
-  const activeStudents = students.filter(s=>!s.archived)
+  const isHistoricalYear = !!currentYear && activeYear!==currentYear
+  const visibleStudents = isHistoricalYear ? students : students.filter(s=>!s.archived)
   const myClasses = profile?.role==='classteacher' ? classes.filter(c=>c.id===profile.class_id) : classes
   const [fClassId,setFClassId] = useState(profile?.role==='classteacher' ? (profile?.class_id||'') : '')
   const [ftype,setFtype] = useState('')
@@ -38,11 +39,11 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
   const [confirmState,setConfirmState] = useState(null)
   const f = k=>v=>setForm(p=>({...p,[k]:v}))
   const types = ['Discipline','Achievement','Club Activity','Notes']
-  const studentsInClass = fClassId ? activeStudents.filter(s=>s.class_id===fClassId) : activeStudents
+  const studentsInClass = fClassId ? visibleStudents.filter(s=>s.class_id===fClassId) : visibleStudents
   const filtered = behaviour.filter(b=>{
     if(ftype&&b.type!==ftype) return false
     if(fsid&&b.student_id!==fsid) return false
-    if(fClassId){const s=activeStudents.find(x=>x.id===b.student_id); if(!s||s.class_id!==fClassId) return false}
+    if(fClassId){const s=visibleStudents.find(x=>x.id===b.student_id); if(!s||s.class_id!==fClassId) return false}
     return true
   }).sort((a,b)=>b.created_at?.localeCompare(a.created_at))
   const counts   = types.reduce((acc,t)=>({...acc,[t]:behaviour.filter(b=>b.type===t).length}),{})

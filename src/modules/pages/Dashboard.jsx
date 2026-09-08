@@ -9,24 +9,35 @@ import SectionTitle from '../components/SectionTitle'
 import Btn from '../components/Btn'
 import Badge from '../components/Badge'
 
-export default function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,isViewingPast}) {
+export default function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,currentYear,isViewingPast}) {
   const isMobile = useIsMobile()
+  const isHistoricalYear = !!currentYear && activeYear!==currentYear
 
   // All of these already come from App.jsx's loadData() -- fetching them again here
   // via usePageData() duplicated the request and, for fees/payments, used the older
   // offset-based fetchAllRows() (not the cursor-based pagination loadData() uses),
   // which silently drops to [] on a timeout on a large table instead of erroring
   // loudly. That was zeroing out the Fee Collection KPI for large schools.
-  const {students=[],classes=[],subjects=[],enrolments=[],fees=[],payments=[],grades=[],attendance=[],announcements=[],opening_balances:openingBalances=[]} = data
-  const yearFees = useMemo(() => fees.filter(f=>f.academic_year===activeYear), [fees,activeYear])
+  const {students=[],classes=[],subjects=[],enrolments=[],fees=[],fee_periods:feePeriods=[],payments=[],grades=[],attendance=[],announcements=[],opening_balances:openingBalances=[]} = data
+  const dashboardPeriod = isHistoricalYear ? '' : settings?.current_period || ''
+  const feePeriodById = useMemo(() => new Map(feePeriods.map(p=>[p.id,p])), [feePeriods])
+  const yearFees = useMemo(() => fees.filter(f=>{
+    if (f.academic_year!==activeYear) return false
+    if (!dashboardPeriod) return true
+    const academicPeriod = f.fee_period_id
+      ? feePeriodById.get(f.fee_period_id)?.academic_period || f.period
+      : f.period
+    return academicPeriod===dashboardPeriod
+  }), [fees,activeYear,dashboardPeriod,feePeriodById])
   const yearGrades = useMemo(() => grades.filter(g=>g.year===activeYear), [grades,activeYear])
   const yearAttendance = useMemo(() => attendance.filter(a=>a.academic_year===activeYear), [attendance,activeYear])
   const yearOpeningBalances = useMemo(() => openingBalances.filter(b=>b.academic_year===activeYear), [openingBalances,activeYear])
   // When viewing past year, use enrolment records to know which students were enrolled
   const enrolledStudentIds = enrolments.length>0 ? new Set(enrolments.map(e=>e.student_id)) : null
-  const yearStudents = enrolledStudentIds
+  const yearStudents = isHistoricalYear && enrolledStudentIds
     ? students.filter(s=>enrolledStudentIds.has(s.id))
     : students.filter(s=>!s.archived)
+  const yearStudentIds = new Set(yearStudents.map(s=>s.id))
   const today = new Date().toISOString().split('T')[0]
   const scale = settings?.grading_scale || []
   const gradeComps = getGradeComponents(settings)
@@ -47,7 +58,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
     const bal = Number(fee2.amount||0) - effectivePaid(fee2,paymentsSumByFee)
     return fee2.due_date && fee2.due_date < today && bal > 0
   }).length : 0
-  const myClassStudents = myClass ? students.filter(s=>s.class_id===myClass.id) : []
+  const myClassStudents = myClass ? yearStudents.filter(s=>s.class_id===myClass.id) : []
 
   // Helper: average of per-student averages (correct school-wide or scoped avg)
   // period: if provided, only grades from that period are included
@@ -104,7 +115,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
         const subGrades = yearGrades.filter(g=>g.subject_id===sub.id && g.period===latestPeriod)
         const ranked = subGrades
           .map(g=>({g, student:students.find(s=>s.id===g.student_id), total:calcTotal(g,gradeComps)}))
-          .filter(x=>x.student&&!x.student.archived)
+          .filter(x=>x.student&&yearStudentIds.has(x.student.id))
           .sort((a,b)=>b.total-a.total)
           .slice(0,3)
         return {subject:sub, top:ranked}
@@ -114,7 +125,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   // Admin: top 3 per class (latest period, average across subjects)
   const topPerClass = isAdmin
     ? classes.map(cls=>{
-        const clsStudents = students.filter(s=>s.class_id===cls.id&&!s.archived)
+        const clsStudents = yearStudents.filter(s=>s.class_id===cls.id)
         const clsSubjectIds = subjects.filter(s=>s.class_id===cls.id).map(s=>s.id)
         const ranked = clsStudents.map(s=>{
           const sg = yearGrades.filter(g=>g.student_id===s.id && clsSubjectIds.includes(g.subject_id) && g.period===latestPeriod)

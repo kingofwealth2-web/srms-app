@@ -730,9 +730,10 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
   const phTotalCollected = phFiltered.reduce((a,p)=>a+Number(p.amount||0),0)
   const phReceiptsIssued = phFiltered.filter(p=>p.receipt_no).length
   const phFeeTypes = [...new Set(enrichedPayments.map(p=>p.fee_type).filter(Boolean))]
+  const paymentHistoryStudents = activeYear!==operationalYear ? students : students.filter(s=>!s.archived)
   const phStudentsInClass = phClass
-    ? students.filter(s=>!s.archived&&s.class_id===phClass)
-    : students.filter(s=>!s.archived)
+    ? paymentHistoryStudents.filter(s=>s.class_id===phClass)
+    : paymentHistoryStudents
 
   // ── Recurring helpers ──
   const saveTmpl = async () => {

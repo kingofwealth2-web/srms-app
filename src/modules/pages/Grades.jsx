@@ -19,7 +19,7 @@ import ConfirmModal from '../components/ConfirmModal'
 import Select from '../components/Select'
 
 // ── GRADES ─────────────────────────────────────────────────────
-export default function Grades({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
+export default function Grades({profile,data,setData,toast,settings,activeYear,currentYear,isViewingPast}) {
   const {grades=[],students=[],subjects=[],classes=[],examScores=[]} = data
   const scale = settings?.grading_scale || []
   const allComps = getGradeComponents(settings)
@@ -82,11 +82,13 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
     : viewSubjects
 
   // Students scoped to selected class (or all teaching classes if no class selected)
+  const isHistoricalYear = !!currentYear && activeYear!==currentYear
+  const viewStudents = isHistoricalYear ? students : students.filter(s=>!s.archived)
   const myStudents = fc
-    ? students.filter(s=>s.class_id===fc&&!s.archived)
+    ? viewStudents.filter(s=>s.class_id===fc)
     : myClassIds===null
-      ? students.filter(s=>!s.archived)
-      : students.filter(s=>myClassIds.includes(s.class_id)&&!s.archived)
+      ? viewStudents
+      : viewStudents.filter(s=>myClassIds.includes(s.class_id))
 
   // Grades visible in table
   const myGrades = isAdminGrades
@@ -102,7 +104,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
     // Use subject's class_id (not student's current class_id) so that records remain
     // anchored to the class they were recorded for — correct for re-enrolled and promoted students
     const student = studentsById.get(g.student_id)
-    if(!student || student.archived) return false
+    if(!student || (!isHistoricalYear && student.archived)) return false
     if(fc) {
       const subject = subjectsById.get(g.subject_id)
       if(!subject || subject.class_id !== fc) return false
@@ -110,7 +112,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
     // Student search -- filters the list by name or ID, on top of the other filters
     if(gq && !(fullName(student).toLowerCase().includes(gq) || (student.student_id||'').toLowerCase().includes(gq))) return false
     return (!fs||g.subject_id===fs)&&(!fp||g.period===fp)
-  }), [myGrades, activeYear, fc, fs, fp, gq, studentsById, subjectsById])
+  }), [myGrades, activeYear, isHistoricalYear, fc, fs, fp, gq, studentsById, subjectsById])
   useEffect(() => { setGPage(0) }, [fc, fs, fp, gq])
   const gPageCount = Math.max(1, Math.ceil(filtered.length / GRADE_PAGE_SIZE))
   const pagedFiltered = filtered.slice(gPage*GRADE_PAGE_SIZE, gPage*GRADE_PAGE_SIZE + GRADE_PAGE_SIZE)
@@ -442,6 +444,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
           settings={settings}
           activeYear={activeYear}
           isViewingPast={isViewingPast}
+          isHistoricalYear={isHistoricalYear}
           examScores={examScores}
           examRows={examRows}
           setExamRows={setExamRows}
@@ -771,12 +774,12 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
 }
 
 // ── EXAM SCORES VIEW ───────────────────────────────────────────
-function ExamScoresView({profile,data,settings,activeYear,isViewingPast,examScores,examRows,setExamRows,examSaving,setExamSaving,setData,toast,fc,fs,fp,periods,mySubjects,scale,getLetter,getGradeColor}) {
+function ExamScoresView({profile,data,settings,activeYear,isViewingPast,isHistoricalYear,examScores,examRows,setExamRows,examSaving,setExamSaving,setData,toast,fc,fs,fp,periods,mySubjects,scale,getLetter,getGradeColor}) {
   const {students=[],subjects=[],classes=[]} = data
 
   // Students in selected class
   const classStudents = fc
-    ? students.filter(s=>s.class_id===fc&&!s.archived).sort((a,b)=>(a.last_name||'').localeCompare(b.last_name||''))
+    ? students.filter(s=>s.class_id===fc&&(isHistoricalYear||!s.archived)).sort((a,b)=>(a.last_name||'').localeCompare(b.last_name||''))
     : []
 
   // Pre-fill examRows when class/subject/period changes

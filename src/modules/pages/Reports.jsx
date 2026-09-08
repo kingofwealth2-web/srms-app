@@ -32,14 +32,18 @@ const abbrSubject = name => {
 }
 
 // ── REPORTS ────────────────────────────────────────────────────
-export default function Reports({profile,data,settings,activeYear,isViewingPast,toast,planHook,onShowPlans}) {
-  const {students=[],grades:allGrades=[],attendance:allAttendance=[],fees:allFees=[],classes=[],subjects=[],enrolments=[],opening_balances:allOpeningBalances=[],payments:allPayments=[]} = data
+export default function Reports({profile,data,settings,activeYear,currentYear,isViewingPast,toast,planHook,onShowPlans}) {
+  const {students=[],grades:allGrades=[],attendance:allAttendance=[],fees:allFees=[],fee_periods:feePeriods=[],classes=[],subjects=[],enrolments=[],opening_balances:allOpeningBalances=[],payments:allPayments=[]} = data
   const grades = allGrades.filter(g=>g.year===activeYear)
   const attendance = allAttendance.filter(a=>a.academic_year===activeYear)
   const fees = allFees.filter(f=>f.academic_year===activeYear)
   const openingBalances = allOpeningBalances.filter(b=>b.academic_year===activeYear)
   const feeIds = new Set(fees.map(f=>f.id))
   const payments = allPayments.filter(p=>feeIds.has(p.fee_id))
+  const feePeriodById = new Map(feePeriods.map(p=>[p.id,p]))
+  const academicPeriodForFee = fee => fee.fee_period_id
+    ? feePeriodById.get(fee.fee_period_id)?.academic_period || fee.period
+    : fee.period
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
   const currency   = getCurrency(settings)
@@ -84,20 +88,22 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   const [rcReportTitle,setRcReportTitle] = useState('') // custom header kicker text -- falls back to a per-type default when blank
   // Pre-filter class teacher to their class; subject teacher to their teaching classes
   const teacherClassIds = isTeacher ? [...new Set(subjects.filter(s=>s.teacher_id===profile?.id).map(s=>s.class_id))] : null
+  const isHistoricalYear = !!currentYear && activeYear!==currentYear
+  const visibleStudents = isHistoricalYear ? students : students.filter(s=>!s.archived)
 
   const periodLabel = settings?.period_type==='term'?'Term':'Semester'
   const periods = Array.from({length:settings?.period_count||2},(_,i)=>`${periodLabel} ${i+1}`)
   const currentPeriod = periods.includes(settings?.current_period) ? settings.current_period : periods[0]||''
   useEffect(() => {
-    setFp(currentPeriod)
+    setFp(isHistoricalYear ? '' : currentPeriod)
     setRcPeriod(currentPeriod)
-  }, [activeYear,currentPeriod])
+  }, [activeYear,currentPeriod,isHistoricalYear])
   // Student autofill -- restrict pool by role
   const roleBasePool = isClassTeacher
-    ? students.filter(s=>s.class_id===profile?.class_id&&!s.archived)
+    ? visibleStudents.filter(s=>s.class_id===profile?.class_id)
     : isTeacher && teacherClassIds
-      ? students.filter(s=>teacherClassIds.includes(s.class_id)&&!s.archived)
-      : students.filter(s=>!s.archived)
+      ? visibleStudents.filter(s=>teacherClassIds.includes(s.class_id))
+      : visibleStudents
   const searchPool = fc ? roleBasePool.filter(s=>s.class_id===fc) : roleBasePool
   const matchedStudents = studentSearch.length>0
     ? searchPool.filter(s=>fullName(s).toLowerCase().includes(studentSearch.toLowerCase())).slice(0,8)
@@ -115,7 +121,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   const enrolmentMap = enrolments.reduce((acc,e)=>{acc[e.student_id]=e.class_id;return acc},{})
   const studentsWithYearClass = enrolments.length>0
     ? roleBasePool.filter(s=>enrolmentMap[s.id]).map(s=>({...s,class_id:enrolmentMap[s.id]}))
-    : roleBasePool.filter(s=>!s.archived)
+    : roleBasePool
   const scopedStudents = selectedStudent
     ? studentsWithYearClass.filter(s=>s.id===selectedStudent.id)
     : studentsWithYearClass.filter(s=>!fc||s.class_id===fc)
@@ -161,7 +167,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   // main class table, so a single-student view and the class view never disagree)
   const studentRankInClass = selectedStudent
     ? (() => {
-        const classStudents = students.filter(s=>s.class_id===selectedStudent.class_id)
+        const classStudents = visibleStudents.filter(s=>s.class_id===selectedStudent.class_id)
         const allAcad = classStudents.map(s=>{
           const sg=grades.filter(g=>g.student_id===s.id&&(!fp||g.period===fp))
           const tots=sg.map(g=>calcTotal(g,gradeComps))
@@ -206,7 +212,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   // actually has a realistic amount of fee/payment history loaded).
   const paymentsSumByFee = buildPaymentsByFee(payments)
   const feeData = scopedStudents.map(s=>{
-    const sf=fees.filter(f=>f.student_id===s.id && (!fp||f.period===fp))
+    const sf=fees.filter(f=>f.student_id===s.id && (!fp||academicPeriodForFee(f)===fp))
     const owed=sf.reduce((a,f)=>a+Number(f.amount||0),0)
     const paid=sf.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
     // Per-fee capped figures for the school-wide KPI totals below, so an
@@ -238,7 +244,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
         // Export broadsheet data for selected class
         if(!rcClass) { return }
         const rcClassSubjects = subjects.filter(s=>s.class_id===rcClass)
-        const rcClassStudents = students.filter(s=>s.class_id===rcClass&&!s.archived)
+        const rcClassStudents = visibleStudents.filter(s=>s.class_id===rcClass)
         const rcRanked = rankByTotal(rcClassStudents.map(s=>{
             const scores={}
             if(gradeSource==='exam'){
@@ -578,6 +584,8 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
           data={data}
           settings={settings}
           activeYear={activeYear}
+          isViewingPast={isViewingPast}
+          isHistoricalYear={isHistoricalYear}
           rcClass={rcClass} setRcClass={setRcClass}
           rcPeriod={rcPeriod} setRcPeriod={setRcPeriod}
           rcType={rcType} setRcType={setRcType}
@@ -605,7 +613,7 @@ const thStyle={padding:'10px 12px',textAlign:'left',fontSize:10,fontWeight:600,c
 const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlign:'middle'}
 
 // ── REPORT CARDS ───────────────────────────────────────────────
-function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemarks,setRcHeadRemarks,rcResumption,setRcResumption,rcVacation,setRcVacation,rcPromotedTo,setRcPromotedTo,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,rcReportTitle,setRcReportTitle,exportExcel,planHook,onShowPlans}) {
+function ReportCards({profile,data,settings,activeYear,isViewingPast,isHistoricalYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemarks,setRcHeadRemarks,rcResumption,setRcResumption,rcVacation,setRcVacation,rcPromotedTo,setRcPromotedTo,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,rcReportTitle,setRcReportTitle,exportExcel,planHook,onShowPlans}) {
   const {students=[],grades:allGrades=[],attendance:allAttendance=[],classes=[],subjects=[],users=[],examScores:allExamScores=[],opening_balances:allOpeningBalances=[]} = data
   const grades = allGrades.filter(g=>g.year===activeYear)
   const attendance = allAttendance.filter(a=>a.academic_year===activeYear)
@@ -642,7 +650,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
 
   // Students in selected class
   const classStudents = rcClass
-    ? students.filter(s=>s.class_id===rcClass&&!s.archived).sort((a,b)=>a.last_name.localeCompare(b.last_name))
+    ? students.filter(s=>s.class_id===rcClass&&(isHistoricalYear||!s.archived)).sort((a,b)=>a.last_name.localeCompare(b.last_name))
     : []
 
   // Promotion destinations, in school order (not alphabetical) so "KG 2" comes
@@ -674,7 +682,7 @@ function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeri
   // card. Replaces in-memory state -- switching context reloads from the DB.
   useEffect(() => {
     if (rcType !== 'individual' || !rcClass || !rcPeriod || !profile?.school_id) return
-    const ids = students.filter(s=>s.class_id===rcClass && !s.archived).map(s=>s.id)
+    const ids = classStudents.map(s=>s.id)
     if (!ids.length) return
     let cancelled = false
     setRemarksLoading(true); setRemarksError('')
