@@ -460,9 +460,10 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
   }), [fees, activeYear, studentsById, paymentsByFee, paymentsSumByFee, today])
   const feeAcademicYears = useMemo(() => [...new Set([activeYear,...generateYears(currentYear||activeYear)])]
     .sort((a,b)=>b.localeCompare(a)), [activeYear,currentYear])
-  const periodOptions = useMemo(() => [...new Set(fees
-    .filter(f=>f.academic_year===fYear&&(!fFeeType||f.fee_type===fFeeType)&&f.period)
-    .map(f=>f.period))].sort(), [fees,fYear,fFeeType])
+  const periodOptions = useMemo(() => [...new Set([
+    ...configuredPeriods,
+    ...fees.filter(f=>f.academic_year===fYear&&(!fFeeType||f.fee_type===fFeeType)&&f.period).map(f=>f.period),
+  ])], [configuredPeriods.join('|'),fees,fYear,fFeeType])
   const kpiRows = enriched.filter(r=>r.academic_year===fYear&&(!fPeriod||r.period===fPeriod))
   const filtered = kpiRows.filter(r=>{
     if(fClassId){
