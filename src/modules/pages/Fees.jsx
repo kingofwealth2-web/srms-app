@@ -201,10 +201,18 @@ function printReceipt({fee, feePayments, student, cls, settings, currency}) {
 
 // ── FEES ───────────────────────────────────────────────────────
 export default function Fees({profile,data,setData,toast,settings,activeYear,currentYear,isViewingPast,onAcademicYearChange,initialFeeFilter,onFilterConsumed,planHook}) {
-  const {fees=[],students=[],classes=[],payments=[],fee_templates=[],fee_periods=[]} = data
+  const {fees=[],students=[],classes=[],payments=[],grades=[],attendance=[],fee_templates=[],fee_periods=[]} = data
   const currency = getCurrency(settings)
   const isMobile = useIsMobile()
   const canBulk = ['superadmin','admin'].includes(profile?.role)
+  const configuredPeriods = settings?.period_type==='term'
+    ? Array.from({length:settings?.period_count||2},(_,i)=>`Term ${i+1}`)
+    : Array.from({length:settings?.period_count||2},(_,i)=>`Semester ${i+1}`)
+  const currentPeriod = [...configuredPeriods].reverse().find(period =>
+    fees.some(f=>f.academic_year===activeYear&&f.period===period) ||
+    grades.some(g=>g.year===activeYear&&g.period===period) ||
+    attendance.some(a=>a.academic_year===activeYear&&a.period===period)
+  ) || configuredPeriods[0] || ''
 
   // ── Tab ──
   const [feeActiveTab, setFeeActiveTab] = useState('fees')
@@ -213,9 +221,9 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
   const [search,setSearch]     = useState('')
   const [fstatus,setFstatus]   = useState(initialFeeFilter||'')
   const [fFeeType,setFFeeType] = useState('')
-  const [fPeriod,setFPeriod]   = useState('')
+  const [fPeriod,setFPeriod]   = useState(currentPeriod)
   const [fYear,setFYear]       = useState(activeYear)
-  useEffect(()=>{ setFYear(activeYear); setFPeriod('') },[activeYear])
+  useEffect(()=>{ setFYear(activeYear); setFPeriod(currentPeriod) },[activeYear,currentPeriod])
   useEffect(()=>{ if(initialFeeFilter){setFstatus(initialFeeFilter);if(onFilterConsumed)onFilterConsumed()} },[])
   const [fClassId,setFClassId] = useState(profile?.role==='classteacher' ? (profile?.class_id||'') : '')
   // The fee table has no windowing -- a school with a full year of fee/period
@@ -238,9 +246,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
   const [bulkModal,setBulkModal]   = useState(false)
   const [bulkStep,setBulkStep]     = useState(1)
   const [bulkSaving,setBulkSaving] = useState(false)
-  const feePeriods = settings?.period_type==='term'
-    ? Array.from({length:settings?.period_count||2},(_,i)=>`Term ${i+1}`)
-    : Array.from({length:settings?.period_count||2},(_,i)=>`Semester ${i+1}`)
+  const feePeriods = configuredPeriods
   const BULK_INIT = {fee_type:'',period:feePeriods[0]||'Semester 1',default_amount:'',due_date:'',selected_classes:[]}
   const [bulk,setBulk]             = useState(BULK_INIT)
   // Per-class amounts: { classId: amount string }
