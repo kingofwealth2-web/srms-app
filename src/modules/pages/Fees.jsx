@@ -657,32 +657,43 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
   const [phDateFrom,setPhDateFrom] = useState('')
   const [phDateTo,  setPhDateTo]   = useState('')
   const [phDetail,  setPhDetail]   = useState(null)  // payment row for detail modal
+  const [phPage,setPhPage]         = useState(0)
+  const PH_PAGE_SIZE = 100
   const [confirmState,setConfirmState] = useState(null)
 
   // Enrich payments with student/fee/class info
-  const enrichedPayments = payments.map(p => {
-    const fee     = fees.find(f=>f.id===p.fee_id)
-    const student = students.find(s=>s.id===fee?.student_id)
-    const cls     = classes.find(c=>c.id===student?.class_id)
-    return {
-      ...p,
-      fee_type:     fee?.fee_type||'--',
-      period:       fee?.period||'',
-      fee_amount:   fee?.amount||0,
-      student_name: student ? fullName(student,true) : '--',
-      student_id_no:student?.student_id||'',
-      student_photo:student?.photo||null,
-      class_name:   cls?.name||'--',
-      class_id:     student?.class_id||null,
-      fee_obj:      fee,
-      student_obj:  student,
-      cls_obj:      cls,
-      academic_year:fee?.academic_year||'',
-    }
-  })
+  // Payment history used to do fees.find() for every payment. At Bibiani's
+  // current size that was roughly 10,000 x 10,000 comparisons before React
+  // even began rendering the table. Build indexed lookups and defer this work
+  // until the history tab is actually opened.
+  const feesById = useMemo(() => new Map(fees.map(f=>[f.id,f])), [fees])
+  const classesById = useMemo(() => new Map(classes.map(c=>[c.id,c])), [classes])
+  const enrichedPayments = useMemo(() => {
+    if(feeActiveTab!=='history') return []
+    return payments.map(p => {
+      const fee     = feesById.get(p.fee_id)
+      const student = studentsById.get(fee?.student_id)
+      const cls     = classesById.get(student?.class_id)
+      return {
+        ...p,
+        fee_type:     fee?.fee_type||'--',
+        period:       fee?.period||'',
+        fee_amount:   fee?.amount||0,
+        student_name: student ? fullName(student,true) : '--',
+        student_id_no:student?.student_id||'',
+        student_photo:student?.photo||null,
+        class_name:   cls?.name||'--',
+        class_id:     student?.class_id||null,
+        fee_obj:      fee,
+        student_obj:  student,
+        cls_obj:      cls,
+        academic_year:fee?.academic_year||'',
+      }
+    })
+  }, [feeActiveTab,payments,feesById,studentsById,classesById])
 
   // Filter payments — default to current academic year
-  const phFiltered = enrichedPayments.filter(p => {
+  const phFiltered = useMemo(() => enrichedPayments.filter(p => {
     if(p.academic_year !== activeYear) return false
     if(phClass   && p.class_id!==phClass) return false
     if(phStudent && p.fee_obj?.student_id!==phStudent) return false
@@ -697,7 +708,11 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
            p.fee_type.toLowerCase().includes(q))) return false
     }
     return true
-  })
+  }), [enrichedPayments,activeYear,phClass,phStudent,phFeeType,phDateFrom,phDateTo,phSearch])
+  const phSorted = useMemo(() => [...phFiltered].sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')), [phFiltered])
+  const phPageCount = Math.max(1, Math.ceil(phSorted.length/PH_PAGE_SIZE))
+  const pagedPhFiltered = phSorted.slice(phPage*PH_PAGE_SIZE, phPage*PH_PAGE_SIZE+PH_PAGE_SIZE)
+  useEffect(() => { setPhPage(0) }, [phSearch,phClass,phStudent,phFeeType,phDateFrom,phDateTo,activeYear])
 
   const phTotalCollected = phFiltered.reduce((a,p)=>a+Number(p.amount||0),0)
   const phReceiptsIssued = phFiltered.filter(p=>p.receipt_no).length
@@ -1564,7 +1579,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:24}}>
             {fee_templates.filter(t=>t.academic_year===activeYear).map(tmpl=>{
               const tmplPeriods  = fee_periods.filter(p=>p.template_id===tmpl.id)
-              const tmplFees     = fees.filter(f=>f.template_id===tmpl.id && !students.find(s=>s.id===f.student_id)?.archived)
+              const tmplFees     = fees.filter(f=>f.template_id===tmpl.id && !studentsById.get(f.student_id)?.archived)
               const tmplPaid     = tmplFees.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
               const isSelected   = selectedTemplate?.id===tmpl.id
               const tmplClasses  = (tmpl.class_ids||[]).map(id=>classes.find(c=>c.id===id)?.name).filter(Boolean)
@@ -1632,7 +1647,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
                     </thead>
                     <tbody>
                       {tmplPeriods.map(period=>{
-                        const periodFees  = fees.filter(f=>f.fee_period_id===period.id && !students.find(s=>s.id===f.student_id)?.archived)
+                        const periodFees  = fees.filter(f=>f.fee_period_id===period.id && !studentsById.get(f.student_id)?.archived)
                         const charged     = periodFees.length
                         const collected   = periodFees.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
                         const outstanding = periodFees.reduce((a,f)=>a+Math.max(0,Number(f.amount||0)-effectivePaid(f,paymentsSumByFee)),0)
@@ -1685,14 +1700,15 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
         {/* ── Period Register ── */}
         {selectedPeriod && selectedTemplate && (() => {
           const tmpl       = fee_templates.find(t=>t.id===selectedTemplate.id)
-          const periodFees = fees.filter(f=>f.fee_period_id===selectedPeriod.id && !students.find(s=>s.id===f.student_id)?.archived)
+          const periodFees = fees.filter(f=>f.fee_period_id===selectedPeriod.id && !studentsById.get(f.student_id)?.archived)
+          const periodFeesByStudent = new Map(periodFees.map(f=>[f.student_id,f]))
           const tmplClassIds = tmpl?.class_ids||[]
           // All students in template's classes
           const allStudents  = activeStudents.filter(s=>tmplClassIds.includes(s.class_id))
           const fmtD = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'
 
           const registerRows = allStudents.map(s=>{
-            const feeRow  = periodFees.find(f=>f.student_id===s.id)
+            const feeRow  = periodFeesByStudent.get(s.id)
             const charged = Number(feeRow?.amount||0)
             const paid    = feeRow ? effectivePaid(feeRow,paymentsSumByFee) : 0
             const balance = Math.max(0, charged - paid)
@@ -1722,7 +1738,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
               ? `<img src="${schoolLogo}" style="width:40px;height:40px;object-fit:contain;border-radius:5px;"/>`
               : `<div style="width:40px;height:40px;border-radius:7px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#e8b84b;">${schoolName.charAt(0)}</div>`
             const allRegRows = allStudents.map(s=>{
-              const feeRow  = periodFees.find(f=>f.student_id===s.id)
+              const feeRow  = periodFeesByStudent.get(s.id)
               const charged = Number(feeRow?.amount||0)
               const paid    = feeRow ? effectivePaid(feeRow,paymentsSumByFee) : 0
               const balance = Math.max(0, charged - paid)
@@ -1741,12 +1757,12 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
                 <td style="padding:7px 10px;font-size:11px;font-weight:700;color:${sColor};">${status}</td>
               </tr>`
             }).join('')
-            const grandTotal = allStudents.reduce((a,s)=>{const f=periodFees.find(x=>x.student_id===s.id);return a+(f?effectivePaid(f,paymentsSumByFee):0)},0)
+            const grandTotal = allStudents.reduce((a,s)=>{const f=periodFeesByStudent.get(s.id);return a+(f?effectivePaid(f,paymentsSumByFee):0)},0)
             // Same Paid/Partial/Outstanding/Excluded bucketing as the on-screen register --
             // the old footer only checked balance===0 vs paid===0, so a partial payer
             // (paid>0 but balance>0) matched neither and silently dropped from both counts.
             const printStatusCounts = allStudents.reduce((acc,s)=>{
-              const f = periodFees.find(x=>x.student_id===s.id)
+              const f = periodFeesByStudent.get(s.id)
               const paid = f ? effectivePaid(f,paymentsSumByFee) : 0
               const balance = Math.max(0, Number(f?.amount||0)-paid)
               const status = !f ? 'Excluded' : balance===0 ? 'Paid' : paid>0 ? 'Partial' : 'Outstanding'
@@ -2143,7 +2159,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
             <Select value={phStudent} onChange={e=>setPhStudent(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
               <option value=''>All Students</option>
-              {phStudentsInClass.sort((a,b)=>(a.last_name||'').localeCompare(b.last_name||'')).map(s=><option key={s.id} value={s.id}>{fullName(s,true)}</option>)}
+              {[...phStudentsInClass].sort((a,b)=>(a.last_name||'').localeCompare(b.last_name||'')).map(s=><option key={s.id} value={s.id}>{fullName(s,true)}</option>)}
             </Select>
             <Select value={phFeeType} onChange={e=>setPhFeeType(e.target.value)}
               style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 130px'}}>
@@ -2178,7 +2194,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
                     </tr>
                   </thead>
                   <tbody>
-                    {[...phFiltered].sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||'')).map((p,i)=>{
+                    {pagedPhFiltered.map((p,i)=>{
                       const dt = p.created_at ? new Date(p.created_at) : null
                       const dateStr  = dt ? dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '--'
                       const timeStr  = dt ? dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : ''
@@ -2243,6 +2259,18 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
               </div>
             )
           }
+          {phFiltered.length>0 && (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderTop:'1px solid var(--line)',flexWrap:'wrap',gap:10}}>
+              <span style={{fontSize:12,color:'var(--mist3)'}}>
+                Showing {phPage*PH_PAGE_SIZE+1}-{Math.min(phFiltered.length,(phPage+1)*PH_PAGE_SIZE)} of {phFiltered.length}
+              </span>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <Btn size='sm' variant='ghost' disabled={phPage===0} onClick={()=>setPhPage(p=>Math.max(0,p-1))}>&larr; Previous</Btn>
+                <span style={{fontSize:12,color:'var(--mist3)'}}>Page {phPage+1} of {phPageCount}</span>
+                <Btn size='sm' variant='ghost' disabled={phPage>=phPageCount-1} onClick={()=>setPhPage(p=>Math.min(phPageCount-1,p+1))}>Next &rarr;</Btn>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* ── Payment Detail Modal ── */}
