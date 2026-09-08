@@ -219,9 +219,15 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
   const [search,setSearch]     = useState('')
   const [fstatus,setFstatus]   = useState(initialFeeFilter||'')
   const [fFeeType,setFFeeType] = useState('')
-  const [fPeriod,setFPeriod]   = useState(currentPeriod)
+  const [fPeriod,setFPeriod]   = useState(!currentYear||activeYear===currentYear ? currentPeriod : '')
   const [fYear,setFYear]       = useState(activeYear)
-  useEffect(()=>{ setFYear(activeYear); setFPeriod(currentPeriod) },[activeYear,currentPeriod])
+  useEffect(()=>{
+    setFYear(activeYear)
+    // Current-year work should open on the school's active term. Historical
+    // recurring runs predate academic-period tagging, so default past years
+    // to the complete year instead of presenting a misleading zero total.
+    setFPeriod(!currentYear||activeYear===currentYear ? currentPeriod : '')
+  },[activeYear,currentYear,currentPeriod])
   useEffect(()=>{ if(initialFeeFilter){setFstatus(initialFeeFilter);if(onFilterConsumed)onFilterConsumed()} },[])
   const [fClassId,setFClassId] = useState(profile?.role==='classteacher' ? (profile?.class_id||'') : '')
   // The fee table has no windowing -- a school with a full year of fee/period
