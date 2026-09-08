@@ -688,7 +688,7 @@ export default function App() {
   }
   // ─────────────────────────────────────────────────────────────────
 
-  const props = { profile, data: displayData, setData, toast: showToast, settings, activeYear, isViewingPast, reloadData: () => loadData(activeYear, profile, settings), onShowPlans: () => setShowPlans(true), reloadSettings }
+  const props = { profile, data: displayData, setData, toast: showToast, settings, activeYear, currentYear, isViewingPast, onAcademicYearChange: year => setSelectedYear(year===currentYear?null:year), reloadData: () => loadData(activeYear, profile, settings), onShowPlans: () => setShowPlans(true), reloadSettings }
 
   const renderPage = () => {
     const allowedPages = NAV_ITEMS[profile?.role] || []

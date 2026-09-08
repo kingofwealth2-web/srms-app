@@ -3,7 +3,7 @@ import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS, CURRENCIES } from '../lib/constants'
 import PlanGate from '../components/PlanGate'
-import { fmtDate, fmtMoney, getCurrency, csvEscape, fullName, effectivePaid, buildPaymentsByFee, mapWithConcurrency } from '../lib/helpers'
+import { fmtDate, fmtMoney, getCurrency, csvEscape, fullName, effectivePaid, buildPaymentsByFee, mapWithConcurrency, generateYears } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -200,7 +200,7 @@ function printReceipt({fee, feePayments, student, cls, settings, currency}) {
 }
 
 // ── FEES ───────────────────────────────────────────────────────
-export default function Fees({profile,data,setData,toast,settings,activeYear,isViewingPast,initialFeeFilter,onFilterConsumed,planHook}) {
+export default function Fees({profile,data,setData,toast,settings,activeYear,currentYear,isViewingPast,onAcademicYearChange,initialFeeFilter,onFilterConsumed,planHook}) {
   const {fees=[],students=[],classes=[],payments=[],fee_templates=[],fee_periods=[]} = data
   const currency = getCurrency(settings)
   const isMobile = useIsMobile()
@@ -452,8 +452,8 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     const latestReceipt = latestPayment?.receipt_no || fee.receipt_no || null
     return{...fee,student_name:s?fullName(s,true):'--',balance:bal,effectivePaid:paidAmt,status,isOverdue,hasPayments:feePayments.length>0||paidAmt>0,receipt_no:latestReceipt}
   }), [fees, activeYear, studentsById, paymentsByFee, paymentsSumByFee, today])
-  const feeAcademicYears = useMemo(() => [...new Set([activeYear,...fees.map(f=>f.academic_year).filter(Boolean)])]
-    .sort((a,b)=>b.localeCompare(a)), [activeYear,fees])
+  const feeAcademicYears = useMemo(() => [...new Set([activeYear,...generateYears(currentYear||activeYear)])]
+    .sort((a,b)=>b.localeCompare(a)), [activeYear,currentYear])
   const periodOptions = useMemo(() => [...new Set(fees
     .filter(f=>f.academic_year===fYear&&(!fFeeType||f.fee_type===fFeeType)&&f.period)
     .map(f=>f.period))].sort(), [fees,fYear,fFeeType])
@@ -1459,7 +1459,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       <Card style={{marginBottom:16,padding:'12px 16px'}}>
         <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
           <span style={{fontSize:12,fontWeight:700,color:'var(--mist2)',marginRight:2}}>KPI period</span>
-          <Select value={fYear} onChange={e=>{setFYear(e.target.value);setFPeriod('')}} aria-label='Fee KPI academic year' style={{minWidth:140}}>
+          <Select value={fYear} onChange={e=>{const year=e.target.value;setFYear(year);setFPeriod('');onAcademicYearChange?.(year)}} aria-label='Fee KPI academic year' style={{minWidth:140}}>
             {feeAcademicYears.map(y=><option key={y} value={y}>{y}</option>)}
           </Select>
           <Select value={fPeriod} onChange={e=>setFPeriod(e.target.value)} aria-label='Fee KPI term or semester' style={{minWidth:140}}>
