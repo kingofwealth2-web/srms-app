@@ -265,6 +265,11 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
   const [editPeriodSaving, setEditPeriodSaving]     = useState(false)
   const tf = k=>v=>setTmplForm(p=>({...p,[k]:v}))
 
+  useEffect(()=>{
+    setSelectedTemplate(null)
+    setSelectedPeriod(null)
+  },[fYear,fPeriod])
+
   // ── Bulk Record Payment state ──
   const BRP_INIT = {template_id:'',label:'',period_date:new Date().toISOString().split('T')[0],class_ids:[],mode:'same',same_amount:''}
   const [brpModal, setBrpModal]       = useState(false)
@@ -1566,7 +1571,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
 
         {/* Template list */}
         <SectionTitle>Recurring Fee Types</SectionTitle>
-        {fee_templates.filter(t=>t.academic_year===activeYear).length===0 ? (
+        {fee_templates.filter(t=>t.academic_year===fYear).length===0 ? (
           <Card style={{textAlign:'center',padding:'40px 24px',marginBottom:24}}>
             <div style={{fontSize:32,marginBottom:12}}>🔁</div>
             <div style={{fontSize:15,fontWeight:600,color:'var(--mist)',marginBottom:6}}>No recurring fees set up yet</div>
@@ -1577,9 +1582,18 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
           </Card>
         ) : (
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:24}}>
-            {fee_templates.filter(t=>t.academic_year===activeYear).map(tmpl=>{
-              const tmplPeriods  = fee_periods.filter(p=>p.template_id===tmpl.id)
-              const tmplFees     = fees.filter(f=>f.template_id===tmpl.id && !studentsById.get(f.student_id)?.archived)
+            {fee_templates.filter(t=>t.academic_year===fYear).map(tmpl=>{
+              const tmplPeriods  = fee_periods.filter(p=>
+                p.template_id===tmpl.id &&
+                p.academic_year===fYear &&
+                (!fPeriod || p.academic_period===fPeriod)
+              )
+              const tmplFees     = fees.filter(f=>
+                f.template_id===tmpl.id &&
+                f.academic_year===fYear &&
+                (!fPeriod || academicPeriodForFee(f)===fPeriod) &&
+                !studentsById.get(f.student_id)?.archived
+              )
               const tmplPaid     = tmplFees.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
               const isSelected   = selectedTemplate?.id===tmpl.id
               const tmplClasses  = (tmpl.class_ids||[]).map(id=>classes.find(c=>c.id===id)?.name).filter(Boolean)
@@ -1621,7 +1635,11 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
 
         {/* Period breakdown for selected template */}
         {selectedTemplate && (() => {
-          const tmplPeriods = fee_periods.filter(p=>p.template_id===selectedTemplate.id).sort((a,b)=>b.period_date.localeCompare(a.period_date))
+          const tmplPeriods = fee_periods.filter(p=>
+            p.template_id===selectedTemplate.id &&
+            p.academic_year===fYear &&
+            (!fPeriod || p.academic_period===fPeriod)
+          ).sort((a,b)=>b.period_date.localeCompare(a.period_date))
           const tmpl = fee_templates.find(t=>t.id===selectedTemplate.id)
           return (
             <>
