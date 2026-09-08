@@ -18,6 +18,10 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   // which silently drops to [] on a timeout on a large table instead of erroring
   // loudly. That was zeroing out the Fee Collection KPI for large schools.
   const {students=[],classes=[],subjects=[],enrolments=[],fees=[],payments=[],grades=[],attendance=[],announcements=[],opening_balances:openingBalances=[]} = data
+  const yearFees = useMemo(() => fees.filter(f=>f.academic_year===activeYear), [fees,activeYear])
+  const yearGrades = useMemo(() => grades.filter(g=>g.year===activeYear), [grades,activeYear])
+  const yearAttendance = useMemo(() => attendance.filter(a=>a.academic_year===activeYear), [attendance,activeYear])
+  const yearOpeningBalances = useMemo(() => openingBalances.filter(b=>b.academic_year===activeYear), [openingBalances,activeYear])
   // When viewing past year, use enrolment records to know which students were enrolled
   const enrolledStudentIds = enrolments.length>0 ? new Set(enrolments.map(e=>e.student_id)) : null
   const yearStudents = enrolledStudentIds
@@ -28,18 +32,18 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   const gradeComps = getGradeComponents(settings)
   const currency = getCurrency(settings)
   const myClass = profile?.role==='classteacher' ? classes.find(c=>c.id===profile.class_id) : null
-  const todayMarked = myClass ? attendance.some(a=>a.class_id===myClass.id&&a.date===today) : true
+  const todayMarked = myClass ? yearAttendance.some(a=>a.class_id===myClass.id&&a.date===today) : true
   const paymentsSumByFee = useMemo(() => buildPaymentsByFee(payments), [payments])
-  const totalFees = fees.reduce((s,f)=>s+Number(f.amount||0),0)
+  const totalFees = yearFees.reduce((s,f)=>s+Number(f.amount||0),0)
   // Count payment only up to each fee's own amount, so overpayment credits on
   // some pupils don't inflate "collected" or mask real arrears elsewhere.
-  const totalPaid = fees.reduce((s,f)=>s+Math.min(Number(f.amount||0), effectivePaid(f,paymentsSumByFee)),0)
-  const totalOutstanding = fees.reduce((s,f)=>s+Math.max(0, Number(f.amount||0)-effectivePaid(f,paymentsSumByFee)),0)
+  const totalPaid = yearFees.reduce((s,f)=>s+Math.min(Number(f.amount||0), effectivePaid(f,paymentsSumByFee)),0)
+  const totalOutstanding = yearFees.reduce((s,f)=>s+Math.max(0, Number(f.amount||0)-effectivePaid(f,paymentsSumByFee)),0)
   // Capped at 99% while any balance remains -- a plain Math.round can display "100%"
   // (e.g. GH₵200 owed out of GH₵500,000) even though money is still outstanding.
   const feeRate = !totalFees ? 0 : totalOutstanding<=0 ? 100 : Math.min(99, Math.round(totalPaid/totalFees*100))
   const isAdmin   = ['superadmin','admin'].includes(profile?.role)
-  const overdueFeesCount = isAdmin ? fees.filter(fee2=>{
+  const overdueFeesCount = isAdmin ? yearFees.filter(fee2=>{
     const bal = Number(fee2.amount||0) - effectivePaid(fee2,paymentsSumByFee)
     return fee2.due_date && fee2.due_date < today && bal > 0
   }).length : 0
@@ -50,7 +54,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   const calcStats = (studentIds, subjectIds, period) => {
     const sidSet = subjectIds ? new Set(subjectIds) : null
     const perStudent = studentIds.map(sid => {
-      const sg = grades.filter(g =>
+      const sg = yearGrades.filter(g =>
         g.student_id===sid &&
         (!sidSet || sidSet.has(g.subject_id)) &&
         (!period || g.period===period)
@@ -71,7 +75,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
 
   // Latest period that has grade data
   const periodOrder     = Array.from({length:settings?.period_count||2},(_,i)=>`${settings?.period_type==='term'?'Term':'Semester'} ${i+1}`)
-  const periodsWithData = periodOrder.filter(p=>grades.some(g=>g.period===p))
+  const periodsWithData = periodOrder.filter(p=>yearGrades.some(g=>g.period===p))
   const latestPeriod    = periodsWithData.length>0 ? periodsWithData[periodsWithData.length-1] : periodOrder[periodOrder.length-1]
 
   // Admin/superadmin: school-wide average of per-student averages (latest period only)
@@ -85,7 +89,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
 
   // Subject teacher: scoped to their subjects and the students in those subjects
   const mySubjectIds        = subjects.filter(s=>s.teacher_id===profile?.id).map(s=>s.id)
-  const mySubjectStudentIds = [...new Set(grades.filter(g=>mySubjectIds.includes(g.subject_id)).map(g=>g.student_id))]
+  const mySubjectStudentIds = [...new Set(yearGrades.filter(g=>mySubjectIds.includes(g.subject_id)).map(g=>g.student_id))]
   const mySubjectStats      = calcStats(mySubjectStudentIds, mySubjectIds, latestPeriod)
   const mySubjectAvg        = mySubjectStats.avg
   const activeAnn = announcements.filter(a=>canSeeAnnouncement(profile?.role,a)).slice(0,4)
@@ -95,7 +99,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   // Teacher: top 3 per subject (latest period)
   const topPerSubject = (profile?.role==='teacher' || profile?.role==='classteacher')
     ? subjects.filter(s=>s.teacher_id===profile.id).map(sub=>{
-        const subGrades = grades.filter(g=>g.subject_id===sub.id && g.period===latestPeriod)
+        const subGrades = yearGrades.filter(g=>g.subject_id===sub.id && g.period===latestPeriod)
         const ranked = subGrades
           .map(g=>({g, student:students.find(s=>s.id===g.student_id), total:calcTotal(g,gradeComps)}))
           .filter(x=>x.student&&!x.student.archived)
@@ -111,7 +115,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
         const clsStudents = students.filter(s=>s.class_id===cls.id&&!s.archived)
         const clsSubjectIds = subjects.filter(s=>s.class_id===cls.id).map(s=>s.id)
         const ranked = clsStudents.map(s=>{
-          const sg = grades.filter(g=>g.student_id===s.id && clsSubjectIds.includes(g.subject_id) && g.period===latestPeriod)
+          const sg = yearGrades.filter(g=>g.student_id===s.id && clsSubjectIds.includes(g.subject_id) && g.period===latestPeriod)
           if(!sg.length) return null
           const total = sg.reduce((sum,g)=>sum+calcTotal(g,gradeComps),0)
           return {student:s, total}
@@ -121,13 +125,13 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
     : []
 
   // Attendance rate calculations (folds in any Opening Attendance Balance entries)
-  const schoolAttSummary = calcAttendanceRate(attendance, openingBalances)
+  const schoolAttSummary = calcAttendanceRate(yearAttendance, yearOpeningBalances)
   const schoolAttTotal   = schoolAttSummary.total
   const schoolAttPresent = schoolAttSummary.present
   const schoolAttRate    = schoolAttSummary.rate ?? 0
-  const classesMarkedToday = new Set(attendance.filter(a=>a.date===today).map(a=>a.class_id)).size
-  const myClassAtt       = myClass ? attendance.filter(a=>a.class_id===myClass.id) : []
-  const myClassOB        = myClass ? openingBalances.filter(b=>b.class_id===myClass.id) : []
+  const classesMarkedToday = new Set(yearAttendance.filter(a=>a.date===today).map(a=>a.class_id)).size
+  const myClassAtt       = myClass ? yearAttendance.filter(a=>a.class_id===myClass.id) : []
+  const myClassOB        = myClass ? yearOpeningBalances.filter(b=>b.class_id===myClass.id) : []
   const myClassAttRate   = calcAttendanceRate(myClassAtt, myClassOB).rate ?? 0
 
   const unassignedClasses = profile?.role==='superadmin'
@@ -190,7 +194,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
         <div className='daybook-intro__ledger' aria-label='Current school record status'>
           <div><span>Current period</span><strong>{latestPeriod}</strong></div>
           <div><span>Classes marked today</span><strong>{classesMarkedToday} of {classes.length}</strong></div>
-          <div><span>Records today</span><strong>{attendance.filter(a=>a.date===today).length}</strong></div>
+          <div><span>Records today</span><strong>{yearAttendance.filter(a=>a.date===today).length}</strong></div>
         </div>
       </section>
       <div className='daybook-kpi-grid' style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,minmax(0,1fr))':'repeat(4,minmax(0,1fr))',gap:12,marginBottom: isMobile?20:28}}>
@@ -208,7 +212,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
         </>}
         {profile?.role==='teacher' && <>
           <KPI label='Subjects'        value={subjects.filter(s=>s.teacher_id===profile.id).length} color='var(--gold)'  sub='Assigned to you' index={0}/>
-          <KPI label='Grades Entered'  value={grades.filter(g=>subjects.some(s=>s.id===g.subject_id&&s.teacher_id===profile.id)).length} color='var(--sky)' sub='Total records' index={1}/>
+          <KPI label='Grades Entered'  value={yearGrades.filter(g=>subjects.some(s=>s.id===g.subject_id&&s.teacher_id===profile.id)).length} color='var(--sky)' sub={`${activeYear} records`} index={1}/>
           <KPI label='Avg Score'       value={mySubjectAvg}         color='var(--emerald)' sub='Your subjects' index={2}/>
           <KPI label='Announcements'   value={activeAnn.length}     color='var(--amber)'   sub='Active' index={3}/>
         </>}

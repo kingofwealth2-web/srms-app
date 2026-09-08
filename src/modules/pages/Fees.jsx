@@ -214,6 +214,8 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   const [fstatus,setFstatus]   = useState(initialFeeFilter||'')
   const [fFeeType,setFFeeType] = useState('')
   const [fPeriod,setFPeriod]   = useState('')
+  const [fYear,setFYear]       = useState(activeYear)
+  useEffect(()=>{ setFYear(activeYear); setFPeriod('') },[activeYear])
   useEffect(()=>{ if(initialFeeFilter){setFstatus(initialFeeFilter);if(onFilterConsumed)onFilterConsumed()} },[])
   const [fClassId,setFClassId] = useState(profile?.role==='classteacher' ? (profile?.class_id||'') : '')
   // The fee table has no windowing -- a school with a full year of fee/period
@@ -437,7 +439,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     }
     return map
   }, [payments])
-  const enriched = useMemo(() => fees.filter(fee=>!studentsById.get(fee.student_id)?.archived).map(fee=>{
+  const enriched = useMemo(() => fees.filter(fee=>fee.academic_year!==activeYear||!studentsById.get(fee.student_id)?.archived).map(fee=>{
     const s = studentsById.get(fee.student_id)
     const feePayments = paymentsByFee.get(fee.id) || []
     const paidAmt = effectivePaid(fee, paymentsSumByFee)
@@ -449,14 +451,19 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
     const latestPayment = [...feePayments].sort((a,b)=>b.created_at?.localeCompare(a.created_at))[0]
     const latestReceipt = latestPayment?.receipt_no || fee.receipt_no || null
     return{...fee,student_name:s?fullName(s,true):'--',balance:bal,effectivePaid:paidAmt,status,isOverdue,hasPayments:feePayments.length>0||paidAmt>0,receipt_no:latestReceipt}
-  }), [fees, studentsById, paymentsByFee, paymentsSumByFee, today])
-  const filtered = enriched.filter(r=>{
+  }), [fees, activeYear, studentsById, paymentsByFee, paymentsSumByFee, today])
+  const feeAcademicYears = useMemo(() => [...new Set([activeYear,...fees.map(f=>f.academic_year).filter(Boolean)])]
+    .sort((a,b)=>b.localeCompare(a)), [activeYear,fees])
+  const periodOptions = useMemo(() => [...new Set(fees
+    .filter(f=>f.academic_year===fYear&&(!fFeeType||f.fee_type===fFeeType)&&f.period)
+    .map(f=>f.period))].sort(), [fees,fYear,fFeeType])
+  const kpiRows = enriched.filter(r=>r.academic_year===fYear&&(!fPeriod||r.period===fPeriod))
+  const filtered = kpiRows.filter(r=>{
     if(fClassId){
       const s = studentsById.get(r.student_id)
       if(!s || s.class_id!==fClassId) return false
     }
     if(fFeeType && r.fee_type!==fFeeType) return false
-    if(fPeriod && r.period!==fPeriod) return false
     if(!r.student_name.toLowerCase().includes(search.toLowerCase())) return false
     if(fstatus==='Overdue' && !r.isOverdue) return false
     else if(fstatus && fstatus!=='Overdue' && r.status!==fstatus) return false
@@ -464,18 +471,18 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
   })
   // Reset to page 1 whenever the result set changes shape -- otherwise
   // filtering down to fewer rows can leave you stranded on a page past the end.
-  useEffect(() => { setFeePage(0) }, [search, fClassId, fFeeType, fPeriod, fstatus])
+  useEffect(() => { setFeePage(0) }, [search, fClassId, fFeeType, fPeriod, fYear, fstatus])
   const feePageCount = Math.max(1, Math.ceil(filtered.length / FEE_PAGE_SIZE))
   const pagedFiltered = filtered.slice(feePage*FEE_PAGE_SIZE, feePage*FEE_PAGE_SIZE + FEE_PAGE_SIZE)
-  const overdueCount = enriched.filter(r=>r.isOverdue).length
-  const totalOwed = enriched.reduce((s,r)=>s+Number(r.amount||0),0)
+  const overdueCount = kpiRows.filter(r=>r.isOverdue).length
+  const totalOwed = kpiRows.reduce((s,r)=>s+Number(r.amount||0),0)
   // Collected/outstanding must NOT net overpayment credits from one fee against
   // another fee's unpaid balance, or a school with a few overpaid pupils sees
   // "Outstanding" collapse toward zero while real arrears are still owed.
   // Collected counts payment only up to each fee's own amount (a credit never
   // "collects" a different fee); Outstanding sums positive balances only.
-  const totalPaid = enriched.reduce((s,r)=>s+Math.min(Number(r.amount||0), r.effectivePaid),0)
-  const totalOutstanding = enriched.reduce((s,r)=>s+Math.max(0, r.balance),0)
+  const totalPaid = kpiRows.reduce((s,r)=>s+Math.min(Number(r.amount||0), r.effectivePaid),0)
+  const totalOutstanding = kpiRows.reduce((s,r)=>s+Math.max(0, r.balance),0)
   // Capped at 99% while any balance remains -- a plain Math.round can display "100%"
   // (e.g. GH₵200 owed out of GH₵500,000) even though money is still outstanding.
   const collectionRate = !totalOwed ? 0 : totalOutstanding<=0 ? 100 : Math.min(99, Math.round(totalPaid/totalOwed*100))
@@ -1449,8 +1456,22 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
       {/* ══════════════ FEES TAB ══════════════ */}
       {feeActiveTab==='fees' && (<>
 
+      <Card style={{marginBottom:16,padding:'12px 16px'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <span style={{fontSize:12,fontWeight:700,color:'var(--mist2)',marginRight:2}}>KPI period</span>
+          <Select value={fYear} onChange={e=>{setFYear(e.target.value);setFPeriod('')}} aria-label='Fee KPI academic year' style={{minWidth:140}}>
+            {feeAcademicYears.map(y=><option key={y} value={y}>{y}</option>)}
+          </Select>
+          <Select value={fPeriod} onChange={e=>setFPeriod(e.target.value)} aria-label='Fee KPI term or semester' style={{minWidth:140}}>
+            <option value=''>All {settings?.period_type==='term'?'Terms':'Semesters'}</option>
+            {periodOptions.map(p=><option key={p} value={p}>{p}</option>)}
+          </Select>
+          <span style={{fontSize:12,color:'var(--mist3)'}}>Totals and the list below use this period.</span>
+        </div>
+      </Card>
+
       <div className='daybook-kpi-grid' style={{display:'grid',gridTemplateColumns:`repeat(${overdueCount>0?5:4},minmax(0,1fr))`,gap:12,marginBottom:24}}>
-        <KPI label='Total Owed'      value={fmtMoney(totalOwed,currency)} color='var(--mist)'    sub='All fees' index={0}/>
+        <KPI label='Total Owed'      value={fmtMoney(totalOwed,currency)} color='var(--mist)'    sub={`${fPeriod||'All periods'} · ${fYear}`} index={0}/>
         <KPI label='Collected'       value={fmtMoney(totalPaid,currency)} color='var(--emerald)' sub='Payments received' index={1}/>
         <KPI label='Outstanding'     value={fmtMoney(totalOutstanding,currency)} color='var(--rose)' sub='Awaiting payment' index={2}/>
         <KPI label='Collection Rate' value={`${collectionRate}%`} color='var(--gold)' sub='Of total owed' index={3}/>
@@ -1471,10 +1492,6 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             <option value=''>All Fee Types</option>
             {allFeeTypes.map(t=><option key={t} value={t}>{t}</option>)}
           </Select>
-          <Select value={fPeriod} onChange={e=>setFPeriod(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer',flex:'1 1 140px'}}>
-            <option value=''>All Periods</option>
-            {[...new Set(fees.filter(f=>f.academic_year===activeYear&&(!fFeeType||f.fee_type===fFeeType)&&f.period).map(f=>f.period))].sort().map(p=><option key={p} value={p}>{p}</option>)}
-          </Select>
           <Select value={fstatus} onChange={e=>setFstatus(e.target.value)} style={{background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'8px 14px',color:'var(--mist)',fontSize:13,cursor:'pointer'}}>
             <option value=''>All Status</option>
             <option>Paid</option><option>Partial</option><option>Outstanding</option><option>Overpaid</option><option value='Overdue'>Overdue</option>
@@ -1493,7 +1510,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,isV
             : <span className='mono' style={{color:v>0?'var(--rose)':'var(--emerald)'}}>{fmtMoney(v,currency)}</span>},
           {key:'status', label:'Status',  render:v=><Badge color={FEE_STATUS[v]?.color} bg={FEE_STATUS[v]?.bg}>{v}</Badge>},
           {key:'receipt_no',label:'Receipt',render:v=>v?<span className='mono' style={{fontSize:12,color:'var(--mist2)'}}>{v}</span>:'--'},
-          {key:'id',label:'',render:(_,r)=>isViewingPast?null:(
+          {key:'id',label:'',render:(_,r)=>(isViewingPast||fYear!==activeYear)?null:(
             <div style={{display:'flex',gap:6,flexWrap:'wrap'}} onClick={e=>e.stopPropagation()}>
               {r.balance>0 && <Btn size='sm' onClick={()=>openPay(r)}>Record Payment</Btn>}
               {r.hasPayments && <PlanGate planHook={planHook} feature='feeReceipts' mode='inline'><Btn variant='ghost' size='sm' onClick={()=>openReceipt(r)}>⎙ Receipt</Btn></PlanGate>}

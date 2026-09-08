@@ -53,7 +53,8 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   const myClasses = profile?.role==='classteacher' ? classes.filter(c=>c.id===profile.class_id) : classes
   const cls = myClasses.find(c=>c.id===cid)
   const classStudents = cls ? students.filter(s=>s.class_id===cls.id) : []
-  const savedRecs = attendance.filter(a=>a.date===date&&a.class_id===cid)
+  const yearAttendance = attendance.filter(a=>a.academic_year===activeYear)
+  const savedRecs = yearAttendance.filter(a=>a.date===date&&a.class_id===cid)
   const getSavedStatus = sid => savedRecs.find(r=>r.student_id===sid)?.status||''
   const getStatus = sid => pendingMarks[sid] !== undefined ? pendingMarks[sid] : getSavedStatus(sid)
   const alreadyMarkedToday = date===today && savedRecs.length>0 && Object.keys(pendingMarks).length===0
@@ -122,7 +123,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
 
   const statuses = ['Present','Absent','Late','Excused']
   const counts = statuses.reduce((acc,s)=>({...acc,[s]:classStudents.filter(st=>getStatus(st.id)===s).length}),{})
-  const histRecs = attendance.filter(a=>!cid||a.class_id===cid).sort((a,b)=>b.date.localeCompare(a.date))
+  const histRecs = yearAttendance.filter(a=>!cid||a.class_id===cid).sort((a,b)=>b.date.localeCompare(a.date))
 
   const exportAttendanceCsv = () => {
     try{

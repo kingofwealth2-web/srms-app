@@ -33,7 +33,13 @@ const abbrSubject = name => {
 
 // ── REPORTS ────────────────────────────────────────────────────
 export default function Reports({profile,data,settings,activeYear,isViewingPast,toast,planHook,onShowPlans}) {
-  const {students=[],grades=[],attendance=[],fees=[],classes=[],subjects=[],enrolments=[],opening_balances:openingBalances=[],payments=[]} = data
+  const {students=[],grades:allGrades=[],attendance:allAttendance=[],fees:allFees=[],classes=[],subjects=[],enrolments=[],opening_balances:allOpeningBalances=[],payments:allPayments=[]} = data
+  const grades = allGrades.filter(g=>g.year===activeYear)
+  const attendance = allAttendance.filter(a=>a.academic_year===activeYear)
+  const fees = allFees.filter(f=>f.academic_year===activeYear)
+  const openingBalances = allOpeningBalances.filter(b=>b.academic_year===activeYear)
+  const feeIds = new Set(fees.map(f=>f.id))
+  const payments = allPayments.filter(p=>feeIds.has(p.fee_id))
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
   const currency   = getCurrency(settings)
@@ -196,7 +202,7 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
   // actually has a realistic amount of fee/payment history loaded).
   const paymentsSumByFee = buildPaymentsByFee(payments)
   const feeData = scopedStudents.map(s=>{
-    const sf=fees.filter(f=>f.student_id===s.id)
+    const sf=fees.filter(f=>f.student_id===s.id && (!fp||f.period===fp))
     const owed=sf.reduce((a,f)=>a+Number(f.amount||0),0)
     const paid=sf.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
     // Per-fee capped figures for the school-wide KPI totals below, so an
@@ -596,7 +602,11 @@ const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlig
 
 // ── REPORT CARDS ───────────────────────────────────────────────
 function ReportCards({profile,data,settings,activeYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemarks,setRcHeadRemarks,rcResumption,setRcResumption,rcVacation,setRcVacation,rcPromotedTo,setRcPromotedTo,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,rcReportTitle,setRcReportTitle,exportExcel,planHook,onShowPlans}) {
-  const {students=[],grades=[],attendance=[],classes=[],subjects=[],users=[],examScores=[],opening_balances:openingBalances=[]} = data
+  const {students=[],grades:allGrades=[],attendance:allAttendance=[],classes=[],subjects=[],users=[],examScores:allExamScores=[],opening_balances:allOpeningBalances=[]} = data
+  const grades = allGrades.filter(g=>g.year===activeYear)
+  const attendance = allAttendance.filter(a=>a.academic_year===activeYear)
+  const examScores = allExamScores.filter(e=>e.year===activeYear)
+  const openingBalances = allOpeningBalances.filter(b=>b.academic_year===activeYear)
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
   const schoolLogo = settings?.school_logo||null
