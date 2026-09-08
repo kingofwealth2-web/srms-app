@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS settings (
   academic_year            text DEFAULT '2024-2025',
   period_type              text DEFAULT 'semester',
   period_count             integer DEFAULT 2,
+  current_period           text,
   grading_scale            jsonb DEFAULT '[{"gpa":4.0,"max":100,"min":90,"letter":"A+"},{"gpa":4.0,"max":89,"min":80,"letter":"A"},{"gpa":3.0,"max":79,"min":70,"letter":"B"},{"gpa":2.0,"max":69,"min":60,"letter":"C"},{"gpa":1.0,"max":59,"min":50,"letter":"D"},{"gpa":0.0,"max":49,"min":0,"letter":"F"}]',
   score_weights            jsonb DEFAULT '{"project":10,"homework":10,"classwork":10,"final_exam":50,"midsemester":20}',
   updated_at               timestamptz DEFAULT now(),

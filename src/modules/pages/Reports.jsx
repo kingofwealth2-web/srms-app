@@ -87,7 +87,11 @@ export default function Reports({profile,data,settings,activeYear,isViewingPast,
 
   const periodLabel = settings?.period_type==='term'?'Term':'Semester'
   const periods = Array.from({length:settings?.period_count||2},(_,i)=>`${periodLabel} ${i+1}`)
-
+  const currentPeriod = periods.includes(settings?.current_period) ? settings.current_period : periods[0]||''
+  useEffect(() => {
+    setFp(currentPeriod)
+    setRcPeriod(currentPeriod)
+  }, [activeYear,currentPeriod])
   // Student autofill -- restrict pool by role
   const roleBasePool = isClassTeacher
     ? students.filter(s=>s.class_id===profile?.class_id&&!s.archived)

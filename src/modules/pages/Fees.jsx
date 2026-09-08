@@ -201,18 +201,16 @@ function printReceipt({fee, feePayments, student, cls, settings, currency}) {
 
 // ── FEES ───────────────────────────────────────────────────────
 export default function Fees({profile,data,setData,toast,settings,activeYear,currentYear,isViewingPast,onAcademicYearChange,initialFeeFilter,onFilterConsumed,planHook}) {
-  const {fees=[],students=[],classes=[],payments=[],grades=[],attendance=[],fee_templates=[],fee_periods=[]} = data
+  const {fees=[],students=[],classes=[],payments=[],fee_templates=[],fee_periods=[]} = data
   const currency = getCurrency(settings)
   const isMobile = useIsMobile()
   const canBulk = ['superadmin','admin'].includes(profile?.role)
   const configuredPeriods = settings?.period_type==='term'
     ? Array.from({length:settings?.period_count||2},(_,i)=>`Term ${i+1}`)
     : Array.from({length:settings?.period_count||2},(_,i)=>`Semester ${i+1}`)
-  const currentPeriod = [...configuredPeriods].reverse().find(period =>
-    fees.some(f=>f.academic_year===activeYear&&f.period===period) ||
-    grades.some(g=>g.year===activeYear&&g.period===period) ||
-    attendance.some(a=>a.academic_year===activeYear&&a.period===period)
-  ) || configuredPeriods[0] || ''
+  const currentPeriod = configuredPeriods.includes(settings?.current_period)
+    ? settings.current_period
+    : configuredPeriods[0] || ''
 
   // ── Tab ──
   const [feeActiveTab, setFeeActiveTab] = useState('fees')
@@ -493,7 +491,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
   // Capped at 99% while any balance remains -- a plain Math.round can display "100%"
   // (e.g. GH₵200 owed out of GH₵500,000) even though money is still outstanding.
   const collectionRate = !totalOwed ? 0 : totalOutstanding<=0 ? 100 : Math.min(99, Math.round(totalPaid/totalOwed*100))
-  const openAdd = ()=>{ window.scrollTo({top:0,behavior:'smooth'}); setForm({student_id:'',fee_type:'',amount:'',due_date:'',period:''}); setModal(true) }
+  const openAdd = ()=>{ window.scrollTo({top:0,behavior:'smooth'}); setForm({student_id:'',fee_type:'',amount:'',due_date:'',period:currentPeriod}); setModal(true) }
   const [editFeeModal,setEditFeeModal] = useState(false)
   const [editFeeRow,setEditFeeRow]     = useState(null)
   const [editFeeForm,setEditFeeForm]   = useState({})
@@ -1182,7 +1180,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
   },[bcp, bcpRows, bcpStep, bcpModal])
 
   const startBcpFresh = () => {
-    setBcp(BCP_INIT); setBcpRows([]); setBcpStep(1); setBcpDone(null); setBcpModal(true)
+    setBcp({...BCP_INIT,period:currentPeriod}); setBcpRows([]); setBcpStep(1); setBcpDone(null); setBcpModal(true)
   }
 
   const openBcpModal = () => {

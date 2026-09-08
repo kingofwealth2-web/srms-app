@@ -166,6 +166,7 @@ create table if not exists public.settings (
   academic_year       text default '2024/2025',
   period_type         text default 'semester' check (period_type in ('semester','term')),
   period_count        int  default 2,
+  current_period      text,
   currency_code       text default 'GHS',
   currency_position   text default 'before',
   currency_decimals   int  default 2,

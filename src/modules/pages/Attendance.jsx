@@ -43,13 +43,11 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   const periods = settings?.period_type==='term'
     ? Array.from({length:settings?.period_count||2},(_,i)=>`Term ${i+1}`)
     : Array.from({length:settings?.period_count||2},(_,i)=>`Semester ${i+1}`)
+  const currentPeriod = periods.includes(settings?.current_period) ? settings.current_period : periods[0]||''
   const periodKey = `srms_att_period_${profile?.school_id}`
-  const [period,setPeriodState] = useState(()=>{ try { return localStorage.getItem(periodKey)||'' } catch { return '' } })
-  // No automatic default: each school explicitly picks its current term the first
-  // time (the choice then persists per device). A silent default would bias a
-  // brand-new school -- which may be in any term -- toward the wrong one; saving
-  // is blocked until a term is chosen, so nothing gets mis-stamped.
+  const [period,setPeriodState] = useState(currentPeriod)
   const setPeriod = v => { setPeriodState(v); try { localStorage.setItem(periodKey,v) } catch {} }
+  useEffect(() => { setPeriod(currentPeriod) }, [activeYear,currentPeriod])
   const myClasses = profile?.role==='classteacher' ? classes.filter(c=>c.id===profile.class_id) : classes
   const cls = myClasses.find(c=>c.id===cid)
   const classStudents = cls ? students.filter(s=>s.class_id===cls.id) : []

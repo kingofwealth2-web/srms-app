@@ -76,7 +76,9 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   // Latest period that has grade data
   const periodOrder     = Array.from({length:settings?.period_count||2},(_,i)=>`${settings?.period_type==='term'?'Term':'Semester'} ${i+1}`)
   const periodsWithData = periodOrder.filter(p=>yearGrades.some(g=>g.period===p))
-  const latestPeriod    = periodsWithData.length>0 ? periodsWithData[periodsWithData.length-1] : periodOrder[periodOrder.length-1]
+  const latestPeriod    = periodOrder.includes(settings?.current_period)
+    ? settings.current_period
+    : periodsWithData.length>0 ? periodsWithData[periodsWithData.length-1] : periodOrder[0]
 
   // Admin/superadmin: school-wide average of per-student averages (latest period only)
   const schoolStats     = calcStats(yearStudents.map(s=>s.id), null, latestPeriod)

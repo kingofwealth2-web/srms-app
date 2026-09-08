@@ -22,6 +22,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
     if(!base.grading_scale||base.grading_scale.length===0)
       base.grading_scale = JSON.parse(JSON.stringify(DEFAULT_GRADING_SCALE))
     if(!base.grade_system) base.grade_system = 'letter'
+    if(!base.current_period) base.current_period = base.period_type==='term'?'Term 1':'Semester 1'
     return base
   })
   const [saving,setSaving] = useState(false)
@@ -80,7 +81,24 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
   const totalWeight = activeComps.reduce((a,c)=>a+c.weight,0)
 
   // Everything after the weight gate: the prefix-migration confirm, then write.
-  const proceedSave = () => {
+  const configuredFormPeriods = () => form.period_type==='term'
+    ? Array.from({length:Number(form.period_count)||2},(_,i)=>`Term ${i+1}`)
+    : Array.from({length:Number(form.period_count)||2},(_,i)=>`Semester ${i+1}`)
+
+  const proceedSave = (periodConfirmed=false) => {
+    const formPeriods = configuredFormPeriods()
+    const nextPeriod = formPeriods.includes(form.current_period) ? form.current_period : formPeriods[0]
+    if(!periodConfirmed && nextPeriod !== settings?.current_period){
+      setConfirmState({
+        title: `Switch the school to ${nextPeriod}?`,
+        body: `New entries and default views across Fees, Grades, Attendance, Reports, and the dashboard will use ${nextPeriod}. Older terms will remain available in their filters.`,
+        icon: '📅',
+        confirmLabel: `Switch to ${nextPeriod}`,
+        onConfirm: () => setTimeout(()=>proceedSave(true),0)
+      })
+      return
+    }
+
     // Check if prefix changed — if so, confirm migration first
     const oldPrefix = settings?.student_id_prefix||'STU'
     const newPrefix = (form.student_id_prefix||'STU').trim().toUpperCase()
@@ -139,7 +157,8 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
 
   const doSave = async (newPrefix, migrateIds) => {
     setSaving(true)
-    const payload = {...form, student_id_prefix: newPrefix, grade_components: gradeComponents}
+    const configuredPeriods = configuredFormPeriods()
+    const payload = {...form, current_period:configuredPeriods.includes(form.current_period)?form.current_period:configuredPeriods[0], student_id_prefix: newPrefix, grade_components: gradeComponents}
 
     // Migrate student IDs if prefix changed
     if(migrateIds){
@@ -175,6 +194,7 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
       if(settings?.academic_year !== payload.academic_year) changes.push(`Academic year: ${settings?.academic_year}→${payload.academic_year}`)
       if(settings?.period_type !== payload.period_type) changes.push(`Period type: ${settings?.period_type}→${payload.period_type}`)
       if(settings?.period_count !== payload.period_count) changes.push(`Period count: ${settings?.period_count}→${payload.period_count}`)
+      if(settings?.current_period !== payload.current_period) changes.push(`Current period: ${settings?.current_period||'not set'}→${payload.current_period}`)
       if(JSON.stringify(settings?.grading_scale) !== JSON.stringify(payload.grading_scale)) changes.push('Grading scale updated')
       if(JSON.stringify(settings?.grade_components) !== JSON.stringify(payload.grade_components)) changes.push('Grade components updated')
       if(settings?.school_logo !== payload.school_logo) changes.push('School logo updated')
@@ -392,8 +412,16 @@ export default function Settings({profile,settings,setSettings,toast,activeYear,
           </Card>
           <Card>
             <SectionTitle>Academic Periods</SectionTitle>
-            <Field label='Period Structure' value={form.period_type} onChange={f('period_type')} options={[{value:'semester',label:'Semester-based'},{value:'term',label:'Term-based'}]}/>
+            <Field label='Period Structure' value={form.period_type} onChange={value=>setForm(p=>({...p,period_type:value,current_period:value==='term'?'Term 1':'Semester 1'}))} options={[{value:'semester',label:'Semester-based'},{value:'term',label:'Term-based'}]}/>
             <Field label='Periods per Year' value={form.period_count} onChange={f('period_count')} options={[{value:2,label:'2 Periods'},{value:3,label:'3 Periods'}]}/>
+            <Field label='Current Term / Semester' value={form.current_period||''} onChange={f('current_period')}
+              options={(form.period_type==='term'
+                ? Array.from({length:Number(form.period_count)||2},(_,i)=>`Term ${i+1}`)
+                : Array.from({length:Number(form.period_count)||2},(_,i)=>`Semester ${i+1}`)
+              ).map(period=>({value:period,label:period}))}/>
+            <p style={{fontSize:12,color:'var(--mist2)',lineHeight:1.55,marginTop:-4}}>
+              New grades, attendance, fee summaries and reports open on this period. Previous periods remain available from their filters.
+            </p>
           </Card>
           </>)}
         </div>

@@ -73,6 +73,8 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
   const periods = settings?.period_type==='term'
     ? Array.from({length:settings?.period_count||2},(_,i)=>`Term ${i+1}`)
     : Array.from({length:settings?.period_count||2},(_,i)=>`Semester ${i+1}`)
+  const currentPeriod = periods.includes(settings?.current_period) ? settings.current_period : periods[0]||''
+  useEffect(() => { setFp(currentPeriod) }, [activeYear,currentPeriod])
 
   // Subjects scoped to selected class in filter
   const fcSubjects = fc
@@ -122,7 +124,7 @@ export default function Grades({profile,data,setData,toast,settings,activeYear,i
       ? fcSubjects[0]?.id||''
       : mySubjects[0]?.id||''
     setEdit(null)
-    setForm({student_id:'',subject_id:defaultSubject,...emptyScores,period:periods[0],year:activeYear})
+    setForm({student_id:'',subject_id:defaultSubject,...emptyScores,period:currentPeriod,year:activeYear})
     setModal(true)
   }
   const openEdit = g => { setEdit(g); setForm({...g}); setModal(true) }
