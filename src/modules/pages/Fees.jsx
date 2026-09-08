@@ -443,6 +443,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
     }
     return map
   }, [payments])
+  const feePeriodsById = useMemo(() => new Map(fee_periods.map(p=>[p.id,p])), [fee_periods])
   const enriched = useMemo(() => fees.filter(fee=>fee.academic_year!==activeYear||!studentsById.get(fee.student_id)?.archived).map(fee=>{
     const s = studentsById.get(fee.student_id)
     const feePayments = paymentsByFee.get(fee.id) || []
@@ -462,7 +463,10 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
     ...configuredPeriods,
     ...fees.filter(f=>f.academic_year===fYear&&(!fFeeType||f.fee_type===fFeeType)&&f.period).map(f=>f.period),
   ])], [configuredPeriods.join('|'),fees,fYear,fFeeType])
-  const kpiRows = enriched.filter(r=>r.academic_year===fYear&&(!fPeriod||r.period===fPeriod))
+  const academicPeriodForFee = r => r.fee_period_id
+    ? feePeriodsById.get(r.fee_period_id)?.academic_period || r.period
+    : r.period
+  const kpiRows = enriched.filter(r=>r.academic_year===fYear&&(!fPeriod||academicPeriodForFee(r)===fPeriod))
   const filtered = kpiRows.filter(r=>{
     if(fClassId){
       const s = studentsById.get(r.student_id)
@@ -874,6 +878,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
         label:        brp.label.trim(),
         period_date:  brp.period_date,
         academic_year:activeYear,
+        academic_period:currentPeriod,
         created_by:   profile?.id,
       }).select().single()
       if(pErr) throw pErr

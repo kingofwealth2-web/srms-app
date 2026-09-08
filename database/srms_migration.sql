@@ -169,6 +169,7 @@ CREATE TABLE IF NOT EXISTS fee_periods (
   label        text NOT NULL,
   period_date  date NOT NULL,
   academic_year text NOT NULL,
+  academic_period text,
   created_by   uuid REFERENCES profiles(id),
   created_at   timestamptz NOT NULL DEFAULT now()
 );
