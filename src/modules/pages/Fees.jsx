@@ -464,10 +464,11 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
   }), [fees, activeYear, studentsById, paymentsByFee, paymentsSumByFee, today])
   const feeAcademicYears = useMemo(() => [...new Set([activeYear,...generateYears(currentYear||activeYear)])]
     .sort((a,b)=>b.localeCompare(a)), [activeYear,currentYear])
-  const periodOptions = useMemo(() => [...new Set([
-    ...configuredPeriods,
-    ...fees.filter(f=>f.academic_year===fYear&&(!fFeeType||f.fee_type===fFeeType)&&f.period).map(f=>f.period),
-  ])], [configuredPeriods.join('|'),fees,fYear,fFeeType])
+  // This control selects the school's academic term/semester. Fee `period`
+  // values can also contain recurring-run labels such as "13th July", so
+  // including historical fee values here mixes two different concepts and
+  // pollutes the academic-period dropdown.
+  const periodOptions = configuredPeriods
   const academicPeriodForFee = r => r.fee_period_id
     ? feePeriodsById.get(r.fee_period_id)?.academic_period || r.period
     : r.period
