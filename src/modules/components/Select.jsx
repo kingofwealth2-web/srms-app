@@ -44,7 +44,7 @@ export default function Select({
   value = '', onChange, children, options: optionItems, disabled = false,
   id, name, title, style, className = '', menuLabel, placeholder = 'Select…',
   compact = false, accent = 'gold', renderOption, onFocus, onBlur,
-  'aria-label': ariaLabel, 'aria-labelledby': ariaLabelledBy,
+  'aria-label': ariaLabel, 'aria-labelledby': ariaLabelledBy, 'aria-describedby': ariaDescribedBy,
 }) {
   const generatedId = useId()
   const selectId = id || `srms-select-${generatedId.replace(/:/g, '')}`
@@ -253,6 +253,7 @@ export default function Select({
         aria-controls={`${selectId}-menu`}
         aria-label={ariaLabel || (!ariaLabelledBy ? menuLabel || title || 'Select option' : undefined)}
         aria-labelledby={ariaLabelledBy}
+        aria-describedby={ariaDescribedBy}
         onClick={() => open ? closeMenu() : openMenu()}
         onKeyDown={onKeyDown}
       >

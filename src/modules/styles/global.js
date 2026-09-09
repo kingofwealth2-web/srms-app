@@ -331,6 +331,27 @@ body.light .daybook-kpi:hover{background:#f7f3eb!important}
 }
 @media(prefers-reduced-motion:reduce){.page{animation:none}}
 
+/* School Daybook forms and modals */
+.srms-modal-backdrop{overscroll-behavior:contain}
+.srms-modal{isolation:isolate}
+.srms-modal__header{background:var(--ink2)}
+.srms-modal__body{overscroll-behavior:contain;scrollbar-gutter:stable}
+.srms-modal__body::-webkit-scrollbar{width:7px}
+.srms-modal__body::-webkit-scrollbar-thumb{background:var(--line2);border-radius:8px}
+.srms-field__message{margin-top:6px;font-size:11.5px;line-height:1.45;color:var(--mist3)}
+.srms-field__message.is-error{color:var(--rose)}
+.srms-field.is-error input,.srms-field.is-error textarea{border-color:var(--rose)!important;box-shadow:0 0 0 3px rgba(240,107,122,.07)!important}
+@media(max-width:640px){
+  .srms-modal-backdrop{align-items:flex-end!important;padding:0!important}
+  .srms-modal{max-height:calc(100dvh - 12px)!important;border-radius:16px 16px 0 0!important;border-bottom:0!important;animation:slideUp .24s cubic-bezier(.22,.8,.22,1) both!important}
+  .srms-modal::before{content:'';width:36px;height:4px;flex:0 0 auto;align-self:center;margin:8px 0 0;border-radius:4px;background:var(--line2)}
+  .srms-modal__header{padding:13px 18px 14px!important}
+  .srms-modal__body{padding:18px 18px max(18px,env(safe-area-inset-bottom))!important}
+  .srms-modal__body > div:last-child:has(> .srms-btn){position:sticky;bottom:calc(-1 * max(18px,env(safe-area-inset-bottom)));z-index:2;margin:18px -18px calc(-1 * max(18px,env(safe-area-inset-bottom)))!important;padding:12px 18px max(14px,env(safe-area-inset-bottom));background:var(--ink2);border-top:1px solid var(--line);display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px!important}
+  .srms-modal__body > div:last-child:has(> .srms-btn) > .srms-btn{width:100%;justify-content:center;min-width:0}
+}
+@media(prefers-reduced-motion:reduce){.srms-modal{animation:none!important}}
+
 /* ── Keyframes ─────────────────────────────────────────────── */
 @keyframes fadeUp   {from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeDown {from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}

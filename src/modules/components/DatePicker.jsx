@@ -15,7 +15,7 @@ function parseValue(value) {
     : { year: now.getFullYear(), month: now.getMonth(), day: now.getDate() }
 }
 
-export default function DatePicker({ id, value, onChange, label, required, style }) {
+export default function DatePicker({ id, value, onChange, label, required, style, 'aria-describedby': ariaDescribedBy }) {
   const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
   const initial = parseValue(value)
@@ -52,6 +52,7 @@ export default function DatePicker({ id, value, onChange, label, required, style
       aria-label={`${label || 'Date'}: ${formatted}`}
       aria-haspopup='dialog'
       aria-expanded={open}
+      aria-describedby={ariaDescribedBy}
       onClick={() => setOpen(true)}
       className='srms-date-trigger'
       style={style}

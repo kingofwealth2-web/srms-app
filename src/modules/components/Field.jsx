@@ -5,27 +5,28 @@ import DatePicker from './DatePicker'
 
 export default function Field({
   label, value, onChange, type = 'text', placeholder, options, required, rows, style, onKeyDown,
-  autoComplete, name, autoFocus, inputRef, adornment, adornmentWidth = 40,
+  autoComplete, name, autoFocus, inputRef, adornment, adornmentWidth = 40, hint, error,
 }) {
   const isMobile = useIsMobile()
   const [focused, setFocused] = useState(false)
   const fieldId = useId()
+  const messageId = `${fieldId}-message`
 
   const inputStyle = {
     width: '100%',
     background: focused ? 'var(--ink4)' : 'var(--ink3)',
-    border: `1px solid ${focused ? 'rgba(232,184,75,0.45)' : 'var(--line2)'}`,
+    border: `1px solid ${error ? 'var(--rose)' : focused ? 'rgba(232,184,75,0.45)' : 'var(--line2)'}`,
     borderRadius: 10,
     padding: isMobile ? '13px 14px' : '9px 13px',
     color: 'var(--white)',
     fontSize: isMobile ? 16 : 13.5,
     lineHeight: 1.5,
     transition: 'border-color var(--t-fast), background var(--t-fast), box-shadow var(--t-fast)',
-    boxShadow: focused ? '0 0 0 3px rgba(232,184,75,0.07)' : 'none',
+    boxShadow: error ? '0 0 0 3px rgba(240,107,122,0.07)' : focused ? '0 0 0 3px rgba(232,184,75,0.07)' : 'none',
   }
 
   return (
-    <div style={{ marginBottom: 14, position: 'relative', ...style }}>
+    <div className={`srms-field${error ? ' is-error' : ''}`} style={{ marginBottom: 14, position: 'relative', ...style }}>
       {label && (
         <label htmlFor={fieldId} style={{
           cursor: 'pointer',
@@ -56,9 +57,11 @@ export default function Field({
             ...options.map(o => ({ value: o.value ?? o, label: o.label ?? o })),
           ]}
           style={{ width: '100%' }}
+          className={error ? 'is-error' : ''}
+          aria-describedby={(error || hint) ? messageId : undefined}
         />
       ) : type === 'date' ? (
-        <DatePicker id={fieldId} value={value ?? ''} onChange={onChange} label={label} required={required} style={inputStyle}/>
+        <DatePicker id={fieldId} value={value ?? ''} onChange={onChange} label={label} required={required} style={inputStyle} aria-describedby={(error || hint) ? messageId : undefined}/>
       ) : rows ? (
         <textarea
           id={fieldId}
@@ -67,6 +70,9 @@ export default function Field({
           onChange={e => onChange(e.target.value)}
           rows={rows}
           placeholder={placeholder}
+          required={required}
+          aria-invalid={error ? 'true' : undefined}
+          aria-describedby={(error || hint) ? messageId : undefined}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           style={{ ...inputStyle, resize: 'vertical' }}
@@ -83,6 +89,9 @@ export default function Field({
             placeholder={placeholder}
             autoComplete={autoComplete}
             autoFocus={autoFocus}
+            required={required}
+            aria-invalid={error ? 'true' : undefined}
+            aria-describedby={(error || hint) ? messageId : undefined}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             onWheel={type === 'number' ? e => e.target.blur() : undefined}
@@ -97,6 +106,11 @@ export default function Field({
               {adornment}
             </div>
           )}
+        </div>
+      )}
+      {(error || hint) && (
+        <div id={messageId} className={`srms-field__message${error ? ' is-error' : ''}`} role={error ? 'alert' : undefined}>
+          {error || hint}
         </div>
       )}
     </div>

@@ -17,7 +17,10 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
     const focusableSelector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
 
     document.body.style.overflow = 'hidden'
-    dialog?.querySelector(focusableSelector)?.focus()
+    const focusFrame = requestAnimationFrame(() => {
+      const firstControl = dialog?.querySelector(focusableSelector)
+      ;(firstControl || dialog)?.focus()
+    })
 
     const onKey = e => {
       if (e.key === 'Escape') {
@@ -31,7 +34,10 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
       if (!focusable.length) return
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
+      if (!dialog.contains(document.activeElement)) {
+        e.preventDefault()
+        ;(e.shiftKey ? last : first).focus()
+      } else if (e.shiftKey && document.activeElement === first) {
         e.preventDefault()
         last.focus()
       } else if (!e.shiftKey && document.activeElement === last) {
@@ -43,6 +49,7 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
     document.addEventListener('keydown', onKey)
     return () => {
       document.body.style.overflow = previousOverflow
+      cancelAnimationFrame(focusFrame)
       document.removeEventListener('keydown', onKey)
       previouslyFocused?.focus?.()
     }
@@ -59,7 +66,8 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
 
   return createPortal(
     <div
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      className='srms-modal-backdrop'
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
       style={backdropStyle}
     >
       <div
@@ -67,8 +75,11 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
         role='dialog'
         aria-modal='true'
         aria-labelledby={title ? titleId : undefined}
+        aria-label={title ? undefined : 'Dialog'}
         aria-describedby={subtitle ? subtitleId : undefined}
-        className='si'
+        tabIndex={-1}
+        autoFocus
+        className='srms-modal si'
         style={{
           width: '100%',
           maxWidth: isMobile ? '100%' : width,
@@ -84,7 +95,7 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
         }}
       >
         {title && (
-          <div style={{
+          <div className='srms-modal__header' style={{
             padding: isMobile ? '18px 20px 14px' : '22px 26px 18px',
             borderBottom: '1px solid var(--line)',
             display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16,
@@ -96,7 +107,7 @@ export default function Modal({ title, subtitle, onClose, children, width = 520 
             </div>
           </div>
         )}
-        <div style={{
+        <div className='srms-modal__body' style={{
           padding: isMobile ? '20px 20px 28px' : '22px 26px 26px',
           overflowY: 'auto', overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
