@@ -17,6 +17,7 @@ import Modal    from './modules/components/Modal'
 import Field    from './modules/components/Field'
 import Avatar   from './modules/components/Avatar'
 import LoadingScreen from './modules/components/LoadingScreen'
+import PageSkeleton from './modules/components/PageSkeleton'
 import LoadErrorScreen from './modules/components/LoadErrorScreen'
 import LogoMark from './modules/components/LogoMark'
 
@@ -698,7 +699,7 @@ export default function App() {
     // instead of showing numbers that are wrong. My Profile is exempt -- it
     // reads only the profile, which a year switch never touches.
     if (dataLoading && safePage !== 'myprofile') {
-      return <LoadingScreen msg={`Loading ${activeYear}...`} height='60vh'/>
+      return <PageSkeleton label={`Loading ${activeYear} records`}/>
     }
     // Detailed pages wait only for the tables they require. Dashboard renders
     // immediately and marks its still-loading KPIs instead of hiding the page.
@@ -708,7 +709,7 @@ export default function App() {
       const msg = safePage === 'fees' ? 'Loading fee records...'
         : safePage === 'attendance' ? 'Loading attendance...'
         : 'Loading report records...'
-      return <LoadingScreen msg={msg} height='60vh'/>
+      return <PageSkeleton label={msg}/>
     }
     // Which deferred tables each of those pages actually needs -- so e.g. an
     // attendance-only failure doesn't hide fees that loaded fine.

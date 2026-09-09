@@ -14,7 +14,7 @@ import Spinner from '../components/Spinner'
 import SectionTitle from '../components/SectionTitle'
 import DataTable from '../components/DataTable'
 import Card from '../components/Card'
-import LoadingScreen from '../components/LoadingScreen'
+import PageSkeleton from '../components/PageSkeleton'
 
 
 // ── USERS MODULE ───────────────────────────────────────────────
@@ -164,7 +164,7 @@ export default function Users({profile,toast,planHook}) {
     toast(u.locked ? 'Account unlocked.' : 'Account locked.')
   }
 
-  if(loading) return <LoadingScreen msg='Loading users...'/>
+  if(loading) return <PageSkeleton label='Loading users' cards={0}/>
   return (
     <div className='daybook-list-page users-page'>
       <PageHeader title='User Management' sub={`${users.length} system users`}>

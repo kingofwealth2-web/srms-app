@@ -13,7 +13,7 @@ import SectionTitle from '../components/SectionTitle'
 import PlanGate from '../components/PlanGate'
 import Card from '../components/Card'
 import Avatar from '../components/Avatar'
-import LoadingScreen from '../components/LoadingScreen'
+import PageSkeleton from '../components/PageSkeleton'
 import Select from '../components/Select'
 
 const MODULE_META = {
@@ -136,7 +136,7 @@ export default function AuditLog({profile,settings,planHook,onShowPlans}) {
   }
 
   if(profile?.role!=='superadmin') return <div style={{padding:48,textAlign:'center',color:'var(--mist3)'}}>Access restricted to superadmin.</div>
-  if(loading) return <LoadingScreen msg='Loading audit log...'/>
+  if(loading) return <PageSkeleton label='Loading audit log' cards={0}/>
 
   return (
     <div className='daybook-list-page audit-page'>

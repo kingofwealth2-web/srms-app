@@ -503,12 +503,24 @@ body.light .daybook-kpi:hover{background:#f7f3eb!important}
 .reveal.visible{opacity:1;transform:translateY(0)}
 
 /* ── Skeleton ──────────────────────────────────────────────── */
-.skeleton{
-  background:linear-gradient(90deg,var(--ink4) 25%,var(--ink5) 50%,var(--ink4) 75%);
-  background-size:600px 100%;
-  animation:shimmer 1.6s infinite linear;
-  border-radius:var(--r-sm);
+.skeleton,.srms-skeleton{background:var(--ink4);animation:skeletonPulse 1.5s ease-in-out infinite;border-radius:var(--r-sm)}
+.srms-page-skeleton{padding:4px 0 30px;animation:fadeIn .18s ease}
+.srms-page-skeleton__heading{display:flex;flex-direction:column;gap:11px;margin-bottom:24px}
+.srms-page-skeleton__cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px}
+.srms-page-skeleton__card{min-width:0;min-height:126px;padding:18px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ink2);display:flex;flex-direction:column;justify-content:space-between}
+.srms-page-skeleton__ledger{padding:16px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ink2)}
+.srms-page-skeleton__filters{display:flex;gap:10px;margin-bottom:16px}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+@keyframes skeletonPulse{0%,100%{opacity:.42}50%{opacity:.78}}
+@media(max-width:640px){
+  .srms-page-skeleton__cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .srms-page-skeleton__card{min-height:104px;padding:14px}
+  .srms-page-skeleton__ledger{padding:12px}
+  .srms-page-skeleton__filters{display:grid;grid-template-columns:1fr 1fr}
+  .srms-page-skeleton__filters>.srms-skeleton:first-child{grid-column:1/-1;width:100%!important}
+  .srms-page-skeleton__filters>.srms-skeleton{width:100%!important}
 }
+@media(prefers-reduced-motion:reduce){.skeleton,.srms-skeleton{animation:none;opacity:.62}}
 
 /* ── Utility ───────────────────────────────────────────────── */
 button{cursor:pointer;border:none;outline:none;font-family:inherit}
