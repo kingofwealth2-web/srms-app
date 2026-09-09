@@ -20,6 +20,7 @@ import LoadingScreen from './modules/components/LoadingScreen'
 import PageSkeleton from './modules/components/PageSkeleton'
 import LoadErrorScreen from './modules/components/LoadErrorScreen'
 import LogoMark from './modules/components/LogoMark'
+import ThemeToggle from './modules/components/ThemeToggle'
 
 import Landing        from './modules/pages/Landing'
 import Plans          from './modules/pages/Plans'
@@ -43,27 +44,6 @@ import AuditLog       from './modules/pages/AuditLog'
 import Settings       from './modules/pages/Settings'
 import WhatsNew       from './modules/components/WhatsNew'
 import FeedbackButton from './modules/components/FeedbackButton'
-
-// ── Theme Toggle ────────────────────────────────────────────────
-function ThemeToggle({ isDark, onToggle, size = 'md' }) {
-  const w = size === 'sm' ? 44 : 52
-  const h = size === 'sm' ? 24 : 28
-  const d = h - 6
-  return (
-    <button onClick={onToggle} title={isDark ? 'Light mode' : 'Dark mode'} style={{
-      width: w, height: h, borderRadius: h/2,
-      background: isDark ? 'var(--ink5)' : 'rgba(232,184,75,0.15)',
-      border: `1px solid ${isDark ? 'var(--line2)' : 'rgba(232,184,75,0.35)'}`,
-      cursor: 'pointer', position: 'relative',
-      transition: 'background var(--t), border-color var(--t)',
-      flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 3px',
-    }}>
-      <span style={{ position: 'absolute', left: 7, fontSize: size==='sm'?10:11, opacity: isDark?0.35:1, transition: 'opacity 0.2s', lineHeight:1 }}>☀</span>
-      <span style={{ position: 'absolute', right: 7, fontSize: size==='sm'?9:10, opacity: isDark?1:0.3, transition: 'opacity 0.2s', lineHeight:1 }}>🌙</span>
-      <div style={{ width: d, height: d, borderRadius: '50%', background: isDark ? 'var(--mist2)' : 'var(--gold)', boxShadow: isDark ? 'none' : '0 2px 8px rgba(232,184,75,0.4)', transition: 'transform var(--t), background var(--t)', transform: isDark ? `translateX(${w - d - 6}px)` : 'translateX(0)' }}/>
-    </button>
-  )
-}
 
 // ── FORCE PASSWORD CHANGE ──────────────────────────────────────
 function ForceChangePassword({ profile, onDone, onSignOut }) {

@@ -12,6 +12,7 @@ import Spinner from '../components/Spinner'
 import PageHeader from '../components/PageHeader'
 import SectionTitle from '../components/SectionTitle'
 import LogoMark from '../components/LogoMark'
+import ThemeToggle from '../components/ThemeToggle'
 
 // ── PARENT PORTAL ───────────────────────────────────────────────
 export default function ParentPortal({ profile, onSignOut }) {
@@ -189,12 +190,7 @@ export default function ParentPortal({ profile, onSignOut }) {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button onClick={() => setIsDark(d => !d)} title={isDark ? 'Light mode' : 'Dark mode'}
-              style={{ width: 44, height: 24, borderRadius: 12, position: 'relative', cursor: 'pointer', transition: 'all 0.2s', border: `1px solid ${isDark ? 'var(--line2)' : 'rgba(232,184,75,0.35)'}`, background: isDark ? 'var(--ink5)' : 'rgba(232,184,75,0.15)', padding: 0, flexShrink: 0 }}>
-              <span style={{ position: 'absolute', left: 6, fontSize: 10, opacity: isDark ? 0.35 : 1, lineHeight: 1, top: '50%', transform: 'translateY(-50%)' }}>☀</span>
-              <span style={{ position: 'absolute', right: 6, fontSize: 9, opacity: isDark ? 1 : 0.3, lineHeight: 1, top: '50%', transform: 'translateY(-50%)' }}>🌙</span>
-              <div style={{ width: 16, height: 16, borderRadius: '50%', background: isDark ? 'var(--mist2)' : 'var(--gold)', position: 'absolute', top: 3, transition: 'transform 0.2s, background 0.2s', transform: isDark ? 'translateX(22px)' : 'translateX(2px)' }}/>
-            </button>
+            <ThemeToggle isDark={isDark} onToggle={() => setIsDark(d => !d)} size='sm'/>
             <Avatar name={profile?.full_name} size={30} />
             <Btn variant='ghost' size='sm' onClick={onSignOut}>Sign Out</Btn>
           </div>

@@ -398,6 +398,23 @@ body.light .daybook-kpi:hover{background:#f7f3eb!important}
   }
 }
 
+/* Eclipse Spring theme toggle */
+.srms-theme-toggle{--toggle-w:52px;--toggle-h:28px;--toggle-disc:20px;--toggle-travel:24px;width:var(--toggle-w);height:var(--toggle-h);padding:3px;position:relative;overflow:hidden;flex:0 0 auto;border:1px solid var(--line2);border-radius:999px;background:var(--ink5);transition:background .24s ease,border-color .24s ease}
+.srms-theme-toggle.is-sm{--toggle-w:44px;--toggle-h:24px;--toggle-disc:16px;--toggle-travel:20px}
+.srms-theme-toggle.is-light{background:#f4efe3;border-color:rgba(151,119,45,.42)}
+.srms-theme-toggle__disc{position:absolute;z-index:2;left:3px;top:3px;width:var(--toggle-disc);height:var(--toggle-disc);border-radius:50%;display:grid;place-items:center;background:var(--mist2);color:var(--ink);transform:translateX(0);transition:transform .5s cubic-bezier(.34,1.56,.64,1),background .22s ease,color .22s ease}
+.srms-theme-toggle.is-light .srms-theme-toggle__disc{transform:translateX(var(--toggle-travel));background:var(--gold);color:#17130a}
+.srms-theme-toggle::after{content:'';position:absolute;z-index:3;left:3px;top:3px;width:var(--toggle-disc);height:var(--toggle-disc);border-radius:50%;background:var(--ink5);transform:translateX(-8px);opacity:.82;pointer-events:none;transition:transform .44s cubic-bezier(.22,.8,.22,1),opacity .2s ease,background .2s ease}
+.srms-theme-toggle.is-light::after{transform:translateX(calc(var(--toggle-travel) + var(--toggle-disc) + 2px));opacity:0;background:#f4efe3}
+.srms-theme-toggle:active .srms-theme-toggle__disc{scale:.9}
+.srms-theme-toggle svg{position:absolute;width:68%;height:68%;transition:opacity .18s ease,transform .28s ease}
+.srms-theme-toggle__sun{opacity:0;transform:rotate(-50deg) scale(.6)}
+.srms-theme-toggle__moon{opacity:1;transform:rotate(0) scale(1)}
+.srms-theme-toggle.is-light .srms-theme-toggle__sun{opacity:1;transform:rotate(0) scale(1)}
+.srms-theme-toggle.is-light .srms-theme-toggle__moon{opacity:0;transform:rotate(45deg) scale(.6)}
+.srms-theme-toggle:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+@media(prefers-reduced-motion:reduce){.srms-theme-toggle,.srms-theme-toggle::after,.srms-theme-toggle *{transition:none!important}}
+
 /* Golden Hinge universal select */
 .srms-select{position:relative;display:inline-block;min-width:0;vertical-align:middle}
 .srms-select__trigger{
