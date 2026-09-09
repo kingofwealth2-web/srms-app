@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../supabase'
-import { DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, generateYears, suggestedAcademicYear } from '../lib/helpers'
+import { DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, generateYears } from '../lib/helpers'
 import { CURRENCIES } from '../lib/constants'
 import Spinner from '../components/Spinner'
 import Select from '../components/Select'
@@ -17,8 +17,6 @@ export default function SchoolSetup({ profile, onComplete, onCancel }) {
   const [error, setError]   = useState('')
   const [yearConfirmed, setYearConfirmed] = useState(false)
 
-  const currentYear = suggestedAcademicYear()
-
   const [form, setForm] = useState({
     // Step 1 — School info
     school_name:    '',
@@ -26,7 +24,7 @@ export default function SchoolSetup({ profile, onComplete, onCancel }) {
     region:         '',
     motto:          '',
     // Step 2 — Academic setup
-    academic_year:  currentYear,
+    academic_year:  '',
     period_type:    'semester',
     period_count:   2,
     currency_code:  'GHS',
@@ -44,8 +42,12 @@ export default function SchoolSetup({ profile, onComplete, onCancel }) {
   }
 
   const submit = async () => {
-    if (form.academic_year !== currentYear && !yearConfirmed) {
-      setError('Please confirm the academic year before creating the school.')
+    if (!form.academic_year) {
+      setError('Select the academic year the school is currently operating.')
+      return
+    }
+    if (!yearConfirmed) {
+      setError('Please confirm that the selected academic year is currently active.')
       return
     }
     setSaving(true)
@@ -165,10 +167,11 @@ export default function SchoolSetup({ profile, onComplete, onCancel }) {
           <div style={styles.fields}>
             <FormField label='Current Academic Year'>
               <Select value={form.academic_year} onChange={e => { f('academic_year')(e.target.value); setYearConfirmed(false); setError('') }} style={styles.input}>
-                {generateYears(form.academic_year).map(y => <option key={y} value={y}>{y}</option>)}
+                <option value=''>Choose the year currently in session...</option>
+                {generateYears(form.academic_year || undefined).map(y => <option key={y} value={y}>{y}</option>)}
               </Select>
             </FormField>
-            {form.academic_year !== currentYear && (
+            {form.academic_year && (
               <label style={styles.yearWarning}>
                 <input
                   type='checkbox'
@@ -176,8 +179,8 @@ export default function SchoolSetup({ profile, onComplete, onCancel }) {
                   onChange={e => setYearConfirmed(e.target.checked)}
                 />
                 <span>
-                  <strong>{currentYear} is the expected current year.</strong><br />
-                  I confirm that {form.academic_year} is already active at this school.
+                  <strong>Confirm the school calendar.</strong><br />
+                  {form.academic_year} is the academic year currently in session—not an upcoming year.
                 </span>
               </label>
             )}
