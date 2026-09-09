@@ -9,7 +9,7 @@ import SectionTitle from '../components/SectionTitle'
 import Btn from '../components/Btn'
 import Badge from '../components/Badge'
 
-export default function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,currentYear,isViewingPast}) {
+export default function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,currentYear,isViewingPast,deferredPending=[]}) {
   const isMobile = useIsMobile()
   const isHistoricalYear = !!currentYear && activeYear!==currentYear
 
@@ -20,6 +20,8 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   // loudly. That was zeroing out the Fee Collection KPI for large schools.
   const {students=[],classes=[],subjects=[],enrolments=[],fees=[],fee_periods:feePeriods=[],payments=[],grades=[],attendance=[],announcements=[],opening_balances:openingBalances=[]} = data
   const dashboardPeriod = isHistoricalYear ? '' : settings?.current_period || ''
+  const attendanceReady = !deferredPending.includes('attendance')
+  const feesReady = !deferredPending.includes('fees') && !deferredPending.includes('payments')
   const feePeriodById = useMemo(() => new Map(feePeriods.map(p=>[p.id,p])), [feePeriods])
   const yearFees = useMemo(() => fees.filter(f=>{
     if (f.academic_year!==activeYear) return false
@@ -172,7 +174,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
           ))}
         </div>
       )}
-      {profile?.role==='classteacher' && !todayMarked && (
+      {attendanceReady && profile?.role==='classteacher' && !todayMarked && (
         <div className='fu' style={{background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.25)',borderRadius:'var(--r)',padding:'14px 20px',marginBottom:24,display:'flex',alignItems:'center',gap:14}}>
           <div style={{width:36,height:36,borderRadius:'50%',background:'rgba(251,159,58,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>(!)</div>
           <div style={{flex:1}}>
@@ -182,7 +184,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
           <Btn size='sm' onClick={()=>onNav('attendance')}>Mark Now &rarr;</Btn>
         </div>
       )}
-      {isAdmin && !isViewingPast && overdueFeesCount>0 && (
+      {feesReady && isAdmin && !isViewingPast && overdueFeesCount>0 && (
         <div style={{background:'rgba(240,107,122,0.06)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r)',padding:'14px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:14}}>
           <div style={{width:36,height:36,borderRadius:'50%',background:'rgba(240,107,122,0.12)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>⚠</div>
           <div style={{flex:1}}>
@@ -206,21 +208,21 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
         </div>
         <div className='daybook-intro__ledger' aria-label='Current school record status'>
           <div><span>Current period</span><strong>{latestPeriod}</strong></div>
-          <div><span>Classes marked today</span><strong>{classesMarkedToday} of {classes.length}</strong></div>
-          <div><span>Records today</span><strong>{yearAttendance.filter(a=>a.date===today).length}</strong></div>
+          <div><span>Classes marked today</span><strong>{attendanceReady ? `${classesMarkedToday} of ${classes.length}` : '—'}</strong></div>
+          <div><span>Records today</span><strong>{attendanceReady ? yearAttendance.filter(a=>a.date===today).length : '—'}</strong></div>
         </div>
       </section>
       <div className='daybook-kpi-grid' style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,minmax(0,1fr))':'repeat(4,minmax(0,1fr))',gap:12,marginBottom: isMobile?20:28}}>
         {isAdmin && <>
           <KPI label='Total Students'   value={yearStudents.length}      color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
-          <KPI label='Attendance Rate'  value={`${schoolAttRate}%`}  color='var(--emerald)' sub={`${schoolAttPresent} of ${schoolAttTotal} records`} index={1}/>
+          <KPI label='Attendance Rate'  value={attendanceReady?`${schoolAttRate}%`:'—'} color='var(--emerald)' sub={attendanceReady?`${schoolAttPresent} of ${schoolAttTotal} records`:'Loading attendance…'} index={1}/>
           <KPI label='Average Score'    value={avgScore}             color='var(--sky)'     sub={`Pass rate: ${passRate}%`} index={2}/>
-          <KPI label='Fee Collection'   value={`${feeRate}%`} color='var(--amber)' sub={overdueFeesCount>0?`${fmtMoney(totalPaid,currency)} collected · ${overdueFeesCount} overdue`:`${fmtMoney(totalPaid,currency)} collected`} index={3}/>
+          <KPI label='Fee Collection'   value={feesReady?`${feeRate}%`:'—'} color='var(--amber)' sub={!feesReady?'Loading fees…':overdueFeesCount>0?`${fmtMoney(totalPaid,currency)} collected · ${overdueFeesCount} overdue`:`${fmtMoney(totalPaid,currency)} collected`} index={3}/>
         </>}
         {profile?.role==='classteacher' && <>
           <KPI label='My Class'         value={myClass?.name||'--'}   color='var(--gold)'    sub='Your assigned class' index={0}/>
           <KPI label='Students'         value={myClassStudents.length} color='var(--sky)'   sub='In your class' index={1}/>
-          <KPI label='Attendance Rate'  value={(myClassAtt.length||myClassOB.length)?`${myClassAttRate}%`:'--'} color='var(--emerald)' sub={todayMarked?'Today marked':'Not marked today'} index={2}/>
+          <KPI label='Attendance Rate'  value={!attendanceReady?'—':(myClassAtt.length||myClassOB.length)?`${myClassAttRate}%`:'--'} color='var(--emerald)' sub={!attendanceReady?'Loading attendance…':todayMarked?'Today marked':'Not marked today'} index={2}/>
           <KPI label='Pass Rate'        value={`${myClassPassRate}%`} color='var(--amber)'   sub='This semester' index={3}/>
         </>}
         {profile?.role==='teacher' && <>

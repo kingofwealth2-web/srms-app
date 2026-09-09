@@ -191,9 +191,10 @@ export default function App() {
   // year's rows: every count filters down to 0 and the app looks like it has
   // lost the school's records.
   const [dataLoading,setDataLoading] = useState(false)
-  // True while fees/payments/attendance are still coming in behind the rendered
-  // app. Pages built on those tables must wait on this rather than render zeros.
+  // True while any deferred request is running; deferredPending tracks each
+  // table separately so one slow request does not block an unrelated page.
   const [deferredLoading,setDeferredLoading] = useState(true)
+  const [deferredPending,setDeferredPending] = useState(['attendance','fees','payments'])
   // Names of the deferred tables (fees/payments/attendance) whose last load
   // failed, so the pages that need them show a retry state instead of an empty
   // ledger. Cleared on a successful load.
@@ -355,8 +356,9 @@ export default function App() {
     const year = yr || currentYearFromSettings(settingsRow)
     if (!prof?.school_id) return
     setDeferredLoading(true)
+    setDeferredPending(['attendance','fees','payments'])
+    setDeferredError(null)
     try {
-      const NAMES = ['attendance','fees','payments']
       // These three are the heaviest queries (≈92% of the payload) and the ones
       // most likely to fail on a slow/flaky connection. A single failure used to
       // leave the list empty until a manual reload -- which read as fee records
@@ -373,29 +375,26 @@ export default function App() {
         }
         return res
       }
-      const results = await Promise.all([
-        withRetry(() => fetchAllRows(() => supabase.from('attendance').select('*').eq('school_id', prof.school_id).eq('academic_year', year).order('id'))),
-        withRetry(() => fetchAllRowsByCursor(() => supabase.from('fees').select('*').eq('school_id', prof.school_id).eq('academic_year', year))),
-        withRetry(() => fetchAllRowsByCursor(() => supabase.from('payments').select('*').eq('school_id', prof.school_id).eq('academic_year', year))),
-      ])
-
-      // Drop a stale response: user switched year while this was loading.
-      if (wantedYear.current !== null && year !== wantedYear.current) return
-
-      const failures = results.map((r, i) => ({ table: NAMES[i], error: r.error })).filter(f => f.error)
-      if (failures.length) {
-        failures.forEach(f => console.error(`Failed to load ${f.table}:`, f.error.message))
-        setDeferredError(failures.map(f => f.table))
-        showToast(`Couldn't load ${failures.map(f => f.table).join(', ')} -- tap Try again on the page.`, 'error')
-      } else {
-        setDeferredError(null)
-      }
-      const [{ data: attendance }, { data: fees }, { data: payments }] = results
-      setData(prev => ({
-        ...prev,
-        attendance: attendance || prev.attendance || [],
-        fees:       fees       || prev.fees       || [],
-        payments:   payments   || prev.payments   || [],
+      const tasks = [
+        ['attendance', () => fetchAllRows(() => supabase.from('attendance').select('*').eq('school_id', prof.school_id).eq('academic_year', year).order('id'))],
+        ['fees', () => fetchAllRowsByCursor(() => supabase.from('fees').select('*').eq('school_id', prof.school_id).eq('academic_year', year))],
+        ['payments', () => fetchAllRowsByCursor(() => supabase.from('payments').select('*').eq('school_id', prof.school_id).eq('academic_year', year))],
+      ]
+      await Promise.all(tasks.map(async ([name, factory]) => {
+        const result = await withRetry(factory)
+        // Drop a stale response: user switched year while this was loading.
+        if (wantedYear.current !== null && year !== wantedYear.current) return
+        if (result.error) {
+          console.error(`Failed to load ${name}:`, result.error.message)
+          setDeferredError(prev => [...new Set([...(prev || []), name])])
+          showToast(`Couldn't load ${name} -- tap Try again on the page.`, 'error')
+        } else {
+          setData(prev => ({ ...prev, [name]: result.data || [] }))
+          setDeferredError(prev => prev?.filter(item => item !== name) || null)
+        }
+        // Release pages as soon as their own data has arrived. A slow attendance
+        // request must not keep Fees behind a full-page loader (and vice versa).
+        setDeferredPending(prev => prev.filter(item => item !== name))
       }))
     } finally {
       if (wantedYear.current === null || year === wantedYear.current) setDeferredLoading(false)
@@ -688,7 +687,7 @@ export default function App() {
   }
   // ─────────────────────────────────────────────────────────────────
 
-  const props = { profile, data: displayData, setData, toast: showToast, settings, activeYear, currentYear, isViewingPast, onAcademicYearChange: year => setSelectedYear(year===currentYear?null:year), reloadData: () => loadData(activeYear, profile, settings), onShowPlans: () => setShowPlans(true), reloadSettings }
+  const props = { profile, data: displayData, setData, toast: showToast, settings, activeYear, currentYear, isViewingPast, deferredPending, onAcademicYearChange: year => setSelectedYear(year===currentYear?null:year), reloadData: () => loadData(activeYear, profile, settings), onShowPlans: () => setShowPlans(true), reloadSettings }
 
   const renderPage = () => {
     const allowedPages = NAV_ITEMS[profile?.role] || []
@@ -701,16 +700,18 @@ export default function App() {
     if (dataLoading && safePage !== 'myprofile') {
       return <LoadingScreen msg={`Loading ${activeYear}...`} height='60vh'/>
     }
-    // Everything on these four is computed from fees, payments or attendance,
-    // so rendering them early would show totals of zero rather than no totals.
-    // The rest of the app is usable while these are still arriving.
-    if (deferredLoading && ['dashboard','fees','attendance','reports'].includes(safePage)) {
-      return <LoadingScreen msg='Loading fees and attendance...' height='60vh'/>
+    // Detailed pages wait only for the tables they require. Dashboard renders
+    // immediately and marks its still-loading KPIs instead of hiding the page.
+    const PAGE_NEEDS = { dashboard: [], fees: ['fees','payments'], attendance: ['attendance'], reports: ['fees','payments','attendance'] }
+    const needed = PAGE_NEEDS[safePage]
+    if (needed?.some(table => deferredPending.includes(table))) {
+      const msg = safePage === 'fees' ? 'Loading fee records...'
+        : safePage === 'attendance' ? 'Loading attendance...'
+        : 'Loading report records...'
+      return <LoadingScreen msg={msg} height='60vh'/>
     }
     // Which deferred tables each of those pages actually needs -- so e.g. an
     // attendance-only failure doesn't hide fees that loaded fine.
-    const PAGE_NEEDS = { dashboard: ['fees','payments','attendance'], fees: ['fees','payments'], attendance: ['attendance'], reports: ['fees','payments','attendance'] }
-    const needed = PAGE_NEEDS[safePage]
     if (needed && deferredError && deferredError.some(t => needed.includes(t))) {
       const label = safePage === 'attendance' ? 'attendance' : safePage === 'fees' ? 'fee records' : 'fees and attendance'
       return <LoadErrorScreen msg={`Couldn't load ${label}.`} onRetry={retryDeferred} retrying={deferredLoading} height='60vh'/>
