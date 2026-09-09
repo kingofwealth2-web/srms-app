@@ -950,14 +950,6 @@ export default function Landing({ onEnter, onShowPlans }) {
                   the pupil into the next year on their own — that is the orange tag.
                 </figcaption>
               </figure>
-              <figure className="shot">
-                <div className="shot-frame"><img src="/shots/shot-attendance.webp" width="1600" height="805" loading="lazy" decoding="async"
-                     alt="SRMS attendance page for a class, with present, absent, late and excused controls against each pupil and a save button." /></div>
-                <figcaption>
-                  <b>Attendance.</b> Mark a whole class in one pass. The register already
-                  knows whether today has been marked, so nobody marks twice.
-                </figcaption>
-              </figure>
             </div>
 
             <div className="shot-bar">

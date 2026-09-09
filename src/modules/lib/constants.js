@@ -11,8 +11,6 @@ export const ROLE_META = {
 export const STATUS_META = {
   Present:{color:'var(--emerald)',bg:'rgba(45,212,160,0.12)'},
   Absent: {color:'var(--rose)',   bg:'rgba(240,107,122,0.12)'},
-  Late:   {color:'var(--amber)',  bg:'rgba(251,159,58,0.12)'},
-  Excused:{color:'var(--sky)',    bg:'rgba(91,168,245,0.12)'},
 }
 
 export const BEHAVIOUR_META = {

@@ -301,8 +301,8 @@ export default function Reports({profile,data,settings,activeYear,currentYear,is
         }
         filename=`SRMS_Academic_${scope}_${fp||'AllPeriods'}.csv`
       } else if(rtype==='attendance'){
-        csv='Student ID,Student,Class,Total Days,Present,Absent,Late,Excused,Rate\n'
-        attData.forEach(s=>{csv+=`"${s.student_id}","${fullName(s)}","${classes.find(c=>c.id===s.class_id)?.name||'--'}",${s.total},${s.present},${s.absent},${s.late},${s.excused},${s.rate!==null?s.rate+'%':'--'}\n`})
+        csv='Student ID,Student,Class,Total Days,Present,Absent,Rate\n'
+        attData.forEach(s=>{csv+=`"${s.student_id}","${fullName(s)}","${classes.find(c=>c.id===s.class_id)?.name||'--'}",${s.total},${s.present},${s.absent},${s.rate!==null?s.rate+'%':'--'}\n`})
         filename=`SRMS_Attendance_${scope}.csv`
       } else {
         csv='Student ID,Student,Class,Total Owed,Paid,Balance,Status\n'
@@ -557,8 +557,6 @@ export default function Reports({profile,data,settings,activeYear,currentYear,is
             {key:'total',label:'Days'},
             {key:'present',label:'Present',render:v=><span style={{color:'var(--emerald)',fontWeight:600}}>{v}</span>},
             {key:'absent',label:'Absent',render:v=><span style={{color:'var(--rose)',fontWeight:600}}>{v}</span>},
-            {key:'late',label:'Late',render:v=><span style={{color:'var(--amber)',fontWeight:600}}>{v}</span>},
-            {key:'excused',label:'Excused',render:v=><span style={{color:'var(--sky)',fontWeight:600}}>{v}</span>},
             {key:'rate',label:'Rate',render:v=>v!==null?<span className='mono' style={{fontWeight:700,color:v>=80?'var(--emerald)':v>=60?'var(--amber)':'var(--rose)'}}>{v}%</span>:'--'},
           ]}/>
         )}
@@ -1247,7 +1245,7 @@ function ReportCards({profile,data,settings,activeYear,isViewingPast,isHistorica
             </div>
             <div style="padding:12px 14px;background:#f0fdf4;border-radius:8px;border:1px solid #16a34a20;">
               ${att.total>0
-                ? `<div style="font-size:24px;font-weight:900;color:#16a34a;line-height:1;">${att.present+att.late} <span style="font-size:14px;font-weight:600;color:#6b7280;">out of ${att.total}</span></div>
+                ? `<div style="font-size:24px;font-weight:900;color:#16a34a;line-height:1;">${att.present} <span style="font-size:14px;font-weight:600;color:#6b7280;">out of ${att.total}</span></div>
                    <div style="font-size:10px;color:#6b7280;margin-top:4px;">days present</div>`
                 : `<div style="font-size:13px;color:#9ca3af;">No attendance recorded</div>`}
             </div>

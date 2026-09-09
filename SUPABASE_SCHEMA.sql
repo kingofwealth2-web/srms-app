@@ -409,7 +409,7 @@ create table if not exists public.attendance (
   student_id     uuid references public.students(id) on delete cascade,
   class_id       uuid references public.classes(id) on delete cascade,
   date           date not null,
-  status         text not null check (status in ('Present','Absent','Late','Excused')),
+  status         text not null check (status in ('Present','Absent')),
   academic_year  text not null,
   marked_by      uuid references public.profiles(id),
   created_at     timestamptz default now(),

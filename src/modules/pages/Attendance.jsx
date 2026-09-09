@@ -119,7 +119,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
     setSaving(false)
   }
 
-  const statuses = ['Present','Absent','Late','Excused']
+  const statuses = ['Present','Absent']
   const counts = statuses.reduce((acc,s)=>({...acc,[s]:classStudents.filter(st=>getStatus(st.id)===s).length}),{})
   const histRecs = yearAttendance.filter(a=>!cid||a.class_id===cid).sort((a,b)=>b.date.localeCompare(a.date))
 

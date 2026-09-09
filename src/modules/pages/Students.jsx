@@ -210,7 +210,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
     const attOB           = data.opening_balances?.filter(b => b.student_id === s.id) || []
     const behRecs        = data.behaviour?.filter(b => b.student_id === s.id) || []
 
-    const { present, absent, late, excused, rate: attRate } = calcAttendanceRate(attRecs, attOB)
+    const { present, absent, rate: attRate } = calcAttendanceRate(attRecs, attOB)
 
     const schoolName  = settings?.school_name  || 'SRMS'
     const schoolMotto = settings?.motto         || ''
@@ -360,8 +360,8 @@ export default function Students({profile,data,setData,toast,settings,activeYear
       <div class="sec" style="margin-top:18px;">Attendance</div>
       ${attRecs.length === 0 && attOB.length === 0
         ? `<div style="font-size:13px;color:#9ca3af;">No attendance records yet.</div>`
-        : `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;">
-            ${[['Present',present,'#16a34a'],['Absent',absent,'#dc2626'],['Late',late,'#d97706'],['Excused',excused,'#0ea5e9']].map(([l,n,c])=>
+        : `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;">
+            ${[['Present',present,'#16a34a'],['Absent',absent,'#dc2626']].map(([l,n,c])=>
               `<div style="text-align:center;padding:8px 4px;background:${c}0d;border:1px solid ${c}28;border-radius:8px;"><div style="font-size:19px;font-weight:800;color:${c};">${n}</div><div style="font-size:9px;color:#9ca3af;margin-top:2px;">${l}</div></div>`
             ).join('')}
           </div>`}
@@ -646,7 +646,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
         const scale = settings?.grading_scale||[]
         const attRecs = data.attendance?.filter(a=>a.student_id===s.id)||[]
         const attOB   = data.opening_balances?.filter(b=>b.student_id===s.id)||[]
-        const { present, absent, late, excused, rate: attRate } = calcAttendanceRate(attRecs, attOB)
+        const { present, absent, rate: attRate } = calcAttendanceRate(attRecs, attOB)
         // Pick the latest-period grade for a given subject
         const periodOrder = Array.from({length:settings?.period_count||2},(_,i)=>`${settings?.period_type==='term'?'Term':'Semester'} ${i+1}`)
         const latestGrade = subjectId => {
@@ -760,7 +760,7 @@ export default function Students({profile,data,setData,toast,settings,activeYear
                 {attRecs.length===0 && attOB.length===0
                   ? <div style={{fontSize:13,color:'var(--mist3)'}}>No attendance records yet.</div>
                   : <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
-                      {[['Present',present,'var(--emerald)'],['Absent',absent,'var(--rose)'],['Late',late,'var(--amber)']].map(([label,count,color])=>(
+                      {[['Present',present,'var(--emerald)'],['Absent',absent,'var(--rose)']].map(([label,count,color])=>(
                         <div key={label} style={{flex:1,minWidth:70,padding:'10px 14px',background:'var(--ink3)',borderRadius:'var(--r-sm)',border:`1px solid ${color}30`,textAlign:'center'}}>
                           <div style={{fontSize:18,fontWeight:700,color}}>{count}</div>
                           <div style={{fontSize:10,color:'var(--mist3)',marginTop:2}}>{label}</div>

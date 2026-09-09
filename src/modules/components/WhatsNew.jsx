@@ -81,7 +81,7 @@ const CHANGELOG = [
       {
         icon: '✅',
         title: 'Simpler attendance',
-        description: 'The report card now shows days present out of the days school was in session — one clear line instead of a percentage and a breakdown. A day marked Late counts as present.',
+        description: 'Attendance now uses the two statuses schools need: Present and Absent. Report cards show days present out of the days school was in session.',
         howto: 'Appears automatically on individual report cards',
       },
       {

@@ -437,7 +437,6 @@ export default function ParentPortal({ profile, onSignOut }) {
                   <KPI label='Total Days' value={attSummary.total} />
                   <KPI label='Present' value={attSummary.present} color='var(--emerald)' />
                   <KPI label='Absent' value={attSummary.absent} color='var(--rose)' />
-                  <KPI label='Late' value={attSummary.late} color='var(--amber)' />
                   {attSummary.rate !== null && (
                     <KPI label='Attendance Rate' value={`${attSummary.rate}%`}
                       color={attSummary.rate >= 80 ? 'var(--emerald)' : attSummary.rate >= 60 ? 'var(--amber)' : 'var(--rose)'} />
