@@ -258,6 +258,8 @@ html,body,#root{
 .daybook-kpi:hover{border-color:var(--line2)!important;background:var(--ink3)!important}
 .daybook-kpi .d{font-variant-numeric:tabular-nums}
 
+.daybook-table-shell{min-width:0;max-width:100%}
+.daybook-table-hint{display:none}
 .daybook-table-wrap{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ink2);overflow:auto;margin-inline:-2px;max-width:calc(100% + 4px);-webkit-overflow-scrolling:touch;scrollbar-width:thin;outline:none}
 .daybook-table-wrap:focus-visible{border-color:var(--gold);box-shadow:0 0 0 2px rgba(232,184,75,.12)}
 .daybook-table{width:100%;border-collapse:separate!important;border-spacing:0}
@@ -285,8 +287,9 @@ html,body,#root{
 .daybook-record-list{display:flex;flex-direction:column;gap:8px}
 .daybook-record-row{background:var(--ink2);border:1px solid var(--line);border-radius:var(--r-sm);transition:background var(--t-fast),border-color var(--t-fast)}
 .daybook-record-row:hover{background:var(--ink3);border-color:var(--line2)}
-.daybook-tabs{border-radius:9px!important;padding:4px!important;background:var(--ink2)!important}
-.daybook-tabs button{min-height:36px}
+.daybook-tabs{border-radius:9px!important;padding:4px!important;background:var(--ink2)!important;max-width:100%;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.daybook-tabs::-webkit-scrollbar{display:none}
+.daybook-tabs button{min-height:36px;flex:0 0 auto;white-space:nowrap}
 
 body.light .srms-sidebar,body.light .srms-topbar{background:#fffdf9!important}
 body.light .daybook-intro__ledger,body.light .card-surface,body.light .daybook-table-wrap{background:#fffdf9!important}
@@ -317,6 +320,11 @@ body.light .daybook-kpi:hover{background:#f7f3eb!important}
   .daybook-intro__ledger>div:nth-child(3){grid-column:1/-1;border-left:0;border-top:1px solid var(--line)}
   .daybook-kpi{padding:15px 14px 14px!important}
   .daybook-kpi .d{font-size:26px!important}
+  .daybook-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+  .daybook-tabs{width:100%!important;border-radius:8px!important;scroll-snap-type:x proximity}
+  .daybook-tabs button{scroll-snap-align:start;padding-inline:16px!important}
+  .daybook-table-hint{display:flex;align-items:center;justify-content:flex-end;gap:5px;margin:0 2px 7px;color:var(--mist3);font-size:10px;font-weight:600;letter-spacing:.02em}
+  .daybook-table-hint span{color:var(--gold);font-size:13px}
   .daybook-table-wrap{border-radius:8px}
   .daybook-table thead th{padding:10px 12px}
   .daybook-table td{padding:11px 12px}

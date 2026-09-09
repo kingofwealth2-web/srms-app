@@ -433,7 +433,7 @@ export default function ParentPortal({ profile, onSignOut }) {
             {/* ── ATTENDANCE ─────────────────────────── */}
             {tab === 'attendance' && (
               <div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 20 }}>
+                <div className='daybook-kpi-grid' style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 20 }}>
                   <KPI label='Total Days' value={attSummary.total} />
                   <KPI label='Present' value={attSummary.present} color='var(--emerald)' />
                   <KPI label='Absent' value={attSummary.absent} color='var(--rose)' />
@@ -469,7 +469,7 @@ export default function ParentPortal({ profile, onSignOut }) {
             {/* ── FEES ───────────────────────────────── */}
             {tab === 'fees' && (
               <div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 20 }}>
+                <div className='daybook-kpi-grid' style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 20 }}>
                   <KPI label='Total Charged' value={fmtMoney(feeSummary.totalCharged, currency)} />
                   <KPI label='Total Paid' value={fmtMoney(feeSummary.totalPaid, currency)} color='var(--emerald)' />
                   <KPI label='Outstanding Balance' value={fmtMoney(feeSummary.balance, currency)}

@@ -326,7 +326,7 @@ export default function Reports({profile,data,settings,activeYear,currentYear,is
         {isAdmin && rtype!=='reportcards' && <PlanGate planHook={planHook} feature='reportsExcel' mode='inline' onUpgrade={onShowPlans}><Btn variant='ghost' onClick={exportExcel}>⬇ Export Excel</Btn></PlanGate>}
       </PageHeader>
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:16,marginBottom:24}}>
+      <div className='daybook-kpi-grid' style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:16,marginBottom:24}}>
         {/* Admin/superadmin — full KPIs */}
         {isAdmin && <>
           <KPI label='Pass Rate'      value={`${passRate}%`}   color='var(--emerald)' index={0}/>
@@ -348,7 +348,7 @@ export default function Reports({profile,data,settings,activeYear,currentYear,is
       </div>
 
       {/* Tabs */}
-      <div style={{display:'flex',gap:4,marginBottom:16,background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:4,width:'fit-content'}}>
+      <div className='daybook-tabs' style={{display:'flex',gap:4,marginBottom:16,background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:4,width:'fit-content'}}>
         {allowedTabs.map(t=>(
           <button key={t} onClick={()=>setRtype(t)} style={{padding:'8px 20px',borderRadius:10,fontSize:13,fontWeight:600,background:rtype===t?'var(--ink4)':'transparent',color:rtype===t?'var(--white)':'var(--mist2)',border:rtype===t?'1px solid var(--line)':'1px solid transparent',transition:'all 0.15s',cursor:'pointer',fontFamily:"'Cabinet Grotesk',sans-serif"}}>
             {t==='reportcards'?'Report Cards':t.charAt(0).toUpperCase()+t.slice(1)}

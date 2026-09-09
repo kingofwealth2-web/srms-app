@@ -2,8 +2,10 @@ import EmptyState from './EmptyState'
 
 export default function DataTable({ columns, data, onRow, emptyTitle = 'No records found', emptyHint = 'Try changing or clearing the filters above.', emptyAction, onEmptyAction, minWidth = 640 }) {
   return (
-    <div className='daybook-table-wrap' tabIndex='0' aria-label='Scrollable records table'>
-      <table className='daybook-table' style={{ minWidth }}>
+    <div className='daybook-table-shell'>
+      <div className='daybook-table-hint' aria-hidden='true'>Swipe to see more <span>→</span></div>
+      <div className='daybook-table-wrap' tabIndex='0' aria-label='Scrollable records table'>
+        <table className='daybook-table' style={{ minWidth }}>
         <thead>
           <tr>
             {columns.map(c => (
@@ -38,7 +40,8 @@ export default function DataTable({ columns, data, onRow, emptyTitle = 'No recor
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   )
 }

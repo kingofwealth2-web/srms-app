@@ -110,7 +110,7 @@ export default function Behaviour({profile,data,setData,toast,settings,activeYea
           <Btn variant='ghost' onClick={exportBehaviourCsv}>Export CSV</Btn>
         )}
       </PageHeader>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
+      <div className='daybook-kpi-grid' style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
         {types.map((t,i)=>{
           const m=BEHAVIOUR_META[t];const isAct=ftype===t
           return(
