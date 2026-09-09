@@ -339,10 +339,19 @@ export function buildPaymentsByFee(payments) {
 }
 
 // ── YEAR HELPERS ───────────────────────────────────────────────
+// Ghana's academic year begins in September. Keeping this calculation in one
+// place prevents a newly-created school from silently starting in the calendar
+// year's next academic year during January-August.
+export function suggestedAcademicYear(date = new Date()) {
+  const year = date.getFullYear()
+  const startYear = date.getMonth() >= 8 ? year : year - 1
+  return `${startYear}/${startYear + 1}`
+}
+
 export function generateYears(centerYear) {
   const base = centerYear
     ? parseInt(centerYear.replace(/[^0-9]/g, '').slice(0, 4))
-    : new Date().getFullYear()
+    : parseInt(suggestedAcademicYear().slice(0, 4))
   const years = []
   for (let y = base - 3; y <= base + 3; y++) years.push(`${y}/${y + 1}`)
   return years
@@ -351,7 +360,7 @@ export function generateYears(centerYear) {
 export function currentYearFromSettings(settings) {
   return settings?.academic_year
     ? settings.academic_year.replace('-', '/')
-    : `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`
+    : suggestedAcademicYear()
 }
 
 // ── HOLIDAY / VACATION HELPERS ─────────────────────────────────

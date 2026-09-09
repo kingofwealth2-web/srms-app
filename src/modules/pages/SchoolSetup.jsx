@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../supabase'
-import { DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, generateYears } from '../lib/helpers'
+import { DEFAULT_GRADING_SCALE, DEFAULT_GRADE_COMPONENTS, generateYears, suggestedAcademicYear } from '../lib/helpers'
 import { CURRENCIES } from '../lib/constants'
 import Spinner from '../components/Spinner'
 import Select from '../components/Select'
@@ -15,8 +15,9 @@ export default function SchoolSetup({ profile, onComplete, onCancel }) {
   const [step, setStep]     = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
+  const [yearConfirmed, setYearConfirmed] = useState(false)
 
-  const currentYear = generateYears()[0]
+  const currentYear = suggestedAcademicYear()
 
   const [form, setForm] = useState({
     // Step 1 — School info
@@ -43,6 +44,10 @@ export default function SchoolSetup({ profile, onComplete, onCancel }) {
   }
 
   const submit = async () => {
+    if (form.academic_year !== currentYear && !yearConfirmed) {
+      setError('Please confirm the academic year before creating the school.')
+      return
+    }
     setSaving(true)
     setError('')
     try {
@@ -159,10 +164,23 @@ export default function SchoolSetup({ profile, onComplete, onCancel }) {
         {step === 1 && (
           <div style={styles.fields}>
             <FormField label='Current Academic Year'>
-              <Select value={form.academic_year} onChange={e => f('academic_year')(e.target.value)} style={styles.input}>
+              <Select value={form.academic_year} onChange={e => { f('academic_year')(e.target.value); setYearConfirmed(false); setError('') }} style={styles.input}>
                 {generateYears(form.academic_year).map(y => <option key={y} value={y}>{y}</option>)}
               </Select>
             </FormField>
+            {form.academic_year !== currentYear && (
+              <label style={styles.yearWarning}>
+                <input
+                  type='checkbox'
+                  checked={yearConfirmed}
+                  onChange={e => setYearConfirmed(e.target.checked)}
+                />
+                <span>
+                  <strong>{currentYear} is the expected current year.</strong><br />
+                  I confirm that {form.academic_year} is already active at this school.
+                </span>
+              </label>
+            )}
             <FormField label='Period Structure'>
               <div style={styles.radioGroup}>
                 {[['semester', 'Semester-based', '2 semesters per year'], ['term', 'Term-based', '3 terms per year']].map(([val, label, sub]) => (
@@ -336,6 +354,14 @@ const styles = {
     padding: '10px 14px',
     background: 'var(--ink3)', borderRadius: 'var(--r-sm)',
     marginBottom: 8,
+  },
+  yearWarning: {
+    display: 'flex', alignItems: 'flex-start', gap: 10,
+    fontSize: 12, lineHeight: 1.5, color: 'var(--mist2)',
+    padding: '10px 14px', marginTop: -8, marginBottom: 16,
+    background: 'rgba(212,175,55,0.06)',
+    border: '1px solid rgba(212,175,55,0.24)',
+    borderRadius: 'var(--r-sm)', cursor: 'pointer',
   },
   error: {
     fontSize: 12, color: 'var(--rose)',
