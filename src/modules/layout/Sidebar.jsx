@@ -144,7 +144,7 @@ export default function Sidebar({ profile, active, onNav, collapsed, onToggle, o
 
       {/* User footer */}
       <div style={{ padding: '12px 12px 16px' }}>
-        <div style={{
+        <div className='srms-sidebar-profile' style={{
           display: 'flex', alignItems: 'center', gap: 10,
           padding: '10px 12px', borderRadius: 12,
           background: 'rgba(255,255,255,0.03)',

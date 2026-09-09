@@ -195,6 +195,10 @@ html,body,#root{
 .daybook-nav-item{outline:none}
 .daybook-nav-item:focus-visible{box-shadow:0 0 0 2px var(--gold)!important}
 .daybook-nav-item.is-active{color:var(--white)!important}
+body.light .daybook-nav-item:not(.is-active):hover{background:rgba(26,23,16,.045)!important}
+body.light .daybook-nav-item.is-active{background:var(--gold-subtle)!important}
+body.light .srms-sidebar-profile{background:rgba(26,23,16,.025)!important}
+body.light .srms-sidebar-profile:hover{background:rgba(26,23,16,.05)!important}
 
 .page-header{padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:24px!important}
 .page-header h1{text-shadow:none!important}
