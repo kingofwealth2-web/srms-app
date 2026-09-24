@@ -216,9 +216,9 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
         </div>
       </section>
       {profile?.role==='superadmin' && attendanceReady && !isViewingPast && classesNotMarkedToday.length>0 && (
-        <div role='status' style={{marginTop:16,marginBottom:20,padding:'12px 16px',background:'rgba(251,159,58,0.07)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r)',display:'flex',alignItems:'baseline',gap:8,flexWrap:'wrap'}}>
-          <strong style={{fontSize:13,color:'var(--amber)',flexShrink:0}}>Attendance not marked today:</strong>
-          <span style={{fontSize:13,color:'var(--mist2)'}}>{classesNotMarkedToday.map(cls=>cls.name).join(', ')}</span>
+        <div role='status' style={{marginTop:16,marginBottom:20,padding:'12px 16px',background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:'var(--r)',display:'flex',alignItems:'baseline',gap:8,flexWrap:'wrap'}}>
+          <strong style={{fontSize:13,color:'var(--white)',flexShrink:0}}>Attendance not marked today:</strong>
+          <span style={{fontSize:13,color:'var(--mist)'}}>{classesNotMarkedToday.map(cls=>cls.name).join(', ')}</span>
         </div>
       )}
       <div className='daybook-kpi-grid' style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,minmax(0,1fr))':'repeat(4,minmax(0,1fr))',gap:12,marginBottom: isMobile?20:28}}>
