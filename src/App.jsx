@@ -163,7 +163,6 @@ export default function App() {
   })
   const [page,setPage]             = useState('dashboard')
   const [feeFilter,setFeeFilter]   = useState('')
-  const [attendanceTargetClassId,setAttendanceTargetClassId] = useState('')
   const [collapsed,setCollapsed]   = useState(false)
   const [loading,setLoading]       = useState(true)
   // Separate from `loading` (which covers first paint). This one covers a
@@ -699,11 +698,11 @@ export default function App() {
       return <LoadErrorScreen msg={`Couldn't load ${label}.`} onRetry={retryDeferred} retrying={deferredLoading} height='60vh'/>
     }
     switch (safePage) {
-      case 'dashboard':     return <Dashboard    {...props} onNav={setPage} onMarkClass={classId => { setAttendanceTargetClassId(classId); setPage('attendance') }} onNavFees={filter => { setFeeFilter(filter); setPage('fees') }}/>
+      case 'dashboard':     return <Dashboard    {...props} onNav={setPage} onNavFees={filter => { setFeeFilter(filter); setPage('fees') }}/>
       case 'students':      return <Students     {...props} planHook={planHook}/>
       case 'classes':       return <Classes      {...props} onPromotionComplete={() => { setNewYearStep(2); setNewYearModal(true) }}/>
       case 'grades':        return <Grades       {...props}/>
-      case 'attendance':    return <Attendance   {...props} initialClassId={attendanceTargetClassId} onInitialClassConsumed={() => setAttendanceTargetClassId('')}/>
+      case 'attendance':    return <Attendance   {...props}/>
       case 'fees':          return <Fees         {...props} planHook={planHook} initialFeeFilter={feeFilter} onFilterConsumed={() => setFeeFilter('')}/>
       case 'behaviour':     return <Behaviour    {...props} planHook={planHook}/>
       case 'reports':       return <Reports      {...props} planHook={planHook}/>

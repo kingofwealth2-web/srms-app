@@ -215,26 +215,11 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
           <div><span>Records today</span><strong>{attendanceReady ? yearAttendance.filter(a=>a.date===today).length : '—'}</strong></div>
         </div>
       </section>
-      {profile?.role==='superadmin' && attendanceReady && !isViewingPast && (
-        <Card style={{marginTop:16,marginBottom:20,padding:isMobile?16:20}}>
-          <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginBottom:classesNotMarkedToday.length?12:0}}>
-            <div>
-              <div style={{fontSize:14,fontWeight:700,color:'var(--white)'}}>Attendance follow-up</div>
-              <div style={{fontSize:12,color:'var(--mist3)',marginTop:3}}>{classesNotMarkedToday.length ? `${classesNotMarkedToday.length} class${classesNotMarkedToday.length===1?'':'es'} still need attendance for today.` : 'All classes have attendance recorded for today.'}</div>
-            </div>
-            {classesNotMarkedToday.length>0 && <span style={{fontSize:12,fontWeight:700,color:'var(--amber)',whiteSpace:'nowrap'}}>{classesNotMarkedToday.length} of {classes.length} not marked</span>}
-          </div>
-          {classesNotMarkedToday.length>0 && (
-            <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fit,minmax(220px,1fr))',gap:8}}>
-              {classesNotMarkedToday.map(cls=>(
-                <div key={cls.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',minWidth:0}}>
-                  <span style={{fontSize:13,fontWeight:600,color:'var(--mist)',overflow:'hidden',textOverflow:'ellipsis'}}>{cls.name}</span>
-                  <Btn size='sm' onClick={()=>onMarkClass?.(cls.id)} style={{flexShrink:0}}>Mark attendance</Btn>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+      {profile?.role==='superadmin' && attendanceReady && !isViewingPast && classesNotMarkedToday.length>0 && (
+        <div role='status' style={{marginTop:16,marginBottom:20,padding:'12px 16px',background:'rgba(251,159,58,0.07)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r)',display:'flex',alignItems:'baseline',gap:8,flexWrap:'wrap'}}>
+          <strong style={{fontSize:13,color:'var(--amber)',flexShrink:0}}>Attendance not marked today:</strong>
+          <span style={{fontSize:13,color:'var(--mist2)'}}>{classesNotMarkedToday.map(cls=>cls.name).join(', ')}</span>
+        </div>
       )}
       <div className='daybook-kpi-grid' style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,minmax(0,1fr))':'repeat(4,minmax(0,1fr))',gap:12,marginBottom: isMobile?20:28}}>
         {isAdmin && <>
