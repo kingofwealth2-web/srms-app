@@ -19,11 +19,17 @@ import Select from '../components/Select'
 import DatePicker from '../components/DatePicker'
 
 // ── ATTENDANCE ─────────────────────────────────────────────────
-export default function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
+export default function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPast,initialClassId='',onInitialClassConsumed}) {
   const {attendance=[],students=[],classes=[]} = data
   const today = new Date().toISOString().split('T')[0]
   const [date,setDate]     = useState(today)
-  const [cid,setCid]       = useState(profile?.role==='classteacher'?profile.class_id:'')
+  const [cid,setCid]       = useState(initialClassId || (profile?.role==='classteacher'?profile.class_id:''))
+  useEffect(() => {
+    if (initialClassId) {
+      setCid(initialClassId)
+      onInitialClassConsumed?.()
+    }
+  }, [initialClassId])
   useEffect(() => {
     // profile can finish loading AFTER this component's first render (e.g. right after
     // a page refresh). Since the useState above only runs once, a classteacher's cid

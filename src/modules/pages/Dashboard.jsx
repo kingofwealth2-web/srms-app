@@ -145,6 +145,9 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   const schoolAttPresent = schoolAttSummary.present
   const schoolAttRate    = schoolAttSummary.rate ?? 0
   const classesMarkedToday = new Set(yearAttendance.filter(a=>a.date===today).map(a=>a.class_id)).size
+  const classesNotMarkedToday = profile?.role==='superadmin'
+    ? classes.filter(cls=>!yearAttendance.some(a=>a.class_id===cls.id&&a.date===today))
+    : []
   const myClassAtt       = myClass ? yearAttendance.filter(a=>a.class_id===myClass.id) : []
   const myClassOB        = myClass ? yearOpeningBalances.filter(b=>b.class_id===myClass.id) : []
   const myClassAttRate   = calcAttendanceRate(myClassAtt, myClassOB).rate ?? 0
@@ -212,6 +215,27 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
           <div><span>Records today</span><strong>{attendanceReady ? yearAttendance.filter(a=>a.date===today).length : '—'}</strong></div>
         </div>
       </section>
+      {profile?.role==='superadmin' && attendanceReady && !isViewingPast && (
+        <Card style={{marginTop:16,marginBottom:20,padding:isMobile?16:20}}>
+          <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginBottom:classesNotMarkedToday.length?12:0}}>
+            <div>
+              <div style={{fontSize:14,fontWeight:700,color:'var(--white)'}}>Attendance follow-up</div>
+              <div style={{fontSize:12,color:'var(--mist3)',marginTop:3}}>{classesNotMarkedToday.length ? `${classesNotMarkedToday.length} class${classesNotMarkedToday.length===1?'':'es'} still need attendance for today.` : 'All classes have attendance recorded for today.'}</div>
+            </div>
+            {classesNotMarkedToday.length>0 && <span style={{fontSize:12,fontWeight:700,color:'var(--amber)',whiteSpace:'nowrap'}}>{classesNotMarkedToday.length} of {classes.length} not marked</span>}
+          </div>
+          {classesNotMarkedToday.length>0 && (
+            <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fit,minmax(220px,1fr))',gap:8}}>
+              {classesNotMarkedToday.map(cls=>(
+                <div key={cls.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,padding:'10px 12px',background:'var(--ink3)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',minWidth:0}}>
+                  <span style={{fontSize:13,fontWeight:600,color:'var(--mist)',overflow:'hidden',textOverflow:'ellipsis'}}>{cls.name}</span>
+                  <Btn size='sm' onClick={()=>onMarkClass?.(cls.id)} style={{flexShrink:0}}>Mark attendance</Btn>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
       <div className='daybook-kpi-grid' style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,minmax(0,1fr))':'repeat(4,minmax(0,1fr))',gap:12,marginBottom: isMobile?20:28}}>
         {isAdmin && <>
           <KPI label='Total Students'   value={yearStudents.length}      color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
