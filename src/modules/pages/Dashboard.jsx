@@ -9,7 +9,7 @@ import SectionTitle from '../components/SectionTitle'
 import Btn from '../components/Btn'
 import Badge from '../components/Badge'
 
-export default function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,currentYear,isViewingPast,deferredPending=[]}) {
+export default function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,currentYear,isViewingPast,deferredPending=[],deferredError=[]}) {
   const isMobile = useIsMobile()
   const isHistoricalYear = !!currentYear && activeYear!==currentYear
 
@@ -20,7 +20,7 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   // loudly. That was zeroing out the Fee Collection KPI for large schools.
   const {students=[],classes=[],subjects=[],enrolments=[],fees=[],fee_periods:feePeriods=[],payments=[],grades=[],attendance=[],announcements=[],opening_balances:openingBalances=[]} = data
   const dashboardPeriod = isHistoricalYear ? '' : settings?.current_period || ''
-  const attendanceReady = !deferredPending.includes('attendance')
+  const attendanceReady = !deferredPending.includes('attendance') && !deferredError?.includes('attendance')
   const feesReady = !deferredPending.includes('fees') && !deferredPending.includes('payments')
   const feePeriodById = useMemo(() => new Map(feePeriods.map(p=>[p.id,p])), [feePeriods])
   const yearFees = useMemo(() => fees.filter(f=>{
@@ -144,9 +144,10 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
   const schoolAttTotal   = schoolAttSummary.total
   const schoolAttPresent = schoolAttSummary.present
   const schoolAttRate    = schoolAttSummary.rate ?? 0
-  const classesMarkedToday = new Set(yearAttendance.filter(a=>a.date===today).map(a=>a.class_id)).size
+  const classIdsMarkedToday = new Set(yearAttendance.filter(a=>a.date===today).map(a=>a.class_id))
+  const classesMarkedToday = classes.filter(cls=>classIdsMarkedToday.has(cls.id)).length
   const classesNotMarkedToday = profile?.role==='superadmin'
-    ? classes.filter(cls=>!yearAttendance.some(a=>a.class_id===cls.id&&a.date===today))
+    ? classes.filter(cls=>!classIdsMarkedToday.has(cls.id))
     : []
   const myClassAtt       = myClass ? yearAttendance.filter(a=>a.class_id===myClass.id) : []
   const myClassOB        = myClass ? yearOpeningBalances.filter(b=>b.class_id===myClass.id) : []
