@@ -3,9 +3,22 @@ import Modal from './Modal'
 
 // ── Version history ──────────────────────────────────────────────
 // Add new entries at the TOP. Bump LATEST_VERSION when adding.
-const LATEST_VERSION = '4.0'
+const LATEST_VERSION = '4.1'
 
 const CHANGELOG = [
+  {
+    version: '4.1',
+    date: 'September 2026',
+    title: 'Dashboard & Attendance',
+    entries: [
+      {
+        icon: '📅',
+        title: 'Attendance follow-up on the dashboard',
+        description: 'The Super Admin dashboard now lists classes with no attendance recorded today, so you can quickly see which classes still need follow-up.',
+        howto: 'Dashboard → “Attendance not marked today”',
+      },
+    ],
+  },
   {
     version: '4.0',
     date: 'July 2026',
