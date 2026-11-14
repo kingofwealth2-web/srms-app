@@ -10,6 +10,9 @@ ALTER TABLE public.fee_periods ADD COLUMN IF NOT EXISTS academic_period text;
 -- Put the unique cursor last so equality filters on school/year and the ordered
 -- primary-key cursor can be served by one index.  The old two-column indexes
 -- become redundant prefixes after these are created.
+alter table public.attendance_opening_balances
+  add column if not exists period text;
+
 create index if not exists idx_attendance_school_year_id
   on public.attendance (school_id, academic_year, id);
 
@@ -24,6 +27,9 @@ create index if not exists idx_attendance_school_year_date_id
 create index if not exists idx_attendance_school_year_student_class
   on public.attendance (school_id, academic_year, student_id, class_id)
   include (period, status);
+
+create index if not exists idx_opening_balances_school_year_student
+  on public.attendance_opening_balances (school_id, academic_year, student_id, class_id);
 
 create index if not exists idx_fees_school_year_id
   on public.fees (school_id, academic_year, id);
