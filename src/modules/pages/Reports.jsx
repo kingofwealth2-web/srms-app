@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS } from '../lib/constants'
-import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName, calcAttendanceRate, isPassing, rankByTotal, compareClasses, computeAggregate, effectivePaid, buildPaymentsByFee } from '../lib/helpers'
+import { fmtDate, calcTotal, getGradeComponents, getLetter, getGPA, getGradeLetter, getGradeRemark, getGradeColor, DEFAULT_GRADING_SCALE, getCurrency, fmtMoney, csvEscape, generateYears , fullName, isPassing, rankByTotal, compareClasses, computeAggregate, fetchAllRows } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
 import Btn from '../components/Btn'
@@ -32,18 +32,10 @@ const abbrSubject = name => {
 }
 
 // ── REPORTS ────────────────────────────────────────────────────
-export default function Reports({profile,data,settings,activeYear,currentYear,isViewingPast,toast,planHook,onShowPlans}) {
-  const {students=[],grades:allGrades=[],attendance:allAttendance=[],fees:allFees=[],fee_periods:feePeriods=[],classes=[],subjects=[],enrolments=[],opening_balances:allOpeningBalances=[],payments:allPayments=[]} = data
+export default function Reports({profile,data,setData,settings,activeYear,currentYear,isViewingPast,toast,planHook,onShowPlans}) {
+  const {students=[],grades:allGrades=[],classes=[],subjects=[],enrolments=[]} = data
   const grades = allGrades.filter(g=>g.year===activeYear)
-  const attendance = allAttendance.filter(a=>a.academic_year===activeYear)
-  const fees = allFees.filter(f=>f.academic_year===activeYear)
-  const openingBalances = allOpeningBalances.filter(b=>b.academic_year===activeYear)
-  const feeIds = new Set(fees.map(f=>f.id))
-  const payments = allPayments.filter(p=>feeIds.has(p.fee_id))
-  const feePeriodById = new Map(feePeriods.map(p=>[p.id,p]))
-  const academicPeriodForFee = fee => fee.fee_period_id
-    ? feePeriodById.get(fee.fee_period_id)?.academic_period || fee.period
-    : fee.period
+  const examScores = (data.examScores||[]).filter(row=>row.year===activeYear)
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
   const currency   = getCurrency(settings)
@@ -59,6 +51,11 @@ export default function Reports({profile,data,settings,activeYear,currentYear,is
   const [selectedStudent,setSelectedStudent] = useState(null)
   const [showDropdown,setShowDropdown]   = useState(false)
   const [fsub,setFsub]                   = useState('') // subject filter for teacher
+  const [attendanceSummary,setAttendanceSummary] = useState([])
+  const [feeSummary,setFeeSummary] = useState([])
+  const [reportSummaryLoading,setReportSummaryLoading] = useState(false)
+  const [reportSummaryError,setReportSummaryError] = useState(false)
+  const [reportSummaryReload,setReportSummaryReload] = useState(0)
 
   // Role-based scoping
   const isClassTeacher = profile?.role === 'classteacher'
@@ -98,6 +95,40 @@ export default function Reports({profile,data,settings,activeYear,currentYear,is
     setFp(isHistoricalYear ? '' : currentPeriod)
     setRcPeriod(currentPeriod)
   }, [activeYear,currentPeriod,isHistoricalYear])
+  useEffect(() => {
+    if (!profile?.school_id || (rtype !== 'attendance' && rtype !== 'fees')) return
+    let cancelled = false
+    setReportSummaryLoading(true)
+    setReportSummaryError(false)
+    const requests = []
+    if (rtype === 'attendance') {
+      requests.push(supabase.rpc('report_attendance_by_student', {
+        p_academic_year: activeYear, p_period: fp || null, p_class_id: null,
+      }))
+    }
+    if (rtype === 'fees' && isAdmin) {
+      requests.push(supabase.rpc('report_fees_by_student', {
+        p_academic_year: activeYear, p_period: fp || null,
+      }))
+    }
+    Promise.all(requests).then(results => {
+      if (cancelled) return
+      if (results.some(result => result.error)) {
+        results.filter(result => result.error).forEach(result => console.error('Report summary failed:', result.error.message))
+        setReportSummaryError(true)
+        return
+      }
+      let index = 0
+      if (rtype === 'attendance') setAttendanceSummary(results[index++].data || [])
+      if (rtype === 'fees' && isAdmin) setFeeSummary(results[index].data || [])
+    }).catch(error => {
+      if (!cancelled) {
+        console.error('Report summary failed:', error?.message || error)
+        setReportSummaryError(true)
+      }
+    }).finally(() => { if (!cancelled) setReportSummaryLoading(false) })
+    return () => { cancelled = true }
+  }, [profile?.school_id,activeYear,fp,rtype,isAdmin,reportSummaryReload])
   // Student autofill -- restrict pool by role
   const roleBasePool = isClassTeacher
     ? visibleStudents.filter(s=>s.class_id===profile?.class_id)
@@ -197,28 +228,20 @@ export default function Reports({profile,data,settings,activeYear,currentYear,is
   const incompleteCount = classSubjects.length>0 ? rankedAcademic.filter(s=>s.scoredSubjectCount<classSubjects.length).length : 0
 
   // ── Attendance data ──
+  const attendanceSummaryByStudent = new Map(attendanceSummary.map(row=>[row.student_id,row]))
   const attData = scopedStudents.map(s=>{
-    // Respect the period filter so attendance reads per-term, matching cards.
-    // Opening balances have no period, so they only count in the all-periods view.
-    const sa=attendance.filter(a=>a.student_id===s.id && (!fp||a.period===fp))
-    const sob=openingBalances.filter(b=>b.student_id===s.id && (!fp||b.period===fp))
-    return{...s,...calcAttendanceRate(sa,sob)}
+    const summary = attendanceSummaryByStudent.get(s.id)
+    return { ...s, total:Number(summary?.total||0), present:Number(summary?.present||0), absent:Number(summary?.absent||0), rate:summary?.rate===null||summary?.rate===undefined?null:Number(summary.rate) }
   })
 
   // ── Fee data ──
-  // Index payments by fee_id once instead of re-scanning the full payments
-  // array inside effectivePaid() for every student's every fee (O(students x
-  // fees x payments) otherwise -- slow enough to freeze the tab once a school
-  // actually has a realistic amount of fee/payment history loaded).
-  const paymentsSumByFee = buildPaymentsByFee(payments)
+  const feeSummaryByStudent = new Map(feeSummary.map(row=>[row.student_id,row]))
   const feeData = scopedStudents.map(s=>{
-    const sf=fees.filter(f=>f.student_id===s.id && (!fp||academicPeriodForFee(f)===fp))
-    const owed=sf.reduce((a,f)=>a+Number(f.amount||0),0)
-    const paid=sf.reduce((a,f)=>a+effectivePaid(f,paymentsSumByFee),0)
-    // Per-fee capped figures for the school-wide KPI totals below, so an
-    // overpaid fee's credit never counts as collecting another fee's balance.
-    const collected=sf.reduce((a,f)=>a+Math.min(Number(f.amount||0), effectivePaid(f,paymentsSumByFee)),0)
-    const outstanding=sf.reduce((a,f)=>a+Math.max(0, Number(f.amount||0)-effectivePaid(f,paymentsSumByFee)),0)
+    const summary=feeSummaryByStudent.get(s.id)
+    const owed=Number(summary?.owed||0)
+    const paid=Number(summary?.paid||0)
+    const collected=Number(summary?.collected||0)
+    const outstanding=Number(summary?.outstanding||0)
     return{...s,owed,paid,collected,outstanding,balance:owed-paid,feeStatus:owed===0?'--':paid>owed?'Overpaid':paid>=owed?'Paid':paid>0?'Partial':'Outstanding'}
   })
 
@@ -233,6 +256,16 @@ export default function Reports({profile,data,settings,activeYear,currentYear,is
   // Capped at 99% while any balance remains -- a plain Math.round can display "100%"
   // (e.g. GH₵200 owed out of GH₵500,000) even though money is still outstanding.
   const feeCollectionRate = !totalF ? 0 : totalOut<=0 ? 100 : Math.min(99, Math.round(totalP/totalF*100))
+
+  if ((rtype==='attendance' || rtype==='fees') && reportSummaryLoading) {
+    return <div style={{minHeight:'55vh',display:'flex',alignItems:'center',justifyContent:'center',gap:10,color:'var(--mist2)'}}><Spinner/> Loading {rtype} summary…</div>
+  }
+  if ((rtype==='attendance' || rtype==='fees') && reportSummaryError) {
+    return <div style={{minHeight:'55vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,color:'var(--mist2)'}}>
+      <div>Couldn't load this report summary. Your records are unchanged.</div>
+      <Btn variant='ghost' onClick={()=>setReportSummaryReload(value=>value+1)}>Try again</Btn>
+    </div>
+  }
 
   // ── Excel Export ──
   const exportExcel = () => {
@@ -580,6 +613,7 @@ export default function Reports({profile,data,settings,activeYear,currentYear,is
         <ReportCards
           profile={profile}
           data={data}
+          setData={setData}
           settings={settings}
           activeYear={activeYear}
           isViewingPast={isViewingPast}
@@ -611,12 +645,10 @@ const thStyle={padding:'10px 12px',textAlign:'left',fontSize:10,fontWeight:600,c
 const tdStyle={padding:'11px 12px',fontSize:13,color:'var(--white)',verticalAlign:'middle'}
 
 // ── REPORT CARDS ───────────────────────────────────────────────
-function ReportCards({profile,data,settings,activeYear,isViewingPast,isHistoricalYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemarks,setRcHeadRemarks,rcResumption,setRcResumption,rcVacation,setRcVacation,rcPromotedTo,setRcPromotedTo,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,rcReportTitle,setRcReportTitle,exportExcel,planHook,onShowPlans}) {
-  const {students=[],grades:allGrades=[],attendance:allAttendance=[],classes=[],subjects=[],users=[],examScores:allExamScores=[],opening_balances:allOpeningBalances=[]} = data
+function ReportCards({profile,data,setData,settings,activeYear,isViewingPast,isHistoricalYear,rcClass,setRcClass,rcPeriod,setRcPeriod,rcType,setRcType,rcSubject,setRcSubject,rcStudent,setRcStudent,rcRemarks,setRcRemarks,rcHeadRemarks,setRcHeadRemarks,rcResumption,setRcResumption,rcVacation,setRcVacation,rcPromotedTo,setRcPromotedTo,rcHeadTeacher,setRcHeadTeacher,rcStamp,setRcStamp,rcClassTeacherName,setRcClassTeacherName,rcReportTitle,setRcReportTitle,exportExcel,planHook,onShowPlans}) {
+  const {students=[],grades:allGrades=[],classes=[],subjects=[],users=[],examScores:allExamScores=[]} = data
   const grades = allGrades.filter(g=>g.year===activeYear)
-  const attendance = allAttendance.filter(a=>a.academic_year===activeYear)
   const examScores = allExamScores.filter(e=>e.year===activeYear)
-  const openingBalances = allOpeningBalances.filter(b=>b.academic_year===activeYear)
   const scale      = settings?.grading_scale||[]
   const gradeComps = getGradeComponents(settings)
   const schoolLogo = settings?.school_logo||null
@@ -626,6 +658,57 @@ function ReportCards({profile,data,settings,activeYear,isViewingPast,isHistorica
   const periods    = Array.from({length:settings?.period_count||2},(_,i)=>`${periodLabel} ${i+1}`)
   const isLastPeriod = rcPeriod === periods[periods.length-1]
   const [gradeSource,setGradeSource] = useState('components') // 'components' | 'exam'
+  const [examScoreLoading,setExamScoreLoading] = useState(false)
+  const [examScoreError,setExamScoreError] = useState(false)
+  const [examScoresLoadedYear,setExamScoresLoadedYear] = useState('')
+  useEffect(() => {
+    if (gradeSource !== 'exam' || !profile?.school_id || examScoresLoadedYear===activeYear || allExamScores.some(row=>row.year===activeYear)) return
+    let cancelled=false
+    setExamScoreLoading(true)
+    setExamScoreError(false)
+    fetchAllRows(()=>supabase.from('exam_scores').select('*').eq('school_id',profile.school_id).eq('year',activeYear).order('id'))
+      .then(({data:rows,error})=>{
+        if(cancelled)return
+        if(error){console.error('Report-card exam scores failed:',error.message);setExamScoreError(true);return}
+        setData(prev=>({...prev,examScores:[...(prev.examScores||[]).filter(row=>row.year!==activeYear),...(rows||[])]}))
+        setExamScoresLoadedYear(activeYear)
+      }).catch(error=>{
+        if(!cancelled){console.error('Report-card exam scores failed:',error?.message||error);setExamScoreError(true)}
+      }).finally(()=>{if(!cancelled)setExamScoreLoading(false)})
+    return ()=>{cancelled=true}
+  },[gradeSource,profile?.school_id,activeYear,allExamScores,setData,examScoresLoadedYear])
+  const [attendanceSummary,setAttendanceSummary] = useState([])
+  const [attendanceSummaryLoading,setAttendanceSummaryLoading] = useState(false)
+  const [attendanceSummaryError,setAttendanceSummaryError] = useState(false)
+  const [attendanceSummaryReload,setAttendanceSummaryReload] = useState(0)
+
+  useEffect(() => {
+    if (!profile?.school_id || !rcClass || !rcPeriod) {
+      setAttendanceSummary([])
+      setAttendanceSummaryLoading(false)
+      setAttendanceSummaryError(false)
+      return
+    }
+    let cancelled = false
+    setAttendanceSummaryLoading(true)
+    setAttendanceSummaryError(false)
+    supabase.rpc('report_attendance_by_student', {
+      p_academic_year: activeYear, p_period: rcPeriod, p_class_id: rcClass,
+    }).then(({data:rows,error}) => {
+      if (cancelled) return
+      if (error) {
+        console.error('Report-card attendance summary failed:', error.message)
+        setAttendanceSummaryError(true)
+      } else setAttendanceSummary(rows || [])
+    }).catch(error => {
+      if (!cancelled) {
+        console.error('Report-card attendance summary failed:', error?.message || error)
+        setAttendanceSummaryError(true)
+      }
+    }).finally(() => { if (!cancelled) setAttendanceSummaryLoading(false) })
+    return () => { cancelled = true }
+  }, [profile?.school_id,activeYear,rcPeriod,rcClass,attendanceSummaryReload])
+  const attendanceSummaryByStudent = new Map(attendanceSummary.map(row=>[row.student_id,row]))
 
   const isClassTeacher = profile?.role==='classteacher'
   const isTeacher      = profile?.role==='teacher'
@@ -804,12 +887,11 @@ function ReportCards({profile,data,settings,activeYear,isViewingPast,isHistorica
 
   // Attendance helper
   const getAttendance = (studentId) => {
-    // Per-period card: only this term's daily records. Opening balances carry no
-    // period (a pre-SRMS annual figure), so they'd multi-count if added to every
-    // term -- include them only in the whole-year view (no period selected).
-    const recs = attendance.filter(a=>a.student_id===studentId && (!rcPeriod || a.period===rcPeriod))
-    const obs  = openingBalances.filter(b=>b.student_id===studentId && (!rcPeriod || b.period===rcPeriod))
-    return calcAttendanceRate(recs, obs)
+    const row = attendanceSummaryByStudent.get(studentId)
+    return {
+      total:Number(row?.total||0), present:Number(row?.present||0),
+      absent:Number(row?.absent||0), rate:row?.rate===null||row?.rate===undefined?null:Number(row.rate),
+    }
   }
 
 
@@ -1372,10 +1454,11 @@ function ReportCards({profile,data,settings,activeYear,isViewingPast,isHistorica
   }
 
     const hasReportTitle = !!rcReportTitle.trim()
-  const canPrintBroadsheet = rcClass&&rcPeriod&&hasReportTitle
-  const canPrintSubject    = rcClass&&rcPeriod&&rcSubject&&hasReportTitle
-  const canPrintOne        = rcClass&&rcPeriod&&rcStudent&&hasReportTitle
-  const canPrintAll        = rcClass&&rcPeriod&&hasReportTitle
+  const examScoresReady = gradeSource!=='exam'||(!examScoreLoading&&!examScoreError)
+  const canPrintBroadsheet = rcClass&&rcPeriod&&hasReportTitle&&!attendanceSummaryLoading&&!attendanceSummaryError&&examScoresReady
+  const canPrintSubject    = rcClass&&rcPeriod&&rcSubject&&hasReportTitle&&!attendanceSummaryLoading&&!attendanceSummaryError&&examScoresReady
+  const canPrintOne        = rcClass&&rcPeriod&&rcStudent&&hasReportTitle&&!attendanceSummaryLoading&&!attendanceSummaryError&&examScoresReady
+  const canPrintAll        = rcClass&&rcPeriod&&hasReportTitle&&!attendanceSummaryLoading&&!attendanceSummaryError&&examScoresReady
 
   return (
     <div>
@@ -1423,6 +1506,8 @@ function ReportCards({profile,data,settings,activeYear,isViewingPast,isHistorica
             </span>
           )}
         </div>
+        {gradeSource==='exam'&&examScoreLoading&&<p role='status' style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>Loading exam scores for {activeYear}…</p>}
+        {gradeSource==='exam'&&examScoreError&&<div role='alert' style={{fontSize:12,color:'var(--rose)',marginTop:8}}>Exam scores could not load. Switch back to Component Grades or select Exam Scores again to retry.</div>}
 
         {/* Print details */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,paddingTop:12,borderTop:'1px solid var(--line)'}}>
@@ -1564,6 +1649,8 @@ function ReportCards({profile,data,settings,activeYear,isViewingPast,isHistorica
         )}
         {!rcClass&&<p style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>Select a class and period to continue.</p>}
         {rcClass&&!rcPeriod&&<p style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>Select a period to continue.</p>}
+        {rcClass&&rcPeriod&&attendanceSummaryLoading&&<p role='status' style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>Loading attendance summary…</p>}
+        {rcClass&&rcPeriod&&attendanceSummaryError&&<div role='alert' style={{marginTop:8,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}><span style={{fontSize:12,color:'var(--rose)'}}>Attendance summary could not load.</span><Btn size='sm' variant='ghost' onClick={()=>setAttendanceSummaryReload(value=>value+1)}>Try again</Btn></div>}
         {rcClass&&rcPeriod&&!hasReportTitle&&<p style={{fontSize:12,color:'var(--amber)',marginTop:8}}>Enter a report header to continue.</p>}
         {rcType==='subject'&&rcClass&&rcPeriod&&!rcSubject&&<p style={{fontSize:12,color:'var(--mist3)',marginTop:8}}>Select a subject to print the subject report.</p>}
         {rcType==='individual'&&rcClass&&rcPeriod&&!rcStudent&&<p style={{fontSize:12,color:'var(--amber)',marginTop:8}}>No student selected — Print All will generate cards for all {classStudents.length} students in this class.</p>}

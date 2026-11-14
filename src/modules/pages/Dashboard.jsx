@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, BEHAVIOUR_META } from '../lib/constants'
-import { fmtDate, getLetter, calcTotal, getGradeComponents, canSeeAnnouncement, getCurrency, fmtMoney , fullName, calcAttendanceRate, effectivePaid, buildPaymentsByFee, isPassing } from '../lib/helpers'
+import { fmtDate, getLetter, calcTotal, getGradeComponents, canSeeAnnouncement, getCurrency, fmtMoney , fullName, isPassing } from '../lib/helpers'
 import Avatar from '../components/Avatar'
 import Card from '../components/Card'
 import KPI from '../components/KPI'
@@ -9,57 +10,92 @@ import SectionTitle from '../components/SectionTitle'
 import Btn from '../components/Btn'
 import Badge from '../components/Badge'
 
-export default function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,currentYear,isViewingPast,deferredPending=[],deferredError=[]}) {
+export default function Dashboard({profile,data,settings,onNav,onNavFees,activeYear,currentYear,isViewingPast,dataLoading=false,deferredPending=[],deferredError=[]}) {
   const isMobile = useIsMobile()
   const isHistoricalYear = !!currentYear && activeYear!==currentYear
+  const isAdmin = ['superadmin','admin'].includes(profile?.role)
 
   // All of these already come from App.jsx's loadData() -- fetching them again here
   // via usePageData() duplicated the request and, for fees/payments, used the older
   // offset-based fetchAllRows() (not the cursor-based pagination loadData() uses),
   // which silently drops to [] on a timeout on a large table instead of erroring
   // loudly. That was zeroing out the Fee Collection KPI for large schools.
-  const {students=[],classes=[],subjects=[],enrolments=[],fees=[],fee_periods:feePeriods=[],payments=[],grades=[],attendance=[],announcements=[],opening_balances:openingBalances=[]} = data
+  const {students=[],classes=[],subjects=[],enrolments=[],grades=[],announcements=[]} = data
   const dashboardPeriod = isHistoricalYear ? '' : settings?.current_period || ''
-  const attendanceReady = !deferredPending.includes('attendance') && !deferredError?.includes('attendance')
-  const feesReady = !deferredPending.includes('fees') && !deferredPending.includes('payments')
-  const feePeriodById = useMemo(() => new Map(feePeriods.map(p=>[p.id,p])), [feePeriods])
-  const yearFees = useMemo(() => fees.filter(f=>{
-    if (f.academic_year!==activeYear) return false
-    if (!dashboardPeriod) return true
-    const academicPeriod = f.fee_period_id
-      ? feePeriodById.get(f.fee_period_id)?.academic_period || f.period
-      : f.period
-    return academicPeriod===dashboardPeriod
-  }), [fees,activeYear,dashboardPeriod,feePeriodById])
   const yearGrades = useMemo(() => grades.filter(g=>g.year===activeYear), [grades,activeYear])
-  const yearAttendance = useMemo(() => attendance.filter(a=>a.academic_year===activeYear), [attendance,activeYear])
-  const yearOpeningBalances = useMemo(() => openingBalances.filter(b=>b.academic_year===activeYear), [openingBalances,activeYear])
+  const today = new Date().toISOString().split('T')[0]
+  const [attendanceSummaryRows,setAttendanceSummaryRows] = useState([])
+  const [todayAttendanceRows,setTodayAttendanceRows] = useState([])
+  const [feeSummaryRows,setFeeSummaryRows] = useState([])
+  const [attendanceLoading,setAttendanceLoading] = useState(true)
+  const [attendanceError,setAttendanceError] = useState(false)
+  const [feesLoading,setFeesLoading] = useState(isAdmin)
+  const [feesError,setFeesError] = useState(false)
+  const [summaryReload,setSummaryReload] = useState(0)
+  useEffect(() => {
+    if (!profile?.school_id || !activeYear) return
+    let cancelled = false
+    setAttendanceLoading(true)
+    setAttendanceError(false)
+    setFeesLoading(isAdmin)
+    setFeesError(false)
+    const tasks = [
+      ['attendance',supabase.rpc('report_attendance_by_student',{p_academic_year:activeYear,p_period:null,p_class_id:null})],
+      ['today',supabase.rpc('report_attendance_by_class_date',{p_academic_year:activeYear,p_date:today})],
+      ...(isAdmin ? [['fees',supabase.rpc('report_fees_by_student',{p_academic_year:activeYear,p_period:dashboardPeriod||null})]] : []),
+    ]
+    Promise.all(tasks.map(async ([name,request])=>{
+      const startedAt = performance.now()
+      const result = await request
+      return { name, result, ms: Math.round(performance.now() - startedAt) }
+    })).then(results=>{
+      if (cancelled) return
+      if (import.meta.env.DEV) {
+        console.info('[SRMS] Dashboard summaries loaded')
+        console.table(results.map(({name,result,ms})=>({query:name,ms,error:result.error?.code||null,rows:result.data?.length??0})))
+      }
+      for (const {name,result} of results) {
+        if (result.error) {
+          console.error(`Dashboard ${name} summary failed:`,result.error.message)
+          if (name==='attendance'||name==='today') setAttendanceError(true)
+          if (name==='fees') setFeesError(true)
+        } else if (name==='attendance') setAttendanceSummaryRows(result.data||[])
+        else if (name==='today') setTodayAttendanceRows(result.data||[])
+        else if (name==='fees') setFeeSummaryRows(result.data||[])
+      }
+    }).catch(error=>{
+      if (!cancelled) {
+        console.error('Dashboard summary failed:',error?.message||error)
+        setAttendanceError(true)
+        if (isAdmin) setFeesError(true)
+      }
+    }).finally(()=>{
+      if (!cancelled) { setAttendanceLoading(false); setFeesLoading(false) }
+    })
+    return ()=>{cancelled=true}
+  },[profile?.school_id,activeYear,dashboardPeriod,today,isAdmin,summaryReload])
+  const attendanceReady = !dataLoading && !attendanceLoading && !attendanceError
+  const feesReady = isAdmin && !dataLoading && !feesLoading && !feesError
   // When viewing past year, use enrolment records to know which students were enrolled
   const enrolledStudentIds = enrolments.length>0 ? new Set(enrolments.map(e=>e.student_id)) : null
   const yearStudents = isHistoricalYear && enrolledStudentIds
     ? students.filter(s=>enrolledStudentIds.has(s.id))
     : students.filter(s=>!s.archived)
   const yearStudentIds = new Set(yearStudents.map(s=>s.id))
-  const today = new Date().toISOString().split('T')[0]
   const scale = settings?.grading_scale || []
   const gradeComps = getGradeComponents(settings)
   const currency = getCurrency(settings)
   const myClass = profile?.role==='classteacher' ? classes.find(c=>c.id===profile.class_id) : null
-  const todayMarked = myClass ? yearAttendance.some(a=>a.class_id===myClass.id&&a.date===today) : true
-  const paymentsSumByFee = useMemo(() => buildPaymentsByFee(payments), [payments])
-  const totalFees = yearFees.reduce((s,f)=>s+Number(f.amount||0),0)
-  // Count payment only up to each fee's own amount, so overpayment credits on
-  // some pupils don't inflate "collected" or mask real arrears elsewhere.
-  const totalPaid = yearFees.reduce((s,f)=>s+Math.min(Number(f.amount||0), effectivePaid(f,paymentsSumByFee)),0)
-  const totalOutstanding = yearFees.reduce((s,f)=>s+Math.max(0, Number(f.amount||0)-effectivePaid(f,paymentsSumByFee)),0)
+  const attendanceByStudent = new Map(attendanceSummaryRows.map(row=>[row.student_id,row]))
+  const todayAttendanceByClass = new Map(todayAttendanceRows.map(row=>[row.class_id,Number(row.records||0)]))
+  const todayMarked = myClass ? todayAttendanceByClass.has(myClass.id) : true
+  const totalFees = feeSummaryRows.reduce((s,row)=>s+Number(row.owed||0),0)
+  const totalPaid = feeSummaryRows.reduce((s,row)=>s+Number(row.collected||0),0)
+  const totalOutstanding = feeSummaryRows.reduce((s,row)=>s+Number(row.outstanding||0),0)
   // Capped at 99% while any balance remains -- a plain Math.round can display "100%"
   // (e.g. GH₵200 owed out of GH₵500,000) even though money is still outstanding.
   const feeRate = !totalFees ? 0 : totalOutstanding<=0 ? 100 : Math.min(99, Math.round(totalPaid/totalFees*100))
-  const isAdmin   = ['superadmin','admin'].includes(profile?.role)
-  const overdueFeesCount = isAdmin ? yearFees.filter(fee2=>{
-    const bal = Number(fee2.amount||0) - effectivePaid(fee2,paymentsSumByFee)
-    return fee2.due_date && fee2.due_date < today && bal > 0
-  }).length : 0
+  const overdueFeesCount = isAdmin ? feeSummaryRows.reduce((sum,row)=>sum+Number(row.overdue_count||0),0) : 0
   const myClassStudents = myClass ? yearStudents.filter(s=>s.class_id===myClass.id) : []
 
   // Helper: average of per-student averages (correct school-wide or scoped avg)
@@ -140,18 +176,19 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
     : []
 
   // Attendance rate calculations (folds in any Opening Attendance Balance entries)
-  const schoolAttSummary = calcAttendanceRate(yearAttendance, yearOpeningBalances)
-  const schoolAttTotal   = schoolAttSummary.total
-  const schoolAttPresent = schoolAttSummary.present
-  const schoolAttRate    = schoolAttSummary.rate ?? 0
-  const classIdsMarkedToday = new Set(yearAttendance.filter(a=>a.date===today).map(a=>a.class_id))
+  const schoolAttTotal   = attendanceSummaryRows.reduce((sum,row)=>sum+Number(row.total||0),0)
+  const schoolAttPresent = attendanceSummaryRows.reduce((sum,row)=>sum+Number(row.present||0),0)
+  const schoolAttRate    = schoolAttTotal ? Math.round(schoolAttPresent/schoolAttTotal*100) : 0
+  const classIdsMarkedToday = new Set(todayAttendanceByClass.keys())
   const classesMarkedToday = classes.filter(cls=>classIdsMarkedToday.has(cls.id)).length
   const classesNotMarkedToday = profile?.role==='superadmin'
     ? classes.filter(cls=>!classIdsMarkedToday.has(cls.id))
     : []
-  const myClassAtt       = myClass ? yearAttendance.filter(a=>a.class_id===myClass.id) : []
-  const myClassOB        = myClass ? yearOpeningBalances.filter(b=>b.class_id===myClass.id) : []
-  const myClassAttRate   = calcAttendanceRate(myClassAtt, myClassOB).rate ?? 0
+  const myClassAttendance = myClass ? attendanceSummaryRows.filter(row=>row.class_id===myClass.id) : []
+  const myClassAttTotal = myClassAttendance.reduce((sum,row)=>sum+Number(row.total||0),0)
+  const myClassAttPresent = myClassAttendance.reduce((sum,row)=>sum+Number(row.present||0),0)
+  const myClassAttRate = myClassAttTotal ? Math.round(myClassAttPresent/myClassAttTotal*100) : 0
+  const recordsToday = todayAttendanceRows.reduce((sum,row)=>sum+Number(row.records||0),0)
 
   const unassignedClasses = profile?.role==='superadmin'
     ? classes.filter(c=>!c.class_teacher_id)
@@ -213,9 +250,15 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
         <div className='daybook-intro__ledger' aria-label='Current school record status'>
           <div><span>Current period</span><strong>{latestPeriod}</strong></div>
           <div><span>Classes marked today</span><strong>{attendanceReady ? `${classesMarkedToday} of ${classes.length}` : '—'}</strong></div>
-          <div><span>Records today</span><strong>{attendanceReady ? yearAttendance.filter(a=>a.date===today).length : '—'}</strong></div>
+          <div><span>Records today</span><strong>{attendanceReady ? recordsToday : '—'}</strong></div>
         </div>
       </section>
+      {(attendanceError || (isAdmin && feesError)) && (
+        <div role='alert' style={{marginTop:16,marginBottom:16,padding:'12px 16px',background:'rgba(240,107,122,0.06)',border:'1px solid rgba(240,107,122,0.25)',borderRadius:'var(--r)',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          <span style={{fontSize:13,color:'var(--mist2)',flex:1}}>Some dashboard totals could not load. Your records are unchanged.</span>
+          <Btn size='sm' variant='ghost' onClick={()=>setSummaryReload(value=>value+1)}>Try again</Btn>
+        </div>
+      )}
       {profile?.role==='superadmin' && attendanceReady && !isViewingPast && classesNotMarkedToday.length>0 && (
         <div role='status' style={{marginTop:16,marginBottom:20,padding:'12px 16px',background:'var(--ink2)',border:'1px solid var(--line)',borderRadius:'var(--r)',display:'flex',alignItems:'baseline',gap:8,flexWrap:'wrap'}}>
           <strong style={{fontSize:13,color:'var(--white)',flexShrink:0}}>Attendance not marked today:</strong>
@@ -224,15 +267,15 @@ export default function Dashboard({profile,data,settings,onNav,onNavFees,activeY
       )}
       <div className='daybook-kpi-grid' style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,minmax(0,1fr))':'repeat(4,minmax(0,1fr))',gap:12,marginBottom: isMobile?20:28}}>
         {isAdmin && <>
-          <KPI label='Total Students'   value={yearStudents.length}      color='var(--gold)'    sub={`${classes.length} classes`} index={0}/>
+          <KPI label='Total Students'   value={dataLoading?'—':yearStudents.length} color='var(--gold)' sub={dataLoading?'Loading school records…':`${classes.length} classes`} index={0}/>
           <KPI label='Attendance Rate'  value={attendanceReady?`${schoolAttRate}%`:'—'} color='var(--emerald)' sub={attendanceReady?`${schoolAttPresent} of ${schoolAttTotal} records`:'Loading attendance…'} index={1}/>
-          <KPI label='Average Score'    value={avgScore}             color='var(--sky)'     sub={`Pass rate: ${passRate}%`} index={2}/>
+          <KPI label='Average Score'    value={dataLoading?'—':avgScore} color='var(--sky)' sub={dataLoading?'Loading grades…':`Pass rate: ${passRate}%`} index={2}/>
           <KPI label='Fee Collection'   value={feesReady?`${feeRate}%`:'—'} color='var(--amber)' sub={!feesReady?'Loading fees…':overdueFeesCount>0?`${fmtMoney(totalPaid,currency)} collected · ${overdueFeesCount} overdue`:`${fmtMoney(totalPaid,currency)} collected`} index={3}/>
         </>}
         {profile?.role==='classteacher' && <>
           <KPI label='My Class'         value={myClass?.name||'--'}   color='var(--gold)'    sub='Your assigned class' index={0}/>
           <KPI label='Students'         value={myClassStudents.length} color='var(--sky)'   sub='In your class' index={1}/>
-          <KPI label='Attendance Rate'  value={!attendanceReady?'—':(myClassAtt.length||myClassOB.length)?`${myClassAttRate}%`:'--'} color='var(--emerald)' sub={!attendanceReady?'Loading attendance…':todayMarked?'Today marked':'Not marked today'} index={2}/>
+          <KPI label='Attendance Rate'  value={!attendanceReady?'—':myClassAttendance.length?`${myClassAttRate}%`:'--'} color='var(--emerald)' sub={!attendanceReady?'Loading attendance…':todayMarked?'Today marked':'Not marked today'} index={2}/>
           <KPI label='Pass Rate'        value={`${myClassPassRate}%`} color='var(--amber)'   sub='This semester' index={3}/>
         </>}
         {profile?.role==='teacher' && <>

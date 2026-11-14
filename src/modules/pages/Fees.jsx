@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, FEE_STATUS, CURRENCIES } from '../lib/constants'
@@ -200,8 +200,15 @@ function printReceipt({fee, feePayments, student, cls, settings, currency}) {
 }
 
 // ── FEES ───────────────────────────────────────────────────────
-export default function Fees({profile,data,setData,toast,settings,activeYear,currentYear,isViewingPast,onAcademicYearChange,initialFeeFilter,onFilterConsumed,planHook}) {
-  const {fees=[],students=[],classes=[],payments=[],fee_templates=[],fee_periods=[]} = data
+export default function Fees({profile,data,setData,toast,settings,activeYear,currentYear,isViewingPast,onAcademicYearChange,initialFeeFilter,onFilterConsumed,planHook,loadFeeLedger}) {
+  const {fees:cachedFees=[],students=[],classes=[],payments:cachedPayments=[],fee_templates=[],fee_periods=[]} = data
+  const [ledgerData,setLedgerData] = useState(null)
+  const [ledgerLoading,setLedgerLoading] = useState(false)
+  const [ledgerError,setLedgerError] = useState('')
+  const [ledgerYear,setLedgerYear] = useState(activeYear)
+  const ledgerLoadPromise = useRef(null)
+  const fees = ledgerData?.fees || cachedFees
+  const payments = ledgerData?.payments || cachedPayments
   const currency = getCurrency(settings)
   const isMobile = useIsMobile()
   const canBulk = ['superadmin','admin'].includes(profile?.role)
@@ -214,19 +221,50 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
 
   // ── Tab ──
   const [feeActiveTab, setFeeActiveTab] = useState('fees')
+  useEffect(() => {
+    if (ledgerYear !== activeYear) {
+      setLedgerYear(activeYear)
+      setLedgerData(null)
+      setLedgerError('')
+    }
+  }, [ledgerYear,activeYear])
+  const ensureFeeLedger = useCallback(async () => {
+    if (ledgerData) return ledgerData
+    if (ledgerLoadPromise.current) return ledgerLoadPromise.current
+    if (!loadFeeLedger) throw new Error('Fee history is unavailable. Refresh and try again.')
+    setLedgerLoading(true)
+    setLedgerError('')
+    ledgerLoadPromise.current = Promise.resolve(loadFeeLedger()).then(result => {
+      if (!result) throw new Error('Fee history could not be loaded.')
+      setLedgerData(result)
+      return result
+    }).catch(error => {
+      setLedgerError(error?.message || 'Fee history could not be loaded.')
+      throw error
+    }).finally(() => {
+      ledgerLoadPromise.current = null
+      setLedgerLoading(false)
+    })
+    return ledgerLoadPromise.current
+  }, [ledgerData,ledgerYear,activeYear,loadFeeLedger])
+  useEffect(() => {
+    if (feeActiveTab === 'recurring' || feeActiveTab === 'history') {
+      ensureFeeLedger().catch(error => toast(error?.message || 'Fee history could not be loaded.','error'))
+    }
+  }, [feeActiveTab,ensureFeeLedger,toast])
 
   // ── Single add / pay state ──
   const [search,setSearch]     = useState('')
   const [fstatus,setFstatus]   = useState(initialFeeFilter||'')
   const [fFeeType,setFFeeType] = useState('')
-  const [fPeriod,setFPeriod]   = useState(!currentYear||activeYear===currentYear ? currentPeriod : '')
+  // Start on the full-year ledger so records from a later term do not look
+  // missing merely because the current-period setting points to an empty term.
+  const [fPeriod,setFPeriod]   = useState('')
   const [fYear,setFYear]       = useState(activeYear)
   useEffect(()=>{
     setFYear(activeYear)
-    // Current-year work should open on the school's active term. Historical
-    // recurring runs predate academic-period tagging, so default past years
-    // to the complete year instead of presenting a misleading zero total.
-    setFPeriod(!currentYear||activeYear===currentYear ? currentPeriod : '')
+    // On a year change show the whole ledger; users can narrow it to a term.
+    setFPeriod('')
   },[activeYear,currentYear,currentPeriod])
   useEffect(()=>{ if(initialFeeFilter){setFstatus(initialFeeFilter);if(onFilterConsumed)onFilterConsumed()} },[])
   const [fClassId,setFClassId] = useState(profile?.role==='classteacher' ? (profile?.class_id||'') : '')
@@ -237,6 +275,16 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
   // cost fixed above. Page it client-side instead of rendering everything.
   const [feePage,setFeePage] = useState(0)
   const FEE_PAGE_SIZE = 100
+  const [feePageRows,setFeePageRows] = useState([])
+  const [feeRowCount,setFeeRowCount] = useState(0)
+  const [feeListLoading,setFeeListLoading] = useState(false)
+  const [feeListError,setFeeListError] = useState('')
+  const [feeListReload,setFeeListReload] = useState(0)
+  const [searchDebounced,setSearchDebounced] = useState(search)
+  const [feeSummaryRows,setFeeSummaryRows] = useState([])
+  const [feeSummaryLoading,setFeeSummaryLoading] = useState(false)
+  const [feeSummaryError,setFeeSummaryError] = useState(false)
+  const [feeTypeOptions,setFeeTypeOptions] = useState([])
   const [modal,setModal]       = useState(false)
   const [payModal,setPayModal] = useState(false)
   const [editFee,setEditFee]   = useState(null)
@@ -245,6 +293,11 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
   const [saving,setSaving]     = useState(false)
   const f  = k=>v=>setForm(p=>({...p,[k]:v}))
   const pf = k=>v=>setPayForm(p=>({...p,[k]:v}))
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchDebounced(search.trim()), 250)
+    return () => clearTimeout(timer)
+  }, [search])
 
   // ── Bulk add state ──
   const [bulkModal,setBulkModal]   = useState(false)
@@ -408,6 +461,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
       const {data:inserted,error} = await supabase.from('fees').insert(rows).select()
       if(error) throw error
       setData(p=>({...p, fees:[...p.fees,...(inserted||[])]}))
+      setFeeListReload(value=>value+1)
       const {toSkip} = computeBulkPreview()
       const skippedNote = toSkip>0 ? ` (${toSkip} skipped — already existed)` : ''
       auditLog(profile,'Fees','Bulk Created',`${rows.length} fee record${rows.length!==1?'s':''} · ${bulk.fee_type}${skippedNote}`,{fee_type:bulk.fee_type,count:rows.length},null,null)
@@ -469,6 +523,88 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
     const latestReceipt = latestPayment?.receipt_no || fee.receipt_no || null
     return{...fee,student_name:s?fullName(s,true):'--',balance:bal,effectivePaid:paidAmt,status,isOverdue,hasPayments:feePayments.length>0||paidAmt>0,receipt_no:latestReceipt}
   }), [fees, operationalYear, studentsById, paymentsByFee, paymentsSumByFee, today])
+
+  // Fetch only the requested fee page. The former 100-row client slice happened
+  // after downloading the entire school-year ledger.
+  useEffect(() => {
+    if (feeActiveTab !== 'fees' || !profile?.school_id || !fYear) return
+    let cancelled = false
+    setFeeListLoading(true)
+    setFeeListError('')
+    supabase.rpc('fee_ledger_page', {
+      p_academic_year: fYear,
+      p_period: fPeriod || null,
+      p_class_id: fClassId || null,
+      p_fee_type: fFeeType || null,
+      p_status: fstatus || null,
+      p_search: searchDebounced || null,
+      p_exclude_archived: fYear === operationalYear,
+      p_page: feePage,
+      p_page_size: FEE_PAGE_SIZE,
+    }).then(({data: rows, error}) => {
+      if (cancelled) return
+      if (error) {
+        console.error('Fee page load failed:', error.message)
+        setFeeListError(error.message || 'Could not load fee records.')
+        setFeePageRows([])
+        setFeeRowCount(0)
+        return
+      }
+      const pageRows = rows || []
+      setFeePageRows(pageRows.map(row => ({
+        ...row,
+        status: row.fee_status,
+        isOverdue: row.is_overdue,
+        hasPayments: row.has_payments,
+        receipt_no: row.latest_receipt,
+      })))
+      setFeeRowCount(Number(pageRows[0]?.total_count || 0))
+    }).catch(error => {
+      if (!cancelled) {
+        console.error('Fee page load failed:', error?.message || error)
+        setFeeListError(error?.message || 'Could not load fee records.')
+        setFeePageRows([])
+        setFeeRowCount(0)
+      }
+    }).finally(() => { if (!cancelled) setFeeListLoading(false) })
+    return () => { cancelled = true }
+  }, [feeActiveTab, profile?.school_id, fYear, fPeriod, fClassId, fFeeType, fstatus, searchDebounced, feePage, feeListReload, operationalYear])
+
+  useEffect(() => {
+    if (feeActiveTab !== 'fees' || !profile?.school_id || !fYear) return
+    let cancelled = false
+    setFeeSummaryLoading(true)
+    setFeeSummaryError(false)
+    supabase.rpc('report_fees_by_student', {
+      p_academic_year: fYear,
+      p_period: fPeriod || null,
+    }).then(({data: rows,error}) => {
+      if (cancelled) return
+      if (error) {
+        console.error('Fee totals load failed:',error.message)
+        setFeeSummaryError(true)
+        return
+      }
+      setFeeSummaryRows(rows || [])
+    }).catch(error => {
+      if (!cancelled) {
+        console.error('Fee totals load failed:',error?.message || error)
+        setFeeSummaryError(true)
+      }
+    }).finally(() => { if (!cancelled) setFeeSummaryLoading(false) })
+    return () => { cancelled = true }
+  }, [feeActiveTab,profile?.school_id,fYear,fPeriod,feeListReload])
+
+  useEffect(() => {
+    if (feeActiveTab !== 'fees' || !profile?.school_id || !fYear) return
+    let cancelled = false
+    supabase.rpc('fee_ledger_fee_types',{p_academic_year:fYear}).then(({data:rows,error})=>{
+      if(cancelled)return
+      if(error){console.error('Fee type options failed:',error.message);return}
+      setFeeTypeOptions((rows||[]).map(row=>row.fee_type).filter(Boolean))
+    })
+    return ()=>{cancelled=true}
+  },[feeActiveTab,profile?.school_id,fYear,feeListReload])
   const feeAcademicYears = useMemo(() => [...new Set([activeYear,...generateYears(currentYear||activeYear)])]
     .sort((a,b)=>b.localeCompare(a)), [activeYear,currentYear])
   // This control selects the school's academic term/semester. Fee `period`
@@ -480,31 +616,22 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
     ? feePeriodsById.get(r.fee_period_id)?.academic_period || r.period
     : r.period
   const kpiRows = enriched.filter(r=>r.academic_year===fYear&&(!fPeriod||academicPeriodForFee(r)===fPeriod))
-  const filtered = kpiRows.filter(r=>{
-    if(fClassId){
-      const s = studentsById.get(r.student_id)
-      if(!s || s.class_id!==fClassId) return false
-    }
-    if(fFeeType && r.fee_type!==fFeeType) return false
-    if(!r.student_name.toLowerCase().includes(search.toLowerCase())) return false
-    if(fstatus==='Overdue' && !r.isOverdue) return false
-    else if(fstatus && fstatus!=='Overdue' && r.status!==fstatus) return false
-    return true
-  })
+  const filtered = feePageRows
   // Reset to page 1 whenever the result set changes shape -- otherwise
   // filtering down to fewer rows can leave you stranded on a page past the end.
-  useEffect(() => { setFeePage(0) }, [search, fClassId, fFeeType, fPeriod, fYear, fstatus])
-  const feePageCount = Math.max(1, Math.ceil(filtered.length / FEE_PAGE_SIZE))
-  const pagedFiltered = filtered.slice(feePage*FEE_PAGE_SIZE, feePage*FEE_PAGE_SIZE + FEE_PAGE_SIZE)
-  const overdueCount = kpiRows.filter(r=>r.isOverdue).length
-  const totalOwed = kpiRows.reduce((s,r)=>s+Number(r.amount||0),0)
+  useEffect(() => { setFeePage(0) }, [searchDebounced, fClassId, fFeeType, fPeriod, fYear, fstatus])
+  const feePageCount = Math.max(1, Math.ceil(feeRowCount / FEE_PAGE_SIZE))
+  const pagedFiltered = feePageRows
+  const feeSummaryUnavailable = feeSummaryError || (!feeSummaryLoading && feeRowCount>0 && feeSummaryRows.length===0)
+  const overdueCount = feeSummaryRows.reduce((sum,row)=>sum+Number(row.overdue_count||0),0)
+  const totalOwed = feeSummaryRows.reduce((sum,row)=>sum+Number(row.owed||0),0)
   // Collected/outstanding must NOT net overpayment credits from one fee against
   // another fee's unpaid balance, or a school with a few overpaid pupils sees
   // "Outstanding" collapse toward zero while real arrears are still owed.
   // Collected counts payment only up to each fee's own amount (a credit never
   // "collects" a different fee); Outstanding sums positive balances only.
-  const totalPaid = kpiRows.reduce((s,r)=>s+Math.min(Number(r.amount||0), r.effectivePaid),0)
-  const totalOutstanding = kpiRows.reduce((s,r)=>s+Math.max(0, r.balance),0)
+  const totalPaid = feeSummaryRows.reduce((sum,row)=>sum+Number(row.collected||0),0)
+  const totalOutstanding = feeSummaryRows.reduce((sum,row)=>sum+Number(row.outstanding||0),0)
   // Capped at 99% while any balance remains -- a plain Math.round can display "100%"
   // (e.g. GH₵200 owed out of GH₵500,000) even though money is still outstanding.
   const collectionRate = !totalOwed ? 0 : totalOutstanding<=0 ? 100 : Math.min(99, Math.round(totalPaid/totalOwed*100))
@@ -530,6 +657,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
     }).eq('id',editFeeRow.id).eq('school_id',profile?.school_id)
     if(error){toast(error.message,'error');setSaving(false);return}
     setData(p=>({...p,fees:p.fees.map(f=>f.id===editFeeRow.id?{...f,...editFeeForm,amount:parseFloat(editFeeForm.amount)}:f)}))
+    setFeeListReload(value=>value+1)
     auditLog(profile,'Fees','Edited',`${editFeeRow.student_name} · ${editFeeForm.fee_type} · ${fmtMoney(parseFloat(editFeeForm.amount),currency)}`,{},{...editFeeRow},{...editFeeForm})
     toast('Fee updated')
     setSaving(false)
@@ -542,17 +670,18 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
     // Same duplicate guard Bulk Add Fee uses -- a second fee row with the same
     // student/type/period lets Bulk Collect Payment attach a payment to the
     // wrong one of the two, silently mis-crediting the balance.
-    const duplicate = fees.some(f=>
-      f.student_id===form.student_id &&
-      f.fee_type===form.fee_type &&
-      f.period===form.period &&
-      f.academic_year===activeYear
-    )
+    let duplicateQuery=supabase.from('fees').select('id')
+      .eq('school_id',profile?.school_id).eq('student_id',form.student_id)
+      .eq('fee_type',form.fee_type).eq('academic_year',activeYear)
+    duplicateQuery=form.period?duplicateQuery.eq('period',form.period):duplicateQuery.is('period',null)
+    const {data:duplicates,error:duplicateError}=await duplicateQuery.limit(1)
+    if(duplicateError){toast(duplicateError.message,'error');return}
+    const duplicate=(duplicates||[]).length>0
     if(duplicate){toast('This student already has this fee type and period. Edit the existing record instead.','error');return}
     setSaving(true)
     const {data:row,error}=await supabase.from('fees').insert({school_id:profile?.school_id,student_id:form.student_id,fee_type:form.fee_type,amount:parseFloat(form.amount),paid:0,due_date:form.due_date||null,period:form.period||null,academic_year:activeYear}).select().single()
     if(error)toast(error.message,'error')
-    else{setData(p=>({...p,fees:[...p.fees,row]}));const s=students.find(x=>x.id===form.student_id);auditLog(profile,'Fees','Created',`${fullName(s)} · ${form.fee_type} · ${fmtMoney(parseFloat(form.amount),currency)}`,{},null,row);toast('Fee record added');setModal(false)}
+    else{setData(p=>({...p,fees:[...(p.fees||[]),row]}));setFeeListReload(value=>value+1);const s=students.find(x=>x.id===form.student_id);auditLog(profile,'Fees','Created',`${fullName(s)} · ${form.fee_type} · ${fmtMoney(parseFloat(form.amount),currency)}`,{},null,row);toast('Fee record added');setModal(false)}
     setSaving(false)
   }
 
@@ -560,15 +689,17 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
     setConfirmState({title:'Remove fee record?',body:'This will also delete all payment history for this fee.',icon:'🗑',danger:true,onConfirm:async()=>{
     const {error}=await supabase.from('fees').delete().eq('id',id).eq('school_id',profile?.school_id)
     if(error)toast(error.message,'error')
-    else{const fee=fees.find(x=>x.id===id);const s=students.find(x=>x.id===fee?.student_id);setData(p=>({...p,fees:p.fees.filter(f=>f.id!==id),payments:p.payments.filter(p=>p.fee_id!==id)}));auditLog(profile,'Fees','Deleted',`${fullName(s)} · ${fee?.fee_type}`,{},fee,null);toast('Fee record removed')}
+    else{const fee=feePageRows.find(x=>x.id===id)||fees.find(x=>x.id===id);const s=students.find(x=>x.id===fee?.student_id);setData(p=>({...p,fees:(p.fees||[]).filter(f=>f.id!==id),payments:(p.payments||[]).filter(p=>p.fee_id!==id)}));setFeeListReload(value=>value+1);auditLog(profile,'Fees','Deleted',`${fullName(s)} · ${fee?.fee_type}`,{},fee,null);toast('Fee record removed')}
     }})
   }
 
   const recordPayment = async () => {
     if(!editFee || saving) return
     setSaving(true)
-    const feePayments = payments.filter(p=>p.fee_id===editFee.id)
-    const alreadyPaid = feePayments.reduce((a,p)=>a+Number(p.amount||0),0)
+    const {data:feePayments,error:paymentLoadError}=await supabase.from('payments').select('*')
+      .eq('school_id',profile?.school_id).eq('fee_id',editFee.id).order('created_at')
+    if(paymentLoadError){toast(paymentLoadError.message,'error');setSaving(false);return}
+    const alreadyPaid = (feePayments||[]).reduce((a,p)=>a+Number(p.amount||0),0)
     const legacyPaid  = Math.max(0, Number(editFee.paid||0) - alreadyPaid)
     const currentPaid = alreadyPaid + legacyPaid
     const currentBalance = Number(editFee.amount||0) - currentPaid
@@ -599,8 +730,9 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
     setData(p=>({
       ...p,
       fees:     p.fees.map(f=>f.id===editFee.id ? updatedFee : f),
-      payments: [payRow, ...p.payments],
+      payments: [payRow, ...(p.payments||[])],
     }))
+    setFeeListReload(value=>value+1)
     const pStudent=students.find(s=>s.id===editFee.student_id);auditLog(profile,'Fees','Payment',`${fullName(pStudent)} · ${fmtMoney(amt,currency)} · ${editFee.fee_type}`,{amount:amt,receipt:rcpt},null,null)
     toast('Payment recorded')
     setSaving(false)
@@ -617,11 +749,13 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
     }
   }
 
-  const openReceipt = (fee) => {
-    const feePayments = payments.filter(p=>p.fee_id===fee.id)
+  const openReceipt = async (fee) => {
+    const {data:feePayments,error}=await supabase.from('payments').select('*')
+      .eq('school_id',profile?.school_id).eq('fee_id',fee.id).order('created_at')
+    if(error){toast(error.message,'error');return}
     const student = students.find(s=>s.id===fee.student_id)
     const cls     = classes.find(c=>c.id===student?.class_id)
-    printReceipt({fee, feePayments, student, cls, settings, currency})
+    printReceipt({fee, feePayments:feePayments||[], student, cls, settings, currency})
   }
 
   // ── Step 3 preview values ──
@@ -631,19 +765,30 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
   const step1Valid = bulk.fee_type && bulk.period && bulk.default_amount && bulk.selected_classes.length>0
   const step2Valid = step2Rows.every(r=>r.amount!==''&&parseFloat(r.amount)>0)
 
-  const exportFeesCsv = () => {
+  const exportFeesCsv = async () => {
     try {
       if(feeActiveTab!=='fees'){
         toast('Switch to the Fees tab to export fee records.','error'); return
       }
-      if(filtered.length===0){ toast('No fee records to export','error'); return }
+      const rows=[]
+      for(let page=0;;page++){
+        const {data:batch,error}=await supabase.rpc('fee_ledger_page',{
+          p_academic_year:fYear,p_period:fPeriod||null,p_class_id:fClassId||null,
+          p_fee_type:fFeeType||null,p_status:fstatus||null,p_search:searchDebounced||null,
+          p_exclude_archived:fYear===operationalYear,p_page:page,p_page_size:100,
+        })
+        if(error)throw error
+        rows.push(...(batch||[]).map(row=>({...row,effectivePaid:Number(row.effective_paid||0),balance:Number(row.balance||0),status:row.fee_status,receipt_no:row.latest_receipt})))
+        if(!batch||batch.length<100)break
+      }
+      if(rows.length===0){ toast('No fee records to export','error'); return }
       const esc = v => {
         if(v===null||v===undefined) return ''
         return String(v).replace(/"/g,'""')
       }
       const currency = getCurrency(settings)
       let csv = 'Student ID,Student,Class,Fee Type,Period,Amount,Paid,Balance,Status,Due Date,Receipt\n'
-      filtered.forEach(r=>{
+      rows.forEach(r=>{
         const s   = students.find(x=>x.id===r.student_id)
         const cls = s ? classes.find(c=>c.id===s.class_id)?.name || '' : ''
         const sName = s ? fullName(s,true) : ''
@@ -657,8 +802,21 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
       a.click()
       URL.revokeObjectURL(url)
     } catch(e){
+      console.error('Fee export failed:',e?.message||e)
       toast('Export failed. Please try again.','error')
     }
+  }
+
+  const openBulkAdd = async () => {
+    try {
+      await ensureFeeLedger()
+      window.scrollTo({top:0,behavior:'smooth'})
+      setBulkModal(true);setBulkStep(1);setBulk(BULK_INIT)
+    } catch (error) { toast(error?.message||'Fee data could not be loaded.','error') }
+  }
+  const openBulkCollect = async () => {
+    try { await ensureFeeLedger(); openBcpModal() }
+    catch (error) { toast(error?.message||'Fee data could not be loaded.','error') }
   }
 
   // ── Payment History derived data ──
@@ -1012,6 +1170,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
         payments:[...payRows.reverse(), ...p.payments],
       }))
 
+      setFeeListReload(value=>value+1)
       auditLog(profile,'Fees','Bulk Payment Recorded',
         `${tmpl.name} · ${brp.label} · ${paidRows.length} paid · ${owesRows.length} outstanding · ${brpRows.filter(r=>r.state==='excluded').length} excluded`,
         {},{},{}
@@ -1056,6 +1215,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
             fees:        p.fees.filter(f=>f.fee_period_id!==period.id),
             payments:    p.payments.filter(x=>x.fee_period_id!==period.id),
           }))
+          setFeeListReload(value=>value+1)
           auditLog(profile,'Fees','Period Deleted',`${period.label}`,{},period,null)
           toast('Period deleted')
         } catch(err){
@@ -1178,7 +1338,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
 
   // ── Bulk Collect Payment helpers ──
   const feeTypes = [...new Set(fees.filter(f=>f.academic_year===activeYear&&!f.template_id).map(f=>f.fee_type))].sort()
-  const allFeeTypes = [...new Set(fees.filter(f=>f.academic_year===activeYear).map(f=>f.fee_type))].sort()
+  const allFeeTypes = [...new Set([...feeTypeOptions,...fees.filter(f=>f.academic_year===activeYear).map(f=>f.fee_type)])].sort()
   // Period labels filtered by selected fee type so bursar only sees relevant periods
   const feePeriodLabels = [...new Set(
     fees.filter(f=>f.academic_year===activeYear && (!bcp.fee_type || f.fee_type===bcp.fee_type) && f.period)
@@ -1310,6 +1470,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
           return {...f, paid: effectivePaid(f,paymentsSumByFee) + parseFloat(match.amount)}
         })
       }))
+      setFeeListReload(value=>value+1)
       auditLog(profile,'Fees','Bulk Payment Collected',
         `${bcp.fee_type} · ${selected.length} students · ${fmtMoney(selected.reduce((a,r)=>a+parseFloat(r.amount||0),0),currency)}`,{},{},{}
       )
@@ -1447,6 +1608,7 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
       toast('Period renamed, but linked fee records failed to sync to the new label: '+syncErr.message,'error')
     } else {
       setData(p=>({...p, fees:p.fees.map(f=>f.fee_period_id===editPeriodModal.id?{...f,period:editPeriodForm.label.trim()}:f)}))
+      setFeeListReload(value=>value+1)
       toast('Period updated')
     }
     auditLog(profile,'Fees','Period Edited',`${editPeriodModal.label} → ${editPeriodForm.label.trim()}`,{},{...editPeriodModal},{...editPeriodForm})
@@ -1475,10 +1637,10 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
           <Btn variant='ghost' onClick={exportFeesCsv}>Export CSV</Btn>
         )}
         {feeActiveTab==='fees' && !isViewingPast && canBulk && (
-          <Btn variant='secondary' onClick={()=>{ window.scrollTo({top:0,behavior:'smooth'}); setBulkModal(true);setBulkStep(1);setBulk(BULK_INIT)}}>Bulk Add Fee</Btn>
+          <Btn variant='secondary' onClick={openBulkAdd} disabled={ledgerLoading}>Bulk Add Fee</Btn>
         )}
         {feeActiveTab==='fees' && !isViewingPast && canBulk && (
-          <Btn variant='secondary' onClick={openBcpModal}>Bulk Collect Payment</Btn>
+          <Btn variant='secondary' onClick={openBulkCollect} disabled={ledgerLoading}>Bulk Collect Payment</Btn>
         )}
         {feeActiveTab==='recurring' && !isViewingPast && canBulk && selectedTemplate && (
           <Btn variant='secondary' onClick={()=>openBrpModal(selectedTemplate)}>⊞ Bulk Record Payment</Btn>
@@ -1491,6 +1653,8 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
         <button style={tabStyle(feeActiveTab==='recurring')} onClick={()=>setFeeActiveTab('recurring')}>Recurring</button>
         <button style={tabStyle(feeActiveTab==='history')}   onClick={()=>setFeeActiveTab('history')}>Payment History</button>
       </div>
+      {(feeActiveTab==='recurring'||feeActiveTab==='history') && ledgerLoading && <Card role='status' style={{marginBottom:16,padding:16,color:'var(--mist2)'}}>Loading fee and payment history…</Card>}
+      {(feeActiveTab==='recurring'||feeActiveTab==='history') && ledgerError && <Card role='alert' style={{marginBottom:16,padding:16,color:'var(--rose)'}}>{ledgerError} <Btn size='sm' variant='ghost' onClick={()=>ensureFeeLedger().catch(error=>toast(error?.message||'Retry failed.','error'))}>Try again</Btn></Card>}
 
       {/* ══════════════ FEES TAB ══════════════ */}
       {feeActiveTab==='fees' && (<>
@@ -1510,11 +1674,13 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
       </Card>
 
       <div className='daybook-kpi-grid' style={{display:'grid',gridTemplateColumns:`repeat(${overdueCount>0?5:4},minmax(0,1fr))`,gap:12,marginBottom:24}}>
-        <KPI label='Total Owed'      value={fmtMoney(totalOwed,currency)} color='var(--mist)'    sub={`${fPeriod||'All periods'} · ${fYear}`} index={0}/>
-        <KPI label='Collected'       value={fmtMoney(totalPaid,currency)} color='var(--emerald)' sub='Payments received' index={1}/>
-        <KPI label='Outstanding'     value={fmtMoney(totalOutstanding,currency)} color='var(--rose)' sub='Awaiting payment' index={2}/>
-        <KPI label='Collection Rate' value={`${collectionRate}%`} color='var(--gold)' sub='Of total owed' index={3}/>
-        {overdueCount>0 && <KPI label='Overdue' value={overdueCount} color='var(--rose)' sub='Past due date, unpaid' index={4}/>}
+        {feeSummaryUnavailable ? <div role='alert' style={{gridColumn:'1/-1',color:'var(--rose)',fontSize:12}}>Fee records are available, but their totals could not be verified. <Btn size='sm' variant='ghost' onClick={()=>setFeeListReload(value=>value+1)}>Try again</Btn></div> : <>
+        <KPI label='Total Owed'      value={feeSummaryLoading?'…':fmtMoney(totalOwed,currency)} color='var(--mist)'    sub={`${fPeriod||'All periods'} · ${fYear}`} index={0}/>
+        <KPI label='Collected'       value={feeSummaryLoading?'…':fmtMoney(totalPaid,currency)} color='var(--emerald)' sub='Payments received' index={1}/>
+        <KPI label='Outstanding'     value={feeSummaryLoading?'…':fmtMoney(totalOutstanding,currency)} color='var(--rose)' sub='Awaiting payment' index={2}/>
+        <KPI label='Collection Rate' value={feeSummaryLoading?'…':`${collectionRate}%`} color='var(--gold)' sub='Of total owed' index={3}/>
+        {!feeSummaryLoading && overdueCount>0 && <KPI label='Overdue' value={overdueCount} color='var(--rose)' sub='Past due date, unpaid' index={4}/>}
+        </>}
       </div>
 
       <Card className='daybook-filter-bar' style={{marginBottom:16,padding:'14px 20px'}}>
@@ -1539,6 +1705,14 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
       </Card>
 
       <Card>
+        {feeListLoading ? (
+          <div role='status' style={{padding:32,textAlign:'center',color:'var(--mist2)'}}>Loading fee records…</div>
+        ) : feeListError ? (
+          <div role='alert' style={{padding:24,textAlign:'center',color:'var(--rose)'}}>
+            <div>Fee records could not be loaded: {feeListError}</div>
+            <Btn size='sm' variant='ghost' style={{marginTop:10}} onClick={()=>setFeeListReload(value=>value+1)}>Try again</Btn>
+          </div>
+        ) : (
         <DataTable data={pagedFiltered} emptyTitle='No fee records match' emptyHint='Change the student, class, fee type, period or status filters.' columns={[
           {key:'student_name',label:'Student',render:(v,r)=>{const s=students.find(x=>x.id===r.student_id);return(<div style={{display:'flex',alignItems:'center',gap:10}}>{s&&<Avatar name={v} size={28}/>}<span style={{fontWeight:600}}>{v}</span></div>)}},
           {key:'fee_type',label:'Fee Type',render:(v,r)=>{const displayType=r.is_arrear?v.replace(/\s*\(Arrears from [^)]+\)/,''):v;return(<div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><span>{displayType}</span>{r.period&&<Badge color='var(--sky)' bg='rgba(91,168,245,0.08)'>{r.period}</Badge>}{r.is_arrear&&<Badge color='var(--amber)' bg='rgba(251,159,58,0.1)'>Arrear from {r.arrear_from_year}</Badge>}{r.isOverdue&&<Badge color='var(--rose)' bg='rgba(240,107,122,0.1)'>Overdue</Badge>}</div>)}},
@@ -1559,10 +1733,11 @@ export default function Fees({profile,data,setData,toast,settings,activeYear,cur
             </div>
           )},
         ]}/>
+        )}
         {filtered.length>0 && (
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderTop:'1px solid var(--line)',flexWrap:'wrap',gap:10}}>
             <span style={{fontSize:12,color:'var(--mist3)'}}>
-              Showing {feePage*FEE_PAGE_SIZE+1}-{Math.min(filtered.length,(feePage+1)*FEE_PAGE_SIZE)} of {filtered.length}
+              Showing {feePage*FEE_PAGE_SIZE+1}-{Math.min(feeRowCount,(feePage+1)*FEE_PAGE_SIZE)} of {feeRowCount}
             </span>
             <div style={{display:'flex',gap:8,alignItems:'center'}}>
               <Btn size='sm' variant='ghost' disabled={feePage===0} onClick={()=>setFeePage(p=>Math.max(0,p-1))}>&larr; Previous</Btn>

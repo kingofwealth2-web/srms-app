@@ -45,6 +45,23 @@ import Settings       from './modules/pages/Settings'
 import WhatsNew       from './modules/components/WhatsNew'
 import FeedbackButton from './modules/components/FeedbackButton'
 
+const fetchSupplementalTable = (table, profile, year) => {
+  const school = query => query.eq('school_id',profile.school_id)
+  if(table==='behaviour') return fetchAllRows(()=>school(supabase.from('behaviour').select('*')).eq('academic_year',year).order('id'))
+  if(table==='fee_templates') return fetchAllRows(()=>school(supabase.from('fee_templates').select('*')).eq('academic_year',year).order('id'))
+  if(table==='fee_periods') return fetchAllRows(()=>school(supabase.from('fee_periods').select('*')).eq('academic_year',year).order('id'))
+  if(table==='opening_balances') return fetchAllRows(()=>school(supabase.from('attendance_opening_balances').select('*')).eq('academic_year',year).order('id'))
+  if(table==='examScores') return fetchAllRows(()=>school(supabase.from('exam_scores').select('*')).eq('year',year).order('id'))
+  return Promise.resolve({data:[],error:null})
+}
+const SUPPLEMENTAL_BY_PAGE = {
+  students:['behaviour','opening_balances'],
+  fees:['fee_templates','fee_periods'],
+  behaviour:['behaviour'],
+  grades:['examScores'],
+  settings:['opening_balances'],
+}
+
 // ── FORCE PASSWORD CHANGE ──────────────────────────────────────
 function ForceChangePassword({ profile, onDone, onSignOut }) {
   const [newPass,setNewPass]   = useState('')
@@ -174,12 +191,13 @@ export default function App() {
   const [dataLoading,setDataLoading] = useState(false)
   // True while any deferred request is running; deferredPending tracks each
   // table separately so one slow request does not block an unrelated page.
-  const [deferredLoading,setDeferredLoading] = useState(true)
-  const [deferredPending,setDeferredPending] = useState(['attendance','fees','payments'])
+  const [deferredLoading,setDeferredLoading] = useState(false)
+  const [deferredPending,setDeferredPending] = useState(['fees','payments'])
   // Names of the deferred tables (fees/payments/attendance) whose last load
   // failed, so the pages that need them show a retry state instead of an empty
   // ledger. Cleared on a successful load.
   const [deferredError,setDeferredError] = useState(null)
+  const [supplementalStatus,setSupplementalStatus] = useState({})
   // Set when the profile lookup failed for a reason other than "no such row",
   // so the app can say the connection failed instead of showing a login page
   // to someone who is still perfectly well signed in.
@@ -204,6 +222,10 @@ export default function App() {
   // data (which on a Pro school's year switcher showed as fees "vanishing").
   // loadData / loadDeferred discard their results when their year != this.
   const wantedYear = useRef(null)
+  const loadedFeeDataKey = useRef(null)
+  const feeLedgerCache = useRef(null)
+  const supplementalCache = useRef(new Set())
+  const supplementalRequests = useRef(new Map())
   const planHook = usePlan(settings)
   const reloadSettings = useCallback(async () => {
     if (!profile?.school_id) return
@@ -251,29 +273,43 @@ export default function App() {
 
   const loadData = useCallback(async (yr, prof, settingsRow) => {
     const year = yr || currentYearFromSettings(settingsRow)
+    const loadStartedAt = performance.now()
     setDataLoading(true)
     try {
-    const TABLE_NAMES = ['students','classes','subjects','enrolments','users','grades','behaviour','announcements','fee_templates','fee_periods','opening_balances','examScores']
+    const TABLE_NAMES = ['students','classes','subjects','enrolments','users','grades','announcements']
+    const timedFetch = async (table, fetch) => {
+      const startedAt = performance.now()
+      const result = await fetch()
+      return {
+        ...result,
+        _timing: {
+          table,
+          ms: Math.round(performance.now() - startedAt),
+          rows: result.data?.length ?? 0,
+          error: result.error?.code || null,
+        },
+      }
+    }
     const results = await Promise.all([
       // Every one of these can pass PostgREST's default max-rows cap (1000) as a
       // school accumulates history or grows in size -- an unbounded select silently
       // returns only an arbitrary partial slice past that point instead of erroring,
       // so all of them are paginated via fetchAllRows rather than a single select.
       //
-      // fees, payments and attendance are NOT here -- see loadDeferred below.
-      fetchAllRows(() => supabase.from('students').select('*').eq('school_id', prof?.school_id).order('student_id')),
-      fetchAllRows(() => supabase.from('classes').select('*').eq('school_id', prof?.school_id).order('name')),
-      fetchAllRows(() => supabase.from('subjects').select('*').eq('school_id', prof?.school_id).order('name')),
-      fetchAllRows(() => supabase.from('student_year_enrolment').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
-      fetchAllRows(() => supabase.from('profiles').select('*').eq('school_id', prof?.school_id).order('id')),
-      fetchAllRows(() => supabase.from('grades').select('*').eq('school_id', prof?.school_id).eq('year', year).order('id')),
-      fetchAllRows(() => supabase.from('behaviour').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
-      fetchAllRows(() => supabase.from('announcements').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
-      fetchAllRows(() => supabase.from('fee_templates').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
-      fetchAllRows(() => supabase.from('fee_periods').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
-      fetchAllRows(() => supabase.from('attendance_opening_balances').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id')),
-      fetchAllRows(() => supabase.from('exam_scores').select('*').eq('school_id', prof?.school_id).eq('year', year).order('id')),
+      // Fees/payments and page-specific auxiliary tables load only when the
+      // relevant screen is opened.
+      timedFetch('students', () => fetchAllRows(() => supabase.from('students').select('*').eq('school_id', prof?.school_id).order('student_id'))),
+      timedFetch('classes', () => fetchAllRows(() => supabase.from('classes').select('*').eq('school_id', prof?.school_id).order('name'))),
+      timedFetch('subjects', () => fetchAllRows(() => supabase.from('subjects').select('*').eq('school_id', prof?.school_id).order('name'))),
+      timedFetch('enrolments', () => fetchAllRows(() => supabase.from('student_year_enrolment').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id'))),
+      timedFetch('users', () => fetchAllRows(() => supabase.from('profiles').select('*').eq('school_id', prof?.school_id).order('id'))),
+      timedFetch('grades', () => fetchAllRows(() => supabase.from('grades').select('*').eq('school_id', prof?.school_id).eq('year', year).order('id'))),
+      timedFetch('announcements', () => fetchAllRows(() => supabase.from('announcements').select('*').eq('school_id', prof?.school_id).eq('academic_year', year).order('id'))),
     ])
+    if (import.meta.env.DEV) {
+      console.info(`[SRMS] Initial school data loaded in ${Math.round(performance.now() - loadStartedAt)} ms`)
+      console.table(results.map(result => result._timing))
+    }
     const failures = results
       .map((r, i) => ({ table: TABLE_NAMES[i], error: r.error }))
       .filter(f => f.error)
@@ -291,10 +327,7 @@ export default function App() {
 
     const [
       { data: students }, { data: classes }, { data: subjects },
-      { data: enrolments }, { data: users },
-      { data: grades }, { data: behaviour }, { data: announcements },
-      { data: feeTemplates }, { data: feePeriods }, { data: openingBalances },
-      { data: examScores },
+      { data: enrolments }, { data: users }, { data: grades }, { data: announcements },
     ] = results
 
     // Drop a stale response: the user switched year while this was in flight,
@@ -311,14 +344,9 @@ export default function App() {
       classes:       classes       || prev.classes       || [],
       subjects:      subjects      || prev.subjects       || [],
       grades:        grades        || prev.grades         || [],
-      behaviour:     behaviour     || prev.behaviour      || [],
       announcements: announcements || prev.announcements  || [],
       enrolments:    enrolments    || prev.enrolments     || [],
       users:         users         || prev.users          || [],
-      fee_templates: feeTemplates  || prev.fee_templates  || [],
-      fee_periods:   feePeriods    || prev.fee_periods    || [],
-      opening_balances: openingBalances || prev.opening_balances || [],
-      examScores:    examScores    || prev.examScores     || [],
     }))
     } finally {
       // Only clear the spinner if this is still the year being shown, so a stale
@@ -335,16 +363,17 @@ export default function App() {
   // totals of zero.
   const loadDeferred = useCallback(async (yr, prof, settingsRow) => {
     const year = yr || currentYearFromSettings(settingsRow)
-    if (!prof?.school_id) return
+    if (!prof?.school_id) return null
+    const dataKey = `${prof.school_id}:${year}`
+    if (loadedFeeDataKey.current === dataKey) return feeLedgerCache.current
     setDeferredLoading(true)
-    setDeferredPending(['attendance','fees','payments'])
+    setDeferredPending(['fees','payments'])
     setDeferredError(null)
     try {
-      // These three are the heaviest queries (≈92% of the payload) and the ones
-      // most likely to fail on a slow/flaky connection. A single failure used to
-      // leave the list empty until a manual reload -- which read as fee records
-      // "vanishing". Retry each a few times before giving up so a transient blip
-      // recovers on its own.
+      // The fee ledger is loaded only when opened. Attendance and report pages
+      // use bounded queries and database summaries instead of full-year tables.
+      // Retry transient errors, but never load this ledger in the background on
+      // every sign-in when the user may not open Fees at all.
       const withRetry = async (factory, tries = 3, delayMs = 1200) => {
         let res
         for (let i = 0; i < tries; i++) {
@@ -357,26 +386,34 @@ export default function App() {
         return res
       }
       const tasks = [
-        ['attendance', () => fetchAllRows(() => supabase.from('attendance').select('*').eq('school_id', prof.school_id).eq('academic_year', year).order('id'))],
         ['fees', () => fetchAllRowsByCursor(() => supabase.from('fees').select('*').eq('school_id', prof.school_id).eq('academic_year', year))],
         ['payments', () => fetchAllRowsByCursor(() => supabase.from('payments').select('*').eq('school_id', prof.school_id).eq('academic_year', year))],
       ]
+      let hasFailures = false
+      const ledger = {}
       await Promise.all(tasks.map(async ([name, factory]) => {
         const result = await withRetry(factory)
         // Drop a stale response: user switched year while this was loading.
         if (wantedYear.current !== null && year !== wantedYear.current) return
         if (result.error) {
+          hasFailures = true
           console.error(`Failed to load ${name}:`, result.error.message)
           setDeferredError(prev => [...new Set([...(prev || []), name])])
           showToast(`Couldn't load ${name} -- tap Try again on the page.`, 'error')
         } else {
+          ledger[name] = result.data || []
           setData(prev => ({ ...prev, [name]: result.data || [] }))
           setDeferredError(prev => prev?.filter(item => item !== name) || null)
         }
-        // Release pages as soon as their own data has arrived. A slow attendance
-        // request must not keep Fees behind a full-page loader (and vice versa).
         setDeferredPending(prev => prev.filter(item => item !== name))
       }))
+      if (wantedYear.current !== null && year !== wantedYear.current) return null
+      if (!hasFailures) {
+        feeLedgerCache.current = { fees: ledger.fees || [], payments: ledger.payments || [] }
+        loadedFeeDataKey.current = dataKey
+        return feeLedgerCache.current
+      }
+      return null
     } finally {
       if (wantedYear.current === null || year === wantedYear.current) setDeferredLoading(false)
     }
@@ -387,6 +424,8 @@ export default function App() {
   const retryDeferred = useCallback(() => {
     if (!profile?.school_id || !settings) return
     setDeferredError(null)
+    loadedFeeDataKey.current = null
+    feeLedgerCache.current = null
     loadDeferred(selectedYear, profile, settings)
   }, [loadDeferred, profile, settings, selectedYear])
 
@@ -454,12 +493,18 @@ export default function App() {
 
       if (resolvedProf?.school_id) {
         wantedYear.current = selectedYear || currentYearFromSettings(settingsRow)
-        await loadData(selectedYear, resolvedProf, settingsRow)
         lastLoadedYear.current = selectedYear
-        // Deliberately not awaited -- this is the point of deferring it. The app
-        // paints as soon as the core tables are in, and the heavy three arrive
-        // behind it.
-        loadDeferred(selectedYear, resolvedProf, settingsRow)
+        // Show the dashboard as soon as identity and school settings are ready.
+        // Its KPIs have their own loading states; the roster and other school
+        // tables can continue loading without holding the entire app behind a
+        // full-screen spinner.
+        initialLoadDone.current = true
+        setLoading(false)
+        loadData(selectedYear, resolvedProf, settingsRow).catch(error => {
+          console.error('Initial school data load failed:', error?.message || error)
+          showToast('Some school data could not be loaded. Please refresh and try again.', 'error')
+        })
+        return
       }
       initialLoadDone.current = true
       setLoading(false)
@@ -482,8 +527,14 @@ export default function App() {
     if (selectedYear === lastLoadedYear.current) return
     lastLoadedYear.current = selectedYear
     wantedYear.current = selectedYear || currentYearFromSettings(settings)
-    loadData(selectedYear, profile, settings).then(() => loadDeferred(selectedYear, profile, settings))
-  }, [selectedYear, loadData, loadDeferred, profile, settings])
+    loadedFeeDataKey.current = null
+    feeLedgerCache.current = null
+    setData(prev => ({...prev,fees:[],payments:[]}))
+    setData(prev => ({...prev,behaviour:[],fee_templates:[],fee_periods:[],opening_balances:[],examScores:[]}))
+    setDeferredPending(['fees','payments'])
+    setDeferredError(null)
+    loadData(selectedYear, profile, settings)
+  }, [selectedYear, loadData, profile, settings])
 
   const logout = async () => {
     await supabase.auth.signOut()
@@ -532,6 +583,39 @@ export default function App() {
 
   const currentYear   = settings ? currentYearFromSettings(settings) : ''
   const activeYear    = selectedYear || currentYear
+  const loadCurrentFeeLedger = useCallback(() => loadDeferred(activeYear, profile, settings), [loadDeferred,activeYear,profile,settings])
+
+  const loadSupplemental = useCallback(async (tables, force=false) => {
+    if(!profile?.school_id||!activeYear||!tables?.length) return
+    const jobs=tables.map(async table=>{
+      const key=`${profile.school_id}:${activeYear}:${table}`
+      if(!force&&supplementalCache.current.has(key)) return
+      if(supplementalRequests.current.has(key)) return supplementalRequests.current.get(key)
+      setSupplementalStatus(prev=>({...prev,[key]:{state:'loading'}}))
+      const request=fetchSupplementalTable(table,profile,activeYear).then(result=>{
+        if(result.error) throw result.error
+        if(wantedYear.current!==null&&activeYear!==wantedYear.current) return
+        setData(prev=>({...prev,[table]:result.data||[]}))
+        supplementalCache.current.add(key)
+        setSupplementalStatus(prev=>({...prev,[key]:{state:'loaded'}}))
+      }).catch(error=>{
+        setSupplementalStatus(prev=>({...prev,[key]:{state:'error',message:error?.message||'Request failed'}}))
+        throw error
+      }).finally(()=>supplementalRequests.current.delete(key))
+      supplementalRequests.current.set(key,request)
+      return request
+    })
+    const results=await Promise.allSettled(jobs)
+    const errors=results.filter(result=>result.status==='rejected')
+    if(errors.length) {
+      console.error('Page data load failed:',errors.map(result=>result.reason?.message||result.reason).join('; '))
+      showToast('Some records for this page could not be loaded. Please try again.','error')
+    }
+  },[profile?.school_id,activeYear,showToast])
+  useEffect(()=>{
+    const tables=SUPPLEMENTAL_BY_PAGE[page]
+    if(tables?.length) loadSupplemental(tables)
+  },[page,activeYear,profile?.school_id,loadSupplemental])
 
   // The only valid next year is the one immediately after the current one --
   // auto-fill it whenever the modal opens so there's no dropdown of several
@@ -668,7 +752,7 @@ export default function App() {
   }
   // ─────────────────────────────────────────────────────────────────
 
-  const props = { profile, data: displayData, setData, toast: showToast, settings, activeYear, currentYear, isViewingPast, deferredPending, onAcademicYearChange: year => setSelectedYear(year===currentYear?null:year), reloadData: () => loadData(activeYear, profile, settings), onShowPlans: () => setShowPlans(true), reloadSettings }
+  const props = { profile, data: displayData, setData, toast: showToast, settings, activeYear, currentYear, isViewingPast, dataLoading, deferredPending, loadFeeLedger: loadCurrentFeeLedger, onAcademicYearChange: year => setSelectedYear(year===currentYear?null:year), reloadData: () => loadData(activeYear, profile, settings), onShowPlans: () => setShowPlans(true), reloadSettings }
 
   const renderPage = () => {
     const allowedPages = NAV_ITEMS[profile?.role] || []
@@ -678,12 +762,17 @@ export default function App() {
     // would render counts filtered down to zero. Show that we are fetching
     // instead of showing numbers that are wrong. My Profile is exempt -- it
     // reads only the profile, which a year switch never touches.
-    if (dataLoading && safePage !== 'myprofile') {
+    if (dataLoading && safePage !== 'myprofile' && safePage !== 'dashboard') {
       return <PageSkeleton label={`Loading ${activeYear} records`}/>
     }
+    const pageSupplemental=SUPPLEMENTAL_BY_PAGE[safePage]||[]
+    const supplementalKeys=pageSupplemental.map(table=>`${profile?.school_id}:${activeYear}:${table}`)
+    const supplementalFailure=supplementalKeys.map(key=>supplementalStatus[key]).find(status=>status?.state==='error')
+    if(supplementalFailure) return <LoadErrorScreen msg="Couldn't load this page's records." onRetry={()=>loadSupplemental(pageSupplemental,true)} retrying={supplementalKeys.some(key=>supplementalStatus[key]?.state==='loading')} height='60vh'/>
+    if(pageSupplemental.length&&supplementalKeys.some(key=>supplementalStatus[key]?.state!=='loaded')) return <PageSkeleton label={`Loading ${safePage} records`}/>
     // Detailed pages wait only for the tables they require. Dashboard renders
     // immediately and marks its still-loading KPIs instead of hiding the page.
-    const PAGE_NEEDS = { dashboard: [], fees: ['fees','payments'], attendance: ['attendance'], reports: ['fees','payments','attendance'] }
+    const PAGE_NEEDS = { dashboard: [], fees: [], attendance: [], reports: [] }
     const needed = PAGE_NEEDS[safePage]
     if (needed?.some(table => deferredPending.includes(table))) {
       const msg = safePage === 'fees' ? 'Loading fee records...'

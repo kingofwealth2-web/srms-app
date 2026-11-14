@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useIsMobile } from '../lib/hooks'
 import { ROLE_META, STATUS_META } from '../lib/constants'
-import { fmtDate, fullName, getHolidayOnDate, getVacationOnDate } from '../lib/helpers'
+import { fmtDate, fullName, getHolidayOnDate, getVacationOnDate, fetchAllRowsByCursor } from '../lib/helpers'
 import { auditLog } from '../lib/auditLog'
 import Avatar from '../components/Avatar'
 import Badge from '../components/Badge'
@@ -19,8 +19,8 @@ import Select from '../components/Select'
 import DatePicker from '../components/DatePicker'
 
 // ── ATTENDANCE ─────────────────────────────────────────────────
-export default function Attendance({profile,data,setData,toast,settings,activeYear,isViewingPast}) {
-  const {attendance=[],students=[],classes=[]} = data
+export default function Attendance({profile,data,toast,settings,activeYear,isViewingPast}) {
+  const {students=[],classes=[]} = data
   const today = new Date().toISOString().split('T')[0]
   const [date,setDate]     = useState(today)
   const [cid,setCid]       = useState(profile?.role==='classteacher'?profile.class_id:'')
@@ -35,6 +35,12 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   }, [profile?.role, profile?.class_id])
   const [tab,setTab]       = useState('mark')
   const [saving,setSaving] = useState(false)
+  const [savedDayRows,setSavedDayRows] = useState([])
+  const [historyRows,setHistoryRows] = useState([])
+  const [historyCursor,setHistoryCursor] = useState(null)
+  const [historyHasMore,setHistoryHasMore] = useState(false)
+  const [historyLoading,setHistoryLoading] = useState(false)
+  const [historyError,setHistoryError] = useState(false)
   const [confirmState,setConfirmState] = useState(null)
   const [pendingMarks,setPendingMarks] = useState({})
   const [hasUnsaved,setHasUnsaved] = useState(false)
@@ -51,8 +57,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
   const myClasses = profile?.role==='classteacher' ? classes.filter(c=>c.id===profile.class_id) : classes
   const cls = myClasses.find(c=>c.id===cid)
   const classStudents = cls ? students.filter(s=>s.class_id===cls.id) : []
-  const yearAttendance = attendance.filter(a=>a.academic_year===activeYear)
-  const savedRecs = yearAttendance.filter(a=>a.date===date&&a.class_id===cid)
+  const savedRecs = savedDayRows
   const getSavedStatus = sid => savedRecs.find(r=>r.student_id===sid)?.status||''
   const getStatus = sid => pendingMarks[sid] !== undefined ? pendingMarks[sid] : getSavedStatus(sid)
   const alreadyMarkedToday = date===today && savedRecs.length>0 && Object.keys(pendingMarks).length===0
@@ -69,6 +74,83 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
     : holidayName
     ? { icon: '🎉', title: 'Public Holiday', sub: holidayName, color: 'var(--emerald)', bg: 'rgba(45,212,160,0.06)', border: 'rgba(45,212,160,0.2)' }
     : null
+
+  // Marking only needs one class/day. Pull that small slice instead of loading
+  // every attendance row for the school year into the app shell.
+  useEffect(() => {
+    let cancelled = false
+    setSavedDayRows([])
+    if (!profile?.school_id || !cid || !date) return () => { cancelled = true }
+    supabase.from('attendance')
+      .select('id,school_id,student_id,class_id,date,status,academic_year,period')
+      .eq('school_id',profile.school_id).eq('academic_year',activeYear)
+      .eq('class_id',cid).eq('date',date)
+      .then(({data:rows,error}) => {
+        if (cancelled) return
+        if (error) {
+          console.error('Attendance day load failed:',error.message)
+          toast('Could not load this class attendance. Please try again.','error')
+        } else setSavedDayRows(rows||[])
+      })
+    return () => { cancelled = true }
+  },[profile?.school_id,cid,date,activeYear,toast])
+
+  // History is requested only when the History tab is opened. Keep each request
+  // bounded to 500 rows and continue with a date/id keyset when the user asks.
+  useEffect(() => {
+    if (tab !== 'history' || !profile?.school_id) return
+    let cancelled = false
+    setHistoryRows([])
+    setHistoryCursor(null)
+    setHistoryHasMore(false)
+    setHistoryError(false)
+    setHistoryLoading(true)
+    let query = supabase.from('attendance')
+      .select('id,school_id,student_id,class_id,date,status,academic_year,period')
+      .eq('school_id',profile.school_id).eq('academic_year',activeYear)
+    if (cid) query = query.eq('class_id',cid)
+    query.order('date',{ascending:false}).order('id',{ascending:false}).limit(501)
+      .then(({data:rows,error}) => {
+        if (cancelled) return
+        if (error) {
+          console.error('Attendance history load failed:',error.message)
+          setHistoryError(true)
+          return
+        }
+        const page = rows||[]
+        const hasMore = page.length > 500
+        const visible = page.slice(0,500)
+        setHistoryRows(visible)
+        setHistoryHasMore(hasMore)
+        setHistoryCursor(visible.length ? visible[visible.length-1] : null)
+      }).finally(() => { if (!cancelled) setHistoryLoading(false) })
+    return () => { cancelled = true }
+  },[tab,profile?.school_id,activeYear,cid])
+
+  const loadOlderAttendance = async () => {
+    if (!profile?.school_id || !historyCursor || historyLoading) return
+    setHistoryLoading(true)
+    try {
+      let query = supabase.from('attendance')
+        .select('id,school_id,student_id,class_id,date,status,academic_year,period')
+        .eq('school_id',profile.school_id).eq('academic_year',activeYear)
+        .or(`date.lt.${historyCursor.date},and(date.eq.${historyCursor.date},id.lt.${historyCursor.id})`)
+      if (cid) query = query.eq('class_id',cid)
+      const {data:rows,error} = await query.order('date',{ascending:false}).order('id',{ascending:false}).limit(501)
+      if (error) throw error
+      const page = rows||[]
+      const hasMore = page.length > 500
+      const visible = page.slice(0,500)
+      setHistoryRows(prev=>[...prev,...visible])
+      setHistoryHasMore(hasMore)
+      setHistoryCursor(visible.length ? visible[visible.length-1] : historyCursor)
+      setHistoryError(false)
+    } catch(error) {
+      console.error('Older attendance load failed:',error.message)
+      setHistoryError(true)
+      toast('Could not load older attendance. Please try again.','error')
+    } finally { setHistoryLoading(false) }
+  }
 
   const changeContext = (newCid, newDate) => {
     if(hasUnsaved) {
@@ -108,7 +190,7 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
         .upsert(allMarks, {onConflict:'school_id,class_id,date,student_id'})
         .select()
       if(upErr) throw upErr
-      setData(p=>({...p,attendance:[...p.attendance.filter(a=>!(a.class_id===cid&&a.date===date)),...(rows||[])]}))
+      setSavedDayRows(rows||[])
       setPendingMarks({})
       setHasUnsaved(false)
       auditLog(profile,'Attendance','Marked',`${cls?.name} · ${period} · ${date} · ${allMarks.length} students`,{class:cls?.name,period,date,count:allMarks.length},null,null)
@@ -121,20 +203,28 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
 
   const statuses = ['Present','Absent']
   const counts = statuses.reduce((acc,s)=>({...acc,[s]:classStudents.filter(st=>getStatus(st.id)===s).length}),{})
-  const histRecs = yearAttendance.filter(a=>!cid||a.class_id===cid).sort((a,b)=>b.date.localeCompare(a.date))
+  const histRecs = historyRows
 
-  const exportAttendanceCsv = () => {
+  const exportAttendanceCsv = async () => {
     try{
       if(tab!=='history'){
         toast('Switch to the History tab to export attendance.','error'); return
       }
-      if(histRecs.length===0){ toast('No attendance records to export','error'); return }
+      if(histRecs.length===0 && !historyHasMore){ toast('No attendance records to export','error'); return }
       const esc = v => {
         if(v===null||v===undefined) return ''
         return String(v).replace(/"/g,'""')
       }
+      const allRecords = await fetchAllRowsByCursor(() => {
+        let query = supabase.from('attendance')
+          .select('id,school_id,student_id,class_id,date,status,academic_year,period')
+          .eq('school_id',profile.school_id).eq('academic_year',activeYear)
+        if (cid) query = query.eq('class_id',cid)
+        return query
+      })
+      if(allRecords.error) throw allRecords.error
       let csv = 'Date,Term,Class,Student ID,Student,Status\n'
-      histRecs.forEach(r=>{
+      ;(allRecords.data||[]).sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{
         const cls = classes.find(c=>c.id===r.class_id)
         const s   = students.find(st=>st.id===r.student_id)
         csv += `"${esc(r.date)}","${esc(r.period)}","${esc(cls?.name)}","${esc(s?.student_id)}","${esc(s?`${s.first_name} ${s.last_name}`:'')}","${esc(r.status)}"\n`
@@ -281,14 +371,17 @@ export default function Attendance({profile,data,setData,toast,settings,activeYe
         </div>
       ) : (
         <Card>
-          {histRecs.length>500&&<div style={{padding:'8px 14px',background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--amber)',marginBottom:12}}>⚠ Showing the 500 most recent records. Export CSV to access the full history.</div>}
-          <DataTable data={histRecs.slice(0,500)} emptyTitle='No attendance history found' emptyHint='Attendance records will appear here after they are saved.' columns={[
+          {historyHasMore&&<div style={{padding:'8px 14px',background:'rgba(251,159,58,0.08)',border:'1px solid rgba(251,159,58,0.2)',borderRadius:'var(--r-sm)',fontSize:12,color:'var(--amber)',marginBottom:12}}>Showing the newest records first. Load older records as needed; CSV export includes the full history.</div>}
+          {historyError&&<div role='alert' style={{padding:'10px 14px',color:'var(--rose)'}}>Attendance history could not be loaded. Please retry.</div>}
+          {historyLoading&&histRecs.length===0&&<div style={{padding:24,textAlign:'center'}}><Spinner/> Loading attendance history…</div>}
+          <DataTable data={histRecs} emptyTitle='No attendance history found' emptyHint='Attendance records will appear here after they are saved.' columns={[
             {key:'date',label:'Date',render:v=>fmtDate(v)},
             {key:'period',label:'Term',render:v=>v||'--'},
             {key:'class_id',label:'Class',render:v=>classes.find(c=>c.id===v)?.name||'--'},
             {key:'student_id',label:'Student',render:v=>{const s=students.find(x=>x.id===v);return s?fullName(s,true):'--'}},
             {key:'status',label:'Status',render:v=><Badge color={STATUS_META[v]?.color} bg={STATUS_META[v]?.bg}>{v}</Badge>},
           ]}/>
+          {historyHasMore&&<div style={{display:'flex',justifyContent:'center',padding:14}}><Btn variant='ghost' onClick={loadOlderAttendance} disabled={historyLoading}>{historyLoading?<><Spinner/> Loading older records…</>:'Load older records'}</Btn></div>}
         </Card>
       )}
       {confirmState && <ConfirmModal {...confirmState} onClose={()=>setConfirmState(null)}/>}
