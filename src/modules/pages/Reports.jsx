@@ -190,11 +190,9 @@ export default function Reports({profile,data,setData,settings,activeYear,curren
     const scoredSubjectCount = Object.keys(subjectScores).length
     return {...s, subjectScores, total, avg, remark, trend, count:sg.length, scoredSubjectCount, letter:avg!==null?getLetter(avg,scale):'--', pass:isPassing(avg,scale)}
   })
-  // Rank by average (not raw summed total) so a partially-graded student isn't
-  // penalized against a fully-graded one just for having fewer subjects added up;
-  // students with no grades at all are excluded from ranking, not sorted to last.
-  const rankedAcademic = rankByTotal(academicData, 'avg')
-  // If single student, show their rank in class (same avg-based ranking as the
+  // Rank by summed total; students with no grades are left unranked.
+  const rankedAcademic = rankByTotal(academicData, 'total')
+  // If single student, show their rank in class (same total-based ranking as the
   // main class table, so a single-student view and the class view never disagree)
   const studentRankInClass = selectedStudent
     ? (() => {
@@ -202,10 +200,10 @@ export default function Reports({profile,data,setData,settings,activeYear,curren
         const allAcad = classStudents.map(s=>{
           const sg=grades.filter(g=>g.student_id===s.id&&(!fp||g.period===fp))
           const tots=sg.map(g=>calcTotal(g,gradeComps))
-          const avg=tots.length?Math.round(tots.reduce((a,b)=>a+b,0)/tots.length):null
-          return {id:s.id,avg}
+          const total=tots.length?tots.reduce((a,b)=>a+b,0):null
+          return {id:s.id,total}
         })
-        const ranked = rankByTotal(allAcad, 'avg')
+        const ranked = rankByTotal(allAcad, 'total')
         return ranked.find(s=>s.id===selectedStudent.id)?.position||null
       })()
     : null
@@ -293,7 +291,7 @@ export default function Reports({profile,data,setData,settings,activeYear,curren
             const total=tots.length?tots.reduce((a,b)=>a+b,0):null
             const avg=tots.length?Math.round(total/tots.length):null
             return {...s,scores,total,avg,letter:avg!==null?getLetter(avg,scale):'--',remark:avg!==null?getGradeRemark(avg,scale):'',pass:isPassing(avg,scale)}
-          }), 'avg')
+          }), 'total')
         csv='Position,Student ID,Student,'+rcClassSubjects.map(s=>`"${csvEscape(s.name)}"`).join(',')+',Total,Average,Grade,Remark,Status\n'
         rcRanked.forEach(s=>{
           csv+=`${s.position!==null?ordinal(s.position):'--'},"${csvEscape(s.student_id)}","${csvEscape(fullName(s))}",`
@@ -860,15 +858,13 @@ function ReportCards({profile,data,setData,settings,activeYear,isViewingPast,isH
   const activeGetStudentTotal = gradeSource==='exam' ? getStudentExamTotal : getStudentTotal
   const activeGetScoredCount  = gradeSource==='exam' ? getExamScoredCount : getStudentScoredCount
 
-  // Ranked by average (not raw total) so a student missing a subject's grade
-  // isn't penalized against a fully-graded classmate -- same logic and helper
-  // as the main Academic tab, so the two never disagree.
+  // Rank by summed total across scored subjects, matching the Academic tab.
   const rankedStudents = rankByTotal(classStudents.map(s=>{
     const total = activeGetStudentTotal(s.id)
     const scoredSubjectCount = activeGetScoredCount(s.id)
     const avg = total!==null && scoredSubjectCount>0 ? total/scoredSubjectCount : null
     return {...s, total, avg, scoredSubjectCount}
-  }), 'avg')
+  }), 'total')
   const incompleteCount = classSubjects.length>0
     ? rankedStudents.filter(s=>s.scoredSubjectCount<classSubjects.length).length
     : 0

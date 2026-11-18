@@ -113,7 +113,7 @@ const CHANGELOG = [
       {
         icon: '🧮',
         title: 'Grading improvements',
-        description: 'The "Classwork" component is now called "Class Score". Students are ranked by their average, so a pupil missing one subject\'s grade isn\'t unfairly pushed down, and your pass mark follows the grading scale you set. Classes now list in school order everywhere — KG before Basic, and Basic 2 before Basic 10.',
+        description: 'The "Classwork" component is now called "Class Score". Pass marks follow the grading scale you set. Classes list in school order everywhere — KG before Basic, and Basic 2 before Basic 10.',
         howto: 'Settings → Grade Components / Grading Scale',
       },
       {

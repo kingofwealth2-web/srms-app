@@ -178,22 +178,16 @@ export const isPassing = (score, scale) => {
   return score > lowest.max
 }
 
-// Ranks by average (not raw summed total) so a student who's missing a grade
-// in one subject isn't penalized against a fully-graded classmate just for
-// having fewer numbers added up -- avg-rank and sum-rank agree once every
-// student has a score for every subject, so this only changes anything during
-// the "still entering grades" window, which is exactly when it was wrong.
-// Students with no `avgKey` value at all are excluded from the ranking
-// entirely (position: null) rather than being sorted to the bottom as if
-// they'd scored zero.
-export function rankByTotal(items, avgKey = 'avg') {
-  const graded = items.filter(s => s[avgKey] !== null && s[avgKey] !== undefined)
-  const ungraded = items.filter(s => s[avgKey] === null || s[avgKey] === undefined)
-  graded.sort((a, b) => b[avgKey] - a[avgKey])
+// Ranks by the supplied score field, highest first. Students without a score
+// are excluded from ranking (position: null) rather than treated as zero.
+export function rankByTotal(items, scoreKey = 'total') {
+  const graded = items.filter(s => s[scoreKey] !== null && s[scoreKey] !== undefined)
+  const ungraded = items.filter(s => s[scoreKey] === null || s[scoreKey] === undefined)
+  graded.sort((a, b) => b[scoreKey] - a[scoreKey])
   let lastScore = null, lastRank = 0, seen = 0
   const ranked = graded.map(s => {
     seen++
-    if (lastScore === null || s[avgKey] !== lastScore) { lastRank = seen; lastScore = s[avgKey] }
+    if (lastScore === null || s[scoreKey] !== lastScore) { lastRank = seen; lastScore = s[scoreKey] }
     return { ...s, position: lastRank }
   })
   return [...ranked, ...ungraded.map(s => ({ ...s, position: null }))]
